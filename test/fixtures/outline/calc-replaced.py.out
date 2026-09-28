@@ -1,0 +1,8 @@
+class Calc 28 32 0 390
+def mul 97 100 18 146
+def div 248 251 0 126
+def neg 379 382 0 37
+def top 417 420 0 29
+str - 0 19
+str - 38 69
+str - 116 199
