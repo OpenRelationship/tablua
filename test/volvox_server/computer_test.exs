@@ -407,4 +407,35 @@ defmodule VolvoxServer.ComputerTest do
 
     assert %{code: 0, out: "saved False False\n"} = sh(c, "python a.py")
   end
+
+  @tag timeout: 120_000
+  test "clang builds C and C++ inside the computer, step by step, leaving nothing in /tmp" do
+    c = id()
+    disk = :sys.get_state(Computer.wake!(c)).disk
+
+    :ok =
+      VolvoxServer.Computer.Disk.write(
+        disk,
+        "/home/hello.c",
+        "#include <stdio.h>\n#include <math.h>\nint main(void) { printf(\"%.3f\\n\", sqrt(2.0)); return 4; }\n"
+      )
+
+    :ok =
+      VolvoxServer.Computer.Disk.write(
+        disk,
+        "/home/hi.cc",
+        "#include <iostream>\n#include <vector>\nint main() { std::vector<int> v{1, 2, 3}; int s = 0; for (int x : v) s += x; std::cout << s << std::endl; }\n"
+      )
+
+    assert %{code: 0} = sh(c, "clang -O2 hello.c -o hello.wasm -lm")
+    assert %{code: 4, out: "1.414\n"} = sh(c, "./hello.wasm")
+    assert %{code: 0} = sh(c, "clang++ -O2 hi.cc -o hi.wasm")
+    assert %{code: 0, out: "6\n"} = sh(c, "./hi.wasm")
+    assert %{out: ""} = sh(c, "ls /tmp")
+
+    assert %{code: 1, err: err} =
+             sh(c, "echo 'int main(void) { return x; }' > bad.c && clang bad.c")
+
+    assert err =~ "use of undeclared identifier 'x'"
+  end
 end

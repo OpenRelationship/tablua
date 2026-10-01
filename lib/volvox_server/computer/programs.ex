@@ -9,12 +9,15 @@ defmodule VolvoxServer.Computer.Programs do
   (config `programs:`): `js.wasm` (QuickJS-ng), `python.wasm` (CPython),
   `sqlite3.wasm`, `lua.wasm`, `cc.wasm` (xcc). A name with no module is `:unknown`.
   """
-  alias VolvoxServer.Computer.{Files, Wasi}
+  alias VolvoxServer.Computer.{Clang, Disk, Files, Wasi}
 
   @memory 512 * 1024 * 1024
   @timeout 120_000
   @table :computer_modules
   @own 64
+
+  # names another program's module answers to, by its first argument
+  @as %{"clang++" => "clang", "wasm-ld" => "clang"}
 
   def names do
     dir()
@@ -26,6 +29,7 @@ defmodule VolvoxServer.Computer.Programs do
       _ ->
         []
     end
+    |> then(fn have -> have ++ for({a, of} <- @as, of in have, do: a) end)
     |> Enum.sort()
   end
 
@@ -38,15 +42,31 @@ defmodule VolvoxServer.Computer.Programs do
   @doc "Compiles every program at boot, side by side, so no agent's first command waits on it."
   def warm do
     names()
+    |> Enum.map(&Map.get(@as, &1, &1))
+    |> Enum.uniq()
     |> Task.async_stream(&compiled/1, timeout: :infinity, ordered: false)
     |> Stream.run()
   end
 
   def run(name, args, stdin, disk, env \\ %{}) do
     env = Map.merge(Map.get(@env, name, %{}), env)
-    args = given(name, args)
-    with {:ok, module} <- compiled(name), do: start(module, [name | args], stdin, disk, env)
+    exec = fn argv0, args -> exec(argv0, args, stdin, disk, env) end
+
+    cond do
+      name in ["clang", "clang++"] and has?("clang") ->
+        Clang.run(name, args, exec, fn paths -> Enum.each(paths, &Disk.remove(disk, &1)) end)
+
+      true ->
+        exec.(name, given(name, args))
+    end
   end
+
+  defp exec(argv0, args, stdin, disk, env) do
+    with {:ok, module} <- compiled(Map.get(@as, argv0, argv0)),
+         do: start(module, [argv0 | args], stdin, disk, env)
+  end
+
+  defp has?(name), do: File.regular?(Path.join(dir(), name <> ".wasm"))
 
   # Zig's wasm backend cannot build compiler_rt itself: the prebuilt one is linked in, and no entry is added
   # (std's start code exports _start), as zigtools' playground runs it

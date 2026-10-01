@@ -81,6 +81,7 @@ defmodule VolvoxServer.Computer do
     with :ok <- pull(id, path),
          {:ok, disk} <- Disk.open(path) do
       :ok = Disk.mkdir_p(disk, "/home")
+      :ok = Disk.mkdir_p(disk, "/tmp")
       idle = opts[:idle_ms] || Application.get_env(:volvox_server, :idle_ms, 300_000)
       Process.send_after(self(), :idle, idle)
       kept = Disk.kept(disk, "session", %{})

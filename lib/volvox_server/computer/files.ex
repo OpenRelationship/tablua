@@ -248,7 +248,7 @@ defmodule VolvoxServer.Computer.Files do
     case fd(n) do
       nil -> @ebadf
       %{kind: :dir, path: p} -> stat_path(ctx, disk, p, out)
-      %{kind: :file} = f -> filestat(ctx, out, @regular, byte_size(f.data), 0)
+      %{kind: :file} = f -> filestat(ctx, out, @regular, byte_size(f.data), 0, ino(f.path))
       f -> filestat(ctx, out, type(f), 0, 0)
     end
   end
@@ -329,7 +329,8 @@ defmodule VolvoxServer.Computer.Files do
           out,
           if(s.dir, do: @folder, else: @regular),
           s.size,
-          s.mtime * 1_000_000_000
+          s.mtime * 1_000_000_000,
+          ino(path)
         )
 
       {:error, e} ->
@@ -337,13 +338,20 @@ defmodule VolvoxServer.Computer.Files do
     end
   end
 
-  def filestat(ctx, out, type, size, mtime) do
+  def filestat(ctx, out, type, size, mtime, ino \\ 0) do
     write(
       ctx,
       out,
-      <<0::64, 0::64, type::8, 0::56, 1::little-64, size::little-64, mtime::little-64,
+      <<0::64, ino::little-64, type::8, 0::56, 1::little-64, size::little-64, mtime::little-64,
         mtime::little-64, mtime::little-64>>
     ) && @ok
+  end
+
+  # a path's inode: its own number, the same every time, since programs tell files and folders apart by it
+  # (clang drops a header folder whose inode matches one it already searches)
+  defp ino(path) do
+    <<n::64, _::binary>> = :crypto.hash(:md5, :erlang.term_to_binary(path))
+    n
   end
 
   defp type(%{kind: :dir}), do: @folder
