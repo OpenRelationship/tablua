@@ -1,6 +1,6 @@
 -- The Elixir host as Arock Core sees it. The host binds its ports as functions
 -- in __host before each call (db_exec on a SQLite file, clock, now, sleep,
--- fetch, key, exec on a computer), calls one arock.* function, and discards
+-- fetch, key, sha256, exec on a computer), calls one arock.* function, and discards
 -- the state, so nothing here is kept between calls.
 arock = {}
 
@@ -18,6 +18,15 @@ end
 function arock.store(host)
   host = host or arock.host()
   return require("alog").open(host.db, { clock = host.clock })
+end
+
+-- A Moss computer's log (PROJECT.md §15) on the db port, its content kept by the host's SHA-256: alog opened
+-- (which makes its tables, or folds the state again when alog's version changed), then one of its methods,
+-- e.g. arock.log("append", task, keyword, args, actor), arock.log("rebuild") or arock.log("recall", q).
+function arock.log(method, ...)
+  local host = arock.host()
+  local log = require("alog").open(host.db, { clock = host.clock, hash = __host.sha256 })
+  if method then return log[method](log, ...) end
 end
 
 -- Jev's decisions for the host's own use (the post reading letters, PROJECT.md §14.5): the core's port, so the

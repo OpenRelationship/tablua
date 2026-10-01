@@ -9,6 +9,8 @@ defmodule Moss.Lua.Ports do
     * `fetch{ method, url, headers, body, timeout } -> { status, body }` over
       Req; a transport failure raises. The ports.call record the core logs
       never holds the headers, so never the key.
+    * `sha256(bytes) -> hex`: alog's content ids, from `:crypto` (tv-labs Lua's own hash is
+      about 10 ms at 16 KB).
     * `key(name) -> string | nil`: a model key from the environment or the
       keychain (`Moss.Keys`).
 
@@ -27,6 +29,9 @@ defmodule Moss.Lua.Ports do
     |> Lua.set!([:__host, :sleep], &sleep/1)
     |> Lua.set!([:__host, :fetch], &fetch/2)
     |> Lua.set!([:__host, :key], fn [name | _] -> [Keys.get(name)] end)
+    |> Lua.set!([:__host, :sha256], fn [s | _] ->
+      [Base.encode16(:crypto.hash(:sha256, s), case: :lower)]
+    end)
     |> bind_db(ports[:db])
     |> bind_computer(ports[:computer])
   end

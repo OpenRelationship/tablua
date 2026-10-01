@@ -14,7 +14,6 @@ defmodule Moss.Computer.Script do
   #{div(120_000, 1000)} s, and its VM stops itself past #{div(500_000_000, 1_000_000)} million instructions or
   a #{div(16 * 1024 * 1024, 1_048_576)} MB string; output past #{div(1024 * 1024, 1024)} KB ends it too.
   """
-  alias Moss.Mail
   alias Moss.Computer.{Disk, Net}
   alias Moss.Computer.Script.Sql
 
@@ -294,10 +293,11 @@ defmodule Moss.Computer.Script do
 
   defp json(v), do: v
 
-  # mail.send(to, subject, body) -> id, or nil and why; along the routes a person set (Moss.Mail)
+  # mail.send(to, subject, body) -> id, or nil and why; along the routes a person set (Moss.Mail), and logged by
+  # the computer when the run is over (Moss.Computer.mail/4)
   defp mail_fun(lua, state) do
     fun(lua, :mail, fn [to, subject, body | _] ->
-      case Mail.post(state.id, to_string(to), to_string(subject), to_string(body)) do
+      case Moss.Computer.mail(state.id, to_string(to), to_string(subject), to_string(body)) do
         {:refused, why} -> [nil, "refused: #{why}"]
         {_, id} -> [id]
       end

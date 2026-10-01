@@ -26,6 +26,9 @@ defmodule Moss.Mail do
     do: GenServer.call(__MODULE__, {:post, sender, recipient, subject, body})
 
   def inbox(agent), do: GenServer.call(__MODULE__, {:inbox, agent})
+
+  @doc "The letters delivered to `agent` but those whose ids are in `except` (the ones its log already holds)."
+  def inbox_except(agent, except), do: GenServer.call(__MODULE__, {:inbox_except, agent, except})
   def sent(agent), do: GenServer.call(__MODULE__, {:sent, agent})
   def read(agent, id), do: GenServer.call(__MODULE__, {:read, agent, id})
   def recent(limit \\ 100), do: GenServer.call(__MODULE__, {:recent, limit})
@@ -106,6 +109,10 @@ defmodule Moss.Mail do
 
   def handle_call({:inbox, agent}, _from, s), do: {:reply, Store.inbox(s.conn, agent), s}
   def handle_call({:sent, agent}, _from, s), do: {:reply, Store.sent(s.conn, agent), s}
+
+  def handle_call({:inbox_except, agent, except}, _from, s),
+    do: {:reply, Store.inbox_except(s.conn, agent, except), s}
+
   def handle_call({:recent, n}, _from, s), do: {:reply, Store.recent(s.conn, n), s}
 
   def handle_call({:recent_for, agents, n}, _from, s),

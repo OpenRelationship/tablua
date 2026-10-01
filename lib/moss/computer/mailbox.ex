@@ -44,7 +44,7 @@ defmodule Moss.Computer.Mailbox do
         {2, "", "mail: the letter has no body (pipe it in, or give it after -m)\n"}
 
       true ->
-        case Mail.post(state.id, to, subject, body) do
+        case Moss.Computer.mail(state.id, to, subject, body) do
           {:delivered, id} -> {0, "sent #{id} to #{to}: delivered\n", ""}
           {:screening, id} -> {0, "sent #{id} to #{to}: waiting for the post to read it\n", ""}
           {:refused, why} -> {1, "", "mail: refused: #{why}\n"}

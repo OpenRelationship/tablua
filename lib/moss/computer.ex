@@ -14,9 +14,16 @@ defmodule Moss.Computer do
   `run` wakes it. It sleeps by itself after `idle_ms` with nothing to do. Every
   command is broadcast on `computer:<id>` for a person watching
   (`ComputerLive`).
+
+  Everything it does is an event on its log (`Moss.Log`, PROJECT.md §15): its
+  disk's changes, each run (`Run Command`), each request to its app (`Serve
+  Request`, by the person using it), each letter it sends (`Send Mail`, after
+  the run that sent it) and each one it is delivered (`Receive Mail`, as it
+  arrives or, asleep, on its next wake).
   """
   use GenServer
-  alias Moss.{Db, Objects}
+  require Logger
+  alias Moss.{Log, Mail, Objects}
   alias Moss.Computer.{Browser, Disk, Script, Shell}
 
   @registry Moss.Computer.Registry
@@ -46,6 +53,17 @@ defmodule Moss.Computer do
   end
 
   def view(id), do: GenServer.call(wake!(id), :view)
+
+  @doc """
+  Posts a letter from computer `id` (`Moss.Mail.post/4`) and tells the computer,
+  which logs it when the run that sent it is over. Called inside a run, so the
+  computer's own process is busy: the post never calls back into it.
+  """
+  def mail(id, to, subject, body) do
+    result = Mail.post(id, to, subject, body)
+    if pid = whereis(id), do: send(pid, {:mailed, to, subject, body, result})
+    result
+  end
 
   @doc "One request to the computer's app (`Moss.Computer.Script.serve/2`): `{status, headers, body, err}`."
   def serve(id, req), do: GenServer.call(wake!(id), {:serve, req}, :infinity)
@@ -88,9 +106,11 @@ defmodule Moss.Computer do
     File.mkdir_p!(Path.dirname(path))
 
     with :ok <- pull(id, path),
-         {:ok, disk} <- Disk.open(path) do
+         {:ok, disk} <- Disk.open(path, id) do
       :ok = Disk.mkdir_p(disk, "/home")
       :ok = Disk.mkdir_p(disk, "/tmp")
+      disk = %{disk | actor: "agent"}
+      Phoenix.PubSub.subscribe(Moss.PubSub, "mail:" <> id)
       idle = opts[:idle_ms] || Application.get_env(:moss, :idle_ms, 300_000)
       Process.send_after(self(), :idle, idle)
       kept = Disk.kept(disk, "session", %{})
@@ -107,7 +127,7 @@ defmodule Moss.Computer do
          lines: Map.get(kept, :lines, []),
          idle: idle,
          touched: now()
-       }}
+       }, {:continue, :mail}}
     else
       {:error, reason} -> {:stop, reason}
     end
@@ -128,8 +148,11 @@ defmodule Moss.Computer do
   @impl true
   def handle_call({:run, line}, _from, state) do
     started = System.monotonic_time(:microsecond)
+    cwd = state.cwd
     {r, state} = Shell.run(line, state)
     ms = (System.monotonic_time(:microsecond) - started) / 1000
+    log_mailed(state, "agent")
+    log(state, "Run Command", [line, cwd, to_string(r.code), ms(ms), r.out, r.err], "agent")
     entry = %{line: line, out: r.out, err: r.err, code: r.code, cwd: state.cwd, ms: ms}
 
     state = %{
@@ -147,6 +170,7 @@ defmodule Moss.Computer do
       {:computer, state.id, entry}
     )
 
+    Disk.rest(state.disk)
     {:reply, Map.put(r, :cwd, state.cwd), state, :hibernate}
   end
 
@@ -165,7 +189,20 @@ defmodule Moss.Computer do
   end
 
   def handle_call({:serve, req}, _from, state) do
-    {:reply, Script.serve(req, state), %{state | touched: now()}}
+    started = System.monotonic_time(:microsecond)
+
+    {status, _, body, _} =
+      answer = Script.serve(req, %{state | disk: %{state.disk | actor: "user"}})
+
+    ms = (System.monotonic_time(:microsecond) - started) / 1000
+    log_mailed(state, "user")
+    form = Plug.Conn.Query.encode(Enum.concat(req["query"] || %{}, req["form"] || %{}))
+    method = to_string(req["method"] || "GET")
+    path = to_string(req["path"] || "/")
+    log(state, "Serve Request", [method, path, to_string(status), ms(ms), form, body], "user")
+
+    Disk.rest(state.disk)
+    {:reply, answer, %{state | touched: now()}, :hibernate}
   end
 
   def handle_call(:view, _from, state) do
@@ -187,6 +224,24 @@ defmodule Moss.Computer do
   end
 
   @impl true
+  def handle_continue(:mail, state) do
+    state = received(state)
+    Disk.rest(state.disk)
+    {:noreply, state, :hibernate}
+  end
+
+  @impl true
+  def handle_info({:mail, _letter}, state) do
+    state = received(state)
+    Disk.rest(state.disk)
+    {:noreply, state, :hibernate}
+  end
+
+  def handle_info({:mailed, _, _, _, _} = m, state) do
+    log_mail(state, m, "agent")
+    {:noreply, state}
+  end
+
   def handle_info(:idle, state) do
     left = state.touched + state.idle - now()
 
@@ -204,8 +259,65 @@ defmodule Moss.Computer do
   defp keep(state),
     do: Disk.keep(state.disk, "session", Map.take(state, [:cwd, :env, :browser, :lines]))
 
+  # -- the log ------------------------------------------------------------------------------------
+
+  # an event on the computer's log; one that cannot be written (a full disk) is told, never fatal to the run
+  defp log(state, keyword, args, actor) do
+    with {:error, why} <- Log.append(state.disk.conn, state.id, keyword, args, actor) do
+      Logger.warning("computer #{state.id}: #{keyword} not logged: #{why}")
+    end
+  end
+
+  defp ms(ms), do: :erlang.float_to_binary(ms / 1, decimals: 3)
+
+  # the letters a run sent (Computer.mail/4), each a Send Mail with what the post did with it
+  defp log_mailed(state, actor) do
+    receive do
+      {:mailed, _, _, _, _} = m ->
+        log_mail(state, m, actor)
+        log_mailed(state, actor)
+    after
+      0 -> :ok
+    end
+  end
+
+  defp log_mail(state, {:mailed, to, subject, body, result}, actor) do
+    {outcome, letter} =
+      case result do
+        {:refused, why} -> {"refused: #{why}", ""}
+        {outcome, id} -> {to_string(outcome), to_string(id)}
+      end
+
+    log(state, "Send Mail", [to, subject, body, outcome, letter], actor)
+  end
+
+  # Letters delivered to this computer that its log does not yet hold, each a Receive Mail: the log's own
+  # recall index finds the ones it holds, and the post gives the rest.
+  defp received(state) do
+    {:ok, held} =
+      Moss.Db.exec(
+        state.disk.conn,
+        "select a.value from recall_log r join args a on a.seq = r.rowid and a.pos = 4 " <>
+          "where recall_log match 'keyword : \"Receive Mail\"'",
+        []
+      )
+
+    except = for %{"value" => v} <- held, {n, ""} <- [Integer.parse(v)], do: n
+
+    for l <- Mail.inbox_except(state.id, except) do
+      log(
+        state,
+        "Receive Mail",
+        [l["sender"], l["subject"], l["body"], to_string(l["id"])],
+        "host"
+      )
+    end
+
+    state
+  end
+
   defp sleep_now(state) do
-    with :ok <- Db.checkpoint_and_close(state.disk),
+    with :ok <- Disk.close(state.disk),
          {:ok, body} <- File.read(state.path),
          :ok <- Objects.put(Objects.computer_key(state.id), body) do
       for suffix <- ["", "-wal", "-shm"], do: File.rm(state.path <> suffix)

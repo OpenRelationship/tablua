@@ -61,6 +61,15 @@ defmodule Moss.Mail.Store do
         [agent]
       )
 
+  def inbox_except(conn, agent, except),
+    do:
+      all(
+        conn,
+        "select * from letters where recipient = ?1 and state = 'delivered' " <>
+          "and id not in (select value from json_each(?2)) order by id",
+        [agent, Jason.encode!(except)]
+      )
+
   def sent(conn, agent),
     do: all(conn, "select * from letters where sender = ? order by id", [agent])
 

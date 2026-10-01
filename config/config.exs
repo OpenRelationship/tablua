@@ -72,5 +72,7 @@ config :phoenix, :json_library, Jason
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
 
-# SQLite from source, with mix.exs's flags (an awake computer's connection allocates only what it uses)
-config :exqlite, force_build: true
+# SQLite from source, with mix.exs's flags (an awake computer's connection allocates only what it uses), on the
+# system's malloc: through the BEAM's allocator, which a dirty scheduler reaches through one shared instance, every
+# computer's SQLite waited on the others' allocations (a log's event is many of them)
+config :exqlite, force_build: true, disable_erlang_allocator: true

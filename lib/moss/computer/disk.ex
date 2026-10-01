@@ -1,46 +1,117 @@
 defmodule Moss.Computer.Disk do
   @moduledoc """
-  An agent's computer's filesystem: one table in the computer's own SQLite
-  file, a row per file or folder by its absolute path. The file is the whole
-  disk, so it sleeps to the object store and wakes as the computer does.
+  An agent's computer's filesystem, on the computer's log (`Moss.Log`, Arock's
+  PROJECT.md §15): every change is an alog event (`Make Folder`, `Write File`,
+  `Delete File`, `Move File`) in the computer's own SQLite file, and `nodes`
+  is a view over the files alog folds from them, so what the computer did to
+  its files is history, not overwritten rows. The file is the whole disk, so
+  it sleeps to the object store and wakes as the computer does.
 
       {:ok, disk} = Disk.open(path)
       Disk.write(disk, "/notes/todo.txt", "buy moss")   # its folders made as needed
       Disk.read(disk, "/notes/todo.txt")                 # {:ok, "buy moss"}
       Disk.list(disk, "/notes")                          # {:ok, [%{name: "todo.txt", dir: false, size: 8, mtime: ...}]}
 
-  `keep/3` and `kept/3` hold the computer's own state beside the files.
+  A disk is its connection, the computer it belongs to (the log's task) and
+  who its changes are by (`actor`: "agent", "user" or "host"). `keep/3` and
+  `kept/3` hold the computer's own state beside the files.
   Paths are normalised (`.`, `..`, repeated slashes) and never leave `/`.
   """
-  alias Moss.Db
+  alias Moss.{Db, Log}
 
-  @schema """
-  create table if not exists nodes (
-    path  text primary key,
-    dir   integer not null,
-    data  blob,
-    mtime integer not null
-  );
-  insert or ignore into nodes (path, dir, data, mtime) values ('/', 1, null, 0);
-  create table if not exists kept (key text primary key, value blob not null);
-  """
+  defstruct [:conn, :task, actor: "agent"]
+
+  @kept "create table if not exists kept (key text primary key, value blob not null)"
+
+  @nodes "create view if not exists nodes as " <>
+           "select path, dir, data, cast(strftime('%s', at) as integer) as mtime from entries"
 
   @max_bytes 256 * 1024 * 1024
 
-  @doc "Opens the disk at `path`, its size held to config `disk_max_bytes` (#{div(256 * 1024 * 1024, 1_048_576)} MB): past it, a write is `{:error, \"database or disk is full\"}`."
-  def open(path) do
+  @doc """
+  Opens the disk at `path` for computer `task` (the file's name by default),
+  its changes by the host until `actor` is set. Its size is held to config
+  `disk_max_bytes` (#{div(256 * 1024 * 1024, 1_048_576)} MB), the log with it: past it, a write is
+  `{:error, "database or disk is full"}`. A disk from before the log, a
+  `nodes` table, moves onto it once.
+  """
+  def open(path, task \\ nil) do
     File.mkdir_p!(Path.dirname(path))
     max = Application.get_env(:moss, :disk_max_bytes, @max_bytes)
+    task = task || String.replace(Path.basename(path, ".sqlite"), ~r/[^\w.:-]/, "-")
 
     with {:ok, conn} <- Db.open(path),
-         {:ok, _} <- Db.exec(conn, @schema, []),
+         disk = %__MODULE__{conn: conn, task: task, actor: "host"},
+         {:ok, _} <- Db.exec(conn, "pragma synchronous = normal", []),
+         {:ok, _} <- Db.exec(conn, @kept, []),
+         :ok <- Log.open(conn),
+         :ok <- from_nodes(disk),
+         :ok <- root(disk),
+         {:ok, _} <- Db.exec(conn, @nodes, []),
          {:ok, [%{"page_size" => page}]} <- Db.exec(conn, "pragma page_size", []),
          {:ok, _} <- Db.exec(conn, "pragma max_page_count = #{div(max, page)}", []) do
-      {:ok, conn}
+      {:ok, disk}
     end
   end
 
-  def close(disk), do: Db.checkpoint_and_close(disk)
+  def close(disk), do: Db.checkpoint_and_close(disk.conn)
+
+  @doc """
+  Gives back the pages SQLite keeps cached for this disk, for a computer at rest: an event reads and writes a
+  dozen of the log's tables, and their pages held between commands cost an awake computer about 130 KB.
+  """
+  def rest(disk) do
+    {:ok, _} = Db.exec(disk.conn, "pragma shrink_memory", [])
+    :ok
+  end
+
+  # a new disk's root, by the host
+  defp root(disk) do
+    case Db.exec(disk.conn, "select 1 as x from files where path = '/'", []) do
+      {:ok, [_]} -> :ok
+      {:ok, []} -> log(disk, "Make Folder", ["/"])
+    end
+  end
+
+  # A disk from before the log: its rows replayed as the host's events, folders first and then files, each at
+  # its own mtime, and the table dropped, all in one transaction.
+  defp from_nodes(disk) do
+    case Db.exec(
+           disk.conn,
+           "select 1 as x from sqlite_master where name = 'nodes' and type = 'table'",
+           []
+         ) do
+      {:ok, []} ->
+        :ok
+
+      {:ok, [_]} ->
+        conn = disk.conn
+        {:ok, _} = Db.exec(conn, "begin immediate", [])
+
+        {:ok, rows} =
+          Db.exec(conn, "select path, dir, data, mtime from nodes order by dir desc, path", [])
+
+        for r <- rows do
+          at = r["mtime"] |> DateTime.from_unix!() |> DateTime.to_iso8601()
+
+          {kw, args} =
+            if r["dir"] == 1,
+              do: {"Make Folder", [r["path"]]},
+              else: {"Write File", [r["path"], Map.get(r, "data", "")]}
+
+          :ok = Log.append(conn, disk.task, kw, args, "host", at)
+        end
+
+        {:ok, _} = Db.exec(conn, "drop table nodes", [])
+        {:ok, _} = Db.exec(conn, "commit", [])
+        :ok
+    end
+  end
+
+  # one event on the computer's log, by the disk's actor
+  defp log(disk, keyword, args) do
+    Log.append(disk.conn, disk.task, keyword, args, disk.actor)
+  end
 
   @doc "The absolute, normalised form of `path`, taken from `cwd` when relative."
   def norm(path, cwd \\ "/") do
@@ -61,16 +132,20 @@ defmodule Moss.Computer.Disk do
   end
 
   defp own_stat(disk, path) do
-    case Db.exec(disk, "select dir, length(data) as size, mtime from nodes where path = ?1", [
-           norm(path)
-         ]) do
+    case Db.exec(
+           disk.conn,
+           "select dir, length(data) as size, mtime from nodes where path = ?1",
+           [
+             norm(path)
+           ]
+         ) do
       {:ok, [row]} -> {:ok, %{dir: row["dir"] == 1, size: row["size"] || 0, mtime: row["mtime"]}}
       {:ok, []} -> {:error, :enoent}
     end
   end
 
   defp own_read(disk, path) do
-    case Db.exec(disk, "select dir, data from nodes where path = ?1", [norm(path)]) do
+    case Db.exec(disk.conn, "select dir, data from nodes where path = ?1", [norm(path)]) do
       {:ok, [%{"dir" => 1}]} -> {:error, :eisdir}
       {:ok, [row]} -> {:ok, Map.get(row, "data", "")}
       {:ok, []} -> {:error, :enoent}
@@ -87,49 +162,40 @@ defmodule Moss.Computer.Disk do
     path = norm(path)
 
     with :ok <- mkdir_p(disk, Path.dirname(path)),
-         {:ok, _} <-
-           Db.exec(
-             disk,
-             "insert into nodes (path, dir, data, mtime) values (?1, 0, ?2, ?3) " <>
-               "on conflict (path) do update set data = ?2, mtime = ?3 where dir = 0",
-             [path, {:blob, data}, now()]
-           ),
-         {:ok, %{dir: false}} <- stat(disk, path) do
-      :ok
+         {:ok, %{dir: false}} <- file_or_none(disk, path) do
+      log(disk, "Write File", [path, data])
     else
       {:ok, %{dir: true}} -> {:error, :eisdir}
       other -> other
     end
   end
 
+  defp file_or_none(disk, path) do
+    case stat(disk, path) do
+      {:error, :enoent} -> {:ok, %{dir: false}}
+      found -> found
+    end
+  end
+
   def mkdir(disk, path) do
     path = norm(path)
 
-    case stat(disk, Path.dirname(path)) do
-      {:ok, %{dir: true}} ->
-        case Db.exec(disk, "insert or ignore into nodes (path, dir, mtime) values (?1, 1, ?2)", [
-               path,
-               now()
-             ]) do
-          {:ok, _} ->
-            if match?({:ok, %{dir: true}}, stat(disk, path)), do: :ok, else: {:error, :eexist}
-
-          other ->
-            other
-        end
-
-      {:ok, _} ->
-        {:error, :enotdir}
-
-      error ->
-        error
+    case {stat(disk, Path.dirname(path)), stat(disk, path)} do
+      {{:ok, %{dir: true}}, {:ok, %{dir: true}}} -> :ok
+      {{:ok, %{dir: true}}, {:ok, _}} -> {:error, :eexist}
+      {{:ok, %{dir: true}}, {:error, :enoent}} -> log(disk, "Make Folder", [path])
+      {{:ok, _}, _} -> {:error, :enotdir}
+      {error, _} -> error
     end
   end
 
   def mkdir_p(_disk, "/"), do: :ok
 
   def mkdir_p(disk, path) do
-    with :ok <- mkdir_p(disk, Path.dirname(norm(path))), do: mkdir(disk, path)
+    case stat(disk, path) do
+      {:ok, %{dir: true}} -> :ok
+      _ -> with :ok <- mkdir_p(disk, Path.dirname(norm(path))), do: mkdir(disk, path)
+    end
   end
 
   defp own_list(disk, path) do
@@ -141,7 +207,7 @@ defmodule Moss.Computer.Disk do
 
         {:ok, rows} =
           Db.exec(
-            disk,
+            disk.conn,
             "select path, dir, length(data) as size, mtime from nodes " <>
               "where substr(path, 1, length(?1)) = ?1 and path <> '/' and instr(substr(path, length(?1) + 1), '/') = 0 " <>
               "order by path",
@@ -180,22 +246,12 @@ defmodule Moss.Computer.Disk do
       {_, {:ok, %{dir: true}}} ->
         {:ok, kids} = list(disk, path)
 
-        if kids != [] and not all do
-          {:error, :enotempty}
-        else
-          {:ok, _} =
-            Db.exec(
-              disk,
-              "delete from nodes where path = ?1 or substr(path, 1, length(?1) + 1) = ?1 || '/'",
-              [path]
-            )
-
-          :ok
-        end
+        if kids != [] and not all,
+          do: {:error, :enotempty},
+          else: log(disk, "Delete File", [path])
 
       {_, {:ok, _}} ->
-        {:ok, _} = Db.exec(disk, "delete from nodes where path = ?1", [path])
-        :ok
+        log(disk, "Delete File", [path])
 
       {_, error} ->
         error
@@ -209,19 +265,7 @@ defmodule Moss.Computer.Disk do
     with {:ok, _} <- stat(disk, from),
          {:ok, %{dir: true}} <- stat(disk, Path.dirname(to)),
          :ok <- if(String.starts_with?(to <> "/", from <> "/"), do: {:error, :einval}, else: :ok) do
-      {:ok, _} = Db.exec(disk, "begin", [])
-      {:ok, _} = Db.exec(disk, "delete from nodes where path = ?1 and dir = 0", [to])
-
-      {:ok, _} =
-        Db.exec(
-          disk,
-          "update nodes set path = ?2 || substr(path, length(?1) + 1), mtime = ?3 " <>
-            "where path = ?1 or substr(path, 1, length(?1) + 1) = ?1 || '/'",
-          [from, to, now()]
-        )
-
-      {:ok, _} = Db.exec(disk, "commit", [])
-      :ok
+      log(disk, "Move File", [from, to])
     else
       {:ok, _} -> {:error, :enotdir}
       error -> error
@@ -231,7 +275,7 @@ defmodule Moss.Computer.Disk do
   @doc "Keeps a term beside the files (the terminal's lines, the browser's tabs), for when the computer wakes."
   def keep(disk, key, term) do
     {:ok, _} =
-      Db.exec(disk, "insert or replace into kept (key, value) values (?1, ?2)", [
+      Db.exec(disk.conn, "insert or replace into kept (key, value) values (?1, ?2)", [
         key,
         {:blob, :erlang.term_to_binary(term)}
       ])
@@ -240,11 +284,9 @@ defmodule Moss.Computer.Disk do
   end
 
   def kept(disk, key, default) do
-    case Db.exec(disk, "select value from kept where key = ?1", [key]) do
+    case Db.exec(disk.conn, "select value from kept where key = ?1", [key]) do
       {:ok, [%{"value" => v}]} -> :erlang.binary_to_term(v, [:safe])
       _ -> default
     end
   end
-
-  defp now, do: System.os_time(:second)
 end

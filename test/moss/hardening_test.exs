@@ -95,7 +95,8 @@ defmodule Moss.HardeningTest do
   end
 
   test "a computer's disk has a quota" do
-    with_env(:disk_max_bytes, 256 * 1024, fn ->
+    # the quota holds the log too: alog's tables (about 124 KB empty), and a file's recall text beside its bytes
+    with_env(:disk_max_bytes, 512 * 1024, fn ->
       c = id()
       big = String.duplicate("x", 200 * 1024)
       assert %{code: 0} = sh(c, "lua -e 'fs.write(\"a.txt\", string.rep(\"x\", 200 * 1024))'")

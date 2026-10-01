@@ -1,0 +1,249 @@
+defmodule Moss.LogTest do
+  # Arock's PROJECT.md §14.7 goal 6 and §15: a computer's file writes, runs, app requests and mail are alog
+  # events on its own SQLite file, its `nodes` the fold of that log, so what a computer did is its history.
+  use ExUnit.Case, async: false
+
+  alias Moss.{Computer, Db, Log, Mail}
+  alias Moss.Computer.{App, Disk}
+
+  defp id, do: "log-#{System.unique_integer([:positive])}"
+  defp sh(c, line), do: Computer.run(c, line)
+  defp disk(c), do: :sys.get_state(Computer.wake!(c)).disk
+
+  # alog's own reading of the log, through its Lua: {keyword, actor, args} with content as its bytes
+  defp events(c, keywords \\ nil) do
+    d = disk(c)
+    {:ok, [list]} = Log.alog(d, "events", [])
+
+    for e <- plain(list), keywords == nil or e["keyword"] in keywords do
+      spec = Map.get(Log.kinds(), e["keyword"], [])
+
+      args =
+        e["args"]
+        |> Enum.with_index()
+        |> Enum.map(fn {v, i} ->
+          if String.ends_with?(Enum.at(spec, i, ""), "*"),
+            do: elem(Log.alog(d, "blob", [v]), 1) |> hd(),
+            else: v
+        end)
+
+      {e["keyword"], e["actor"], args}
+    end
+  end
+
+  # a decoded Lua table: keys 1..n become a list, any other a map
+  defp plain(pairs) when is_list(pairs) do
+    keys = Enum.map(pairs, &elem(&1, 0))
+
+    if pairs != [] and Enum.all?(keys, &is_integer/1),
+      do: pairs |> Enum.sort() |> Enum.map(&plain(elem(&1, 1))),
+      else: Map.new(pairs, fn {k, v} -> {k, plain(v)} end)
+  end
+
+  defp plain(v), do: v
+
+  defp nodes(d) do
+    {:ok, rows} = Db.exec(d.conn, "select path, dir, data, mtime from nodes order by path", [])
+    rows
+  end
+
+  test "file writes, removes, moves and folders are events, by the agent" do
+    c = id()
+    sh(c, "true")
+
+    assert %{code: 0} =
+             sh(
+               c,
+               "mkdir -p notes/old && echo fern > notes/a.txt && mv notes/a.txt notes/b.txt && " <>
+                 "rm notes/b.txt && rmdir notes/old"
+             )
+
+    assert [
+             {"Make Folder", "agent", ["/home/notes"]},
+             {"Make Folder", "agent", ["/home/notes/old"]},
+             {"Write File", "agent", ["/home/notes/a.txt", "fern\n"]},
+             {"Move File", "agent", ["/home/notes/a.txt", "/home/notes/b.txt"]},
+             {"Delete File", "agent", ["/home/notes/b.txt"]},
+             {"Delete File", "agent", ["/home/notes/old"]}
+           ] =
+             events(c, ["Make Folder", "Write File", "Move File", "Delete File"]) |> Enum.drop(3)
+
+    # a new disk: its root and its two folders, by the host
+    assert [
+             {"Make Folder", "host", ["/"]},
+             {"Make Folder", "host", ["/home"]},
+             {"Make Folder", "host", ["/tmp"]} | _
+           ] = events(c)
+
+    # the exec port's files go through the same writes
+    Computer.exec(c, %{"files" => %{"x/y.txt" => "why"}, "cmd" => "true"})
+    assert {"Write File", "agent", ["/home/x/y.txt", "why"]} in events(c)
+  end
+
+  test "rebuild folds the log back into the same nodes, from the start or a snapshot" do
+    c = id()
+    sh(c, "mkdir -p a/b && echo one > a/b/1.txt && echo two > a/2.txt && mv a z && rm z/2.txt")
+    sh(c, "echo three > z/b/1.txt && touch empty && mkdir keep")
+    d = disk(c)
+    before = nodes(d)
+    {:ok, [dump]} = Log.alog(d, "dump", [])
+
+    assert Enum.map(before, & &1["path"]) ==
+             ~w(/ /home /home/empty /home/keep /home/z /home/z/b /home/z/b/1.txt /tmp)
+
+    {:ok, _} = Log.alog(d, "rebuild", [])
+    assert nodes(d) == before
+    assert {:ok, [^dump]} = Log.alog(d, "dump", [])
+
+    {:ok, _} = Log.alog(d, "snapshot", [])
+    sh(c, "echo four > z/4.txt && rm -r z/b")
+    after_snap = nodes(d)
+    {:ok, _} = Log.alog(d, "rebuild", [])
+    assert nodes(d) == after_snap
+    assert {:ok, "four\n"} = Disk.read(d, "/home/z/4.txt")
+  end
+
+  test "a run is an event: its line, the folder it began in, its status, time, output and errors" do
+    c = id()
+    sh(c, "cd /tmp && echo hi && nosuch")
+
+    assert [
+             {"Run Command", "agent",
+              ["cd /tmp && echo hi && nosuch", "/home", "127", ms, "hi\n", err]}
+           ] =
+             events(c, ["Run Command"])
+
+    assert {_, ""} = Float.parse(ms)
+    assert err =~ "nosuch"
+
+    # a Lua run past its limits is logged with its limit's status
+    sh(c, "lua -e 'while true do end'")
+
+    assert [_, {"Run Command", "agent", ["lua -e 'while true do end'", "/tmp", status | _]}] =
+             events(c, ["Run Command"])
+
+    assert status != "0"
+  end
+
+  test "an app request is an event, by the person using the app" do
+    c = id()
+
+    :ok =
+      Disk.write(disk(c), "/home/app.lua", """
+      return function(req) fs.write("seen.txt", req.form.name or "") return "<p>hi " .. (req.form.name or "") .. "</p>" end
+      """)
+
+    req = App.request("post", "/add", %{"q" => "1"}, %{"name" => "fern"}, [])
+    assert {200, _, "<p>hi fern</p>", _} = Computer.serve(c, req)
+
+    assert [{"Write File", "user", ["/home/seen.txt", "fern"]}] =
+             events(c, ["Write File"]) |> Enum.filter(&(elem(&1, 2) |> hd() == "/home/seen.txt"))
+
+    assert [
+             {"Serve Request", "user",
+              ["POST", "/add", "200", ms, "q=1&name=fern", "<p>hi fern</p>"]}
+           ] =
+             events(c, ["Serve Request"])
+
+    assert {_, ""} = Float.parse(ms)
+  end
+
+  test "mail is an event on both ends: sent after the run, received on delivery or on the next wake" do
+    n = System.unique_integer([:positive])
+    {a, b, z} = {"log-a#{n}", "log-b#{n}", "log-z#{n}"}
+    :ok = Mail.route(a, b, "audit")
+    :ok = Mail.route(a, z, "audit")
+    sh(b, "true")
+
+    sh(a, "lua -e 'print(mail.send(\"#{b}\", \"fern\", \"water it\"))'")
+    sh(a, "mail send #{z} moss -m keep it damp")
+    sh(a, "mail send nobody-#{n} hi -m hello")
+
+    [{:delivered, l1}, {:delivered, l2}] =
+      for l <- Mail.sent(a), l["state"] == "delivered", do: {:delivered, l["id"]}
+
+    assert [
+             {"Send Mail", "agent", [^b, "fern", "water it", "delivered", s1]},
+             {"Send Mail", "agent", [^z, "moss", "keep it damp", "delivered", s2]},
+             {"Send Mail", "agent", ["nobody-" <> _, "hi", "hello", "refused: " <> _, ""]}
+           ] = events(a, ["Send Mail"])
+
+    assert {s1, s2} == {to_string(l1), to_string(l2)}
+
+    # each Send Mail comes before the run that sent it is logged
+    assert [
+             "Send Mail",
+             "Run Command" | _
+           ] = events(a, ["Send Mail", "Run Command"]) |> Enum.map(&elem(&1, 0))
+
+    # b was awake: the letter is logged as it arrives
+    assert [{"Receive Mail", "host", [^a, "fern", "water it", ^s1]}] =
+             events(b, ["Receive Mail"])
+
+    # z was asleep: on its wake, once
+    refute Computer.whereis(z)
+
+    assert [{"Receive Mail", "host", [^a, "moss", "keep it damp", ^s2]}] =
+             events(z, ["Receive Mail"])
+
+    :ok = Computer.sleep(z)
+    assert [_] = events(z, ["Receive Mail"])
+  end
+
+  test "recall finds a file by its text, and the event that wrote it" do
+    c = id()
+    sh(c, "echo 'the quokka sleeps under the fern' > notes.txt")
+    {:ok, [found]} = Log.alog(disk(c), "recall", ["quokka"])
+    found = plain(found)
+    assert [%{"path" => "/home/notes.txt"}] = found["files"]
+    assert Enum.any?(found["events"], &(&1["keyword"] == "Write File"))
+  end
+
+  test "an old disk with a nodes table moves onto the log once, as the host's events" do
+    c = id()
+    path = Path.join([Application.fetch_env!(:moss, :work_dir), "computers", c <> ".sqlite"])
+    File.mkdir_p!(Path.dirname(path))
+    {:ok, conn} = Db.open(path)
+
+    {:ok, _} =
+      Db.exec(
+        conn,
+        """
+        create table nodes (path text primary key, dir integer not null, data blob, mtime integer not null);
+        create table kept (key text primary key, value blob not null);
+        insert into nodes values ('/', 1, null, 0);
+        insert into nodes values ('/home', 1, null, 1700000000);
+        insert into nodes values ('/home/old.txt', 0, x'6f6c640a', 1700000100);
+        insert into nodes values ('/home/sub', 1, null, 1700000000);
+        insert into nodes values ('/home/sub/b.bin', 0, x'00ff00', 1700000200);
+        insert into nodes values ('/tmp', 1, null, 1700000000);
+        """,
+        []
+      )
+
+    :ok = Db.checkpoint_and_close(conn)
+
+    assert %{out: "old\n"} = sh(c, "cat old.txt")
+    d = disk(c)
+    assert {:ok, %{mtime: 1_700_000_100, size: 4}} = Disk.stat(d, "/home/old.txt")
+    assert {:ok, <<0, 255, 0>>} = Disk.read(d, "/home/sub/b.bin")
+
+    assert [
+             {"Make Folder", "host", ["/"]},
+             {"Make Folder", "host", ["/home"]},
+             {"Make Folder", "host", ["/home/sub"]},
+             {"Make Folder", "host", ["/tmp"]},
+             {"Write File", "host", ["/home/old.txt", "old\n"]},
+             {"Write File", "host", ["/home/sub/b.bin", <<0, 255, 0>>]},
+             {"Run Command", "agent", ["cat old.txt" | _]}
+           ] = events(c)
+
+    assert {:ok, [%{"type" => "view"}]} =
+             Db.exec(d.conn, "select type from sqlite_master where name = 'nodes'", [])
+
+    # and only once
+    :ok = Computer.sleep(c)
+    sh(c, "true")
+    assert length(events(c, ["Write File"])) == 2
+  end
+end
