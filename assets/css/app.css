@@ -1,7 +1,7 @@
 @import "tailwindcss" source(none);
 @source "../css";
 @source "../js";
-@source "../../lib/volvox_server_web";
+@source "../../lib/moss_web";
 
 /* "hero-#{ICON}" classes; the heroicons checkout is managed by mix.exs. */
 @plugin "../vendor/heroicons";

@@ -1,9 +1,9 @@
-defmodule VolvoxServer.MixProject do
+defmodule Moss.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :volvox_server,
+      app: :moss,
       version: "0.1.0",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -20,7 +20,7 @@ defmodule VolvoxServer.MixProject do
   # Type `mix help compile.app` for more information.
   def application do
     [
-      mod: {VolvoxServer.Application, []},
+      mod: {Moss.Application, []},
       extra_applications: [:logger, :runtime_tools]
     ]
   end
@@ -75,10 +75,10 @@ defmodule VolvoxServer.MixProject do
     [
       setup: ["deps.get", "assets.setup", "assets.build"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["compile", "tailwind volvox_server", "esbuild volvox_server"],
+      "assets.build": ["compile", "tailwind moss", "esbuild moss"],
       "assets.deploy": [
-        "tailwind volvox_server --minify",
-        "esbuild volvox_server --minify",
+        "tailwind moss --minify",
+        "esbuild moss --minify",
         "phx.digest"
       ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]

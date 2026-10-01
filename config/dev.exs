@@ -6,7 +6,7 @@ import Config
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
-config :volvox_server, VolvoxServerWeb.Endpoint,
+config :moss, MossWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {127, 0, 0, 1}],
@@ -15,8 +15,8 @@ config :volvox_server, VolvoxServerWeb.Endpoint,
   debug_errors: true,
   secret_key_base: "tKi94Gy4G8w3LOE9eczVNIgToD1JqVtXXiHAaktZfeAb1irTrOjnf99MUaGFqYWF",
   watchers: [
-    esbuild: {Esbuild, :install_and_run, [:volvox_server, ~w(--sourcemap=inline --watch)]},
-    tailwind: {Tailwind, :install_and_run, [:volvox_server, ~w(--watch)]}
+    esbuild: {Esbuild, :install_and_run, [:moss, ~w(--sourcemap=inline --watch)]},
+    tailwind: {Tailwind, :install_and_run, [:moss, ~w(--watch)]}
   ]
 
 # ## SSL Support
@@ -43,20 +43,20 @@ config :volvox_server, VolvoxServerWeb.Endpoint,
 # different ports.
 
 # Reload browser tabs when matching files change.
-config :volvox_server, VolvoxServerWeb.Endpoint,
+config :moss, MossWeb.Endpoint,
   live_reload: [
     web_console_logger: true,
     patterns: [
       # Static assets, except user uploads
       ~r"priv/static/(?!uploads/).*\.(js|css|png|jpeg|jpg|gif|svg)$"E,
       # Router, Controllers, LiveViews and LiveComponents
-      ~r"lib/volvox_server_web/router\.ex$"E,
-      ~r"lib/volvox_server_web/(controllers|live|components)/.*\.(ex|heex)$"E
+      ~r"lib/moss_web/router\.ex$"E,
+      ~r"lib/moss_web/(controllers|live|components)/.*\.(ex|heex)$"E
     ]
   ]
 
 # Enable dev routes for dashboard and mailbox
-config :volvox_server, dev_routes: true
+config :moss, dev_routes: true
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"

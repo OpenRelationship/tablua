@@ -1,4 +1,4 @@
-defmodule VolvoxServer.TestJev do
+defmodule Moss.TestJev do
   @moduledoc """
   A stand-in for Jev reading the post: it refuses a letter whose body asks for
   a key or tells the recipient to ignore its person, holds one that says
@@ -7,7 +7,7 @@ defmodule VolvoxServer.TestJev do
   count batches.
   """
   def decide(state, questions) do
-    if pid = Application.get_env(:volvox_server, :mail_test_pid),
+    if pid = Application.get_env(:moss, :mail_test_pid),
       do: send(pid, {:jev, map_size(questions)})
 
     {:ok,

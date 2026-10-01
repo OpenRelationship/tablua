@@ -7,45 +7,44 @@
 # General application configuration
 import Config
 
-config :volvox_server,
+config :moss,
   generators: [timestamp_type: :utc_datetime]
 
-# Volvox is the submodule; its Lua modules load from its library/. The Colm
-# suite modules are what `just build-script suite` writes in the Volvox repo.
-# A run's SQLite file lives under work_dir while the run is awake; asleep, it
-# is an object runs/<id>.sqlite in R2, or under local_objects when wrangler is
+# Moss is attached to the Arock repository at submodules/moss; Arock Core's Lua
+# modules load from that repository's library/ (AROCK_ROOT names another
+# checkout), and the computer's programs are what its `just build-script
+# computer` writes. A computer's SQLite disk lives under work_dir while it is
+# awake; asleep, it is an object in R2, or under local_objects when wrangler is
 # not logged in (objects: :auto picks; :local or :r2 forces one).
-config :volvox_server,
-  volvox: Path.expand("../submodules/volvox", __DIR__),
-  suite: Path.expand("~/volvox/.cache/volvox/suite"),
-  programs: Path.expand("~/volvox/.cache/volvox/computer"),
-  system_root: Path.expand("~/volvox/.cache/volvox/computer/root"),
+arock = System.get_env("AROCK_ROOT") || Path.expand("../../..", __DIR__)
+
+config :moss,
+  core: arock,
+  programs: Path.join(arock, ".cache/volvox/computer"),
+  system_root: Path.join(arock, ".cache/volvox/computer/root"),
   work_dir: Path.expand("../priv/work", __DIR__),
   local_objects: Path.expand("../priv/runs", __DIR__),
   objects: :auto
 
-# The node's own books (the schedule, the Mac's queue) live under host_dir; the
-# schedule is looked at every tick_ms. Agents a task can name: name => Lua file.
-config :volvox_server,
-  host_dir: Path.expand("../priv/host", __DIR__),
-  tick_ms: 5_000,
-  agents: %{}
+# The node's own books (the post) live under host_dir.
+config :moss,
+  host_dir: Path.expand("../priv/host", __DIR__)
 
 # Configure the endpoint
-config :volvox_server, VolvoxServerWeb.Endpoint,
+config :moss, MossWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: VolvoxServerWeb.ErrorHTML],
+    formats: [html: MossWeb.ErrorHTML],
     layout: false
   ],
-  pubsub_server: VolvoxServer.PubSub,
+  pubsub_server: Moss.PubSub,
   live_view: [signing_salt: "r36zSyke"]
 
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.25.4",
-  volvox_server: [
+  moss: [
     args:
       ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js --external:/fonts/* --external:/images/* --alias:@=.),
     cd: Path.expand("../assets", __DIR__),
@@ -55,7 +54,7 @@ config :esbuild,
 # Configure tailwind (the version is required)
 config :tailwind,
   version: "4.1.12",
-  volvox_server: [
+  moss: [
     args: ~w(
       --input=assets/css/app.css
       --output=priv/static/assets/css/app.css

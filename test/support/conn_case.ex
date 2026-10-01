@@ -1,4 +1,4 @@
-defmodule VolvoxServerWeb.ConnCase do
+defmodule MossWeb.ConnCase do
   @moduledoc """
   This module defines the test case to be used by
   tests that require setting up a connection.
@@ -11,7 +11,7 @@ defmodule VolvoxServerWeb.ConnCase do
   we enable the SQL sandbox, so changes done to the database
   are reverted at the end of every test. If you are using
   PostgreSQL, you can even run database tests asynchronously
-  by setting `use VolvoxServerWeb.ConnCase, async: true`, although
+  by setting `use MossWeb.ConnCase, async: true`, although
   this option is not recommended for other databases.
   """
 
@@ -20,18 +20,18 @@ defmodule VolvoxServerWeb.ConnCase do
   using do
     quote do
       # The default endpoint for testing
-      @endpoint VolvoxServerWeb.Endpoint
+      @endpoint MossWeb.Endpoint
 
-      use VolvoxServerWeb, :verified_routes
+      use MossWeb, :verified_routes
 
       # Import conveniences for testing with connections
       import Plug.Conn
       import Phoenix.ConnTest
-      import VolvoxServerWeb.ConnCase
+      import MossWeb.ConnCase
     end
   end
 
-  # signed in as config's test person (VolvoxServerWeb.Auth), unless the test is tagged :signed_out
+  # signed in as config's test person (MossWeb.Auth), unless the test is tagged :signed_out
   setup tags do
     conn = Phoenix.ConnTest.build_conn()
 

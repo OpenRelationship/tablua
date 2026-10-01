@@ -1,9 +1,5 @@
 import Config
 
-if suite = System.get_env("VOLVOX_SUITE") do
-  config :volvox_server, suite: suite
-end
-
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
 # system starts, so it is typically used to load production configuration
@@ -16,21 +12,21 @@ end
 # If you use `mix release`, you need to explicitly enable the server
 # by passing the PHX_SERVER=true when you start it:
 #
-#     PHX_SERVER=true bin/volvox_server start
+#     PHX_SERVER=true bin/moss start
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
 if System.get_env("PHX_SERVER") do
-  config :volvox_server, VolvoxServerWeb.Endpoint, server: true
+  config :moss, MossWeb.Endpoint, server: true
 end
 
-config :volvox_server, VolvoxServerWeb.Endpoint,
+config :moss, MossWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
-# Who may sign in to the host's pages (VolvoxServerWeb.Auth): VOLVOX_PAGE_TOKENS="name:token,name:token".
+# Who may sign in to the host's pages (MossWeb.Auth): MOSS_PAGE_TOKENS="name:token,name:token".
 # Unset in production, no one can; a token is a long random secret (mix phx.gen.secret), never committed.
-if tokens = System.get_env("VOLVOX_PAGE_TOKENS") do
-  config :volvox_server,
+if tokens = System.get_env("MOSS_PAGE_TOKENS") do
+  config :moss,
     page_tokens:
       for(
         pair <- String.split(tokens, ",", trim: true),
@@ -56,7 +52,7 @@ if config_env() == :prod do
 
   host = System.get_env("PHX_HOST") || "example.com"
 
-  config :volvox_server, VolvoxServerWeb.Endpoint,
+  config :moss, MossWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
       # Enable IPv6 and bind on all interfaces.
@@ -72,7 +68,7 @@ if config_env() == :prod do
   # To get SSL working, you will need to add the `https` key
   # to your endpoint configuration:
   #
-  #     config :volvox_server, VolvoxServerWeb.Endpoint,
+  #     config :moss, MossWeb.Endpoint,
   #       https: [
   #         ...,
   #         port: 443,
@@ -94,7 +90,7 @@ if config_env() == :prod do
   # We also recommend setting `force_ssl` in your config/prod.exs,
   # ensuring no data is ever sent via http, always redirecting to https:
   #
-  #     config :volvox_server, VolvoxServerWeb.Endpoint,
+  #     config :moss, MossWeb.Endpoint,
   #       force_ssl: [hsts: true]
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.

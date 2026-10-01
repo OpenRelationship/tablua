@@ -1,14 +1,15 @@
-This is the Elixir host for Volvox (see README.md), a Phoenix web application.
+This is Moss, the agent's own computer for Arock (see README.md), a Phoenix web application.
 
-## Volvox host rules
+## Moss rules
 
-- Volvox is the submodule at `submodules/volvox`; never edit it here. A change the core needs is
-  reported to the Volvox repo.
-- The core runs in tv-labs `lua` from the base state in `VolvoxServer.Lua`; every call starts from
-  that state and drops it (the VM has no garbage collector). Nothing about a run lives outside its
-  SQLite file.
+- Moss lives in the Arock repository at `submodules/moss`. Arock Core (`library/` there) is read, never edited
+  from here; a change the core needs is made in the Arock repository.
+- The core runs in tv-labs `lua` from the base state in `Moss.Lua`; every call starts from that state and
+  drops it (the VM has no garbage collector).
+- A computer is its SQLite file: nothing it does reaches the node's real filesystem, a real shell or another
+  computer. Agents talk only by mail.
 - Files stay under 400 lines, split by responsibility. No placeholder modules.
-- Keys and tokens (model keys, the wrangler token) are never logged, printed or written to files.
+- Keys and tokens (model keys, page tokens, the wrangler token) are never logged, printed or written to files.
 
 ## Project guidelines
 

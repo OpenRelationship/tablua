@@ -1,13 +1,13 @@
 -- The test host's additions to the base state: mono.spec driven case by case,
--- the io.open, os.tmpname and os.remove that html.write and its test use
--- (tv-labs lua has no io library), and python edits over the host's colm port.
+-- the io.open, os.tmpname and os.remove the tests use
+-- (tv-labs lua has no io library).
 local spec = require("mono.spec")
 
 -- mono.spec's run prints TAP and exits; the host reports each case instead.
 spec.run = function() end
 
 -- Runs one unit test file; every case as { name, ok, err }.
-function volvox.unit(name, src)
+function arock.unit(name, src)
   local f = assert(load(src, "=" .. name))
   f()
   local out = {}
@@ -36,16 +36,9 @@ io = {
 os.tmpname = function() return __test.tmpname() end
 os.remove = function(path) return __test.remove(path) end
 
--- suite.python over the host's outline module: "replace" or "insert_after"
--- (new source, or nil and the reason) and "text" (a unit in unit form).
-function volvox.python(op, src, qualname, text)
-  local py = require("suite.python").new(volvox.host().run("outline"))
-  return py[op](py, src, qualname, text)
-end
-
 -- One Jev choice through ports.jev over the host's fetch and key.
-function volvox.decide(state, id, text, options)
-  local host = volvox.host()
+function arock.decide(state, id, text, options)
+  local host = arock.host()
   local jev = require("ports.jev").new(host, { key = host.key("jev") })
   local answers, record = jev:decide(state, { [id] = { kind = "choice", text = text, options = options } })
   return answers[id].choice, record.tries, record.status

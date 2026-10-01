@@ -1,10 +1,10 @@
-defmodule VolvoxServer.LuaHost do
+defmodule Moss.LuaHost do
   @moduledoc """
-  The test host: the node's base Lua state plus `mono.spec` (from Volvox's
+  The test host: the node's base Lua state plus `mono.spec` (from Arock's
   monomono), `store.ffi` over Exqlite, and `test/support/lua/test_host.lua`.
   Built once per test run and kept in `:persistent_term`.
   """
-  alias VolvoxServer.Lua.{Ports, Sources}
+  alias Moss.Lua.{Ports, Sources}
 
   @here Path.expand("lua", __DIR__)
 
@@ -21,27 +21,27 @@ defmodule VolvoxServer.LuaHost do
   end
 
   defp build do
-    spec = Path.join(Sources.volvox(), "packages/monomono/rules/lua/lib/mono/spec.lua")
+    spec = Path.join(Sources.core(), "packages/monomono/rules/lua/lib/mono/spec.lua")
 
     extra = %{
       "mono.spec" => File.read!(spec),
       "store.ffi" => File.read!(Path.join(@here, "ffi.lua"))
     }
 
-    lua = VolvoxServer.Lua.build(extra)
+    lua = Moss.Lua.build(extra)
     {_, lua} = Lua.eval!(lua, File.read!(Path.join(@here, "test_host.lua")))
     lua
   end
 
-  @doc "`VolvoxServer.Lua.call/4` on the test base, with the __test functions bound."
+  @doc "`Moss.Lua.call/4` on the test base, with the __test functions bound."
   def call(fun, args, ports \\ []) do
-    VolvoxServer.Lua.call(fun, args, ports, base: bind(base()))
+    Moss.Lua.call(fun, args, ports, base: bind(base()))
   end
 
   defp bind(lua) do
     lua
     |> Lua.set!([:__test, :db_open], fn [_path], lua ->
-      {:ok, conn} = VolvoxServer.Db.open(":memory:")
+      {:ok, conn} = Moss.Db.open(":memory:")
       h = System.unique_integer([:positive])
       Process.put({__MODULE__, h}, conn)
       {[h], lua}
@@ -60,7 +60,7 @@ defmodule VolvoxServer.LuaHost do
       []
     end)
     |> Lua.set!([:__test, :tmpname], fn _ ->
-      [Path.join(System.tmp_dir!(), "volvox-lua-#{System.unique_integer([:positive])}")]
+      [Path.join(System.tmp_dir!(), "moss-lua-#{System.unique_integer([:positive])}")]
     end)
     |> Lua.set!([:__test, :remove], fn [path] -> [File.rm(path) == :ok] end)
   end
