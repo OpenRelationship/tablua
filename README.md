@@ -12,6 +12,7 @@ store) from that repository's `library/`; `AROCK_ROOT` names another checkout.
 just build-script computer                # in the Arock repo: the programs and their /usr
 mix setup
 mix test                                  # mix test --only r2 adds a real R2 round trip
+mix run bench/computers.exs 20000 400     # how many computers a node holds, and what each costs (measure on Linux)
 MOSS_PAGE_TOKENS=me:<a long secret> mix phx.server   # then /computers/<id> and /mail
 ```
 
