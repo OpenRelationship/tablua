@@ -29,7 +29,11 @@ defmodule VolvoxServer.Computer.Programs do
     |> Enum.sort()
   end
 
+  # what a program needs set to find its own files under /usr
+  @env %{"python" => %{"PYTHONHOME" => "/usr/local", "PYTHONDONTWRITEBYTECODE" => "1"}}
+
   def run(name, args, stdin, disk, env \\ %{}) do
+    env = Map.merge(Map.get(@env, name, %{}), env)
     with {:ok, module} <- compiled(name), do: start(module, [name | args], stdin, disk, env)
   end
 

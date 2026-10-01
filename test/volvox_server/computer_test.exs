@@ -233,4 +233,23 @@ defmodule VolvoxServer.ComputerTest do
     assert %{out: "fib(20)=6765\n"} = sh(c, "cat /home/src/out.txt")
     assert %{code: 1, err: "sh: /usr/include/x.h: eperm\n"} = sh(c, "echo no > /usr/include/x.h")
   end
+
+  test "Python runs with its standard library from the shared /usr, on the computer's own files" do
+    c = id()
+    sh(c, "echo 'fern,40' > plants.csv && echo 'moss,2' >> plants.csv")
+
+    py = ~S"""
+    import csv, json, statistics
+    rows = list(csv.reader(open("plants.csv")))
+    json.dump({"mean": statistics.mean(int(r[1]) for r in rows)}, open("out.json", "w"))
+    print(len(rows), "plants")
+    """
+
+    :ok =
+      VolvoxServer.Computer.Disk.write(:sys.get_state(Computer.wake!(c)).disk, "/home/a.py", py)
+
+    assert %{code: 0, out: "2 plants\n"} = sh(c, "python3 a.py")
+    assert %{out: ~s({"mean": 21})} = sh(c, "cat out.json")
+    assert %{code: 4} = sh(c, "python -c 'raise SystemExit(4)'")
+  end
 end
