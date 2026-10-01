@@ -77,6 +77,12 @@ spec.test("a page carries Basecoat, htmx and Shroomi's script, and CSS for the c
   spec.eq(string.find(page, ".text-xl{", 1, true), nil)
 end)
 
+spec.test("rendering a page again gives the page, not its source as text", function()
+  local page = ui.page{ title = "Books", ui.p"one" }
+  spec.eq(ui.render(page), page)
+  spec.eq(ui.render(ui.p"<!doctype html>"), "<p>&lt;!doctype html&gt;</p>")
+end)
+
 spec.test("a page follows the person's light or dark, unless it says which", function()
   spec.ok(string.find(ui.page{ "x" }, '<html lang="en" data-theme="auto">', 1, true))
   spec.ok(string.find(ui.page{ dark = true, "x" }, '<html lang="en" class="dark" data-theme="dark">', 1, true))

@@ -93,6 +93,8 @@ local function render(node, out)
 end
 
 function ui.render(node)
+  -- ui.page's answer is already the whole document; rendering it again would show its source as text
+  if type(node) == "string" and string.sub(node, 1, 15) == "<!doctype html>" then return node end
   local out = {}
   render(node, out)
   return table.concat(out)
