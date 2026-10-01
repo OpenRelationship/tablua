@@ -30,6 +30,10 @@ defmodule Moss.CleanTest do
     assert out =~ ~s(<div hx-post="save" data-x="1" aria-label="l">d</div>)
     assert out =~ "kept text"
     assert out =~ ~s(<path d="M0 0"></path>)
+
+    assert clean(~s(<svg viewBox="0 0 24 24" width="16"><path d="M1 1"/></svg>)) =~
+             ~s(viewbox="0 0 24 24")
+
     assert out =~ ~s(<img src="x"/>)
   end
 

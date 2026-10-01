@@ -37,7 +37,9 @@ defmodule Moss.Computer.Clean do
     src = File.read!(Path.join(Moss.Lua.Sources.core(), "submodules/shroomi/policy.lua"))
     {[t], _lua} = Lua.eval!(Lua.new(), src)
     p = deep(t)
-    keys = fn m -> m |> Map.keys() |> MapSet.new() end
+
+    # names compared as the parser gives them, lower case (an SVG's viewBox is viewbox until the browser reads it)
+    keys = fn m -> m |> Map.keys() |> Enum.map(&String.downcase/1) |> MapSet.new() end
     assets = p["assets"]
 
     %{
