@@ -286,4 +286,71 @@ defmodule VolvoxServer.ComputerTest do
     assert %{out: "42\n"} = sh(c, "echo 'select sum(cm) from p;' | sqlite3 plants.db")
     assert %{code: 1, err: "Error: unknown command" <> _} = sh(c, "sqlite3 plants.db '.shell ls'")
   end
+
+  test "fetch in JavaScript goes out through the host, under the computer's web rules" do
+    test = self()
+
+    Req.Test.stub(Net, fn conn ->
+      case conn.request_path do
+        "/echo" ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+          send(
+            test,
+            {:fetched, conn.method, Plug.Conn.get_req_header(conn, "content-type"), body}
+          )
+
+          conn
+          |> Plug.Conn.put_resp_header("x-plant", "fern")
+          |> Plug.Conn.put_resp_content_type("application/json")
+          |> Plug.Conn.send_resp(201, ~s({"got": #{inspect(body)}}))
+
+        "/away" ->
+          conn
+          |> Plug.Conn.put_resp_header("location", "http://10.0.0.8/")
+          |> Plug.Conn.send_resp(302, "")
+
+        "/bytes" ->
+          Plug.Conn.send_resp(conn, 200, <<0, 1, 2, 255>>)
+      end
+    end)
+
+    c = stubbed()
+
+    js = ~S"""
+    const r = await fetch("http://93.184.215.14/echo", { method: "post", body: JSON.stringify({ n: 1 }), headers: { "x-a": "1" } });
+    const j = await r.json();
+    console.log(r.status, r.ok, r.statusText, r.headers.get("x-plant"), j.got);
+    const b = await (await fetch(new URL("http://93.184.215.14/bytes"))).bytes();
+    console.log(b.length, b[3]);
+    const f = await fetch("http://93.184.215.14/echo", { method: "PUT", body: new URLSearchParams("a=b c") });
+    console.log(f.status);
+    try { await fetch("http://93.184.215.14/away"); } catch (e) { console.log("refused:", e.message); }
+    try { await fetch("http://127.0.0.1:4000/"); } catch (e) { console.log("refused:", e.message); }
+    """
+
+    :ok =
+      VolvoxServer.Computer.Disk.write(
+        :sys.get_state(c |> Computer.wake!()).disk,
+        "/home/f.js",
+        js
+      )
+
+    assert %{code: 0, out: out} = sh(c, "js --module f.js")
+
+    assert [
+             ~s(201 true Created fern {"n":1}),
+             "4 255",
+             "201",
+             "refused: fetch failed: " <> away,
+             "refused: fetch failed: " <> local
+           ] = String.split(out, "\n", trim: true)
+
+    assert away =~ "not on the public internet"
+    assert local =~ "not on the public internet"
+    assert_received {:fetched, "POST", ["text/plain;charset=UTF-8"], ~s({"n":1})}
+
+    assert_received {:fetched, "PUT", ["application/x-www-form-urlencoded;charset=UTF-8"],
+                     "a=b+c"}
+  end
 end

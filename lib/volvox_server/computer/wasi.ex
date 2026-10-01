@@ -4,7 +4,8 @@ defmodule VolvoxServer.Computer.Wasi do
   config)` gives wasmex an import for every `wasi_snapshot_preview1` call the
   module names, with the module's own signature; a call the kernel does not
   answer returns ENOSYS. Files are the computer's disk (`Computer.Files`);
-  nothing reaches the node's own filesystem, a process, or a socket.
+  nothing reaches the node's own filesystem, a process, or a socket. A
+  program's web requests (`fetch` in `js`) go through `Computer.Http`.
 
   `config`: `%{disk, args, env, stdin, owner}`. Output goes to `owner` as
   `{:wasi_out, fd, bytes}` as it is written, the exit code as `{:wasi_exit, code}`.
@@ -13,7 +14,7 @@ defmodule VolvoxServer.Computer.Wasi do
   open files live in that process's dictionary (`Computer.Files`).
   """
   import Bitwise
-  alias VolvoxServer.Computer.Files
+  alias VolvoxServer.Computer.{Files, Http}
   alias Wasmex.Memory
 
   @ns "wasi_snapshot_preview1"
@@ -21,15 +22,17 @@ defmodule VolvoxServer.Computer.Wasi do
   @einval 28
 
   def imports(module, config) do
-    wanted = module |> Wasmex.Module.imports() |> Map.get(@ns, %{})
+    all = Wasmex.Module.imports(module)
 
-    calls =
-      for {name, {:fn, params, results}} <- wanted, into: %{} do
-        fun = call(name, config)
-        {name, {:fn, params, results, wrap(fun, length(params), results)}}
-      end
-
-    %{@ns => calls}
+    # WASI's calls, and the `volvox` module's for the web (Computer.Http) when the program names it
+    for {ns, answer} <- [{@ns, &call/2}, {"volvox", &Http.call/2}],
+        wanted = Map.get(all, ns),
+        into: %{} do
+      {ns,
+       for {name, {:fn, params, results}} <- wanted, into: %{} do
+         {name, {:fn, params, results, wrap(answer.(name, config), length(params), results)}}
+       end}
+    end
   end
 
   # wasmex calls fn(ctx, a, b, ...): one function per arity, around call(name)'s fn(ctx, [args])
