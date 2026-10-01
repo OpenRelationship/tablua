@@ -53,7 +53,7 @@ defmodule VolvoxServerWeb.RunLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} person={@person}>
       <div class="mb-6 flex items-baseline justify-between">
         <h1 class="text-xl font-semibold">Run <span class="font-mono">{@id}</span></h1>
         <span class="text-sm text-slate-500">{@count} events</span>

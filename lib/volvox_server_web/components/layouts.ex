@@ -5,12 +5,21 @@ defmodule VolvoxServerWeb.Layouts do
   embed_templates "layouts/*"
 
   attr :flash, :map, required: true, doc: "the map of flash messages"
+  attr :person, :string, default: nil, doc: "the signed-in person, who may sign out"
   slot :inner_block, required: true
 
   def app(assigns) do
     ~H"""
-    <header class="border-b border-slate-200 bg-white px-6 py-3">
+    <header class="flex items-center border-b border-slate-200 bg-white px-6 py-3">
       <span class="font-semibold tracking-tight">Volvox</span>
+      <.link
+        :if={@person}
+        href="/logout"
+        method="delete"
+        class="ml-auto text-sm text-slate-500 hover:text-slate-900"
+      >
+        Sign out {@person}
+      </.link>
     </header>
     <main class="mx-auto max-w-6xl px-6 py-8">
       {render_slot(@inner_block)}

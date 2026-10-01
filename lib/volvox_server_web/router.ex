@@ -1,6 +1,8 @@
 defmodule VolvoxServerWeb.Router do
   use VolvoxServerWeb, :router
 
+  import VolvoxServerWeb.Auth, only: [require_person: 2]
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -13,8 +15,19 @@ defmodule VolvoxServerWeb.Router do
   scope "/", VolvoxServerWeb do
     pipe_through :browser
 
-    live "/runs/:id", RunLive
-    live "/computers/:id", ComputerLive
-    live "/mail", MailLive
+    get "/login", SessionController, :new
+    post "/login", SessionController, :create
+    delete "/logout", SessionController, :delete
+  end
+
+  # every page past here is a signed-in person's (VolvoxServerWeb.Auth)
+  scope "/", VolvoxServerWeb do
+    pipe_through [:browser, :require_person]
+
+    live_session :person, on_mount: {VolvoxServerWeb.Auth, :person} do
+      live "/runs/:id", RunLive
+      live "/computers/:id", ComputerLive
+      live "/mail", MailLive
+    end
   end
 end

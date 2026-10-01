@@ -31,7 +31,12 @@ defmodule VolvoxServerWeb.ConnCase do
     end
   end
 
-  setup _tags do
-    {:ok, conn: Phoenix.ConnTest.build_conn()}
+  # signed in as config's test person (VolvoxServerWeb.Auth), unless the test is tagged :signed_out
+  setup tags do
+    conn = Phoenix.ConnTest.build_conn()
+
+    if tags[:signed_out],
+      do: {:ok, conn: conn},
+      else: {:ok, conn: Plug.Test.init_test_session(conn, person: "tester")}
   end
 end

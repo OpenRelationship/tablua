@@ -27,6 +27,20 @@ end
 config :volvox_server, VolvoxServerWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# Who may sign in to the host's pages (VolvoxServerWeb.Auth): VOLVOX_PAGE_TOKENS="name:token,name:token".
+# Unset in production, no one can; a token is a long random secret (mix phx.gen.secret), never committed.
+if tokens = System.get_env("VOLVOX_PAGE_TOKENS") do
+  config :volvox_server,
+    page_tokens:
+      for(
+        pair <- String.split(tokens, ",", trim: true),
+        [name, token] = String.split(String.trim(pair), ":", parts: 2),
+        byte_size(token) >= 24,
+        into: %{},
+        do: {token, name}
+      )
+end
+
 if config_env() == :prod do
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
