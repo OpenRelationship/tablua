@@ -35,9 +35,10 @@ end
 
 The page is the agent's writing, so none of it runs as code.
 
-- **[policy.lua](policy.lua)** names the elements, attributes, URL schemes, htmx attributes and assets a page may use. Script, style, iframe, object, embed and base elements are never allowed, nor are `on*` handlers, `javascript:` addresses, `hx-on` or `hx-vars`.
-- **The host enforces the policy** on every page, outside the agent's own run. A page written without Shroomi's helpers is held to it all the same.
-- **Assets are pinned by SHA-384** and served by the host: Basecoat 1.0.2 (MIT), htmx 2.0.4 (0BSD) and `shroomi.js`. They are the only scripts a page loads, and the host's Content-Security-Policy allows nothing else.
+- **[policy.lua](policy.lua)** names the elements, attributes, URL schemes, htmx attributes and assets a page may use. Script, iframe, object, embed and base elements are never allowed, nor are `on*` handlers, `javascript:` addresses, `hx-on` or `hx-vars`. The one `<style>` is the CSS `ui.page` writes in the head; a style element anywhere else is taken out, and CSS that names a script address or a binding (`url(javascript:)`, `expression()`, `behavior:`, `-moz-binding`) is dropped, in the head and in `style` attributes.
+- **The host enforces the policy** on every page, outside the agent's own run. A page written without Shroomi's helpers is held to it all the same. Moss parses and cleans pages in Elixir, so no page an agent writes reaches C, and it checks itself against DOMPurify's 223-vector corpus.
+- **Assets are pinned by SHA-384** and served by the host: Basecoat 1.0.2 (MIT), htmx 2.0.4 (0BSD) and `shroomi.js` (dialogs, and light or dark as the system is). They are the only scripts a page loads, and the host's Content-Security-Policy allows nothing else.
+- **Where a page is shown.** The person opens the app in their browser (`/computers/<id>/app/`), or in the computer's desktop as its App window: a sandboxed frame with an opaque origin and no cookies, opened by a one-hour pass for that computer and reloaded when the agent changes its files. The agent reads the same page as words and controls (`open app`).
 
 ## Extending
 
@@ -61,6 +62,6 @@ The page is the agent's writing, so none of it runs as code.
 
 ## The gallery
 
-`examples/` holds apps written only in Shroomi: a plant tracker (a database and htmx), Markdown notes with a live preview, a dashboard, a settings form the server validates, a report, and an inbox. `examples/app.lua` is the gallery itself, which shows each one and the Lua that made it. To open it, put the folder on a computer from Moss: `mix moss.put shroomi-gallery <path>/examples --as examples --app app.lua --owner <you>`, then open `/computers/shroomi-gallery/app/`.
+`examples/` holds apps written only in Shroomi: a plant tracker (a database and htmx), Markdown notes with a live preview, a dashboard, a settings form the server validates, a report, and an inbox. `examples/app.lua` is the gallery itself, which shows each one and the Lua that made it. To open it, put the folder on a computer from Moss: `mix moss.put shroomi-gallery <path>/examples --as examples --app app.lua --owner <you>`, then open `/computers/shroomi-gallery/app/`, or the computer's desktop, where it is the App window.
 
 Portable Lua: it runs unchanged on LuaJIT, Lua 5.4/5.5 and tv-labs `lua`. Tests are `*_test.lua` (buck2 `lua_test`; Moss runs them in tv-labs `lua` too).
