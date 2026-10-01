@@ -1,4 +1,4 @@
-load("@monomono//rules/lua:defs.bzl", "lua_library", "lua_test")
+load("@nomimono//rules/lua:defs.bzl", "lua_library", "lua_test")
 
 lua_library(
     name = "shroomi",
