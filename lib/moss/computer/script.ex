@@ -124,7 +124,7 @@ defmodule Moss.Computer.Script do
         :throw, :too_much_output -> fail("lua: more than #{div(@out_bytes, 1024)} KB of output\n")
       end
 
-    status = saved(status, state)
+    :ok = Sql.close_all(state.disk)
     {out, _} = Process.get(:out)
 
     {status, IO.iodata_to_binary(Enum.reverse(out)),
@@ -152,18 +152,10 @@ defmodule Moss.Computer.Script do
           {500, %{}, "the app printed more than #{div(@out_bytes, 1024)} KB"}
       end
 
-    {status, headers, body} =
-      if saved(0, state) == 0, do: answer, else: {500, %{}, "the app's database was not saved"}
+    :ok = Sql.close_all(state.disk)
+    {status, headers, body} = answer
 
     {status, headers, body, IO.iodata_to_binary(Enum.reverse(Process.get(:err)))}
-  end
-
-  # databases the script left open are saved as it ends; one that cannot be is a failure
-  defp saved(status, state) do
-    case Sql.close_all(state.disk) do
-      :ok -> status
-      {:error, why} -> fail("lua: #{why}\n")
-    end
   end
 
   defp out(bytes) do
@@ -304,7 +296,8 @@ defmodule Moss.Computer.Script do
     end)
   end
 
-  # db.open(path) -> handle; db_exec(h, sql, params) -> rows, changes; db_save(h); db_close(h)
+  # db.open(path) -> handle; db_exec(h, sql, params) -> rows, changes; db_save(h); db_close(h). A statement's work
+  # is spent from the run's own instruction budget (Moss.Sql.Budget), so SQL stops where Lua would.
   defp db_funs(lua, disk, path) do
     lua
     |> fun(:db_open, fn [p | _] -> result(Sql.open(disk, path.(p))) end)
@@ -317,7 +310,22 @@ defmodule Moss.Computer.Script do
           _ -> []
         end
 
-      case Sql.exec(h, to_string(sql), params) do
+      st = lua.state
+
+      left =
+        if st.max_instructions == :infinity,
+          do: :infinity,
+          else: st.max_instructions - st.instruction_count
+
+      {answer, spent} =
+        case Sql.exec(disk, h, to_string(sql), params, left) do
+          {:ok, rows, changes, spent} -> {{:ok, rows, changes}, spent}
+          {:error, why, spent} -> {{:error, why}, spent}
+        end
+
+      lua = %{lua | state: %{st | instruction_count: st.instruction_count + spent}}
+
+      case answer do
         {:ok, rows, changes} ->
           {t, lua} = Lua.encode!(lua, rows)
           {[t, changes], lua}

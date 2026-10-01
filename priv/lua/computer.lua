@@ -9,9 +9,13 @@
 --   http.get(url [, headers]), http.post(url, body [, headers]), http.request{ method, url, headers, body }
 --   json.encode(v), json.decode(s)
 --   mail.send(to, subject, body)
---   db.open(path) -> d; d:exec(sql, ...) -> changes; d:query(sql, ...) -> rows; d:one(sql, ...) -> row;
---     d:save(); d:close(). A database is a SQLite file on the disk, saved when closed or when the run ends;
---     ? in the SQL binds the arguments after it; attach and pragma are refused; 64 MB at most.
+--   db.open(name) -> d; d:exec(sql, ...) -> changes; d:query(sql, ...) -> rows; d:one(sql, ...) -> row;
+--     d:close(); d:save() (a no-op: each statement is kept as it ends, a transaction at COMMIT). A database is
+--     named like a file ("plants.db"), shows in ls, cat sums it up, rm removes it; no file is ever opened as
+--     one. Its SQL is SQLite's: create table/index, alter table add column, drop; insert (or ignore/replace,
+--     on conflict do update/nothing, returning); select with joins, group by, subqueries, union; update;
+--     delete; begin/commit/rollback; ?, ?N and :name bind the arguments after it. Views, triggers, WITH,
+--     window functions and pragma are refused by name. 64 MB at most.
 --   An app: /home/app.lua returns function(req) -> html | { status, body, headers, redirect }, with
 --     req = { method, path, query, form, headers }. The person opens it in their browser; `open app` opens it
 --     here. Build its pages with Shroomi (require("shroomi"), `help shroomi`); links, forms and hx- paths are

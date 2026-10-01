@@ -11,7 +11,7 @@ defmodule Moss.SdkTest do
   defp disk(c), do: :sys.get_state(Computer.wake!(c)).disk
   defp put(c, path, text), do: :ok = Disk.write(disk(c), path, text)
 
-  test "a database is a file on the computer's disk, kept between runs" do
+  test "a database is named on the computer, kept between runs, and shown by ls and cat" do
     c = id()
 
     put(c, "/home/add.lua", ~S"""
@@ -33,11 +33,17 @@ defmodule Moss.SdkTest do
                ~s|lua -e 'local d = db.open("plants.db") for _, r in ipairs(d:query("select * from plant order by name")) do print(r.name, r.water, r.note) end print(d:one("select name from plant where water < ?", 3).name) d:close()'|
              )
 
-    assert {:ok, "SQLite format 3" <> _} = Disk.read(disk(c), "/home/plants.db")
+    assert %{
+             code: 0,
+             out:
+               "plants.db: a database (SQL; open it in Lua with db.open), 1 table\n  plant: 2 rows\n"
+           } =
+             sh(c, "cat plants.db")
+
     assert %{code: 0, out: "add.lua\nplants.db\n"} = sh(c, "ls")
   end
 
-  test "a database reaches no other database and cannot lift its limits" do
+  test "a database reaches no other database, no file, and no SQL beyond its own" do
     c = id()
 
     put(c, "/home/x.lua", ~S"""
@@ -45,19 +51,28 @@ defmodule Moss.SdkTest do
     print(d:exec("attach '/tmp/y.db' as y"))
     print(d:exec("pragma max_page_count = 1000000000"))
     print(d:exec("vacuum into '/tmp/z.db'"))
+    print(d:exec("create view v as select 1"))
+    print(d:query("with t as (select 1) select * from t"))
     print(d:query("select nope"))
     """)
 
     assert %{code: 0, out: out} = sh(c, "lua x.lua")
+    assert [a, p, v, cv, w, q] = String.split(out, "\n", trim: true)
+    assert a == "nil\tATTACH is not supported (the database speaks a subset of SQLite: help lua)"
+    assert p =~ ~r/^nil\tPRAGMA is not supported/
+    assert v =~ ~r/^nil\tVACUUM is not supported/
+    assert cv =~ ~r/^nil\tCREATE VIEW is not supported/
+    assert w =~ ~r/^nil\tWITH \(a common table expression\) is not supported/
+    assert q == "nil\tno such column: nope"
 
-    assert [a, p, v, q] = String.split(out, "\n", trim: true)
-    assert a =~ ~r/^nil\t.*not authorized/
-    assert p =~ ~r/^nil\t.*not authorized/
-    assert v =~ ~r/^nil\t.*(denied|not authorized)/
-    assert q =~ ~r/^nil\t.*no such column/
+    # a file's bytes are never a database, whatever they hold
+    put(c, "/home/bad.db", "SQLite format 3\0 or anything else")
 
-    put(c, "/home/bad.db", "not sqlite")
-    assert %{out: "nil\tnot a database\n"} = sh(c, ~s|lua -e 'print(db.open("bad.db"))'|)
+    assert %{
+             out:
+               "nil\t/home/bad.db: a file, not a database (a database is made by db.open; rm the file first)\n"
+           } =
+             sh(c, ~s|lua -e 'print(db.open("bad.db"))'|)
   end
 
   test "csv and date read and write what agents meet" do

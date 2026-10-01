@@ -1,23 +1,25 @@
 defmodule Moss.Computer.Script.Sql do
   @moduledoc """
-  A script's databases (`db.open("app.db")` in Lua): each one is a SQLite file
-  on the computer's own disk, loaded into memory for the run and written back
-  when the script closes it or the run ends. So a database sleeps with its
-  computer, counts against its disk, and never touches a node file.
+  A script's databases (`db.open("plants.db")` in Lua). A database is named
+  by a path on the computer (relative to the working folder, as a file's
+  is), shows in `ls`, prints a summary under `cat` and goes with `rm`; it is
+  never a file's bytes, and no file is ever opened as one.
 
-  Inside, SQL is the script's: tables, indexes, views, triggers, transactions.
-  `attach`, `detach` and every `pragma` are refused, so a script reaches no
-  other database and cannot lift its own limit of #{div(64 * 1024 * 1024, 1_048_576)} MB. A run holds at most
-  #{8} open databases. The connections live in the run's own process; when it
-  is killed they go with it, unsaved.
+  Its SQL is a subset of SQLite's, parsed and run in Elixir (`Moss.Sql.Engine`,
+  Arock PROJECT.md §14.7 item 9: no C an agent can reach). While a run has it
+  open it lives in the run's memory; each statement's changes (a
+  transaction's, at COMMIT) are written to the computer's own file as it ends
+  (`Moss.Sql.Store`), so there is nothing to save and a killed run loses only
+  the statement it was in. A database is at most #{div(64 * 1024 * 1024, 1_048_576)} MB, a run holds at most
+  #{8} open, and each statement's rows count against the run's instruction
+  budget.
   """
-  alias Exqlite.Sqlite3
   alias Moss.Computer.Disk
+  alias Moss.Sql.{Budget, Engine, Store}
 
-  @max_bytes 64 * 1024 * 1024
   @max_open 8
 
-  @doc "Opens `path` (a file, or a new one) and returns its handle."
+  @doc "Opens the database at `path` (made on its first write) and returns its handle."
   def open(disk, path) do
     dbs = dbs()
 
@@ -26,111 +28,103 @@ defmodule Moss.Computer.Script.Sql do
         {:error, "too many open databases (#{@max_open})"}
 
       true ->
-        with {:ok, bytes} <- existing(disk, path),
-             {:ok, conn} <- Sqlite3.open(":memory:"),
-             :ok <- load(conn, bytes),
-             :ok <- Sqlite3.execute(conn, "pragma max_page_count = #{div(@max_bytes, 4096)}"),
-             :ok <- Sqlite3.set_authorizer(conn, [:attach, :detach, :pragma]) do
+        with {:ok, db} <- load(disk, path) do
           h = Process.get(:db_next, 1)
           Process.put(:db_next, h + 1)
-          Process.put(:dbs, Map.put(dbs, h, %{conn: conn, path: path, dirty: false}))
+          Process.put(:dbs, Map.put(dbs, h, %{db: db, path: path}))
           {:ok, h}
         end
     end
   end
 
-  @doc "Runs `sql` with `params`; the rows of a query, or the count of rows it changed."
-  def exec(h, sql, params) do
-    with {:ok, db} <- fetch(h),
-         {:ok, rows} <- Moss.Db.exec(db.conn, sql, Enum.map(params, &param/1)) do
-      changes =
-        case Sqlite3.changes(db.conn) do
-          {:ok, n} -> n
-          _ -> 0
+  defp load(disk, path) do
+    case Store.load(disk.conn, path) do
+      {:ok, db} ->
+        {:ok, db}
+
+      :none ->
+        case Disk.stat(disk, path) do
+          {:error, :enoent} ->
+            {:ok, Engine.new()}
+
+          {:ok, %{dir: true}} ->
+            {:error, "#{path}: is a folder"}
+
+          {:ok, _} ->
+            {:error,
+             "#{path}: a file, not a database (a database is made by db.open; rm the file first)"}
+
+          {:error, why} ->
+            {:error, "#{path}: #{why}"}
         end
-
-      unless reads?(sql), do: Process.put(:dbs, Map.put(dbs(), h, %{db | dirty: true}))
-      {:ok, rows, changes}
     end
   end
 
-  @doc "Writes a changed database back to its file on the disk."
-  def save(disk, h) do
-    with {:ok, db} <- fetch(h) do
-      if db.dirty, do: write(disk, h, db), else: :ok
-    end
-  end
+  @doc """
+  Runs `sql` with `params` with at most `budget` instructions' work:
+  `{:ok, rows, changes, spent}` (rows as maps, NULL columns left out) or
+  `{:error, why, spent}`.
+  """
+  def exec(disk, h, sql, params, budget) do
+    Budget.start(budget)
 
-  @doc "Saves and closes one database."
-  def close(disk, h) do
-    with {:ok, db} <- fetch(h) do
-      result = if db.dirty, do: write(disk, h, db), else: :ok
-      Sqlite3.close(db.conn)
-      Process.put(:dbs, Map.delete(dbs(), h))
-      result
-    end
-  end
+    with {:ok, d} <- fetch(h) do
+      flush = fn db -> write(disk, d.path, db) end
 
-  @doc "At the end of a run: saves and closes every database it left open."
-  def close_all(disk) do
-    dbs()
-    |> Map.keys()
-    |> Enum.map(&close(disk, &1))
-    |> Enum.find(:ok, &(&1 != :ok))
-  end
+      case Engine.exec(d.db, sql, params, flush) do
+        {:ok, db, r} ->
+          Process.put(:dbs, Map.put(dbs(), h, %{d | db: db}))
+          {:ok, Enum.map(r.rows, &row(r.names, &1)), r.changes, Budget.spent()}
 
-  defp write(disk, h, db) do
-    with {:ok, bytes} <- serialize(db.conn),
-         :ok <- Disk.write(disk, db.path, bytes) do
-      Process.put(:dbs, Map.put(dbs(), h, %{db | dirty: false}))
-      :ok
+        {:error, db, why} ->
+          Process.put(:dbs, Map.put(dbs(), h, %{d | db: db}))
+          {:error, why, Budget.spent()}
+      end
     else
-      {:error, why} -> {:error, "#{db.path}: not saved: #{why}"}
+      {:error, why} -> {:error, why, 0}
     end
   end
 
-  # SQLite reads the page count with a pragma to serialize a database it did not load, so the authorizer steps
-  # aside for exactly that call
-  defp serialize(conn) do
-    :ok = Sqlite3.set_authorizer(conn, [])
-
-    try do
-      Sqlite3.serialize(conn)
-    after
-      :ok = Sqlite3.set_authorizer(conn, [:attach, :detach, :pragma])
-    end
-  end
-
-  defp existing(disk, path) do
-    case Disk.read(disk, path) do
-      {:ok, bytes} -> {:ok, bytes}
-      {:error, :enoent} -> {:ok, ""}
+  # a statement's changes to the computer's file; the database's folder made as a file's would be
+  defp write(disk, path, db) do
+    with :ok <- Disk.mkdir_p(disk, Path.dirname(path)),
+         :ok <- Store.flush(disk.conn, path, db) do
+      Disk.changed(disk, [path])
+    else
       {:error, why} -> {:error, "#{path}: #{why}"}
     end
   end
 
-  defp load(_conn, ""), do: :ok
+  defp row(names, values) do
+    for {c, v} <- Enum.zip(names, values), v != nil, into: %{}, do: {c, out(v)}
+  end
 
-  defp load(conn, bytes) do
-    if String.starts_with?(bytes, "SQLite format 3\0"),
-      do: Sqlite3.deserialize(conn, bytes),
-      else: {:error, "not a database"}
+  defp out({:blob, b}), do: b
+  defp out(v), do: v
+
+  @doc "Every change is already written: true, unless the database is closed."
+  def save(_disk, h), do: with({:ok, _} <- fetch(h), do: :ok)
+
+  @doc "Closes one database; a transaction left open is rolled back, as SQLite's is."
+  def close(_disk, h) do
+    with {:ok, _} <- fetch(h) do
+      Process.put(:dbs, Map.delete(dbs(), h))
+      :ok
+    end
+  end
+
+  @doc "At the end of a run: closes every database it left open."
+  def close_all(disk) do
+    dbs() |> Map.keys() |> Enum.each(&close(disk, &1))
+    :ok
   end
 
   defp fetch(h) do
     case Map.fetch(dbs(), h) do
-      {:ok, db} -> {:ok, db}
+      {:ok, d} -> {:ok, d}
       :error -> {:error, "the database is closed"}
     end
   end
 
   defp dbs, do: Process.get(:dbs, %{})
-
-  defp reads?(sql), do: Regex.match?(~r/^\s*(select|values|explain)\b/i, sql)
-
-  # Lua hands numbers as floats; a whole one binds as an integer
-  defp param(v) when is_float(v) and v == trunc(v) and abs(v) < 9_007_199_254_740_992,
-    do: trunc(v)
-
-  defp param(v), do: v
 end

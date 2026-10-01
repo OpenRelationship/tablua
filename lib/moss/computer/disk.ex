@@ -15,9 +15,15 @@ defmodule Moss.Computer.Disk do
   A disk is its connection, the computer it belongs to (the log's task) and
   who its changes are by (`actor`: "agent", "user" or "host"). `keep/3` and
   `kept/3` hold the computer's own state beside the files.
+
+  The agent's databases (`db.open` in Lua, `Moss.Sql.Store`) are entries
+  too: `ls` and `stat` show them, `cat` reads a summary, `rm` removes one;
+  writing, moving or copying a file onto one is refused, and a database is
+  never moved.
   Paths are normalised (`.`, `..`, repeated slashes) and never leave `/`.
   """
   alias Moss.{Db, Log}
+  alias Moss.Sql.Store
 
   defstruct [:conn, :task, actor: "agent"]
 
@@ -46,6 +52,7 @@ defmodule Moss.Computer.Disk do
          {:ok, _} <- replicated(conn),
          {:ok, _} <- Db.exec(conn, @kept, []),
          :ok <- Log.open(conn),
+         :ok <- Store.setup(conn),
          :ok <- from_nodes(disk),
          :ok <- root(disk),
          {:ok, _} <- Db.exec(conn, @nodes, []),
@@ -182,8 +189,32 @@ defmodule Moss.Computer.Disk do
     end
   end
 
-  def stat(disk, path), do: own_stat(disk, norm(path))
-  def read(disk, path), do: own_read(disk, norm(path))
+  def stat(disk, path) do
+    path = norm(path)
+
+    case own_stat(disk, path) do
+      {:error, :enoent} -> Store.stat(disk.conn, path) || {:error, :enoent}
+      found -> found
+    end
+  end
+
+  def read(disk, path) do
+    path = norm(path)
+
+    case own_read(disk, path) do
+      {:error, :enoent} ->
+        if Store.exists?(disk.conn, path),
+          do: {:ok, Store.describe(disk.conn, path)},
+          else: {:error, :enoent}
+
+      found ->
+        found
+    end
+  end
+
+  @database "is a database (change it with SQL through db.open in Lua; rm removes it)"
+
+  defp database?(disk, path), do: Store.exists?(disk.conn, path)
 
   @doc "A folder's entries, sorted by name."
   def list(disk, path), do: own_list(disk, norm(path))
@@ -192,9 +223,11 @@ defmodule Moss.Computer.Disk do
     path = norm(path)
 
     with :ok <- mkdir_p(disk, Path.dirname(path)),
-         {:ok, %{dir: false}} <- file_or_none(disk, path) do
+         {:ok, %{dir: false} = st} <- file_or_none(disk, path),
+         false <- Map.get(st, :db, false) do
       log(disk, "Write File", [path, data])
     else
+      true -> {:error, @database}
       {:ok, %{dir: true}} -> {:error, :eisdir}
       other -> other
     end
@@ -244,15 +277,22 @@ defmodule Moss.Computer.Disk do
             [prefix]
           )
 
-        {:ok,
-         Enum.map(rows, fn r ->
-           %{
-             name: Path.basename(r["path"]),
-             dir: r["dir"] == 1,
-             size: r["size"] || 0,
-             mtime: r["mtime"]
-           }
-         end)}
+        files =
+          Enum.map(rows, fn r ->
+            %{
+              name: Path.basename(r["path"]),
+              dir: r["dir"] == 1,
+              size: r["size"] || 0,
+              mtime: r["mtime"]
+            }
+          end)
+
+        dbs =
+          for p <- Store.list(disk.conn, prefix),
+              {:ok, st} = Store.stat(disk.conn, p),
+              do: %{name: Path.basename(p), dir: false, size: st.size, mtime: st.mtime}
+
+        {:ok, Enum.sort_by(files ++ dbs, & &1.name)}
 
       {:ok, _} ->
         {:error, :enotdir}
@@ -273,6 +313,9 @@ defmodule Moss.Computer.Disk do
       {"/", _} ->
         {:error, :eperm}
 
+      {_, {:ok, %{db: true}}} ->
+        Store.remove(disk.conn, path)
+
       {_, {:ok, %{dir: true}}} ->
         {:ok, kids} = list(disk, path)
 
@@ -292,15 +335,20 @@ defmodule Moss.Computer.Disk do
   def rename(disk, from, to) do
     {from, to} = {norm(from), norm(to)}
 
-    with {:ok, _} <- stat(disk, from),
+    with false <- database?(disk, from) or database?(disk, to),
+         {:ok, _} <- stat(disk, from),
          {:ok, %{dir: true}} <- stat(disk, Path.dirname(to)),
          :ok <- if(String.starts_with?(to <> "/", from <> "/"), do: {:error, :einval}, else: :ok) do
       log(disk, "Move File", [from, to])
     else
+      true -> {:error, @database}
       {:ok, _} -> {:error, :enotdir}
       error -> error
     end
   end
+
+  @doc "Tells the app's window that `paths` changed (a database's write, by `Moss.Computer.Script.Sql`)."
+  def changed(disk, paths), do: home_changed(disk, paths)
 
   @doc "Keeps a term beside the files (the terminal's lines, the browser's tabs), for when the computer wakes."
   def keep(disk, key, term) do

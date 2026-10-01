@@ -217,7 +217,7 @@ defmodule Moss.Computer.Commands do
                   else: copy(state.disk, from, target, flags)
                 ),
               r != :ok,
-              do: "#{move}: #{from}: #{inspect(elem(r, 1))}\n"
+              do: "#{move}: #{from}: #{why(elem(r, 1))}\n"
 
         {if(errs == [], do: 0, else: 1), "", Enum.join(errs), state}
 
@@ -290,6 +290,9 @@ defmodule Moss.Computer.Commands do
     {if(err == "", do: 0, else: 1), out, err, state}
   end
 
+  defp why(e) when is_binary(e), do: e
+  defp why(e), do: inspect(e)
+
   defp done(:ok, _cmd, _path), do: :ok
   defp done({:error, e}, cmd, path), do: {:err, "#{cmd}: #{path}: #{e}\n"}
 
@@ -325,6 +328,9 @@ defmodule Moss.Computer.Commands do
 
   defp copy(disk, from, to, flags) do
     case Disk.stat(disk, from) do
+      {:ok, %{db: true}} ->
+        {:error, "is a database (copy its rows with SQL through db.open in Lua)"}
+
       {:ok, %{dir: true}} ->
         if String.contains?(flags, "r") or String.contains?(flags, "R") do
           for {path, dir} <- walk(disk, from) do
