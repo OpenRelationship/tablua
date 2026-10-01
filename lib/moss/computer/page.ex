@@ -151,10 +151,18 @@ defmodule Moss.Computer.Page do
       {"form", attrs, kids}, {cs, st} ->
         n = st.form + 1
 
-        form = %{
-          action: attr(attrs, "action") || "",
-          method: String.upcase(attr(attrs, "method") || "GET")
-        }
+        form =
+          case hx(attrs) do
+            {method, url} ->
+              %{action: url, method: method, hx: true}
+
+            nil ->
+              %{
+                action: attr(attrs, "action") || "",
+                method: String.upcase(attr(attrs, "method") || "GET"),
+                hx: false
+              }
+          end
 
         {cs, st} = collect(kids, {cs, %{st | form: n, forms: Map.put(st.forms, n, form)}})
         {cs, %{st | form: 0, forms: st.forms}}
@@ -164,9 +172,19 @@ defmodule Moss.Computer.Page do
         {cs, %{st2 | label: st.label}}
 
       {"a", attrs, kids}, acc ->
-        if href = attr(attrs, "href"),
-          do: add(acc, %{role: "link", name: words(kids, attrs), href: href}),
-          else: acc
+        case {hx(attrs), attr(attrs, "href")} do
+          {{"GET", url}, _} ->
+            add(acc, %{role: "link", name: words(kids, attrs), href: url})
+
+          {{_, _} = req, _} ->
+            add(acc, %{role: "button", name: words(kids, attrs), type: "button", hx: req})
+
+          {nil, nil} ->
+            acc
+
+          {nil, href} ->
+            add(acc, %{role: "link", name: words(kids, attrs), href: href})
+        end
 
       {"button", attrs, kids}, acc ->
         add(acc, %{
@@ -174,7 +192,8 @@ defmodule Moss.Computer.Page do
           name: words(kids, attrs),
           type: attr(attrs, "type") || "submit",
           field: attr(attrs, "name"),
-          value: attr(attrs, "value")
+          value: attr(attrs, "value"),
+          hx: hx(attrs)
         })
 
       {"input", attrs, _}, acc ->
@@ -262,7 +281,8 @@ defmodule Moss.Computer.Page do
           form_info: Map.get(st.forms, st.form),
           type: nil,
           field: nil,
-          value: nil
+          value: nil,
+          hx: nil
         },
         c
       )
@@ -288,6 +308,13 @@ defmodule Moss.Computer.Page do
   end
 
   defp attr(attrs, name), do: Enum.find_value(attrs, fn {k, v} -> k == name && v end)
+
+  # an htmx request an element makes: {method, url}
+  defp hx(attrs) do
+    Enum.find_value(~w(get post put patch delete), fn m ->
+      if url = attr(attrs, "hx-" <> m), do: {String.upcase(m), url}
+    end)
+  end
 
   # -- for a watcher -----------------------------------------------------------------------------
 
@@ -318,7 +345,7 @@ defmodule Moss.Computer.Page do
   defp fill(tree, page, n) do
     Enum.map_reduce(tree, n, fn
       {tag, a, k}, n when tag in ~w(a button input textarea select) ->
-        n = if tag == "a" and not Enum.any?(a, &match?({"href", _}, &1)), do: n, else: n + 1
+        n = if tag == "a" and not link?(a), do: n, else: n + 1
         value = Map.get(page.values, to_string(n))
 
         cond do
@@ -348,6 +375,9 @@ defmodule Moss.Computer.Page do
         {s, n}
     end)
   end
+
+  defp link?(attrs),
+    do: Enum.any?(attrs, fn {k, _} -> k in ~w(href hx-get hx-post hx-put hx-patch hx-delete) end)
 
   defp set(attrs, name, value), do: [{name, value} | unset(attrs, name)]
   defp unset(attrs, name), do: Enum.reject(attrs, &match?({^name, _}, &1))

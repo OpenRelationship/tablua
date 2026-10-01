@@ -1,0 +1,191 @@
+defmodule Moss.SdkTest do
+  # The Lua SDK agents build with (Arock PROJECT.md §14.7, goal 4): a database per computer, CSV, dates, HTML
+  # templates, Markdown, and Gherkin features run by Lua steps as Robot rows, on top of fs, http, json and mail.
+  use ExUnit.Case, async: false
+
+  alias Moss.Computer
+  alias Moss.Computer.Disk
+
+  defp id, do: "sdk-#{System.unique_integer([:positive])}"
+  defp sh(id, line), do: Computer.run(id, line)
+  defp disk(c), do: :sys.get_state(Computer.wake!(c)).disk
+  defp put(c, path, text), do: :ok = Disk.write(disk(c), path, text)
+
+  test "a database is a file on the computer's disk, kept between runs" do
+    c = id()
+
+    put(c, "/home/add.lua", ~S"""
+    local d = assert(db.open("plants.db"))
+    d:exec("create table if not exists plant (name text primary key, water int, note text)")
+    print(d:exec("insert into plant values (?, ?, ?)", arg[1], tonumber(arg[2]), nil))
+    """)
+
+    assert %{code: 0, out: "1\n"} = sh(c, "lua add.lua fern 3")
+    assert %{code: 0, out: "1\n"} = sh(c, "lua add.lua moss 1")
+
+    # left open, still saved when the run ends
+    assert %{code: 0} =
+             sh(c, ~s|lua -e 'db.open("plants.db"):exec("update plant set water = water + 1")'|)
+
+    assert %{code: 0, out: "fern\t4\tnil\nmoss\t2\tnil\nmoss\n"} =
+             sh(
+               c,
+               ~s|lua -e 'local d = db.open("plants.db") for _, r in ipairs(d:query("select * from plant order by name")) do print(r.name, r.water, r.note) end print(d:one("select name from plant where water < ?", 3).name) d:close()'|
+             )
+
+    assert {:ok, "SQLite format 3" <> _} = Disk.read(disk(c), "/home/plants.db")
+    assert %{code: 0, out: "add.lua\nplants.db\n"} = sh(c, "ls")
+  end
+
+  test "a database reaches no other database and cannot lift its limits" do
+    c = id()
+
+    put(c, "/home/x.lua", ~S"""
+    local d = db.open("x.db")
+    print(d:exec("attach '/tmp/y.db' as y"))
+    print(d:exec("pragma max_page_count = 1000000000"))
+    print(d:exec("vacuum into '/tmp/z.db'"))
+    print(d:query("select nope"))
+    """)
+
+    assert %{code: 0, out: out} = sh(c, "lua x.lua")
+
+    assert [a, p, v, q] = String.split(out, "\n", trim: true)
+    assert a =~ ~r/^nil\t.*not authorized/
+    assert p =~ ~r/^nil\t.*not authorized/
+    assert v =~ ~r/^nil\t.*(denied|not authorized)/
+    assert q =~ ~r/^nil\t.*no such column/
+
+    put(c, "/home/bad.db", "not sqlite")
+    assert %{out: "nil\tnot a database\n"} = sh(c, ~s|lua -e 'print(db.open("bad.db"))'|)
+  end
+
+  test "csv and date read and write what agents meet" do
+    c = id()
+
+    put(c, "/home/t.csv", "name,note\nfern,\"likes \"\"shade\"\", damp\"\nmoss,\"two\nlines\"\n")
+
+    put(c, "/home/c.lua", ~S"""
+    local csv, date = require("csv"), require("date")
+    local rows, names = csv.parse(fs.read("t.csv"), { header = true })
+    print(#rows, names[2], rows[1].note, rows[2].note == "two\nlines")
+    io.write(csv.encode(rows, { "name", "note" }))
+    local t = date.parse("2024-02-29T23:30:00Z")
+    print(date.iso(t), date.day(date.add(t, { years = 1 })), date.day(date.add(t, { days = 1 })))
+    print(date.format(t, "%A %d %B %Y, day %j"), date.diff(date.parse("2026-10-01"), date.parse("2026-09-01"), "days"))
+    print(date.iso(date.parse("2026-10-01T09:00:00+02:00")), date.parts(0).weekday)
+    """)
+
+    assert %{code: 0, out: out} = sh(c, "lua c.lua")
+
+    assert out ==
+             """
+             2\tnote\tlikes "shade", damp\ttrue
+             name,note
+             fern,"likes ""shade"", damp"
+             moss,"two
+             lines"
+             2024-02-29T23:30:00Z\t2025-02-28\t2024-03-01
+             Thursday 29 February 2024, day 060\t30
+             2026-10-01T07:00:00Z\t4
+             """
+  end
+
+  test "html templates escape what they show; markdown becomes safe HTML" do
+    c = id()
+
+    put(c, "/home/h.lua", ~S"""
+    local html, md = require("html"), require("markdown")
+    print(html.render("<h1>{{title}}</h1><ul>{{#plants}}<li>{{name}}{{#dry}} (dry){{/dry}}</li>{{/plants}}</ul>{{^none}}none{{/none}}{{{raw}}}",
+      { title = "<Ferns & co>", plants = { { name = "fern", dry = true }, { name = "moss" } }, none = {}, raw = "<b>!</b>" }))
+    io.write(md.html("# Plants\n\nA *fern* and **moss**, `x<y`.\n\n- one\n- [two](https://a.b/?q=1&r=2)\n\n```lua\nprint(1 < 2)\n```\n\n> quoted\n\n[bad](javascript:alert(1)) <script>"))
+    """)
+
+    assert %{code: 0, out: out} = sh(c, "lua h.lua")
+
+    assert out ==
+             """
+             <h1>&lt;Ferns &amp; co&gt;</h1><ul><li>fern (dry)</li><li>moss</li></ul>none<b>!</b>
+             <h1>Plants</h1>
+             <p>A <em>fern</em> and <strong>moss</strong>, <code>x&lt;y</code>.</p>
+             <ul>
+             <li>one</li>
+             <li><a href="https://a.b/?q=1&amp;r=2">two</a></li>
+             </ul>
+             <pre><code class="language-lua">print(1 &lt; 2)
+             </code></pre>
+             <blockquote>
+             <p>quoted</p>
+             </blockquote>
+             <p><a href="#">bad</a> &lt;script&gt;</p>
+             """
+  end
+
+  test "a Gherkin feature runs on Lua steps and prints Robot rows" do
+    c = id()
+
+    put(c, "/home/features/sum.feature", ~S'''
+    Feature: Sums
+      Background:
+        Given a sum starting at 1
+
+      Scenario: adding
+        When I add 2
+        Then the sum is 3
+
+      Scenario Outline: adding <n>
+        When I add <n>
+        Then the sum is <total>
+        Examples:
+          | n | total |
+          | 4 | 5     |
+          | 5 | 7     |
+
+      Scenario: a note
+        Given the note
+          """
+          two words
+          """
+        Then nothing matches this
+        And the sum is 1
+    ''')
+
+    put(c, "/home/steps.lua", ~S"""
+    local test = require("test")
+    test.step("a sum starting at {int}", function(w, n) w.sum = n end)
+    test.step("I add {int}", function(w, n) w.sum = w.sum + n end)
+    test.step("the sum is {int}", function(w, n) test.eq(w.sum, n, "sum") end)
+    test.step("the note", function(w, doc) test.eq(doc, "two words") end)
+    local ok = test.run_file("features/sum.feature")
+    os.exit(ok and 0 or 1)
+    """)
+
+    assert %{code: 1, out: out} = sh(c, "lua steps.lua")
+
+    # tv-labs lua names no loaded chunk and ignores error's level, so the failure's place is left out here
+    out = Regex.replace(~r/FAIL    [^\n]*:\d+: /, out, "FAIL    ")
+
+    assert out ==
+             """
+             *** Test Cases ***
+             adding
+                 Given a sum starting at 1    PASS
+                 When I add 2    PASS
+                 Then the sum is 3    PASS
+             adding 4 (4, 5)
+                 Given a sum starting at 1    PASS
+                 When I add 4    PASS
+                 Then the sum is 5    PASS
+             adding 5 (5, 7)
+                 Given a sum starting at 1    PASS
+                 When I add 5    PASS
+                 Then the sum is 7    FAIL    sum: wanted 7, got 6
+             a note
+                 Given a sum starting at 1    PASS
+                 Given the note    PASS
+                 Then nothing matches this    FAIL    no step matches: nothing matches this
+                 And the sum is 1    NOT RUN
+             # Sums: 2 of 4 scenarios passed
+             """
+  end
+end

@@ -80,8 +80,12 @@ defmodule Moss.Computer.Commands do
   defp builtin("true", _, _, state), do: {0, "", "", state}
   defp builtin("false", _, _, state), do: {1, "", "", state}
 
+  defp builtin("help", ["lua" | _], _, state),
+    do: {0, Moss.Computer.Script.reference(), "", state}
+
   defp builtin("help", _, _, state),
-    do: {0, "commands: " <> Enum.join(names(), " ") <> "\n", "", state}
+    do:
+      {0, "commands: " <> Enum.join(names(), " ") <> "\n(help lua: the Lua library)\n", "", state}
 
   defp builtin("date", _, _, state),
     do:

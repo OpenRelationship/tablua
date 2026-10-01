@@ -1,0 +1,119 @@
+defmodule MossWeb.AppTest do
+  # Apps the person opens (Arock PROJECT.md §14.7, goal 5): the computer serves its Lua app as HTML and htmx, the
+  # person's browser draws it, and the agent reads the same page as words and controls with its own browser.
+  use MossWeb.ConnCase, async: false
+
+  alias Moss.Computer
+  alias Moss.Computer.Disk
+
+  defp as(person), do: Plug.Test.init_test_session(build_conn(), person: person)
+  defp cid, do: "app-#{System.unique_integer([:positive])}"
+
+  defp put_file(c, path, text),
+    do: :ok = Disk.write(:sys.get_state(Computer.wake!(c)).disk, path, text)
+
+  @app ~S"""
+  local html = require("html")
+  local function page(d)
+    local rows = d:query("select name from plant order by name")
+    return html.page("Plants", html.render([[
+      <h1>Plants</h1>
+      <ul>{{#rows}}<li>{{name}} <button hx-delete="plants/{{name}}">Remove {{name}}</button></li>{{/rows}}</ul>
+      <form hx-post="plants"><label>Name <input name="name"></label><button>Add</button></form>
+      <a hx-get="about">About</a>
+      <script>alert(1)</script>]], { rows = rows }))
+  end
+  return function(req)
+    local d = db.open("plants.db")
+    d:exec("create table if not exists plant (name text primary key)")
+    if req.method == "POST" and req.path == "/plants" then
+      d:exec("insert or ignore into plant values (?)", req.form.name)
+      return { redirect = "./" }
+    elseif req.method == "DELETE" then
+      d:exec("delete from plant where name = ?", string.match(req.path, "^/plants/(.+)$"))
+      return { status = 200, body = "" }
+    elseif req.path == "/about" then
+      return html.page("About", "<p>A plant list, by an agent.</p>")
+    elseif req.path == "/boom" then
+      error("no such plant")
+    elseif req.path == "/script" then
+      return { body = "alert(1)", headers = { ["content-type"] = "text/javascript" } }
+    end
+    return page(d)
+  end
+  """
+
+  test "the person opens the app: HTML with htmx, the agent's scripts unable to run" do
+    c = cid()
+    Moss.Owners.claim(c, "tester")
+    put_file(c, "/home/app.lua", @app)
+
+    assert redirected_to(get(as("tester"), "/computers/#{c}/app"), 302) == "/computers/#{c}/app/"
+
+    conn = get(as("tester"), "/computers/#{c}/app/")
+    assert html_response(conn, 200) =~ "<h1>Plants</h1>"
+    body = conn.resp_body
+    assert body =~ ~s(<base href="/computers/#{c}/app/">)
+    assert body =~ ~s(<script src="/vendor/htmx-2.0.4.min.js">)
+
+    [csp] = get_resp_header(conn, "content-security-policy")
+    assert csp =~ "script-src http://www.example.com/vendor/htmx-2.0.4.min.js;"
+    assert csp =~ "connect-src http://www.example.com/computers/#{c}/app/;"
+    refute csp =~ "unsafe-eval"
+    assert get_resp_header(conn, "x-content-type-options") == ["nosniff"]
+
+    # htmx posts without a CSRF token, and the app's redirect stays inside it
+    conn = post(as("tester"), "/computers/#{c}/app/plants", %{"name" => "fern"})
+    assert redirected_to(conn, 303) == "http://www.example.com/computers/#{c}/app/"
+    assert get(as("tester"), "/computers/#{c}/app/").resp_body =~ "<li>fern"
+
+    # an app cannot serve a script, and its failures are its own page
+    conn = get(as("tester"), "/computers/#{c}/app/script")
+    assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
+    conn = get(as("tester"), "/computers/#{c}/app/boom")
+    assert conn.status == 500 and conn.resp_body =~ "no such plant"
+
+    # no one else reaches it
+    assert get(as("other"), "/computers/#{c}/app/").status == 404
+  end
+
+  test "the htmx file is the pinned release" do
+    conn = get(build_conn(), "/vendor/htmx-2.0.4.min.js")
+    assert conn.status == 200
+
+    assert :crypto.hash(:sha384, conn.resp_body) |> Base.encode64() ==
+             "HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
+  end
+
+  test "the agent reads its app as words and controls, and works it with its own browser" do
+    c = cid()
+    put_file(c, "/home/app.lua", @app)
+
+    assert %{code: 0, out: out} = Computer.run(c, "open app")
+    assert out =~ "# Plants"
+    refute out =~ "alert"
+    assert out =~ ~s(field "Name")
+    assert out =~ ~s(button "Add")
+    assert out =~ ~s(link "About")
+
+    assert %{code: 0} = Computer.run(c, "type Name moss")
+    assert %{code: 0, out: out} = Computer.run(c, "click Add")
+    assert out =~ "- moss"
+
+    assert %{code: 0} = Computer.run(c, "type Name fern")
+    assert %{code: 0} = Computer.run(c, "submit")
+    assert %{code: 0, out: page} = Computer.run(c, "page")
+    assert page =~ "- fern" and page =~ "- moss"
+
+    assert %{code: 0, out: out} = Computer.run(c, ~s(click "Remove fern"))
+    refute out =~ "- fern"
+    assert out =~ "- moss"
+
+    assert %{code: 0, out: out} = Computer.run(c, "click About")
+    assert out =~ "A plant list, by an agent."
+
+    put_file(c, "/home/app.lua", "return function() error('broken') end")
+    assert %{code: 22, err: err} = Computer.run(c, "open app")
+    assert err =~ "500"
+  end
+end

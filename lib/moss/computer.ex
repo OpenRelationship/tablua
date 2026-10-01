@@ -17,7 +17,7 @@ defmodule Moss.Computer do
   """
   use GenServer
   alias Moss.{Db, Objects}
-  alias Moss.Computer.{Browser, Disk, Shell}
+  alias Moss.Computer.{Browser, Disk, Script, Shell}
 
   @registry Moss.Computer.Registry
   @lines 200
@@ -46,6 +46,9 @@ defmodule Moss.Computer do
   end
 
   def view(id), do: GenServer.call(wake!(id), :view)
+
+  @doc "One request to the computer's app (`Moss.Computer.Script.serve/2`): `{status, headers, body, err}`."
+  def serve(id, req), do: GenServer.call(wake!(id), {:serve, req}, :infinity)
   def sleep(id), do: if(pid = whereis(id), do: GenServer.call(pid, :sleep), else: :ok)
 
   def whereis(id) do
@@ -159,6 +162,10 @@ defmodule Moss.Computer do
       end)
 
     {:reply, result, state}
+  end
+
+  def handle_call({:serve, req}, _from, state) do
+    {:reply, Script.serve(req, state), %{state | touched: now()}}
   end
 
   def handle_call(:view, _from, state) do

@@ -12,6 +12,18 @@ defmodule MossWeb.Router do
     plug :put_secure_browser_headers
   end
 
+  # a computer's app: its own page, no layout, no CSRF token (MossWeb.AppController)
+  pipeline :app do
+    plug :fetch_session
+    plug :require_person
+  end
+
+  scope "/computers/:id/app", MossWeb do
+    pipe_through :app
+
+    match :*, "/*path", AppController, :serve
+  end
+
   scope "/", MossWeb do
     pipe_through :browser
 

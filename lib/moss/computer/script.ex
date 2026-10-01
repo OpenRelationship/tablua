@@ -16,6 +16,7 @@ defmodule Moss.Computer.Script do
   """
   alias Moss.Mail
   alias Moss.Computer.{Disk, Net}
+  alias Moss.Computer.Script.Sql
 
   @heap_words div(64 * 1024 * 1024, :erlang.system_info(:wordsize))
   @timeout 120_000
@@ -39,6 +40,28 @@ defmodule Moss.Computer.Script do
   def run([], _stdin, state), do: {2, "", "lua: give a file, or -e '<code>'\n", state}
 
   defp start(code, name, args, stdin, state) do
+    case spawn_run(fn -> eval(code, name, args, stdin, state) end) do
+      {:ok, {status, out, err}} -> {status, out, err, state}
+      {:error, status, err} -> {status, "", err, state}
+    end
+  end
+
+  @doc """
+  One request to the computer's app (`/home/app.lua`, see `__serve` in computer.lua):
+  `req` is `%{"method", "path", "query", "form", "headers"}`; the answer is
+  `{status, headers, body, err}`, under the same bounds as a command's run.
+  """
+  def serve(req, state) do
+    state = %{state | cwd: "/home"}
+
+    case spawn_run(fn -> eval_serve(req, state) end) do
+      {:ok, answer} -> answer
+      {:error, _status, err} -> {500, %{}, "the app stopped: " <> err, err}
+    end
+  end
+
+  # the run in a process of its own, bounded in heap and time
+  defp spawn_run(f) do
     me = self()
     ref = make_ref()
     callers = [me | Process.get(:"$callers", [])]
@@ -48,28 +71,28 @@ defmodule Moss.Computer.Script do
         # as a Task's: whoever stands behind the computer stands behind its run
         Process.put(:"$callers", callers)
         Process.flag(:max_heap_size, %{size: @heap_words, kill: true, error_logger: false})
-        send(me, {ref, eval(code, name, args, stdin, state)})
+        send(me, {ref, f.()})
       end)
 
     receive do
-      {^ref, {status, out, err}} ->
+      {^ref, result} ->
         Process.demonitor(mon, [:flush])
-        {status, out, err, state}
+        {:ok, result}
 
       {:DOWN, ^mon, :process, ^pid, :killed} ->
-        {137, "", "lua: out of memory (#{div(@heap_words * 8, 1_048_576)} MB)\n", state}
+        {:error, 137, "lua: out of memory (#{div(@heap_words * 8, 1_048_576)} MB)\n"}
 
       {:DOWN, ^mon, :process, ^pid, why} ->
-        {1, "", "lua: #{inspect(why)}\n", state}
+        {:error, 1, "lua: #{inspect(why)}\n"}
     after
       @timeout ->
         Process.exit(pid, :kill)
-        {124, "", "lua: stopped after #{div(@timeout, 1000)} s\n", state}
+        {:error, 124, "lua: stopped after #{div(@timeout, 1000)} s\n"}
     end
   end
 
-  # In the run's own process: the VM, its library bound to this computer, the code.
-  defp eval(code, name, args, stdin, state) do
+  # the VM, its library bound to this computer, the prelude evaluated
+  defp vm(args, stdin, state) do
     Process.put(:out, {[], 0})
     Process.put(:err, [])
 
@@ -83,8 +106,14 @@ defmodule Moss.Computer.Script do
       |> Lua.set!([:__args], args)
 
     {_, lua} = Lua.eval!(lua, prelude())
+    lua
+  end
 
-    # __main (computer.lua) runs the code under xpcall: an error is printed, os.exit(n) is a status
+  # In the run's own process: the code under __main (computer.lua), which prints an error and turns os.exit(n)
+  # into a status.
+  defp eval(code, name, args, stdin, state) do
+    lua = vm(args, stdin, state)
+
     status =
       try do
         case Lua.call_function(lua, [:__main], [code, name]) do
@@ -96,10 +125,46 @@ defmodule Moss.Computer.Script do
         :throw, :too_much_output -> fail("lua: more than #{div(@out_bytes, 1024)} KB of output\n")
       end
 
+    status = saved(status, state)
     {out, _} = Process.get(:out)
 
     {status, IO.iodata_to_binary(Enum.reverse(out)),
      IO.iodata_to_binary(Enum.reverse(Process.get(:err)))}
+  end
+
+  defp eval_serve(req, state) do
+    lua = vm([], "", state)
+    {t, lua} = Lua.encode!(lua, req)
+
+    answer =
+      try do
+        case Lua.call_function(lua, [:__serve], [t]) do
+          {:ok, [status, headers, body | _], lua} ->
+            {trunc(status),
+             Map.new(Lua.decode!(lua, headers), fn {k, v} -> {to_string(k), to_string(v)} end),
+             to_string(body)}
+
+          {:error, e, _} ->
+            fail("lua: #{Exception.message(e)}\n")
+            {500, %{}, "the app failed"}
+        end
+      catch
+        :throw, :too_much_output ->
+          {500, %{}, "the app printed more than #{div(@out_bytes, 1024)} KB"}
+      end
+
+    {status, headers, body} =
+      if saved(0, state) == 0, do: answer, else: {500, %{}, "the app's database was not saved"}
+
+    {status, headers, body, IO.iodata_to_binary(Enum.reverse(Process.get(:err)))}
+  end
+
+  # databases the script left open are saved as it ends; one that cannot be is a failure
+  defp saved(status, state) do
+    case Sql.close_all(state.disk) do
+      :ok -> status
+      {:error, why} -> fail("lua: #{why}\n")
+    end
   end
 
   defp out(bytes) do
@@ -146,6 +211,8 @@ defmodule Moss.Computer.Script do
     |> http_fun()
     |> json_funs()
     |> mail_fun(state)
+    |> db_funs(disk, path)
+    |> fun(:module, fn [n | _] -> [builtin(to_string(n))] end)
   end
 
   defp fun(lua, name, f), do: Lua.set!(lua, [:__sys, name], f)
@@ -235,6 +302,58 @@ defmodule Moss.Computer.Script do
         {_, id} -> [id]
       end
     end)
+  end
+
+  # db.open(path) -> handle; db_exec(h, sql, params) -> rows, changes; db_save(h); db_close(h)
+  defp db_funs(lua, disk, path) do
+    lua
+    |> fun(:db_open, fn [p | _] -> result(Sql.open(disk, path.(p))) end)
+    |> fun(:db_save, fn [h | _] -> result(Sql.save(disk, h)) end)
+    |> fun(:db_close, fn [h | _] -> result(Sql.close(disk, h)) end)
+    |> fun(:db_exec, fn [h, sql | rest], lua ->
+      params =
+        case rest do
+          [{:tref, _} = t | _] -> lua |> Lua.decode!(t) |> Enum.sort() |> Enum.map(&elem(&1, 1))
+          _ -> []
+        end
+
+      case Sql.exec(h, to_string(sql), params) do
+        {:ok, rows, changes} ->
+          {t, lua} = Lua.encode!(lua, rows)
+          {[t, changes], lua}
+
+        {:error, why} ->
+          {[nil, to_string(why)], lua}
+      end
+    end)
+  end
+
+  @doc "`help lua`: the library as its files describe it, the opening comment of each."
+  def reference do
+    [prelude() | sdk() |> Enum.sort() |> Enum.map(&elem(&1, 1))]
+    |> Enum.map_join("\n", fn src ->
+      src
+      |> String.split("\n")
+      |> Enum.take_while(&String.starts_with?(&1, "--"))
+      |> Enum.map_join(
+        &(String.replace_prefix(&1, "-- ", "")
+          |> String.replace_prefix("--", "")
+          |> Kernel.<>("\n"))
+      )
+    end)
+  end
+
+  # The SDK's own modules (priv/lua/sdk), which `require` finds before the disk
+  defp builtin(name), do: Map.get(sdk(), name)
+
+  defp sdk do
+    :persistent_term.get({__MODULE__, :sdk}, nil) ||
+      (fn ->
+         dir = Path.join(:code.priv_dir(:moss), "lua/sdk")
+         m = Map.new(Path.wildcard(dir <> "/*.lua"), &{Path.basename(&1, ".lua"), File.read!(&1)})
+         :persistent_term.put({__MODULE__, :sdk}, m)
+         m
+       end).()
   end
 
   defp prelude, do: :persistent_term.get({__MODULE__, :prelude}, nil) || load_prelude()

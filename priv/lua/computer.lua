@@ -1,5 +1,6 @@
--- The computer's library for a Lua run (Moss.Computer.Script): what a script can reach, all of it this
--- computer's own. __sys holds the host's functions; everything here is plain Lua over them.
+-- Lua on this computer: `lua file.lua [args]` or `lua -e '<code>'`. A script reaches this computer's own files,
+-- the public web, mail along the routes its person set, and nothing else. A run stops past 500 million
+-- instructions, 64 MB of memory, 120 s or 1 MB of output.
 --
 --   print(...), io.write(...), io.read("a" | "l" | "n"), io.lines(), io.stderr:write(...)
 --   arg[0] the script, arg[1]... its args; os.time(), os.clock(), os.date(), os.exit(n)
@@ -8,8 +9,18 @@
 --   http.get(url [, headers]), http.post(url, body [, headers]), http.request{ method, url, headers, body }
 --   json.encode(v), json.decode(s)
 --   mail.send(to, subject, body)
---   require("name"): name.lua or name/init.lua in the working folder, then /home/lib
+--   db.open(path) -> d; d:exec(sql, ...) -> changes; d:query(sql, ...) -> rows; d:one(sql, ...) -> row;
+--     d:save(); d:close(). A database is a SQLite file on the disk, saved when closed or when the run ends;
+--     ? in the SQL binds the arguments after it; attach and pragma are refused; 64 MB at most.
+--   An app: /home/app.lua returns function(req) -> html | { status, body, headers, redirect }, with
+--     req = { method, path, query, form, headers }. The person opens it in their browser; `open app` opens it
+--     here. Its pages are HTML and htmx (html.page loads it); links, forms and hx- paths are relative (write
+--     "add", not "/add"), and the page's own scripts do not run.
+--   require("name"): the SDK's own modules (csv, date, html, markdown, test), then name.lua or
+--     name/init.lua in the working folder, then /home/lib
 -- A failure returns nil and why, as Lua's own io does.
+
+-- (Moss.Computer.Script binds __sys, the host's functions; everything here is plain Lua over them.)
 local sys = __sys
 debug = { traceback = debug.traceback }
 __sys = nil
@@ -70,10 +81,51 @@ http = {
 json = { encode = sys.json_encode, decode = sys.json_decode }
 mail = { send = sys.mail }
 
+-- params as a list SQLite binds in order; nil goes as false, which binds as NULL
+local function params(...)
+  local t = {}
+  for i = 1, select("#", ...) do
+    local v = select(i, ...)
+    if v == nil then v = false end
+    t[i] = v
+  end
+  return t
+end
+
+local Db = {}
+Db.__index = Db
+function Db:exec(sql, ...)
+  local rows, changes = sys.db_exec(self.h, sql, params(...))
+  if rows == nil then return nil, changes end
+  return changes
+end
+function Db:query(sql, ...) return sys.db_exec(self.h, sql, params(...)) end
+function Db:one(sql, ...)
+  local rows, why = sys.db_exec(self.h, sql, params(...))
+  if rows == nil then return nil, why end
+  return rows[1]
+end
+function Db:save() return sys.db_save(self.h) end
+function Db:close() return sys.db_close(self.h) end
+
+db = {
+  open = function(path)
+    local h, why = sys.db_open(path)
+    if h == nil then return nil, why end
+    return setmetatable({ h = h, path = path }, Db)
+  end,
+}
+
 -- require, from the disk: the working folder first, then /home/lib
 local loaded = {}
 function require(name)
   if loaded[name] ~= nil then return loaded[name] end
+  local own = sys.module(name)
+  if own then
+    local v = load(own, "@" .. name .. ".lua")(name)
+    loaded[name] = v
+    return v
+  end
   local rel = string.gsub(name, "%.", "/")
   for _, p in ipairs({ rel .. ".lua", rel .. "/init.lua", "/home/lib/" .. rel .. ".lua", "/home/lib/" .. rel .. "/init.lua" }) do
     local src = sys.read(p)
@@ -109,4 +161,30 @@ function __main(code, name)
   if ok then return 0 end
   if getmetatable(e) == exit then return e.code end
   return say(e)
+end
+
+-- An app (Moss.Computer.App): /home/app.lua returns a function, or a table with handle, that is given each request
+-- { method, path, query = {k = v}, form = {k = v}, headers } and answers with HTML text, or
+-- { status, body, headers, redirect }. It runs with /home as its working folder, as a command does.
+function __serve(req)
+  local src = sys.read("/home/app.lua")
+  if not src then return 404, {}, "This computer has no app yet: /home/app.lua makes one." end
+  local function say(e)
+    e = string.gsub(tostring(e), "^%-no%-source%-", "/home/app.lua")
+    sys.ewrite("app: " .. e .. "\n")
+    return e
+  end
+  local chunk, why = load(src, "@/home/app.lua")
+  if not chunk then return 500, {}, "The app does not load: " .. say(why) end
+  local ok, res = xpcall(function()
+    local app = chunk()
+    local handle = type(app) == "table" and app.handle or app
+    if type(handle) ~= "function" then error("/home/app.lua returns no function to handle a request", 0) end
+    return handle(req)
+  end, tostring)
+  if not ok then return 500, {}, "The app failed: " .. say(res) end
+  if type(res) == "string" then return 200, {}, res end
+  if type(res) ~= "table" then return 500, {}, "The app answered with no page." end
+  if res.redirect then return 303, { location = res.redirect }, "" end
+  return tonumber(res.status) or 200, res.headers or {}, tostring(res.body or "")
 end
