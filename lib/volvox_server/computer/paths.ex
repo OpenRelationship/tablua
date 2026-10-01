@@ -11,7 +11,7 @@ defmodule VolvoxServer.Computer.Paths do
   import VolvoxServer.Computer.Files,
     only: [fd: 1, fds: 0, put: 2, path: 4, errno: 1, stat_path: 4]
 
-  alias VolvoxServer.Computer.Disk
+  alias VolvoxServer.Computer.{Disk, Files}
 
   @ok 0
   @einval 28
@@ -65,7 +65,9 @@ defmodule VolvoxServer.Computer.Paths do
         [dirfd, _dirflags, p, l, oflags, _rights, _inheriting, fdflags, out],
         disk
       ) do
+    # another open file at the path writes what it holds first, so this one reads it
     with {:ok, path} <- path(ctx, dirfd, p, l),
+         :ok <- Files.settle(disk, path),
          {:ok, f} <- open(disk, path, oflags, fdflags) do
       n = (fds() |> Map.keys() |> Enum.max()) + 1
       put(n, f)
@@ -79,7 +81,11 @@ defmodule VolvoxServer.Computer.Paths do
     do: on_path(ctx, dirfd, p, l, &Disk.mkdir(disk, &1))
 
   def answer("path_unlink_file", ctx, [dirfd, p, l], disk),
-    do: on_path(ctx, dirfd, p, l, &unlink(disk, &1))
+    do:
+      on_path(ctx, dirfd, p, l, fn path ->
+        :ok = Files.settle(disk, path, :gone)
+        unlink(disk, path)
+      end)
 
   def answer("path_remove_directory", ctx, [dirfd, p, l], disk),
     do: on_path(ctx, dirfd, p, l, &rmdir(disk, &1))
@@ -87,7 +93,10 @@ defmodule VolvoxServer.Computer.Paths do
   def answer("path_rename", ctx, [fd1, p1, l1, fd2, p2, l2], disk) do
     with {:ok, from} <- path(ctx, fd1, p1, l1),
          {:ok, to} <- path(ctx, fd2, p2, l2),
-         :ok <- Disk.rename(disk, from, to) do
+         :ok <- Files.settle(disk, from),
+         :ok <- Files.settle(disk, to, :gone),
+         :ok <- Disk.rename(disk, from, to),
+         :ok <- Files.settle(disk, from, to) do
       @ok
     else
       {:error, e} -> errno(e)

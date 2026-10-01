@@ -15,6 +15,7 @@ defmodule VolvoxServer.Computer.Files do
 
   @ok 0
   @ebadf 8
+  @espipe 70
   @eexist 20
   @einval 28
   @eisdir 31
@@ -119,6 +120,10 @@ defmodule VolvoxServer.Computer.Files do
         r = answer("fd_write", ctx, [n, list, count, done], disk)
         put(n, %{fd(n) | pos: pos, append: f.append})
         r
+
+      # a terminal has no positions: a program told so (Zig's positional writer) writes it as a stream
+      %{kind: :out} ->
+        @espipe
 
       _ ->
         @ebadf
@@ -262,8 +267,42 @@ defmodule VolvoxServer.Computer.Files do
     end
   end
 
+  @doc """
+  Before a path changes under its open files, they are settled: every open file
+  at `path` (or inside it) writes what it holds, then follows a rename to `to`,
+  or, when the path is removed (`:gone`), keeps its writes to itself, as an
+  unlinked file does. Without this a program that writes a file, renames it
+  into place and only then closes it (Zig's output, any atomic save) leaves
+  the new name empty and the old one written again.
+  """
+  def settle(disk, path, to \\ :keep) do
+    for {n, %{kind: kind, path: at}} <- fds(),
+        kind in [:file, :dir],
+        is_binary(at),
+        at == path or String.starts_with?(at, path <> "/") do
+      flush(n, disk)
+
+      case to do
+        :keep -> :ok
+        :gone -> put(n, %{fd(n) | path: :gone, dirty: false})
+        to -> put(n, %{fd(n) | path: to <> String.replace_prefix(at, path, "")})
+      end
+    end
+
+    :ok
+  end
+
+  @doc "Writes every open file's unwritten bytes: a program's files are on its disk when it ends, closed or not."
+  def flush_all(disk) do
+    for {n, %{kind: :file}} <- fds(), do: flush(n, disk)
+    :ok
+  end
+
   def flush(n, disk) do
     case fd(n) do
+      %{kind: :file, path: :gone} ->
+        @ok
+
       %{kind: :file, dirty: true} = f ->
         case Disk.write(disk, f.path, f.data) do
           :ok ->

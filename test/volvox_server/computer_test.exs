@@ -353,4 +353,58 @@ defmodule VolvoxServer.ComputerTest do
     assert_received {:fetched, "PUT", ["application/x-www-form-urlencoded;charset=UTF-8"],
                      "a=b+c"}
   end
+
+  test "Ruby runs with its library from the shared /usr, on the computer's own files" do
+    c = id()
+
+    assert %{code: 0, out: "4.0.0\n{\"a\":[1,2]}\nmoss\n"} =
+             sh(
+               c,
+               ~S|ruby -e 'puts RUBY_VERSION; require "json"; puts JSON.generate({a: [1, 2]}); File.write("x.txt", "moss"); puts File.read("x.txt")'|
+             )
+
+    assert %{out: "moss"} = sh(c, "cat x.txt")
+    assert %{code: 3} = sh(c, "ruby -e 'exit 3'")
+  end
+
+  test "Zig is compiled inside the computer and its program runs there, writing its output before it ends" do
+    c = id()
+
+    src = ~S"""
+    const std = @import("std");
+    pub fn main(init: std.process.Init) !void {
+        var buf: [64]u8 = undefined;
+        var w = std.Io.File.stdout().writer(init.io, &buf);
+        try w.interface.print("hello from zig {d}\n", .{6 * 7});
+        try w.interface.flush();
+    }
+    """
+
+    :ok =
+      VolvoxServer.Computer.Disk.write(
+        :sys.get_state(Computer.wake!(c)).disk,
+        "/home/main.zig",
+        src
+      )
+
+    assert %{code: 0} = sh(c, "zig build-exe main.zig")
+    assert %{code: 0, out: "hello from zig 42\n"} = sh(c, "./main.wasm")
+  end
+
+  test "a file renamed or removed while still open lands where a Unix program expects" do
+    c = id()
+
+    py = ~S"""
+    import os
+    f = open("save.tmp", "w"); f.write("saved"); f.flush()
+    os.replace("save.tmp", "save.txt"); f.close()
+    g = open("gone.txt", "w"); g.write("never"); os.remove("gone.txt"); g.close()
+    print(open("save.txt").read(), os.path.exists("save.tmp"), os.path.exists("gone.txt"))
+    """
+
+    :ok =
+      VolvoxServer.Computer.Disk.write(:sys.get_state(Computer.wake!(c)).disk, "/home/a.py", py)
+
+    assert %{code: 0, out: "saved False False\n"} = sh(c, "python a.py")
+  end
 end

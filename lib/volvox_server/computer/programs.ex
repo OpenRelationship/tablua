@@ -9,7 +9,7 @@ defmodule VolvoxServer.Computer.Programs do
   (config `programs:`): `js.wasm` (QuickJS-ng), `python.wasm` (CPython),
   `sqlite3.wasm`, `lua.wasm`, `cc.wasm` (xcc). A name with no module is `:unknown`.
   """
-  alias VolvoxServer.Computer.Wasi
+  alias VolvoxServer.Computer.{Files, Wasi}
 
   @memory 512 * 1024 * 1024
   @timeout 120_000
@@ -30,7 +30,10 @@ defmodule VolvoxServer.Computer.Programs do
   end
 
   # what a program needs set to find its own files under /usr
-  @env %{"python" => %{"PYTHONHOME" => "/usr/local", "PYTHONDONTWRITEBYTECODE" => "1"}}
+  @env %{
+    "python" => %{"PYTHONHOME" => "/usr/local", "PYTHONDONTWRITEBYTECODE" => "1"},
+    "zig" => %{"ZIG_LIB_DIR" => "/usr/lib/zig", "ZIG_GLOBAL_CACHE_DIR" => "/home/.cache/zig"}
+  }
 
   @doc "Compiles every program at boot, side by side, so no agent's first command waits on it."
   def warm do
@@ -41,8 +44,20 @@ defmodule VolvoxServer.Computer.Programs do
 
   def run(name, args, stdin, disk, env \\ %{}) do
     env = Map.merge(Map.get(@env, name, %{}), env)
+    args = given(name, args)
     with {:ok, module} <- compiled(name), do: start(module, [name | args], stdin, disk, env)
   end
+
+  # Zig's wasm backend cannot build compiler_rt itself: the prebuilt one is linked in, and no entry is added
+  # (std's start code exports _start), as zigtools' playground runs it
+  defp given("zig", [build | _] = args)
+       when build in ["build-exe", "build-lib", "build-obj", "test"] do
+    if "-fno-compiler-rt" in args,
+      do: args,
+      else: args ++ ["/usr/lib/zig/libcompiler_rt.a", "-fno-compiler-rt", "-fno-entry"]
+  end
+
+  defp given(_name, args), do: args
 
   @doc """
   A module from the computer's own disk (one the agent built or fetched), run as
@@ -78,8 +93,10 @@ defmodule VolvoxServer.Computer.Programs do
             r = Wasmex.call_function(pid, "_start", [], @timeout)
 
             # the reply comes from the NIF, the output from the instance's process: a call to that process
-            # answers only after everything it sent before
+            # answers only after everything it sent before. In that process too, where the open files live, a
+            # program that ended without closing them (by exit, a trap or a plain return) has them written
             _ = Wasmex.module(pid)
+            flush(pid, disk)
             r
           after
             GenServer.stop(pid)
@@ -95,6 +112,12 @@ defmodule VolvoxServer.Computer.Programs do
       {:error, why} ->
         {126, "", "#{hd(argv)}: #{inspect(why)}\n"}
     end
+  end
+
+  defp flush(pid, disk) do
+    :sys.replace_state(pid, fn s -> tap(s, fn _ -> Files.flush_all(disk) end) end, 10_000)
+  catch
+    :exit, _ -> :ok
   end
 
   # the output arrives as messages while the program runs; the exit code too when it calls proc_exit
