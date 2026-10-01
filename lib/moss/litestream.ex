@@ -86,6 +86,13 @@ defmodule Moss.Litestream do
   `wait_ms`. `{:ok, txid}` once every write is in the replica.
   """
   def stop(path, wait_ms \\ 5_000) do
+    unless File.exists?(Path.join(work_dir(), @socket)),
+      do:
+        throw(
+          {:error,
+           "no Litestream serves #{work_dir()}: start the node, or use replication: :whole"}
+        )
+
     deadline = System.monotonic_time(:millisecond) + wait_ms
 
     with {:ok, txid} <- synced(path, deadline),
@@ -95,6 +102,8 @@ defmodule Moss.Litestream do
       {out, status} when is_integer(status) -> {:error, "litestream stop: " <> clip(out)}
       {:error, _} = e -> e
     end
+  catch
+    {:error, _} = e -> e
   end
 
   defp synced(path, deadline) do
@@ -150,31 +159,49 @@ defmodule Moss.Litestream do
 
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
+  @doc """
+  Starts the node's Litestream over `work_dir`, one per work dir. A BEAM that
+  only borrows the work dir (a mix task: config `litestream_run: false`) starts
+  none and uses the one serving it through its socket. A second node on a work
+  dir another live BEAM's Litestream serves is refused, by name; one left
+  behind by a BEAM that is gone (or by this one) is stopped and replaced.
+  """
   @impl true
   def init(_opts) do
+    if Application.get_env(:moss, :litestream_run, true), do: start(work_dir()), else: :ignore
+  end
+
+  defp start(dir) do
     Process.flag(:trap_exit, true)
-    dir = work_dir()
     File.mkdir_p!(Path.join(dir, "computers"))
     File.mkdir_p!(Path.join(dir, "replica"))
-    config = Path.join(dir, "litestream.yml")
-    File.write!(config, litestream_config(dir))
-    kill_stale(dir)
-    File.rm(Path.join(dir, @socket))
 
-    port =
-      Port.open({:spawn_executable, bin() || raise("no litestream binary")}, [
-        :binary,
-        :exit_status,
-        :stderr_to_stdout,
-        {:line, 4096},
-        {:cd, dir},
-        {:args, ["replicate", "-no-expand-env", "-config", config]}
-      ])
+    case owner(dir) do
+      {:taken, by} ->
+        {:stop,
+         "#{dir} is already streamed by #{by}: one node per work dir " <>
+           "(a mix task beside it sets litestream_run: false)"}
 
-    {:os_pid, pid} = Port.info(port, :os_pid)
-    File.write!(Path.join(dir, "litestream.pid"), to_string(pid))
-    wait_for_socket(dir, 100)
-    {:ok, %{port: port, pid: pid, dir: dir}}
+      :free ->
+        config = Path.join(dir, "litestream.yml")
+        File.write!(config, litestream_config(dir))
+        File.rm(Path.join(dir, @socket))
+
+        port =
+          Port.open({:spawn_executable, bin() || raise("no litestream binary")}, [
+            :binary,
+            :exit_status,
+            :stderr_to_stdout,
+            {:line, 4096},
+            {:cd, dir},
+            {:args, ["replicate", "-no-expand-env", "-config", config]}
+          ])
+
+        {:os_pid, pid} = Port.info(port, :os_pid)
+        File.write!(Path.join(dir, "litestream.pid"), to_string(pid))
+        wait_for_socket(dir, 100)
+        {:ok, %{port: port, pid: pid, dir: dir}}
+    end
   end
 
   # the control socket is up once Litestream is ready to be asked
@@ -187,17 +214,40 @@ defmodule Moss.Litestream do
     end
   end
 
-  # A Litestream this node started before and did not stop (the BEAM killed outright) is stopped first.
-  defp kill_stale(dir) do
+  # Who streams this work dir. A port's process is a child of the BEAM's erl_child_setup, so a Litestream whose
+  # parent is gone (pid 1) was left by a BEAM that died, and one whose grandparent is this BEAM is this node's own:
+  # either is stopped. One under another live BEAM, or a socket that answers with no Litestream of ours behind it,
+  # is another node's.
+  defp owner(dir) do
     with {:ok, text} <- File.read(Path.join(dir, "litestream.pid")),
          {pid, ""} <- Integer.parse(String.trim(text)),
-         {comm, 0} <- System.cmd("ps", ["-p", to_string(pid), "-o", "comm="]),
+         {comm, 0} <- ps(pid, "comm="),
          true <- String.contains?(comm, "litestream") do
-      System.cmd("kill", [to_string(pid)])
-      Process.sleep(200)
-    end
+      parent = ppid(pid)
 
-    :ok
+      if parent == 1 or ppid(parent) == String.to_integer(System.pid()) do
+        System.cmd("kill", [to_string(pid)])
+        Process.sleep(200)
+        :free
+      else
+        {:taken, "the Litestream (pid #{pid}) of BEAM pid #{ppid(parent)}"}
+      end
+    else
+      _ ->
+        if File.exists?(Path.join(dir, @socket)) and
+             match?({_, 0}, cmd(["info", "-socket", @socket])),
+           do: {:taken, "a Litestream not started by Moss (#{@socket} answers)"},
+           else: :free
+    end
+  end
+
+  defp ps(pid, field), do: System.cmd("ps", ["-p", to_string(pid), "-o", field])
+
+  defp ppid(pid) do
+    case ps(pid, "ppid=") do
+      {out, 0} -> String.to_integer(String.trim(out))
+      _ -> 1
+    end
   end
 
   @impl true

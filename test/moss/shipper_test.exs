@@ -75,6 +75,35 @@ defmodule Moss.ShipperTest do
     start_supervised!(Shipper)
     assert {:ok, %{put: 0, deleted: 0}} = Shipper.ship("rock-2")
     assert puts() == 0
+    # a node new to the computer has no record of it, and lists the store's
+    File.rm_rf!(Path.join(Litestream.replica_root(), ".held"))
+    assert {:ok, %{put: 0, deleted: 0}} = Shipper.ship("rock-2")
+    assert puts() == 0
+  end
+
+  test "a computer another process holds is skipped by a round, and taken over once its holder is gone" do
+    segment("rock-10", @a, "one")
+    me = self()
+
+    holder =
+      spawn(fn ->
+        Shipper.retire("rock-10", fn ->
+          send(me, :holding)
+          receive do: (:go -> :ok)
+        end)
+      end)
+
+    assert_receive :holding
+    send(Process.whereis(Shipper), :round)
+    :sys.get_state(Shipper)
+    send(holder, :go)
+    lock = Path.join([Litestream.replica_root(), ".locks", "rock-11"])
+    File.mkdir_p!(lock)
+    dead = spawn(fn -> :ok end)
+    File.write!(Path.join(lock, "by"), "#{System.pid()} #{:erlang.pid_to_list(dead)}")
+    segment("rock-11", @a, "one")
+    assert {:ok, %{put: 1}} = Shipper.ship("rock-11")
+    refute File.exists?(lock)
   end
 
   test "a put that fails deletes nothing, and the next round sends it" do

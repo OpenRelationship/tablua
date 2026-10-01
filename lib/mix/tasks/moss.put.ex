@@ -18,6 +18,9 @@ defmodule Mix.Tasks.Moss.Put do
     {opts, [id, dir], _} =
       OptionParser.parse(argv, strict: [owner: :string, as: :string, app: :string])
 
+    # the node beside this task, if one runs, streams the work dir: this BEAM starts no Litestream of its own
+    Mix.Task.run("app.config")
+    Application.put_env(:moss, :litestream_run, false)
     Mix.Task.run("app.start")
     root = Path.expand(dir)
     under = opts[:as] || ""

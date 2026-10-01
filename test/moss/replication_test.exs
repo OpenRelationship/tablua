@@ -138,6 +138,31 @@ defmodule Moss.ReplicationTest do
     assert map_size(segments) > 0
   end
 
+  test "one Litestream per work dir: a BEAM that borrows it starts none, and a second node is refused" do
+    Application.put_env(:moss, :litestream_run, false)
+    assert Litestream.init([]) == :ignore
+    assert Shipper.init([]) == :ignore
+    Application.delete_env(:moss, :litestream_run)
+
+    # another BEAM's Litestream: its parent is alive and is not this BEAM's
+    dir = Path.join(Application.get_env(:moss, :work_dir), "other")
+    File.mkdir_p!(Path.join(dir, "computers"))
+    config = Path.join(dir, "litestream.yml")
+    File.write!(config, Litestream.litestream_config(dir))
+    line = "#{Litestream.bin()} replicate -no-expand-env -config '#{config}' & echo $!; wait"
+    port = Port.open({:spawn_executable, "/bin/sh"}, [:binary, {:args, ["-c", line]}, {:cd, dir}])
+    assert_receive {^port, {:data, pid}}, 5_000
+    File.write!(Path.join(dir, "litestream.pid"), String.trim(pid))
+    Application.put_env(:moss, :work_dir, dir)
+
+    try do
+      assert {:stop, why} = Litestream.init([])
+      assert why =~ "is already streamed by the Litestream (pid #{String.trim(pid)})"
+    after
+      System.cmd("kill", [String.trim(pid)])
+    end
+  end
+
   # Through arock.ai with this node's token (keychain moss-node-token): `mix test --only service`.
   @tag :service
   test "a computer's log round-trips through the service" do

@@ -7,23 +7,24 @@ defmodule Moss.Objects.Shipper do
   store holds what the replica holds (Arock PROJECT.md §14.7 goal 6, §15).
 
   Every `ship_ms` (1 s) it ships each computer in the replica. What the store
-  holds is listed once per computer and then remembered, so a restarted node
-  starts from the store's own list against the files on disk: shipping is
-  idempotent, a segment that went up is never sent again, and one that failed
-  is sent on the next round. New segments go up before compacted ones are
+  holds is listed once per computer and then remembered beside the replica
+  (`.held/<id>`), and a node new to the computer starts from the store's own
+  list against the files on disk: shipping is idempotent, a segment that went
+  up is never sent again, and one that failed is sent on the next round. New segments go up before compacted ones are
   deleted, so the store can always restore the file; a computer with no
   segment on the node deletes nothing.
 
   `retire/2` is a computer's sleep: ship its last segments and, once the store
   holds them all, run the caller's cleanup. `restore/2` is its wake: the
   store's segments into the replica, and Litestream's restore from them. Each
-  holds the computer's lock, which the rounds skip rather than wait for.
+  holds the computer's lock (`.locks/<id>`, a folder, so it holds across the
+  BEAMs on one work dir), which the rounds skip rather than wait for. Only the
+  node that runs Litestream runs the rounds; a mix task beside it
+  (`litestream_run: false`) ships only the computers it puts to sleep.
   """
   use GenServer
   require Logger
   alias Moss.{Litestream, Objects}
-
-  @table __MODULE__
 
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
@@ -44,7 +45,7 @@ defmodule Moss.Objects.Shipper do
       with false <- local(id) == %{},
            {:ok, shipped} <- ship_now(id) do
         cleanup.()
-        :ets.delete(@table, id)
+        File.rm(held_file(id))
         {:ok, shipped}
       else
         true -> {:error, "no segment of #{id} on this node: Litestream has not streamed it"}
@@ -67,7 +68,7 @@ defmodule Moss.Objects.Shipper do
         File.rm_rf!(Litestream.meta_dir(id))
         File.mkdir_p!(Path.dirname(dir))
         :ok = File.rename(tmp, dir)
-        :ets.insert(@table, {id, remote})
+        remember(id, remote)
         out = Path.join([Path.dirname(Litestream.replica_root()), "restore", id <> ".sqlite"])
         File.mkdir_p!(Path.dirname(out))
         for s <- ["", "-wal", "-shm"], do: File.rm(out <> s)
@@ -109,11 +110,64 @@ defmodule Moss.Objects.Shipper do
 
   # -- one computer --------------------------------------------------------------------------------
 
-  defp locked(id, retries, fun) do
-    case :global.trans({{__MODULE__, id}, self()}, fun, [node()], retries) do
-      :aborted -> :busy
-      result -> result
+  # A computer's lock, a folder only one process makes, so it holds across BEAMs on one work dir (a node and a mix
+  # task beside it): `:infinity` waits for it, `0` gives up at once. One whose holder is gone is taken over.
+  defp locked(id, wait, fun) do
+    lock = Path.join([Litestream.replica_root(), ".locks", id])
+    File.mkdir_p!(Path.dirname(lock))
+
+    if take(lock, wait) do
+      try do
+        fun.()
+      after
+        File.rm_rf(lock)
+      end
+    else
+      :busy
     end
+  end
+
+  defp take(lock, wait) do
+    case File.mkdir(lock) do
+      :ok ->
+        File.write!(Path.join(lock, "by"), "#{System.pid()} #{:erlang.pid_to_list(self())}")
+        true
+
+      {:error, :eexist} ->
+        cond do
+          gone?(lock) ->
+            File.rm_rf(lock)
+            take(lock, wait)
+
+          wait == 0 ->
+            false
+
+          true ->
+            Process.sleep(10)
+            take(lock, wait)
+        end
+    end
+  end
+
+  defp gone?(lock) do
+    with {:ok, by} <- File.read(Path.join(lock, "by")),
+         [os, erl] <- String.split(by, " ", parts: 2) do
+      if os == System.pid(),
+        do: not Process.alive?(:erlang.list_to_pid(String.to_charlist(erl))),
+        else: not match?({_, 0}, System.cmd("kill", ["-0", os], stderr_to_stdout: true))
+    else
+      # made and not yet signed: its holder is writing it
+      _ -> false
+    end
+  end
+
+  # What the store holds of a computer's log, as this node last left it: beside the replica, so every BEAM on the
+  # work dir reads the same, and listed from the store when it is not there (a node new to the computer).
+  defp held_file(id), do: Path.join([Litestream.replica_root(), ".held", id])
+
+  defp remember(id, held) do
+    File.mkdir_p!(Path.dirname(held_file(id)))
+    File.write!(held_file(id), :erlang.term_to_binary(held))
   end
 
   @doc "The segments of computer `id` in the node's replica, name => size."
@@ -129,9 +183,9 @@ defmodule Moss.Objects.Shipper do
   end
 
   defp remote(id) do
-    case :ets.lookup(@table, id) do
-      [{^id, held}] -> {:ok, held}
-      [] -> Objects.log_list(id)
+    case File.read(held_file(id)) do
+      {:ok, bin} -> {:ok, :erlang.binary_to_term(bin, [:safe])}
+      {:error, _} -> Objects.log_list(id)
     end
   end
 
@@ -142,11 +196,11 @@ defmodule Moss.Objects.Shipper do
          {:ok, held} <- remote(id),
          {:ok, held, put} <- put_new(id, local, held),
          {:ok, held, deleted} <- delete_gone(id, local, held) do
-      :ets.insert(@table, {id, held})
+      remember(id, held)
       {:ok, %{put: put, deleted: deleted}}
     else
       true -> {:ok, %{put: 0, deleted: 0}}
-      {:error, held, why} -> tap({:error, why}, fn _ -> :ets.insert(@table, {id, held}) end)
+      {:error, held, why} -> tap({:error, why}, fn _ -> remember(id, held) end)
       {:error, _} = e -> e
     end
   end
@@ -186,9 +240,12 @@ defmodule Moss.Objects.Shipper do
 
   @impl true
   def init(_opts) do
-    :ets.new(@table, [:named_table, :public, :set])
-    send(self(), :round)
-    {:ok, %{}}
+    if Application.get_env(:moss, :litestream_run, true) do
+      send(self(), :round)
+      {:ok, %{}}
+    else
+      :ignore
+    end
   end
 
   @impl true
