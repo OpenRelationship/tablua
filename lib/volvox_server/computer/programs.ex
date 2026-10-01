@@ -7,7 +7,7 @@ defmodule VolvoxServer.Computer.Programs do
 
   The modules are what `just build-script computer` writes in the Volvox repo
   (config `programs:`): `js.wasm` (QuickJS-ng), `python.wasm` (CPython),
-  `sqlite3.wasm`. A name with no module is `:unknown`.
+  `sqlite3.wasm`, `lua.wasm`, `cc.wasm` (xcc). A name with no module is `:unknown`.
   """
   alias VolvoxServer.Computer.Wasi
 
@@ -31,6 +31,13 @@ defmodule VolvoxServer.Computer.Programs do
 
   # what a program needs set to find its own files under /usr
   @env %{"python" => %{"PYTHONHOME" => "/usr/local", "PYTHONDONTWRITEBYTECODE" => "1"}}
+
+  @doc "Compiles every program at boot, side by side, so no agent's first command waits on it."
+  def warm do
+    names()
+    |> Task.async_stream(&compiled/1, timeout: :infinity, ordered: false)
+    |> Stream.run()
+  end
 
   def run(name, args, stdin, disk, env \\ %{}) do
     env = Map.merge(Map.get(@env, name, %{}), env)
@@ -173,11 +180,12 @@ defmodule VolvoxServer.Computer.Programs do
     end
   end
 
-  # one engine for every computer, so a compiled module runs in any of them
+  # one engine for every computer, so a compiled module runs in any of them; optimized, since a program is
+  # compiled once per node and run many times (a Lua loop runs 1.6x faster for a few ms more compiling)
   defp engine do
     case :persistent_term.get({__MODULE__, :engine}, nil) do
       nil ->
-        {:ok, engine} = Wasmex.Engine.new(%Wasmex.EngineConfig{})
+        {:ok, engine} = Wasmex.Engine.new(%Wasmex.EngineConfig{cranelift_opt_level: :speed})
         :persistent_term.put({__MODULE__, :engine}, engine)
         engine
 

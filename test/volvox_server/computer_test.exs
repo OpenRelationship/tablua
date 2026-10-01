@@ -267,4 +267,23 @@ defmodule VolvoxServer.ComputerTest do
 
     assert %{code: 1, err: "lua: (command line):1: boom" <> _} = sh(c, ~s|lua -e 'error("boom")'|)
   end
+
+  test "SQLite's own shell keeps a database on the computer's disk, with no way out to a shell" do
+    c = id()
+
+    assert %{code: 0} =
+             sh(
+               c,
+               ~s|sqlite3 plants.db "create table p(n text, cm int); insert into p values('fern', 40), ('moss', 2);"|
+             )
+
+    assert %{out: "moss|2\nfern|40\n"} =
+             sh(c, "sqlite3 plants.db 'select n, cm from p order by cm'")
+
+    assert %{out: ~s([{"n":2}]\n)} =
+             sh(c, "sqlite3 -json plants.db 'select count(*) as n from p'")
+
+    assert %{out: "42\n"} = sh(c, "echo 'select sum(cm) from p;' | sqlite3 plants.db")
+    assert %{code: 1, err: "Error: unknown command" <> _} = sh(c, "sqlite3 plants.db '.shell ls'")
+  end
 end
