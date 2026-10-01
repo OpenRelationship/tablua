@@ -9,7 +9,7 @@ defmodule VolvoxServer.Computer.Programs do
   (config `programs:`): `js.wasm` (QuickJS-ng), `python.wasm` (CPython),
   `sqlite3.wasm`, `lua.wasm`, `cc.wasm` (xcc). A name with no module is `:unknown`.
   """
-  alias VolvoxServer.Computer.{Clang, Disk, Files, Wasi}
+  alias VolvoxServer.Computer.{Clang, Disk, Files, Go, Wasi}
 
   @memory 512 * 1024 * 1024
   @timeout 120_000
@@ -30,11 +30,14 @@ defmodule VolvoxServer.Computer.Programs do
         []
     end
     |> then(fn have -> have ++ for({a, of} <- @as, of in have, do: a) end)
+    |> then(fn have -> if "go-compile" in have, do: ["go" | have], else: have end)
     |> Enum.sort()
   end
 
   # what a program needs set to find its own files under /usr
   @env %{
+    "go-compile" => %{"GOROOT" => "/usr/lib/go", "GOOS" => "wasip1", "GOARCH" => "wasm"},
+    "go-link" => %{"GOROOT" => "/usr/lib/go", "GOOS" => "wasip1", "GOARCH" => "wasm"},
     "python" => %{"PYTHONHOME" => "/usr/local", "PYTHONDONTWRITEBYTECODE" => "1"},
     "zig" => %{"ZIG_LIB_DIR" => "/usr/lib/zig", "ZIG_GLOBAL_CACHE_DIR" => "/home/.cache/zig"}
   }
@@ -43,16 +46,29 @@ defmodule VolvoxServer.Computer.Programs do
   def warm do
     names()
     |> Enum.map(&Map.get(@as, &1, &1))
+    |> Enum.reject(&(&1 == "go"))
     |> Enum.uniq()
     |> Task.async_stream(&compiled/1, timeout: :infinity, ordered: false)
     |> Stream.run()
   end
 
   def run(name, args, stdin, disk, env \\ %{}) do
-    env = Map.merge(Map.get(@env, name, %{}), env)
     exec = fn argv0, args -> exec(argv0, args, stdin, disk, env) end
 
     cond do
+      name == "go" and has?("go-compile") ->
+        Go.run(args, %{
+          exec: exec,
+          cwd: env["PWD"] || "/home",
+          disk: disk,
+          start: fn path, given ->
+            case Disk.read(disk, path) do
+              {:ok, bytes} -> run_bytes(bytes, Path.basename(path), given, stdin, disk, env)
+              _ -> {1, "", "go: the build left no program\n"}
+            end
+          end
+        })
+
       name in ["clang", "clang++"] and has?("clang") ->
         Clang.run(name, args, exec, fn paths -> Enum.each(paths, &Disk.remove(disk, &1)) end)
 
@@ -62,6 +78,8 @@ defmodule VolvoxServer.Computer.Programs do
   end
 
   defp exec(argv0, args, stdin, disk, env) do
+    env = Map.merge(Map.get(@env, argv0, %{}), env)
+
     with {:ok, module} <- compiled(Map.get(@as, argv0, argv0)),
          do: start(module, [argv0 | args], stdin, disk, env)
   end

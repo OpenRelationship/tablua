@@ -438,4 +438,49 @@ defmodule VolvoxServer.ComputerTest do
 
     assert err =~ "use of undeclared identifier 'x'"
   end
+
+  @tag timeout: 120_000
+  test "Go builds and runs inside the computer from the standard library" do
+    c = id()
+
+    src = ~S"""
+    package main
+
+    import (
+    	"fmt"
+    	"os"
+    )
+
+    func main() {
+    	os.WriteFile("out.txt", []byte("go wrote this"), 0o644)
+    	fmt.Println("hello from go", len(os.Args))
+    }
+    """
+
+    :ok =
+      VolvoxServer.Computer.Disk.write(
+        :sys.get_state(Computer.wake!(c)).disk,
+        "/home/app/main.go",
+        src
+      )
+
+    assert %{code: 0} = sh(c, "cd app && go build")
+    assert %{code: 0, out: "hello from go 1\n"} = sh(c, "./app.wasm")
+    assert %{code: 0, out: "hello from go 3\n"} = sh(c, "go run main.go a b")
+    assert %{out: "go wrote this"} = sh(c, "cat out.txt")
+    assert %{out: ""} = sh(c, "ls /tmp")
+
+    bad = "package main\nimport \"github.com/x/y\"\nfunc main() { y.Z() }\n"
+
+    :ok =
+      VolvoxServer.Computer.Disk.write(
+        :sys.get_state(Computer.wake!(c)).disk,
+        "/home/app/bad.go",
+        bad
+      )
+
+    assert %{code: 2, err: err} = sh(c, "go build bad.go")
+    assert err =~ "standard library only"
+    assert err =~ "github.com/x/y"
+  end
 end
