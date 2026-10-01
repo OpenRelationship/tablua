@@ -53,7 +53,9 @@ defmodule Moss.MixProject do
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:phoenix_live_view, "~> 1.1.0"},
-      {:lazy_html, ">= 0.1.0"},
+      # lexbor, in C: only for tests (Phoenix.LiveViewTest reads pages with it, and the cleaner's tests use it as
+      # a second, browser-grade parser). No page an agent writes or fetches reaches it (Arock PROJECT.md §14.7).
+      {:lazy_html, ">= 0.1.0", only: :test},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:heroicons,

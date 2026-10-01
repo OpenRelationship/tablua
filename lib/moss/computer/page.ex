@@ -1,10 +1,11 @@
 defmodule Moss.Computer.Page do
   @moduledoc """
-  A web page as the computer's browser keeps it: parsed once (lazy_html), then
-  read as `text` (what a reader sees, headings marked) and `controls` (links,
-  fields and buttons, each with an id the agent names), as the Mac's `ui` tree
-  gives a window. `html(page)` is the page again with its scripts taken out and
-  the fields showing what the agent typed, for a person watching.
+  A web page as the computer's browser keeps it: parsed once (`Moss.HTML`, in
+  Elixir, since the page may be anyone's), then read as `text` (what a reader
+  sees, headings marked) and `controls` (links, fields and buttons, each with an
+  id the agent names), as the Mac's `ui` tree gives a window. `html(page)` is
+  the page again with its scripts taken out and the fields showing what the
+  agent typed, for a person watching.
 
       page = Page.new(url, html)
       page.title; page.text; page.controls   # [%{id: "3", role: "field", name: "Email", form: 1, ...}]
@@ -15,7 +16,7 @@ defmodule Moss.Computer.Page do
   @block ~w(p div section article header footer main nav aside li ul ol table tr h1 h2 h3 h4 h5 h6 pre blockquote form label dt dd figcaption br hr)
 
   def new(url, html) do
-    tree = html |> LazyHTML.from_document() |> LazyHTML.to_tree()
+    tree = Moss.HTML.parse(html)
 
     labels =
       for {"label", a, k} <- nodes(tree), f = attr(a, "for"), into: %{}, do: {f, words(k, [])}
@@ -64,11 +65,9 @@ defmodule Moss.Computer.Page do
   @doc "The page's html for a watcher: no scripts, the fields holding their values, links resolved."
   def html(page) do
     tree = page.tree |> strip() |> fill(page)
-    base = ~s(<base href="#{LazyHTML.html_escape(page.url)}" target="_blank">)
+    base = ~s(<base href="#{Moss.HTML.escape_attr(page.url)}" target="_blank">)
 
-    String.replace(LazyHTML.to_html(LazyHTML.from_tree(tree)), "<head>", "<head>" <> base,
-      global: false
-    )
+    String.replace(Moss.HTML.to_html(tree), "<head>", "<head>" <> base, global: false)
   end
 
   # -- reading -----------------------------------------------------------------------------------

@@ -59,35 +59,37 @@ defmodule Moss.Computer.Clean do
 
   defp deep(v), do: v
 
-  @doc "The page, cleaned: a whole document if it was one, else its body's content."
-  def html(page) when is_binary(page) do
+  @doc """
+  The page, cleaned: a whole document if it was one, else its body's content. It is cleaned, read back and
+  cleaned again, so what leaves is what a parser reads from it: an element the policy unwraps can leave its
+  children nested where the parser would not put them (a heading in a heading), and the second reading settles
+  them.
+  """
+  def html(page) when is_binary(page), do: page |> once() |> once()
+
+  defp once(page) do
     p = policy()
     doc? = Regex.match?(~r/^\s*(<!doctype|<html)/i, page)
-    tree = page |> LazyHTML.from_document() |> LazyHTML.to_tree()
-    html = Enum.find(tree, &match?({"html", _, _}, &1)) || {"html", [], tree}
-    {"html", hattrs, kids} = html
-    head = for {"head", _, k} <- kids, n <- k, do: n
-    body = Enum.find(kids, &match?({"body", _, _}, &1)) || {"body", [], []}
-    {"body", battrs, bkids} = body
+    [{"html", hattrs, [{"head", _, head}, {"body", battrs, bkids}]}] = Moss.HTML.parse(page)
     body = {"body", attrs("body", battrs, p), nodes(bkids, p)}
 
     if doc? do
       head = {"head", [], Enum.flat_map(head, &shell(&1, p))}
-
-      "<!doctype html>\n" <>
-        LazyHTML.to_html(LazyHTML.from_tree([{"html", attrs("html", hattrs, p), [head, body]}]))
+      "<!doctype html>\n" <> Moss.HTML.to_html([{"html", attrs("html", hattrs, p), [head, body]}])
     else
       {"body", _, inner} = body
-      LazyHTML.to_html(LazyHTML.from_tree(inner))
+      Moss.HTML.to_html(inner)
     end
   end
 
   # the head, as Shroomi writes it
   defp shell({"title", _, kids}, _p), do: [{"title", [], Enum.filter(kids, &is_binary/1)}]
 
+  # a style's text is written as it is, so it may hold no `<` (nothing that could end it early, or be read as a
+  # tag by a browser that does not take it for raw text)
   defp shell({"style", _, kids}, _p) do
     css = kids |> Enum.filter(&is_binary/1) |> Enum.join()
-    if css_ok?(css), do: [{"style", [], [css]}], else: []
+    if css_ok?(css) and not String.contains?(css, "<"), do: [{"style", [], [css]}], else: []
   end
 
   defp shell({"meta", a, _}, _p) do
@@ -145,7 +147,7 @@ defmodule Moss.Computer.Clean do
   defp keep?(_tag, k, v, own, all, p) do
     allowed =
       MapSet.member?(own, k) or MapSet.member?(all, k) or MapSet.member?(p.hx, k) or
-        String.starts_with?(k, "data-") or String.starts_with?(k, "aria-")
+        Regex.match?(~r/\A(data|aria)-[a-z0-9_.-]+\z/, k)
 
     allowed and not String.starts_with?(k, "on") and url_ok?(k, v, p) and vals_ok?(k, v) and
       (k != "style" or css_ok?(v))
