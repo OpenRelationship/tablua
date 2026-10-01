@@ -9,7 +9,7 @@ defmodule Moss.Gate0Test do
 
   @core Application.compile_env!(:moss, :core)
   @files for(
-           dir <- ["library", "submodules/alog"],
+           dir <- ["library", "submodules/alog", "submodules/shroomi"],
            do: Path.wildcard(Path.join([@core, dir, "**/*_test.lua"]))
          )
          |> List.flatten()

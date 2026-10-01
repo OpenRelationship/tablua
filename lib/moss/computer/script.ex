@@ -330,27 +330,46 @@ defmodule Moss.Computer.Script do
 
   @doc "`help lua`: the library as its files describe it, the opening comment of each."
   def reference do
-    [prelude() | sdk() |> Enum.sort() |> Enum.map(&elem(&1, 1))]
-    |> Enum.map_join("\n", fn src ->
-      src
-      |> String.split("\n")
-      |> Enum.take_while(&String.starts_with?(&1, "--"))
-      |> Enum.map_join(
-        &(String.replace_prefix(&1, "-- ", "")
-          |> String.replace_prefix("--", "")
-          |> Kernel.<>("\n"))
-      )
-    end)
+    sdk = sdk() |> Enum.reject(fn {n, _} -> String.starts_with?(n, "shroomi") end) |> Enum.sort()
+    Enum.map_join([prelude() | Enum.map(sdk, &elem(&1, 1))], "\n", &header/1)
   end
 
-  # The SDK's own modules (priv/lua/sdk), which `require` finds before the disk
+  @doc "`help shroomi`: how to publish, from Shroomi's own files."
+  def shroomi_reference do
+    m = sdk()
+    Enum.map_join(~w(shroomi shroomi.components shroomi.css), "\n", &header(m[&1]))
+  end
+
+  # a file's opening comment, as text
+  defp header(src) do
+    src
+    |> String.split("\n")
+    |> Enum.take_while(&String.starts_with?(&1, "--"))
+    |> Enum.map_join(
+      &(String.replace_prefix(&1, "-- ", "")
+        |> String.replace_prefix("--", "")
+        |> Kernel.<>("\n"))
+    )
+  end
+
+  # The SDK's own modules, which `require` finds before the disk: priv/lua/sdk, and Shroomi (Arock PROJECT.md §16)
+  # from its submodule as `shroomi` and `shroomi.<file>`
   defp builtin(name), do: Map.get(sdk(), name)
 
   defp sdk do
     :persistent_term.get({__MODULE__, :sdk}, nil) ||
       (fn ->
-         dir = Path.join(:code.priv_dir(:moss), "lua/sdk")
-         m = Map.new(Path.wildcard(dir <> "/*.lua"), &{Path.basename(&1, ".lua"), File.read!(&1)})
+         own = Path.wildcard(Path.join(:code.priv_dir(:moss), "lua/sdk/*.lua"))
+         m = Map.new(own, &{Path.basename(&1, ".lua"), File.read!(&1)})
+         shroomi = Path.join(Moss.Lua.Sources.core(), "submodules/shroomi")
+
+         m =
+           for f <- Path.wildcard(shroomi <> "/*.lua"),
+               base = Path.basename(f, ".lua"),
+               not String.ends_with?(base, "_test"),
+               into: m,
+               do: {if(base == "init", do: "shroomi", else: "shroomi." <> base), File.read!(f)}
+
          :persistent_term.put({__MODULE__, :sdk}, m)
          m
        end).()

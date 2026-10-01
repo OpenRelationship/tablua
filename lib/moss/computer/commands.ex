@@ -83,9 +83,15 @@ defmodule Moss.Computer.Commands do
   defp builtin("help", ["lua" | _], _, state),
     do: {0, Moss.Computer.Script.reference(), "", state}
 
+  defp builtin("help", ["shroomi" | _], _, state),
+    do: {0, Moss.Computer.Script.shroomi_reference(), "", state}
+
   defp builtin("help", _, _, state),
     do:
-      {0, "commands: " <> Enum.join(names(), " ") <> "\n(help lua: the Lua library)\n", "", state}
+      {0,
+       "commands: " <>
+         Enum.join(names(), " ") <>
+         "\n(help lua: the Lua library; help shroomi: pages and apps)\n", "", state}
 
   defp builtin("date", _, _, state),
     do:

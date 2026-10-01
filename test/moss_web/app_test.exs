@@ -13,15 +13,15 @@ defmodule MossWeb.AppTest do
     do: :ok = Disk.write(:sys.get_state(Computer.wake!(c)).disk, path, text)
 
   @app ~S"""
-  local html = require("html")
+  local ui = require("shroomi")
   local function page(d)
     local rows = d:query("select name from plant order by name")
-    return html.page("Plants", html.render([[
+    return ui.page{ title = "Plants", ui.raw(ui.template([[
       <h1>Plants</h1>
       <ul>{{#rows}}<li>{{name}} <button hx-delete="plants/{{name}}">Remove {{name}}</button></li>{{/rows}}</ul>
       <form hx-post="plants"><label>Name <input name="name"></label><button>Add</button></form>
       <a hx-get="about">About</a>
-      <script>alert(1)</script>]], { rows = rows }))
+      <script>alert(1)</script><img src="x" onerror="alert(2)"><a href="javascript:alert(3)">x</a>]], { rows = rows })) }
   end
   return function(req)
     local d = db.open("plants.db")
@@ -33,7 +33,7 @@ defmodule MossWeb.AppTest do
       d:exec("delete from plant where name = ?", string.match(req.path, "^/plants/(.+)$"))
       return { status = 200, body = "" }
     elseif req.path == "/about" then
-      return html.page("About", "<p>A plant list, by an agent.</p>")
+      return ui.page{ title = "About", ui.p"A plant list, by an agent." }
     elseif req.path == "/boom" then
       error("no such plant")
     elseif req.path == "/script" then
@@ -54,10 +54,17 @@ defmodule MossWeb.AppTest do
     assert html_response(conn, 200) =~ "<h1>Plants</h1>"
     body = conn.resp_body
     assert body =~ ~s(<base href="/computers/#{c}/app/">)
-    assert body =~ ~s(<script src="/vendor/htmx-2.0.4.min.js">)
+    assert body =~ ~s(<script src="/shroomi/htmx-2.0.4.min.js">)
+    assert body =~ ~s(<link rel="stylesheet" href="/shroomi/basecoat-1.0.2.min.css"/>)
+    refute body =~ "alert"
+    refute body =~ "onerror"
 
     [csp] = get_resp_header(conn, "content-security-policy")
-    assert csp =~ "script-src http://www.example.com/vendor/htmx-2.0.4.min.js;"
+
+    assert csp =~
+             "script-src http://www.example.com/shroomi/basecoat-1.0.2.min.js " <>
+               "http://www.example.com/shroomi/htmx-2.0.4.min.js http://www.example.com/shroomi/shroomi.js;"
+
     assert csp =~ "connect-src http://www.example.com/computers/#{c}/app/;"
     refute csp =~ "unsafe-eval"
     assert get_resp_header(conn, "x-content-type-options") == ["nosniff"]
@@ -77,12 +84,14 @@ defmodule MossWeb.AppTest do
     assert get(as("other"), "/computers/#{c}/app/").status == 404
   end
 
-  test "the htmx file is the pinned release" do
-    conn = get(build_conn(), "/vendor/htmx-2.0.4.min.js")
-    assert conn.status == 200
+  test "Shroomi's assets are served as pinned, each matching its hash in the policy" do
+    for {file, "sha384-" <> hash} <- Moss.Computer.Clean.policy().files do
+      conn = get(build_conn(), "/shroomi/" <> file)
+      assert conn.status == 200, file
+      assert :crypto.hash(:sha384, conn.resp_body) |> Base.encode64() == hash, file
+    end
 
-    assert :crypto.hash(:sha384, conn.resp_body) |> Base.encode64() ==
-             "HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
+    assert get(build_conn(), "/shroomi/README.md").status == 404
   end
 
   test "the agent reads its app as words and controls, and works it with its own browser" do

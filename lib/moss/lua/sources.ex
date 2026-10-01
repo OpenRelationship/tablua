@@ -2,7 +2,8 @@ defmodule Moss.Lua.Sources do
   @moduledoc """
   Arock Core's Lua modules as `name => source`, read from the Arock repository:
   its `library/` (`library/ports/jev.lua` is `ports.jev`) and alog, the log, at
-  `submodules/alog` (`init.lua` is `alog`, `robot.lua` is `alog.robot`). Unit
+  `submodules/alog` (`init.lua` is `alog`, `robot.lua` is `alog.robot`), and
+  Shroomi at `submodules/shroomi` (`shroomi`, `shroomi.css`, ...). Unit
   tests (`*_test.lua`) and LuaJIT host code (any file that requires `ffi`, such
   as `alog.ffi` and `ports.curl`) are left out; this host supplies those ports
   itself.
@@ -13,7 +14,12 @@ defmodule Moss.Lua.Sources do
   def library, do: Path.join(core(), "library")
 
   @doc "Where core modules live, each with the prefix its module names take."
-  def roots, do: [{library(), ""}, {Path.join(core(), "submodules/alog"), "alog"}]
+  def roots,
+    do: [
+      {library(), ""},
+      {Path.join(core(), "submodules/alog"), "alog"},
+      {Path.join(core(), "submodules/shroomi"), "shroomi"}
+    ]
 
   @doc "Every core module, by module name."
   def all do

@@ -241,6 +241,8 @@ defmodule Moss.Computer.Browser do
       )
 
     {status, headers, body, _err} = Script.serve(req, state)
+    html? = headers |> Map.get("content-type", "text/html") |> String.starts_with?("text/html")
+    body = if html?, do: Moss.Computer.Clean.html(body), else: body
 
     case headers do
       %{"location" => to} when status in 301..308 and hops > 0 ->

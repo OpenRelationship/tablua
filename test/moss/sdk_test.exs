@@ -91,34 +91,25 @@ defmodule Moss.SdkTest do
              """
   end
 
-  test "html templates escape what they show; markdown becomes safe HTML" do
+  test "Shroomi builds pages on the computer: components, utilities, templates and markdown" do
     c = id()
 
     put(c, "/home/h.lua", ~S"""
-    local html, md = require("html"), require("markdown")
-    print(html.render("<h1>{{title}}</h1><ul>{{#plants}}<li>{{name}}{{#dry}} (dry){{/dry}}</li>{{/plants}}</ul>{{^none}}none{{/none}}{{{raw}}}",
-      { title = "<Ferns & co>", plants = { { name = "fern", dry = true }, { name = "moss" } }, none = {}, raw = "<b>!</b>" }))
-    io.write(md.html("# Plants\n\nA *fern* and **moss**, `x<y`.\n\n- one\n- [two](https://a.b/?q=1&r=2)\n\n```lua\nprint(1 < 2)\n```\n\n> quoted\n\n[bad](javascript:alert(1)) <script>"))
+    local ui = require("shroomi")
+    ui.component("plant", function(p) return ui.li{ class = "flex gap-2", p.name } end)
+    local page = ui.page{ title = "Plants",
+      ui.card{ title = "<Ferns & co>", ui.ul{ ui.plant{ name = "fern" } }, ui.markdown("**dry** <b>") } }
+    print(string.match(page, "<body.-</body>"))
+    print(string.find(page, ".gap-2{", 1, true) ~= nil, ui.template("{{x}}", { x = "<i>" }))
+    print(table.concat(ui.check('<p class="p-4 wobbly">'), ","))
     """)
 
     assert %{code: 0, out: out} = sh(c, "lua h.lua")
 
     assert out ==
-             """
-             <h1>&lt;Ferns &amp; co&gt;</h1><ul><li>fern (dry)</li><li>moss</li></ul>none<b>!</b>
-             <h1>Plants</h1>
-             <p>A <em>fern</em> and <strong>moss</strong>, <code>x&lt;y</code>.</p>
-             <ul>
-             <li>one</li>
-             <li><a href="https://a.b/?q=1&amp;r=2">two</a></li>
-             </ul>
-             <pre><code class="language-lua">print(1 &lt; 2)
-             </code></pre>
-             <blockquote>
-             <p>quoted</p>
-             </blockquote>
-             <p><a href="#">bad</a> &lt;script&gt;</p>
-             """
+             ~s(<body class="min-h-screen bg-background text-foreground"><div class="card"><header><h2>&lt;Ferns &amp; co&gt;</h2></header>) <>
+               ~s(<section><ul><li class="flex gap-2">fern</li></ul><div class="prose"><p><strong>dry</strong> &lt;b&gt;</p>\n</div>) <>
+               ~s(</section></div></body>\ntrue\t&lt;i&gt;\nwobbly\n)
   end
 
   test "a Gherkin feature runs on Lua steps and prints Robot rows" do

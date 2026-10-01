@@ -4,18 +4,17 @@ defmodule Moss.Computer.App do
   request (`Moss.Computer.Script.serve/2`), and its page goes out as HTML the
   person's browser draws, with htmx as its only script.
 
-  The page is the agent's writing, so nothing in it runs as code: the one
-  script allowed is the pinned htmx file Moss serves, an app answers only in
-  types no browser runs as script (sent with `nosniff`), and its requests and
+  The page is the agent's writing, so nothing in it runs as code. It is held
+  to Shroomi's policy (`Moss.Computer.Clean`); the only scripts allowed are
+  Shroomi's pinned assets, served by Moss at /shroomi/; an app answers only in
+  types no browser runs as script (sent with `nosniff`); and its requests and
   forms reach no path but the app's own. `base` is where the app lives (for a
   person, `/computers/<id>/app/`); the page gets a `<base>` there, so its
   relative links and hx- paths stay inside it.
   """
+  alias Moss.Computer.Clean
 
-  @htmx "/vendor/htmx-2.0.4.min.js"
   @types ~w(text/html text/plain text/css text/csv application/json)
-
-  def htmx, do: @htmx
 
   @doc "The request as the app reads it."
   def request(method, path, query, form, headers) do
@@ -32,7 +31,7 @@ defmodule Moss.Computer.App do
   def answer(id, req, origin, base) do
     {status, headers, body, _err} = Moss.Computer.serve(id, req)
     type = content_type(headers)
-    body = if type == "text/html", do: with_base(body, base), else: body
+    body = if type == "text/html", do: body |> Clean.html() |> with_base(base), else: body
 
     headers =
       headers
@@ -76,12 +75,14 @@ defmodule Moss.Computer.App do
 
   defp policy(origin, base) do
     app = origin <> base
+    p = Clean.policy()
+    scripts = p.scripts |> Enum.sort() |> Enum.map_join(" ", &(origin <> &1))
 
     Enum.join(
       [
         "default-src 'none'",
-        "script-src #{origin}#{@htmx}",
-        "style-src 'unsafe-inline' #{app}",
+        "script-src #{scripts}",
+        "style-src 'unsafe-inline' #{origin}#{p.css} #{app}",
         "img-src data: #{app}",
         "connect-src #{app}",
         "form-action #{app}",

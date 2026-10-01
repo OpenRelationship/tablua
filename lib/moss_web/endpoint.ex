@@ -27,6 +27,12 @@ defmodule MossWeb.Endpoint do
     only: MossWeb.static_paths(),
     raise_on_missing_only: code_reloading?
 
+  # Shroomi's pinned assets, the only scripts and styles an app's page loads (Moss.Computer.App)
+  plug Plug.Static,
+    at: "/shroomi",
+    from: Path.join(Application.compile_env!(:moss, :core), "submodules/shroomi/assets"),
+    only_matching: ~w(htmx basecoat shroomi)
+
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
   if code_reloading? do

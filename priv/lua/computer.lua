@@ -14,9 +14,9 @@
 --     ? in the SQL binds the arguments after it; attach and pragma are refused; 64 MB at most.
 --   An app: /home/app.lua returns function(req) -> html | { status, body, headers, redirect }, with
 --     req = { method, path, query, form, headers }. The person opens it in their browser; `open app` opens it
---     here. Its pages are HTML and htmx (html.page loads it); links, forms and hx- paths are relative (write
---     "add", not "/add"), and the page's own scripts do not run.
---   require("name"): the SDK's own modules (csv, date, html, markdown, test), then name.lua or
+--     here. Build its pages with Shroomi (require("shroomi"), `help shroomi`); links, forms and hx- paths are
+--     relative (write "add", not "/add"), and no script of the page's own runs.
+--   require("name"): the SDK's own modules (csv, date, test, shroomi), then name.lua or
 --     name/init.lua in the working folder, then /home/lib
 -- A failure returns nil and why, as Lua's own io does.
 
