@@ -11,7 +11,8 @@
 --     kit (ui.kit lists them); ui.component("name", function(props, children) return node end) adds one
 --   ui.page{ title = "Plants", ...children } -> a whole document, its CSS and scripts included; light or dark as
 --     the person's system is, or dark = true / false to fix it
---   ui.render(node) -> HTML;  ui.template(text, view) -> Mustache;  ui.escape(s)
+--   ui.render(node) -> HTML (ui.page's answer is HTML already: return it as it is)
+--   ui.template(text, view) -> Mustache;  ui.escape(s)
 --   ui.check(html) -> the classes Shroomi does not know, to fix before publishing
 local css = require("shroomi.css")
 local template = require("shroomi.template")
