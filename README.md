@@ -26,7 +26,10 @@ end
 2. **Style with the kit, then with classes.** Basecoat's components (`ui.button`, `ui.card`, `ui.input`, `ui.data_table`, `ui.tabs`, `ui.dialog`, ...) look finished on their own. Utility classes (`flex gap-4 md:grid-cols-3 text-muted-foreground`) arrange them; Shroomi writes CSS for the ones a page uses. `ui.check(html)` names any class it does not know.
 3. **Move with htmx.** `post = "plants"`, `target = "#list"`, `swap = "outerHTML"` become `hx-post`, `hx-target` and `hx-swap`. Addresses are relative to the app (`plants`, not `/plants`). Behaviour beyond htmx comes only from Shroomi's own reviewed scripts: dialogs open with `data-open="id"`.
 4. **Make components.** `ui.component("plant", function(props, children) ... end)` adds `ui.plant{...}`. A component is a function from props to nodes, so it can be put anywhere a page goes.
-5. **Read it back.** The agent's computer reads the same page as words and controls (`open app`), the way the person's browser draws it.
+5. **Light and dark come free.** A page follows its person's system, as Basecoat's theme does with its `dark`
+   class; `ui.page{ dark = true }` or `dark = false` fixes it. Use the theme's colours (`bg-card`,
+   `text-muted-foreground`), not fixed ones, and a page reads in both.
+6. **Read it back.** The agent's computer reads the same page as words and controls (`open app`), the way the person's browser draws it.
 
 ## Safety
 
