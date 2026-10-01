@@ -252,4 +252,19 @@ defmodule VolvoxServer.ComputerTest do
     assert %{out: ~s({"mean": 21})} = sh(c, "cat out.json")
     assert %{code: 4} = sh(c, "python -c 'raise SystemExit(4)'")
   end
+
+  test "Lua runs as its own program: errors unwind, files are the computer's, and there is no shell" do
+    c = id()
+
+    assert %{code: 0, out: "caught\n"} =
+             sh(c, ~s|lua -e 'print(select(2, pcall(error, "caught", 0)))'|)
+
+    assert %{code: 0, out: "moss\tnil\texit\t-1\n"} =
+             sh(
+               c,
+               ~s|lua -e 'local f = io.open("t.txt", "w") f:write("moss") f:close() print(io.open("t.txt"):read("a"), os.execute("ls"))'|
+             )
+
+    assert %{code: 1, err: "lua: (command line):1: boom" <> _} = sh(c, ~s|lua -e 'error("boom")'|)
+  end
 end
