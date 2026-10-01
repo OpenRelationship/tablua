@@ -67,6 +67,16 @@ defmodule Moss.Mail.Store do
   def recent(conn, limit \\ 100),
     do: all(conn, "select * from letters order by id desc limit ?", [limit])
 
+  @doc "The latest letters to or from any of `agents`."
+  def recent_for(conn, agents, limit) do
+    all(
+      conn,
+      "select * from letters where sender in (select value from json_each(?1)) " <>
+        "or recipient in (select value from json_each(?1)) order by id desc limit ?2",
+      [Jason.encode!(agents), limit]
+    )
+  end
+
   @doc "Letters Jev has yet to read: screened ones waiting, delivered ones unaudited."
   def waiting(conn, limit),
     do:

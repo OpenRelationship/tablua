@@ -3,7 +3,8 @@ defmodule MossWeb.MailLive do
   The post, for a person (Arock's PROJECT.md §14.5): letters Jev held, to
   release or refuse; the senders Jev refused, screened until a person clears
   them; the routes, which a person sets; and the latest letters with Jev's
-  word on each. Live from PubSub `mail`.
+  word on each. Live from PubSub `mail`. A person sees and acts on only what
+  touches their own computers (`Moss.Owners`).
   """
   use MossWeb, :live_view
 
@@ -20,29 +21,34 @@ defmodule MossWeb.MailLive do
 
   @impl true
   def handle_event("release", %{"id" => id}, socket),
-    do: decided(socket, Mail.release(String.to_integer(id)))
+    do: decided(socket, if(held?(socket, id), do: Mail.release(String.to_integer(id)), else: :ok))
 
   def handle_event("refuse", %{"id" => id}, socket),
-    do: decided(socket, Mail.refuse(String.to_integer(id)))
+    do: decided(socket, if(held?(socket, id), do: Mail.refuse(String.to_integer(id)), else: :ok))
 
   def handle_event("unflag", %{"sender" => s}, socket) do
-    Mail.unflag(s)
+    if s in socket.assigns.mine, do: Mail.unflag(s)
     {:noreply, refresh(socket)}
   end
 
   def handle_event("unroute", %{"sender" => s, "recipient" => r}, socket) do
-    Mail.unroute(s, r)
+    if s in socket.assigns.mine, do: Mail.unroute(s, r)
     {:noreply, refresh(socket)}
   end
 
   def handle_event("route", %{"sender" => s, "recipient" => r, "mode" => m}, socket) do
     {s, r} = {String.trim(s), String.trim(r)}
 
-    if s != "" and r != "" and m in ["audit", "screen"] do
+    if s in socket.assigns.mine and r != "" and m in ["audit", "screen"] do
       Mail.route(s, r, m)
       {:noreply, refresh(socket)}
     else
-      {:noreply, put_flash(socket, :error, "A route needs a sender, a recipient and a mode.")}
+      {:noreply,
+       put_flash(
+         socket,
+         :error,
+         "A route needs one of your computers as its sender, a recipient and a mode."
+       )}
     end
   end
 
@@ -51,14 +57,20 @@ defmodule MossWeb.MailLive do
   defp decided(socket, {:error, why}),
     do: {:noreply, socket |> put_flash(:error, why) |> refresh()}
 
+  # a letter held for one of this person's computers
+  defp held?(socket, id), do: Enum.any?(socket.assigns.held, &(to_string(&1["id"]) == id))
+
   defp refresh(socket) do
-    recent = Mail.recent(200)
+    mine = Moss.Owners.owned(socket.assigns.person)
+    touches = fn row -> row["sender"] in mine or row["recipient"] in mine end
+    recent = Mail.recent_for(mine, 200)
 
     assign(socket,
-      held: Enum.filter(recent, &(&1["state"] == "held")),
+      mine: mine,
+      held: Enum.filter(recent, &(&1["state"] == "held" and &1["recipient"] in mine)),
       recent: Enum.take(recent, 60),
-      flagged: Mail.flagged(),
-      routes: Mail.routes()
+      flagged: Enum.filter(Mail.flagged(), &(&1["sender"] in mine)),
+      routes: Enum.filter(Mail.routes(), touches)
     )
   end
 

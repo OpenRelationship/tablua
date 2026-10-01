@@ -55,7 +55,13 @@ defmodule Moss.Computer do
     end
   end
 
+  @doc "Whether `id` can name a computer: lower-case letters, digits and dashes, at most 64, a letter or digit first."
+  def id?(id), do: is_binary(id) and Regex.match?(~r/\A[a-z0-9][a-z0-9-]{0,63}\z/, id)
+
   def wake!(id, opts \\ []) do
+    # an id becomes a file name and an object key, so it is checked before either is made
+    unless id?(id), do: raise(ArgumentError, "not a computer id: #{inspect(id)}")
+
     case DynamicSupervisor.start_child(Moss.Computer.Supervisor, %{
            id: {__MODULE__, id},
            start:

@@ -4,6 +4,10 @@ defmodule Moss.Computer.Net do
   Only http and https to public addresses: a name that resolves to this
   machine, a private or link-local network (the cloud's metadata service among
   them) is refused, and every redirect is checked again before it is followed.
+  A name is resolved once, and the request goes to the address that was
+  checked (the name kept for TLS and the Host header), so a name that answers
+  differently the second time cannot reach this machine. An answer stops at
+  #{div(32 * 1024 * 1024, 1_048_576)} MB (config `net_max_bytes`); the methods are #{Enum.join(~w(GET POST PUT PATCH DELETE HEAD OPTIONS), ", ")}.
 
   `get(url, opts)` is what the browser fetches with: `{:ok, %{status, headers,
   body, url}}` (the address it ended at) or `{:error, why}`.
@@ -11,6 +15,16 @@ defmodule Moss.Computer.Net do
   alias Moss.Computer.Disk
 
   @names ~w(curl wget)
+  @methods %{
+    "GET" => :get,
+    "POST" => :post,
+    "PUT" => :put,
+    "PATCH" => :patch,
+    "DELETE" => :delete,
+    "HEAD" => :head,
+    "OPTIONS" => :options
+  }
+  @max_bytes 32 * 1024 * 1024
   @hops 5
   @agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
 
@@ -39,7 +53,9 @@ defmodule Moss.Computer.Net do
         body = if o.data == "@-", do: stdin, else: o.data
         method = o.method || if(body, do: "POST", else: "GET")
 
-        case get(o.url, method: method, headers: o.headers, body: body) do
+        case if Map.has_key?(@methods, method),
+               do: hop(o.url, [method: method, headers: o.headers, body: body], @hops),
+               else: {:error, :method} do
           {:ok, r} ->
             head =
               if o.include,
@@ -63,6 +79,12 @@ defmodule Moss.Computer.Net do
               {code, head <> r.body, "", state}
             end
 
+          {:error, :method} ->
+            {2, "", "#{name}: no such method: #{method}\n", state}
+
+          {:error, {:too_big, max}} ->
+            {63, "", "#{name}: the answer is over #{max} bytes\n", state}
+
           {:error, why} ->
             {6, "", "#{name}: #{why}\n", state}
         end
@@ -72,29 +94,41 @@ defmodule Moss.Computer.Net do
     end
   end
 
-  def get(url, opts \\ []), do: hop(url, opts, @hops)
+  def get(url, opts \\ []) do
+    case hop(url, opts, @hops) do
+      {:error, :method} -> {:error, "no such method: #{opts[:method]}"}
+      {:error, {:too_big, max}} -> {:error, "the answer is over #{max} bytes"}
+      other -> other
+    end
+  end
 
   defp hop(_url, _opts, 0), do: {:error, "too many redirects"}
 
   defp hop(url, opts, left) do
-    with {:ok, uri} <- public(url),
+    method = Map.get(@methods, String.upcase(Keyword.get(opts, :method, "GET")))
+    max = Application.get_env(:moss, :net_max_bytes, @max_bytes)
+
+    with {:ok, method} <- if(method, do: {:ok, method}, else: {:error, :method}),
+         {:ok, uri, ip} <- checked(url),
          {:ok, resp} <-
            Req.request(
              [
-               method:
-                 opts
-                 |> Keyword.get(:method, "GET")
-                 |> String.downcase()
-                 |> String.to_existing_atom(),
-               url: URI.to_string(uri),
-               headers: [{"user-agent", @agent} | Keyword.get(opts, :headers, [])],
+               method: method,
+               url: URI.to_string(%{uri | host: ip_host(ip)}),
+               headers: [
+                 {"host", host_header(uri)},
+                 {"user-agent", @agent} | Keyword.get(opts, :headers, [])
+               ],
+               connect_options: [hostname: uri.host],
                body: Keyword.get(opts, :body),
                redirect: false,
                retry: false,
                decode_body: false,
+               into: capped(max),
                receive_timeout: Keyword.get(opts, :timeout, 15_000)
              ] ++ Application.get_env(:moss, :computer_req_options, [])
-           ) do
+           ),
+         :ok <- if(resp.private[:too_big], do: {:error, {:too_big, max}}, else: :ok) do
       case {resp.status, Req.Response.get_header(resp, "location")} do
         {s, [to | _]} when s in [301, 302, 303, 307, 308] ->
           next = uri |> URI.merge(to) |> URI.to_string()
@@ -116,8 +150,34 @@ defmodule Moss.Computer.Net do
     end
   end
 
+  # The body as it arrives, stopped past `max` bytes.
+  defp capped(max) do
+    fn {:data, data}, {req, resp} ->
+      body = if is_binary(resp.body), do: resp.body <> data, else: data
+
+      if byte_size(body) > max,
+        do: {:halt, {req, Req.Response.put_private(%{resp | body: ""}, :too_big, true)}},
+        else: {:cont, {req, %{resp | body: body}}}
+    end
+  end
+
+  defp ip_host({_, _, _, _} = ip), do: ip |> :inet.ntoa() |> to_string()
+  defp ip_host(ip), do: "[" <> to_string(:inet.ntoa(ip)) <> "]"
+
+  defp host_header(%URI{host: h, port: p, scheme: s}) do
+    if {s, p} in [{"http", 80}, {"https", 443}], do: h, else: "#{h}:#{p}"
+  end
+
+  # The address to connect to: the url's, public, from one resolution.
+  defp checked(url), do: resolve(url)
+
   @doc "The address, if it is http or https to a public host."
   def public(url) do
+    with {:ok, uri, _ip} <- resolve(url), do: {:ok, uri}
+  end
+
+  # The url and the one address its host resolved to, if every address it has is public.
+  defp resolve(url) do
     uri = URI.parse(url)
     uri = if uri.scheme == nil, do: URI.parse("https://" <> url), else: uri
 
@@ -129,8 +189,10 @@ defmodule Moss.Computer.Net do
         {:error, "no host in #{url}"}
 
       true ->
-        if Enum.all?(addresses(uri.host), &public_ip?/1),
-          do: {:ok, uri},
+        ips = addresses(uri.host)
+
+        if Enum.all?(ips, &public_ip?/1),
+          do: {:ok, uri, hd(ips)},
           else: {:error, "#{uri.host} is not on the public internet"}
     end
   end
@@ -141,23 +203,27 @@ defmodule Moss.Computer.Net do
         [ip]
 
       _ ->
-        v4 =
-          case :inet.getaddrs(String.to_charlist(host), :inet),
-            do: (
-              {:ok, l} -> l
-              _ -> []
-            )
-
-        v6 =
-          case :inet.getaddrs(String.to_charlist(host), :inet6),
-            do: (
-              {:ok, l} -> l
-              _ -> []
-            )
-
-        # a name that does not resolve is not public either
-        if v4 ++ v6 == [], do: [{127, 0, 0, 1}], else: v4 ++ v6
+        lookup(host)
     end
+  end
+
+  # every address a name has (config `resolver`, a function of the name, stands in for DNS in tests)
+  defp lookup(host) do
+    case Application.get_env(:moss, :resolver) do
+      nil -> dns(host)
+      f -> f.(host)
+    end
+  end
+
+  defp dns(host) do
+    found =
+      for family <- [:inet, :inet6],
+          {:ok, ips} <- [:inet.getaddrs(String.to_charlist(host), family)],
+          ip <- ips,
+          do: ip
+
+    # a name that does not resolve is not public either
+    if found == [], do: [{127, 0, 0, 1}], else: found
   end
 
   defp public_ip?({a, b, _, _}) do

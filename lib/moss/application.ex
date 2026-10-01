@@ -15,6 +15,7 @@ defmodule Moss.Application do
       {Phoenix.PubSub, name: Moss.PubSub},
       {Registry, keys: :unique, name: Moss.Computer.Registry},
       {DynamicSupervisor, name: Moss.Computer.Supervisor, strategy: :one_for_one},
+      Moss.Owners,
       Moss.Mail,
       MossWeb.Endpoint
     ]

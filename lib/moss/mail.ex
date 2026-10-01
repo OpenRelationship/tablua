@@ -29,6 +29,10 @@ defmodule Moss.Mail do
   def sent(agent), do: GenServer.call(__MODULE__, {:sent, agent})
   def read(agent, id), do: GenServer.call(__MODULE__, {:read, agent, id})
   def recent(limit \\ 100), do: GenServer.call(__MODULE__, {:recent, limit})
+
+  def recent_for(agents, limit \\ 100),
+    do: GenServer.call(__MODULE__, {:recent_for, agents, limit})
+
   def routes, do: GenServer.call(__MODULE__, :routes)
   def flagged, do: GenServer.call(__MODULE__, :flagged)
 
@@ -103,6 +107,10 @@ defmodule Moss.Mail do
   def handle_call({:inbox, agent}, _from, s), do: {:reply, Store.inbox(s.conn, agent), s}
   def handle_call({:sent, agent}, _from, s), do: {:reply, Store.sent(s.conn, agent), s}
   def handle_call({:recent, n}, _from, s), do: {:reply, Store.recent(s.conn, n), s}
+
+  def handle_call({:recent_for, agents, n}, _from, s),
+    do: {:reply, Store.recent_for(s.conn, agents, n), s}
+
   def handle_call(:routes, _from, s), do: {:reply, Store.routes(s.conn), s}
   def handle_call(:flagged, _from, s), do: {:reply, Store.flagged(s.conn), s}
 

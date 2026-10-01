@@ -26,7 +26,7 @@ config :moss,
   local_objects: Path.expand("../tmp/test/runs", __DIR__),
   objects: :local,
   host_dir: Path.expand("../tmp/test/host", __DIR__),
-  page_tokens: %{"test-page-token" => "tester"},
+  page_tokens: %{"test-page-token" => "tester", "test-other-token" => "other"},
   req_options: [plug: {Req.Test, Moss.Fetch}],
   computer_req_options: [plug: {Req.Test, Moss.Computer.Net}],
   # the post's batches run when a test says (Mail.screen_now), read by a stand-in for Jev

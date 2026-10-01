@@ -70,3 +70,6 @@ config :phoenix, :json_library, Jason
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
+
+# SQLite from source, with mix.exs's flags (an awake computer's connection allocates only what it uses)
+config :exqlite, force_build: true

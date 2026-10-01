@@ -1,3 +1,11 @@
+# SQLite is built from source (config :exqlite, force_build: true) with two allocations a computer's connection
+# never needs: the lookaside pool (100 slots of 1,200 bytes, made per connection) and the 20 pages the page cache
+# makes up front. Off, an awake computer is about 54 KB instead of 165 KB (bench/computers.exs).
+System.put_env(
+  "EXQLITE_SYSTEM_CFLAGS",
+  "-DSQLITE_DEFAULT_LOOKASIDE=0,0 -DSQLITE_DEFAULT_PCACHE_INITSZ=0"
+)
+
 defmodule Moss.MixProject do
   use Mix.Project
 

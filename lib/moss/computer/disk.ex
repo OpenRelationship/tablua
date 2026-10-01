@@ -25,11 +25,17 @@ defmodule Moss.Computer.Disk do
   create table if not exists kept (key text primary key, value blob not null);
   """
 
+  @max_bytes 256 * 1024 * 1024
+
+  @doc "Opens the disk at `path`, its size held to config `disk_max_bytes` (#{div(256 * 1024 * 1024, 1_048_576)} MB): past it, a write is `{:error, \"database or disk is full\"}`."
   def open(path) do
     File.mkdir_p!(Path.dirname(path))
+    max = Application.get_env(:moss, :disk_max_bytes, @max_bytes)
 
     with {:ok, conn} <- Db.open(path),
-         {:ok, _} <- Db.exec(conn, @schema, []) do
+         {:ok, _} <- Db.exec(conn, @schema, []),
+         {:ok, [%{"page_size" => page}]} <- Db.exec(conn, "pragma page_size", []),
+         {:ok, _} <- Db.exec(conn, "pragma max_page_count = #{div(max, page)}", []) do
       {:ok, conn}
     end
   end

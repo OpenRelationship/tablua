@@ -5,7 +5,9 @@ defmodule MossWeb.ComputerLive do
   every command the agent ran (live, from PubSub `computer:<id>`), the browser
   window the front page as the computer holds it (scripts off, in a sandboxed
   frame, with what the agent typed in its fields), Files the working folder.
-  The person may type a command too; it runs as the agent's would.
+  The person may type a command too; it runs as the agent's would. A computer
+  is its owner's (`Moss.Owners`): opening one no one has claims it, and someone
+  else's is not there.
   """
   use MossWeb, :live_view
 
@@ -14,12 +16,19 @@ defmodule MossWeb.ComputerLive do
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
-    if connected?(socket), do: Phoenix.PubSub.subscribe(Moss.PubSub, "computer:" <> id)
+    if Computer.id?(id) and Moss.Owners.claim(id, socket.assigns.person) == :ok do
+      if connected?(socket), do: Phoenix.PubSub.subscribe(Moss.PubSub, "computer:" <> id)
 
-    {:ok,
-     socket
-     |> assign(id: id, page_title: "Computer " <> id, front: "terminal", line: "")
-     |> refresh()}
+      {:ok,
+       socket
+       |> assign(id: id, page_title: "Computer " <> id, front: "terminal", line: "")
+       |> refresh()}
+    else
+      {:ok,
+       socket
+       |> put_flash(:error, "There is no computer #{id} of yours.")
+       |> redirect(to: "/mail")}
+    end
   end
 
   @impl true
