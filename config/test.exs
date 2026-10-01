@@ -31,4 +31,7 @@ config :volvox_server,
   mac_tokens: %{"test-mac-token" => "owner1"},
   agents: %{"scripted" => Path.expand("../test/support/lua/scripted_agent.lua", __DIR__)},
   req_options: [plug: {Req.Test, VolvoxServer.Fetch}],
-  computer_req_options: [plug: {Req.Test, VolvoxServer.Computer.Net}]
+  computer_req_options: [plug: {Req.Test, VolvoxServer.Computer.Net}],
+  # the post's batches run when a test says (Mail.screen_now), read by a stand-in for Jev
+  mail_window: 3_600_000,
+  mail_jev: VolvoxServer.TestJev

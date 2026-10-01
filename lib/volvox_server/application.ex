@@ -18,7 +18,8 @@ defmodule VolvoxServer.Application do
       {DynamicSupervisor, name: VolvoxServer.Run.Supervisor, strategy: :one_for_one},
       {Registry, keys: :unique, name: VolvoxServer.Computer.Registry},
       {DynamicSupervisor, name: VolvoxServer.Computer.Supervisor, strategy: :one_for_one},
-      {Task, &VolvoxServer.Computer.Programs.warm/0},
+      Supervisor.child_spec({Task, &VolvoxServer.Computer.Programs.warm/0}, id: :warm_programs),
+      VolvoxServer.Mail,
       VolvoxServer.Schedule,
       VolvoxServer.Mac,
       VolvoxServerWeb.Endpoint

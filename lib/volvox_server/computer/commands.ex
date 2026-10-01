@@ -8,13 +8,17 @@ defmodule VolvoxServer.Computer.Commands do
   as `PWD`. A path names a module on the computer's own disk (one the agent
   built or fetched), run the same way.
   """
-  alias VolvoxServer.Computer.{Browser, Disk, Net, Programs, Text}
+  alias VolvoxServer.Computer.{Browser, Disk, Mailbox, Net, Programs, Text}
 
   @aliases %{"node" => "js", "python3" => "python"}
   @builtin ~w(cd pwd echo env export unset true false which help date sleep ls cat mkdir rm rmdir mv cp touch find tree)
 
   def names,
-    do: Enum.sort(@builtin ++ Text.names() ++ Net.names() ++ Browser.names() ++ Programs.names())
+    do:
+      Enum.sort(
+        @builtin ++
+          Text.names() ++ Net.names() ++ Browser.names() ++ ["mail"] ++ Programs.names()
+      )
 
   def run([name | args], stdin, state) do
     name = Map.get(@aliases, name, name)
@@ -31,6 +35,9 @@ defmodule VolvoxServer.Computer.Commands do
 
       name in Browser.names() ->
         Browser.run(name, args, stdin, state)
+
+      name == "mail" ->
+        ok(Mailbox.run(args, stdin, state), state)
 
       name in Programs.names() ->
         program(name, args, stdin, state)

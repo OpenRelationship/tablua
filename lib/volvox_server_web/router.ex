@@ -15,5 +15,6 @@ defmodule VolvoxServerWeb.Router do
 
     live "/runs/:id", RunLive
     live "/computers/:id", ComputerLive
+    live "/mail", MailLive
   end
 end

@@ -94,6 +94,16 @@ function volvox.machine(name)
   return order
 end
 
+-- Jev's decisions for the host's own use (the post reading letters, PROJECT.md §14.5): the core's port, so the
+-- host asks Jev as the core does. Gives the answers and what the call cost.
+function volvox.decide(state, questions)
+  local host = volvox.host()
+  local key = host.key("jev")
+  if not key then error("no Jev key (OPENROUTER_API_KEY)", 0) end
+  local answers, record = require("ports.jev").new(host, { key = key }):decide(state, questions)
+  return answers, { cost = record.cost }
+end
+
 -- The host calls every volvox.* function through this, so an error object
 -- (ports.call raises tables with __tostring) reaches the host as its text.
 function volvox.call(name, ...)
