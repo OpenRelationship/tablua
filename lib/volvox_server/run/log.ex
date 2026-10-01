@@ -49,4 +49,22 @@ defmodule VolvoxServer.Run.Log do
       }
     end)
   end
+
+  @doc """
+  The tasks the host was driving and had not finished (`Drive Task <agent>`
+  with no `Drive Done` after it), as `{task, agent}` in the order they began.
+  """
+  def driving(conn) do
+    {:ok, rows} =
+      Db.exec(
+        conn,
+        "select e.task, (select value from args a where a.seq = e.seq order by pos limit 1) as agent" <>
+          " from events e where e.keyword = 'Drive Task' and e.actor = 'host' and not exists" <>
+          " (select 1 from events d where d.task = e.task and d.keyword = 'Drive Done' and d.seq > e.seq)" <>
+          " order by e.seq",
+        []
+      )
+
+    Enum.map(rows, &{&1["task"], &1["agent"]})
+  end
 end

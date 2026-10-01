@@ -22,6 +22,13 @@ config :volvox_server,
   local_objects: Path.expand("../priv/runs", __DIR__),
   objects: :auto
 
+# The node's own books (the schedule, the Mac's queue) live under host_dir; the
+# schedule is looked at every tick_ms. Agents a task can name: name => Lua file.
+config :volvox_server,
+  host_dir: Path.expand("../priv/host", __DIR__),
+  tick_ms: 5_000,
+  agents: %{}
+
 # Configure the endpoint
 config :volvox_server, VolvoxServerWeb.Endpoint,
   url: [host: "localhost"],

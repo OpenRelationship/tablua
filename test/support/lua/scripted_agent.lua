@@ -18,7 +18,9 @@ return function(host)
   local actions = {
     gather_context = function() return {} end,
     apply_edits = function() return { { "Write File", "calc.py", "def div(a, b):\n    return a / b\n" } } end,
-    apply_fix = function() return { { "Write File", "calc.py", "def div(a, b):\n    return a / b if b else None\n" } } end,
+    apply_fix = function()
+      host.sleep(0.05) -- a fix takes a moment, so a test can stop the run between steps
+      return { { "Write File", "calc.py", "def div(a, b):\n    return a / b if b else None\n" } } end,
     run_tests = function()
       if (store:file("calc.py") or ""):find("if b", 1, true) then return { { "Test Result", "pass" } } end
       return { { "Test Result", "fail", "ZeroDivisionError in test_div" } }

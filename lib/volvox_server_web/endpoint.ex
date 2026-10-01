@@ -11,6 +11,9 @@ defmodule VolvoxServerWeb.Endpoint do
     same_site: "Lax"
   ]
 
+  # The Pet Rock app, for work only the person's Mac can do (VolvoxServer.Mac).
+  socket "/mac", VolvoxServerWeb.MacSocket, websocket: true, longpoll: false
+
   socket "/live", Phoenix.LiveView.Socket,
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
