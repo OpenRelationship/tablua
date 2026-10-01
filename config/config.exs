@@ -13,8 +13,9 @@ config :moss,
 # Moss is attached to the Arock repository at submodules/moss; Arock Core's Lua
 # modules load from that repository's library/ and submodules/alog (AROCK_ROOT
 # names another checkout). A computer's SQLite disk lives under work_dir while it is
-# awake; asleep, it is an object in R2, or under local_objects when wrangler is
-# not logged in (objects: :auto picks; :local or :r2 forces one).
+# awake; asleep, it is kept by Arock's service with this node's own token
+# (MOSS_NODE_TOKEN or the keychain item moss-node-token), or under local_objects
+# when the node has none (objects: :auto picks; :local or :service forces one).
 arock = System.get_env("AROCK_ROOT") || Path.expand("../../..", __DIR__)
 
 config :moss,

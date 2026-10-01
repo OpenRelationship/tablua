@@ -6,4 +6,4 @@ for dir <- [:work_dir, :local_objects, :host_dir],
     do: File.rm_rf!(Application.fetch_env!(:moss, dir))
 
 {:ok, _} = Application.ensure_all_started(:moss)
-ExUnit.start(exclude: [:r2])
+ExUnit.start(exclude: [:service])

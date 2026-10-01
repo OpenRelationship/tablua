@@ -12,7 +12,7 @@ Moss is attached to the Arock repository at `submodules/moss`, and reads Arock C
 
 ```
 mix setup
-mix test                                  # mix test --only r2 adds a real R2 round trip
+mix test                                  # mix test --only service adds a real round trip through arock.ai
 mix run bench/computers.exs 20000 400     # how many computers a node holds, and what each costs (measure on Linux)
 MOSS_PAGE_TOKENS=me:<a long secret> mix phx.server   # then /computers/<id> and /mail
 ```
@@ -22,5 +22,5 @@ MOSS_PAGE_TOKENS=me:<a long secret> mix phx.server   # then /computers/<id> and 
   `page.ex`, `browser.ex` and `net.ex` are the browser and the web rules; `mailbox.ex` is `mail`.
 - `lib/moss/mail.ex`, `mail/`: the post: routes, free checks, Jev's batched reading, letters held for a person.
 - `lib/moss/lua.ex`, `lua/`, `priv/lua/`: Arock Core in tv-labs `lua`, its ports bound per call (`arock.*`).
-- `lib/moss/objects*`: where sleeping computers live: R2 (wrangler's OAuth token) or a directory.
+- `lib/moss/objects*`: where sleeping computers live: Arock's service, by this node's own token, or a directory.
 - `lib/moss_web/`: sign-in (`auth.ex`), the computer page and the post's page.
