@@ -5,7 +5,8 @@ defmodule VolvoxServer.Computer.Commands do
   tools are `Computer.Text`, the web `Computer.Net`, the browser
   `Computer.Browser`, and the rest of the names are programs
   (`Computer.Programs`: `js`, `python`, `sqlite3`), run with the working folder
-  as `PWD`.
+  as `PWD`. A path names a module on the computer's own disk (one the agent
+  built or fetched), run the same way.
   """
   alias VolvoxServer.Computer.{Browser, Disk, Net, Programs, Text}
 
@@ -19,12 +20,26 @@ defmodule VolvoxServer.Computer.Commands do
     name = Map.get(@aliases, name, name)
 
     cond do
-      name in @builtin -> builtin(name, args, stdin, state)
-      name in Text.names() -> ok(Text.run(name, args, stdin, state), state)
-      name in Net.names() -> Net.run(name, args, stdin, state)
-      name in Browser.names() -> Browser.run(name, args, stdin, state)
-      name in Programs.names() -> program(name, args, stdin, state)
-      true -> {127, "", "#{name}: command not found\n", state}
+      name in @builtin ->
+        builtin(name, args, stdin, state)
+
+      name in Text.names() ->
+        ok(Text.run(name, args, stdin, state), state)
+
+      name in Net.names() ->
+        Net.run(name, args, stdin, state)
+
+      name in Browser.names() ->
+        Browser.run(name, args, stdin, state)
+
+      name in Programs.names() ->
+        program(name, args, stdin, state)
+
+      String.contains?(name, "/") or String.ends_with?(name, ".wasm") ->
+        own(name, args, stdin, state)
+
+      true ->
+        {127, "", "#{name}: command not found\n", state}
     end
   end
 
@@ -40,6 +55,39 @@ defmodule VolvoxServer.Computer.Commands do
     case Programs.run(name, args, stdin, state.disk, env) do
       {code, out, err} -> {code, out, err, state}
       :unknown -> {127, "", "#{name}: command not found\n", state}
+    end
+  end
+
+  # a module on the computer's own disk, run by its path (./hello.wasm, /home/bin/tool)
+  defp own(name, args, stdin, state) do
+    path = Disk.norm(name, state.cwd)
+
+    args =
+      Enum.map(args, fn a -> if relative_file?(a, state), do: Disk.norm(a, state.cwd), else: a end)
+
+    case Disk.read(state.disk, path) do
+      {:ok, bytes} ->
+        if Programs.wasm?(bytes) do
+          {code, out, err} =
+            Programs.run_bytes(
+              bytes,
+              name,
+              args,
+              stdin,
+              state.disk,
+              Map.put(state.env, "PWD", state.cwd)
+            )
+
+          {code, out, err, state}
+        else
+          {126, "", "#{name}: not a WebAssembly program\n", state}
+        end
+
+      {:error, :eisdir} ->
+        {126, "", "#{name}: is a folder\n", state}
+
+      _ ->
+        {127, "", "#{name}: no such file\n", state}
     end
   end
 

@@ -7,6 +7,8 @@ defmodule VolvoxServer.Application do
     # The core's base Lua state, built once for every run on this node.
     VolvoxServer.Lua.base()
 
+    VolvoxServer.Computer.Programs.table()
+
     children = [
       VolvoxServerWeb.Telemetry,
       {Phoenix.PubSub, name: VolvoxServer.PubSub},

@@ -13,6 +13,8 @@ defmodule VolvoxServer.Computer.Programs do
 
   @memory 512 * 1024 * 1024
   @timeout 120_000
+  @table :computer_modules
+  @own 64
 
   def names do
     dir()
@@ -28,35 +30,59 @@ defmodule VolvoxServer.Computer.Programs do
   end
 
   def run(name, args, stdin, disk, env \\ %{}) do
-    with {:ok, {engine, module}} <- compiled(name) do
-      config = %{
-        disk: disk,
-        args: [name | args],
-        env: Map.merge(%{"HOME" => "/", "PWD" => "/"}, env),
-        stdin: stdin,
-        owner: self()
-      }
+    with {:ok, module} <- compiled(name), do: start(module, [name | args], stdin, disk, env)
+  end
 
-      {:ok, store} = Wasmex.Store.new(%Wasmex.StoreLimits{memory_size: @memory}, engine)
+  @doc """
+  A module from the computer's own disk (one the agent built or fetched), run as
+  a program: `argv0` is how it was named. Modules are compiled once per content,
+  the latest #{64} kept.
+  """
+  def run_bytes(bytes, argv0, args, stdin, disk, env \\ %{}) do
+    case own(bytes) do
+      {:ok, module} -> start(module, [argv0 | args], stdin, disk, env)
+      {:error, why} -> {126, "", "#{argv0}: not a program this computer can run: #{why}\n"}
+    end
+  end
 
-      {:ok, pid} =
-        Wasmex.start_link(%{store: store, module: module, imports: Wasi.imports(module, config)})
+  @doc "Whether bytes are a WebAssembly module."
+  def wasm?(<<0, "asm", _::binary>>), do: true
+  def wasm?(_), do: false
 
-      result =
-        try do
-          r = Wasmex.call_function(pid, "_start", [], @timeout)
+  defp start(module, argv, stdin, disk, env) do
+    config = %{
+      disk: disk,
+      args: argv,
+      env: Map.merge(%{"HOME" => "/", "PWD" => "/"}, env),
+      stdin: stdin,
+      owner: self()
+    }
 
-          # the reply comes from the NIF, the output from the instance's process: a call to that process
-          # answers only after everything it sent before
-          _ = Wasmex.module(pid)
-          r
-        after
-          GenServer.stop(pid)
+    {:ok, store} = Wasmex.Store.new(%Wasmex.StoreLimits{memory_size: @memory}, engine())
+
+    case Wasmex.start_link(%{store: store, module: module, imports: Wasi.imports(module, config)}) do
+      {:ok, pid} ->
+        result =
+          try do
+            r = Wasmex.call_function(pid, "_start", [], @timeout)
+
+            # the reply comes from the NIF, the output from the instance's process: a call to that process
+            # answers only after everything it sent before
+            _ = Wasmex.module(pid)
+            r
+          after
+            GenServer.stop(pid)
+          end
+
+        {out, err} = drain(<<>>, <<>>)
+
+        case exit_code(result) do
+          {code, nil} -> {code, out, err}
+          {code, why} -> {code, out, err <> "#{hd(argv)}: #{why}\n"}
         end
 
-      {out, err} = drain(<<>>, <<>>)
-      code = exit_code(result)
-      {code, out, err}
+      {:error, why} ->
+        {126, "", "#{hd(argv)}: #{inspect(why)}\n"}
     end
   end
 
@@ -70,11 +96,16 @@ defmodule VolvoxServer.Computer.Programs do
     end
   end
 
+  # {code, why}: a program that stopped by itself has no why; one that trapped says how
   defp exit_code(result) do
     receive do
-      {:wasi_exit, code} -> code
+      {:wasi_exit, code} -> {code, nil}
     after
-      0 -> if match?({:ok, _}, result), do: 0, else: 134
+      0 ->
+        case result do
+          {:ok, _} -> {0, nil}
+          {:error, why} -> {134, why |> to_string() |> String.split("\n") |> hd()}
+        end
     end
   end
 
@@ -86,17 +117,68 @@ defmodule VolvoxServer.Computer.Programs do
         path = Path.join(dir(), name <> ".wasm")
 
         if File.regular?(path) do
-          {:ok, engine} = Wasmex.Engine.new(%Wasmex.EngineConfig{})
-          {:ok, store} = Wasmex.Store.new(nil, engine)
-          {:ok, module} = Wasmex.Module.compile(store, File.read!(path))
-          :persistent_term.put(key, {engine, module})
-          {:ok, {engine, module}}
+          {:ok, module} = compile(File.read!(path))
+          :persistent_term.put(key, module)
+          {:ok, module}
         else
           :unknown
         end
 
-      compiled ->
-        {:ok, compiled}
+      module ->
+        {:ok, module}
+    end
+  end
+
+  # the agents' own modules: by content, in a table that keeps the latest @own
+  defp own(bytes) do
+    hash = :crypto.hash(:sha256, bytes)
+
+    case :ets.lookup(@table, hash) do
+      [{^hash, module, _}] ->
+        :ets.update_element(@table, hash, {3, System.monotonic_time()})
+        {:ok, module}
+
+      [] ->
+        with {:ok, module} <- compile(bytes) do
+          if :ets.info(@table, :size) >= @own do
+            {old, _, _} =
+              :ets.foldl(
+                fn {_, _, t} = e, acc -> if acc == nil or t < elem(acc, 2), do: e, else: acc end,
+                nil,
+                @table
+              )
+
+            :ets.delete(@table, old)
+          end
+
+          :ets.insert(@table, {hash, module, System.monotonic_time()})
+          {:ok, module}
+        end
+    end
+  end
+
+  @doc "The table of the agents' own compiled modules; made once by the application."
+  def table, do: :ets.new(@table, [:named_table, :public, :set])
+
+  defp compile(bytes) do
+    {:ok, store} = Wasmex.Store.new(nil, engine())
+
+    case Wasmex.Module.compile(store, bytes) do
+      {:ok, module} -> {:ok, module}
+      {:error, why} -> {:error, why |> to_string() |> String.split("\n") |> hd()}
+    end
+  end
+
+  # one engine for every computer, so a compiled module runs in any of them
+  defp engine do
+    case :persistent_term.get({__MODULE__, :engine}, nil) do
+      nil ->
+        {:ok, engine} = Wasmex.Engine.new(%Wasmex.EngineConfig{})
+        :persistent_term.put({__MODULE__, :engine}, engine)
+        engine
+
+      engine ->
+        engine
     end
   end
 

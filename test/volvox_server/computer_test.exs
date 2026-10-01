@@ -178,4 +178,33 @@ defmodule VolvoxServer.ComputerTest do
     assert %{"code" => 0, "stdout" => "given\n/home/work\n"} = Map.new(r)
     assert %{out: "made\n"} = sh(c, "cat /home/work/a.txt")
   end
+
+  @hello ~S"""
+  (module
+    (import "wasi_snapshot_preview1" "fd_write" (func $write (param i32 i32 i32 i32) (result i32)))
+    (import "wasi_snapshot_preview1" "args_sizes_get" (func $sizes (param i32 i32) (result i32)))
+    (import "wasi_snapshot_preview1" "proc_exit" (func $exit (param i32)))
+    (memory (export "memory") 1)
+    (data (i32.const 16) "built here\n")
+    (func (export "_start")
+      (i32.store (i32.const 0) (i32.const 16))
+      (i32.store (i32.const 4) (i32.const 11))
+      (drop (call $write (i32.const 1) (i32.const 0) (i32.const 1) (i32.const 8)))
+      (drop (call $sizes (i32.const 32) (i32.const 36)))
+      (call $exit (i32.load (i32.const 32)))))
+  """
+
+  test "a module on the computer's own disk runs by its path, as the programs do" do
+    c = id()
+    bytes = Wasmex.Native.wat_to_wasm(@hello)
+    pid = Computer.wake!(c)
+    :sys.get_state(pid).disk |> VolvoxServer.Computer.Disk.write("/home/bin/hello.wasm", bytes)
+
+    # it prints, and exits with its argument count
+    assert %{code: 3, out: "built here\n"} = sh(c, "cd bin && ./hello.wasm one two")
+    assert %{code: 1, out: "built here\n"} = sh(c, "/home/bin/hello.wasm")
+
+    assert %{code: 126, err: "./notes.txt: not a WebAssembly program\n"} =
+             sh(c, "echo hi > notes.txt && ./notes.txt")
+  end
 end
