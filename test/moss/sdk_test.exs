@@ -153,9 +153,6 @@ defmodule Moss.SdkTest do
 
     assert %{code: 1, out: out} = sh(c, "lua steps.lua")
 
-    # tv-labs lua names no loaded chunk and ignores error's level, so the failure's place is left out here
-    out = Regex.replace(~r/FAIL    [^\n]*:\d+: /, out, "FAIL    ")
-
     assert out ==
              """
              *** Test Cases ***
@@ -170,7 +167,7 @@ defmodule Moss.SdkTest do
              adding 5 (5, 7)
                  Given a sum starting at 1    PASS
                  When I add 5    PASS
-                 Then the sum is 7    FAIL    sum: wanted 7, got 6
+                 Then the sum is 7    FAIL    steps.lua:4: sum: wanted 7, got 6
              a note
                  Given a sum starting at 1    PASS
                  Given the note    PASS

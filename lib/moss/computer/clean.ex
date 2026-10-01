@@ -84,7 +84,11 @@ defmodule Moss.Computer.Clean do
 
   # the head, as Shroomi writes it
   defp shell({"title", _, kids}, _p), do: [{"title", [], Enum.filter(kids, &is_binary/1)}]
-  defp shell({"style", _, kids}, _p), do: [{"style", [], Enum.filter(kids, &is_binary/1)}]
+
+  defp shell({"style", _, kids}, _p) do
+    css = kids |> Enum.filter(&is_binary/1) |> Enum.join()
+    if css_ok?(css), do: [{"style", [], [css]}], else: []
+  end
 
   defp shell({"meta", a, _}, _p) do
     cond do
@@ -143,7 +147,28 @@ defmodule Moss.Computer.Clean do
       MapSet.member?(own, k) or MapSet.member?(all, k) or MapSet.member?(p.hx, k) or
         String.starts_with?(k, "data-") or String.starts_with?(k, "aria-")
 
-    allowed and not String.starts_with?(k, "on") and url_ok?(k, v, p) and vals_ok?(k, v)
+    allowed and not String.starts_with?(k, "on") and url_ok?(k, v, p) and vals_ok?(k, v) and
+      (k != "style" or css_ok?(v))
+  end
+
+  # CSS that old browsers ran as script: a script address, IE's expression() and behaviours, Mozilla's and
+  # Opera's bindings and links. Read after CSS escapes are decoded and comments and spaces are taken out, so
+  # neither `\6a avascript:` nor `java/**/script:` gets by.
+  @css_script ["javascript:", "vbscript:", "expression(", "behavior:", "-moz-binding", "-o-link"]
+  defp css_ok?(css) do
+    plain =
+      css
+      |> String.replace(~r/\\([0-9a-fA-F]{1,6})\s?/, fn m ->
+        [_, hex] = Regex.run(~r/\\([0-9a-fA-F]{1,6})/, m)
+        code = String.to_integer(hex, 16)
+        if code <= 0x10FFFF and code not in 0xD800..0xDFFF, do: <<code::utf8>>, else: ""
+      end)
+      |> String.replace(~r/\\(.)/s, "\\1")
+      |> String.replace(~r{/\*.*?\*/}s, "")
+      |> String.replace(~r/[\s\x00-\x20]/u, "")
+      |> String.downcase()
+
+    not String.contains?(plain, @css_script)
   end
 
   defp url_ok?(k, v, p) do

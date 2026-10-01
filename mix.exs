@@ -67,7 +67,9 @@ defmodule Moss.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
-      {:lua, "~> 1.0"},
+      # OpenRelationship/lua `arock`: tv-labs 1.0 plus load's chunkname (tv-labs/lua#427) and error's level (#428),
+      # until both are released
+      {:lua, github: "OpenRelationship/lua", branch: "arock"},
       {:exqlite, "~> 0.41"},
       {:req, "~> 0.5"}
     ]

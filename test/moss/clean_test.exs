@@ -63,4 +63,31 @@ defmodule Moss.CleanTest do
     assert clean(~s(<li class="x">fern <b onclick="y">!</b></li>)) ==
              ~s(<li class="x">fern <b>!</b></li>)
   end
+
+  # Old browsers ran these from CSS; no current one does, and the CSP stops what CSS could load. Dropped anyway.
+  test "CSS that names a script scheme or a binding is dropped, in attributes and in the head" do
+    for css <- [
+          "list-style:url(javascript:alert(1))",
+          "width: expression(alert(1))",
+          "behavior:url(#default#AnchorClick)",
+          "-moz-binding:url(x.xml#xss)",
+          "-o-link:'javascript:alert(9)'",
+          ~S"background:url(\6a avascript:alert(1))",
+          "background:url(java/**/script:alert(1))",
+          ~S"background:url(\110000\d800 javascript:x)"
+        ] do
+      assert clean(~s(<p style="#{css}">x</p>)) == "<p>x</p>", css
+
+      page =
+        clean("<!doctype html><html><head><style>p{#{css}}</style></head><body></body></html>")
+
+      refute page =~ "<style>", css
+    end
+
+    assert clean(~s|<p style="color: var(--color-primary); margin: 0">x</p>|) ==
+             ~s|<p style="color: var(--color-primary); margin: 0">x</p>|
+
+    assert clean("<!doctype html><html><head><style>.p-4{padding: 1rem}</style></head></html>") =~
+             "<style>.p-4{padding: 1rem}</style>"
+  end
 end

@@ -142,14 +142,12 @@ function require(name)
 end
 
 -- The run: the code under xpcall; an error is written to stderr and is status 1, os.exit(n) is status n.
--- tv-labs lua names every chunk "-no-source-", so the message is given the script's name here.
 function __main(code, name)
   arg = { [0] = name }
   for i, v in ipairs(__args or {}) do arg[i] = v end
   __args = nil
   local function say(e)
-    e = string.gsub(tostring(e), "^%-no%-source%-", function() return name end)
-    sys.ewrite("lua: " .. e .. "\n")
+    sys.ewrite("lua: " .. tostring(e) .. "\n")
     return 1
   end
   local chunk, why = load(code, "@" .. name)
@@ -170,7 +168,7 @@ function __serve(req)
   local src = sys.read("/home/app.lua")
   if not src then return 404, {}, "This computer has no app yet: /home/app.lua makes one." end
   local function say(e)
-    e = string.gsub(tostring(e), "^%-no%-source%-", "/home/app.lua")
+    e = tostring(e)
     sys.ewrite("app: " .. e .. "\n")
     return e
   end

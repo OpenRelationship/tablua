@@ -8,7 +8,18 @@ defmodule Moss.AgentToolTest do
   alias Moss.Computer
 
   @moduletag :agent
-  @moduletag timeout: 1_800_000
+  @moduletag timeout: 3_600_000
+
+  # its own folders, so another test run (which empties the shared ones) cannot pull its disk from under it
+  setup_all do
+    dir = Path.join(System.tmp_dir!(), "moss-agent-#{System.unique_integer([:positive])}")
+
+    for {key, sub} <- [work_dir: "work", local_objects: "runs"],
+        do: Application.put_env(:moss, key, Path.join(dir, sub))
+
+    Application.put_env(:moss, :objects, :local)
+    :ok
+  end
 
   @task """
   You have your own computer, reached through the `computer` tool. It is not Linux: its commands are few (run
@@ -50,7 +61,7 @@ defmodule Moss.AgentToolTest do
 
   test "an agent builds a small tool end to end on its own computer" do
     key = Moss.Keys.get("jev") || flunk("no OPENROUTER_API_KEY")
-    model = System.get_env("MOSS_AGENT_MODEL") || "z-ai/glm-5.3"
+    model = System.get_env("MOSS_AGENT_MODEL") || "moonshotai/kimi-k2.7-code"
     id = "agent-tool-#{System.unique_integer([:positive])}"
     Moss.Owners.claim(id, "tester")
     Computer.run(id, "mkdir -p /home/plants")
