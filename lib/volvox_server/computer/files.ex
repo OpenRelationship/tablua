@@ -2,7 +2,8 @@ defmodule VolvoxServer.Computer.Files do
   @moduledoc """
   The kernel's files (`Computer.Wasi`): WASI's `fd_*` and `path_*` calls over
   the computer's disk. fd 0 reads the program's stdin, 1 and 2 go to its owner,
-  fd 3 is `/`, the one preopened folder. An open file is read whole into the
+  fd 3 is `.`, the working folder, and the folders at the top of the disk
+  follow it, preopened by name (see `tops/1`). An open file is read whole into the
   open-file table, and written back to the disk when it is closed or synced.
 
   The calls that name a path (opening, making, removing, renaming, listing)
@@ -43,12 +44,28 @@ defmodule VolvoxServer.Computer.Files do
 
   defp table(c) do
     Process.get(:computer_fds) ||
-      Process.put(:computer_fds, %{
-        0 => %{kind: :stdin, data: c.stdin || "", pos: 0},
-        1 => %{kind: :out, owner: c.owner},
-        2 => %{kind: :out, owner: c.owner},
-        3 => %{kind: :dir, path: "/"}
-      })
+      Process.put(
+        :computer_fds,
+        %{
+          0 => %{kind: :stdin, data: c.stdin || "", pos: 0},
+          1 => %{kind: :out, owner: c.owner},
+          2 => %{kind: :out, owner: c.owner},
+          3 => %{kind: :dir, path: Disk.norm(Map.get(c.env, "PWD", "/")), preopen: "."}
+        }
+        |> Map.merge(tops(c.disk))
+      )
+  end
+
+  # wasi-libc matches a path against the preopened names, longest first, "." and "/" alike as the empty name:
+  # so "." is the working folder, and each folder at the top (/home, /usr, ...) is preopened by its own name,
+  # which an absolute path always matches before ".". A relative path that starts with a top folder's name
+  # (home/x, from /home) is read as that folder's.
+  defp tops(disk) do
+    {:ok, entries} = Disk.list(disk, "/")
+
+    for {e, n} <- entries |> Enum.filter(& &1.dir) |> Enum.with_index(4), into: %{} do
+      {n, %{kind: :dir, path: "/" <> e.name, preopen: "/" <> e.name}}
+    end
   end
 
   def fds, do: Process.get(:computer_fds)
@@ -177,7 +194,10 @@ defmodule VolvoxServer.Computer.Files do
 
   defp answer("fd_close", _ctx, [n], disk) do
     r = flush(n, disk)
-    if r == @ok and n > 3, do: Process.put(:computer_fds, Map.delete(fds(), n))
+
+    if r == @ok and not Map.has_key?(fd(n) || %{}, :preopen),
+      do: Process.put(:computer_fds, Map.delete(fds(), n))
+
     r
   end
 
@@ -229,11 +249,17 @@ defmodule VolvoxServer.Computer.Files do
   end
 
   defp answer("fd_prestat_get", ctx, [n, out], _disk) do
-    if n == 3, do: write(ctx, out, <<0::32, 1::little-32>>) && @ok, else: @ebadf
+    case fd(n) do
+      %{preopen: name} -> write(ctx, out, <<0::32, byte_size(name)::little-32>>) && @ok
+      _ -> @ebadf
+    end
   end
 
   defp answer("fd_prestat_dir_name", ctx, [n, out, _len], _disk) do
-    if n == 3, do: write(ctx, out, "/") && @ok, else: @ebadf
+    case fd(n) do
+      %{preopen: name} -> write(ctx, out, name) && @ok
+      _ -> @ebadf
+    end
   end
 
   def flush(n, disk) do

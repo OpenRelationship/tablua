@@ -207,4 +207,30 @@ defmodule VolvoxServer.ComputerTest do
     assert %{code: 126, err: "./notes.txt: not a WebAssembly program\n"} =
              sh(c, "echo hi > notes.txt && ./notes.txt")
   end
+
+  test "C is compiled inside the computer and its program runs there, the shared /usr read-only" do
+    c = id()
+
+    src = ~S"""
+    #include <stdio.h>
+    int fib(int n) { return n < 2 ? n : fib(n - 1) + fib(n - 2); }
+    int main(int argc, char **argv) {
+      FILE *f = fopen("out.txt", "w"); fprintf(f, "fib(20)=%d\n", fib(20)); fclose(f);
+      printf("hello %s\n", argc > 1 ? argv[1] : "nobody");
+      return 7;
+    }
+    """
+
+    :ok =
+      VolvoxServer.Computer.Disk.write(
+        :sys.get_state(Computer.wake!(c)).disk,
+        "/home/src/hello.c",
+        src
+      )
+
+    assert %{code: 0} = sh(c, "cd src && cc -o hello.wasm hello.c")
+    assert %{code: 7, out: "hello pebbles\n"} = sh(c, "./hello.wasm pebbles")
+    assert %{out: "fib(20)=6765\n"} = sh(c, "cat /home/src/out.txt")
+    assert %{code: 1, err: "sh: /usr/include/x.h: eperm\n"} = sh(c, "echo no > /usr/include/x.h")
+  end
 end

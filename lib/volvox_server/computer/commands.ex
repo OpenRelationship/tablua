@@ -46,10 +46,7 @@ defmodule VolvoxServer.Computer.Commands do
   defp ok({code, out, err}, state), do: {code, out, err, state}
 
   defp program(name, args, stdin, state) do
-    # a program sees the disk from /; a relative path in its arguments is read from the working folder
-    args =
-      Enum.map(args, fn a -> if relative_file?(a, state), do: Disk.norm(a, state.cwd), else: a end)
-
+    # a relative path is the working folder's: the kernel preopens it as "." (Computer.Files)
     env = Map.put(state.env, "PWD", state.cwd)
 
     case Programs.run(name, args, stdin, state.disk, env) do
@@ -61,9 +58,6 @@ defmodule VolvoxServer.Computer.Commands do
   # a module on the computer's own disk, run by its path (./hello.wasm, /home/bin/tool)
   defp own(name, args, stdin, state) do
     path = Disk.norm(name, state.cwd)
-
-    args =
-      Enum.map(args, fn a -> if relative_file?(a, state), do: Disk.norm(a, state.cwd), else: a end)
 
     case Disk.read(state.disk, path) do
       {:ok, bytes} ->
@@ -90,11 +84,6 @@ defmodule VolvoxServer.Computer.Commands do
         {127, "", "#{name}: no such file\n", state}
     end
   end
-
-  defp relative_file?(a, state),
-    do:
-      not String.starts_with?(a, ["/", "-"]) and
-        match?({:ok, _}, Disk.stat(state.disk, Disk.norm(a, state.cwd)))
 
   # -- the shell's own ---------------------------------------------------------------------------
 
