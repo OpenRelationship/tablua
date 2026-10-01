@@ -71,7 +71,12 @@ defmodule Moss.MixProject do
       {:bandit, "~> 1.5"},
       # luos (Arock's submodules/luos): our own tv-labs lua, maintained by us (owner, 2026-10-01), read from the
       # Arock checkout Moss is attached to, as Arock Core and Shroomi are (AROCK_ROOT names another)
-      {:lua, path: Path.join(System.get_env("AROCK_ROOT") || Path.expand("../..", __DIR__), "submodules/luos")},
+      {:lua,
+       path:
+         Path.join(
+           System.get_env("AROCK_ROOT") || Path.expand("../..", __DIR__),
+           "submodules/luos"
+         )},
       {:exqlite, "~> 0.41"},
       {:req, "~> 0.5"}
     ]

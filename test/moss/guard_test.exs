@@ -1,0 +1,135 @@
+defmodule Moss.GuardTest do
+  # No C an agent can reach (Arock PROJECT.md §14.7 item 9): the BEAM is the computer's microVM and Lua its
+  # boundary, so what an agent controls (its Lua, its SQL, its pages, the web it fetches) is handled by Erlang
+  # and Elixir only. These tests fail the build when that stops being true: a native library appears, a module
+  # outside the host's own storage reaches SQLite, agent text becomes atoms, or a term is decoded from bytes an
+  # agent could have written. Each allowance below says why it is safe; adding one is a reviewed change.
+  use ExUnit.Case, async: false
+
+  alias Moss.Computer
+
+  @lib Path.expand("../../lib", __DIR__)
+
+  # native libraries in the build, and why each is out of an agent's reach
+  @native %{
+    "exqlite" =>
+      "SQLite, for the host's own storage only: fixed statements, an agent's bytes only as bound values " <>
+        "(its SQL runs in Moss.Sql, and a trace test holds that)",
+    "lazy_html" =>
+      "test-only (Phoenix.LiveViewTest needs it; cleaner tests use it as an independent check)"
+  }
+
+  # the only files that may call SQLite, each running statements written here, never an agent's
+  @sqlite_callers %{
+    "lib/moss/db.ex" => "the connection itself",
+    "lib/moss/computer/disk.ex" => "a computer's file: fixed statements, its bytes bound",
+    "lib/moss/log.ex" => "alog's hot path: fixed statements, an event's arguments bound",
+    "lib/moss/log/recall.ex" =>
+      "alog's recall index on the hot path: fixed statements (two literal subqueries for the document), " <>
+        "every token and path bound",
+    "lib/moss/log/search.ex" => "recall search: fixed statements, the query's tokens bound",
+    "lib/moss/lua/ports.ex" =>
+      "alog's own Lua (Moss.Log), in a state no agent script gets; alog's SQL is fixed",
+    "lib/moss/sql/store.ex" =>
+      "an agent database's rows, by fixed statements; its SQL runs in Moss.Sql",
+    "lib/moss/computer.ex" => "the post's delivery query, fixed",
+    "lib/moss/owners.ex" => "who owns which computer, fixed statements",
+    "lib/moss/mail/store.ex" =>
+      "the post: fixed statements, and `set` names only its known columns"
+  }
+
+  # the only terms decoded from bytes: both were encoded by the host itself, into places no agent writes,
+  # and decoded with [:safe], which never makes an atom
+  @decoders %{
+    "lib/moss/computer/disk.ex" =>
+      "a computer's kept session, which only the host writes to its file",
+    "lib/moss/objects/shipper.ex" =>
+      "the shipper's own record of what the store holds, a file beside the replica"
+  }
+
+  test "the build holds no native library but those allowed, and the C parser is test-only" do
+    found =
+      for so <- Path.wildcard(Path.join(Mix.Project.build_path(), "lib/*/priv/**/*.so")),
+          into: MapSet.new(),
+          do:
+            so
+            |> Path.relative_to(Path.join(Mix.Project.build_path(), "lib"))
+            |> Path.split()
+            |> hd()
+
+    assert MapSet.subset?(found, MapSet.new(Map.keys(@native))),
+           "native code not allowed: #{inspect(MapSet.difference(found, MapSet.new(Map.keys(@native))))}"
+
+    lazy = Enum.find(Mix.Project.config()[:deps], &(elem(&1, 0) == :lazy_html))
+    assert lazy && Keyword.get(elem(lazy, tuple_size(lazy) - 1), :only) == :test
+    assert sources_with(~r/\bLazyHTML\b/) == [], "LazyHTML is used outside tests"
+  end
+
+  test "only the host's own storage reaches SQLite" do
+    assert sources_with(
+             ~r/\bExqlite\b|\bMoss\.Db\.(exec|query|prepare)|\bDb\.(exec|query|prepare)\b/
+           ) --
+             Map.keys(@sqlite_callers) == []
+  end
+
+  test "no text becomes an atom, and only the host's own bytes are decoded, safely" do
+    assert sources_with(~r/String\.to_atom|binary_to_atom|list_to_atom/) == []
+
+    decoders = sources_with(~r/binary_to_term/)
+    assert decoders -- Map.keys(@decoders) == []
+
+    for f <- decoders,
+        line <- String.split(File.read!(Path.join(@lib, "../" <> f)), "\n"),
+        line =~ "binary_to_term",
+        do: assert(line =~ "[:safe]", "#{f}: #{String.trim(line)}")
+  end
+
+  # The same kinds of input twice: once to load what first use loads, then with names never seen. Shell words,
+  # environment names, paths, JSON keys, Lua table keys and modules, SQL names, HTML tags and attributes.
+  test "nothing an agent sends makes a new atom" do
+    id = "guard-#{System.unique_integer([:positive])}"
+    battery(id, "warm")
+    before = :erlang.system_info(:atom_count)
+    for n <- 1..3, do: battery(id, "x#{System.unique_integer([:positive])}n#{n}")
+    assert :erlang.system_info(:atom_count) == before
+  end
+
+  defp battery(id, w) do
+    Computer.run(
+      id,
+      "echo #{w} && export V_#{w}=#{w} && mkdir -p /home/#{w} && cd /home/#{w} && ls"
+    )
+
+    Computer.exec(id, %{
+      "cwd" => "/home",
+      "cmd" => "lua #{w}.lua",
+      "files" => %{
+        "#{w}.lua" => """
+        local t = json.decode('{"k_#{w}": {"#{w}": [1, "#{w}"]}}')
+        local u = { ["#{w}"] = t, #{w} = true }
+        pcall(require, "mod_#{w}")
+        local d = db.open("#{w}.db")
+        d:exec("create table t_#{w} (c_#{w} text, n_#{w} integer)")
+        d:exec("insert into t_#{w} values (?, ?)", "#{w}", 1)
+        d:query("select c_#{w} as a_#{w} from t_#{w} where n_#{w} = 1")
+        pcall(function() d:exec("select nope_#{w}() from t_#{w}") end)
+        d:close()
+        print(json.encode(u))
+        """
+      }
+    })
+
+    html =
+      ~s(<x-#{w} a-#{w}="1" on#{w}="x" data-#{w}="2"><#{w}>t</#{w}><svg><#{w}-g k#{w}="v"/></svg></x-#{w}>)
+
+    Moss.Computer.Clean.html("<!doctype html><html><body>" <> html <> "</body></html>")
+    Moss.HTML.parse(html)
+    Moss.Computer.Page.new("http://example.test/#{w}", html)
+  end
+
+  defp sources_with(re) do
+    for f <- Path.wildcard(Path.join(@lib, "**/*.ex")),
+        File.read!(f) =~ re,
+        do: Path.relative_to(f, Path.expand("..", @lib))
+  end
+end

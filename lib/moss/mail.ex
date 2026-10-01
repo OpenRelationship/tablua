@@ -16,6 +16,9 @@ defmodule Moss.Mail do
   route, or from a sender Jev has refused, it waits for Jev. Delivery is
   broadcast on `mail:<recipient>`, every change on `mail`.
   """
+
+  # a letter's state as the caller sees it; fixed words, never made into atoms from text
+  @states %{"refused" => :refused, "delivered" => :delivered, "screening" => :screening}
   use GenServer
   require Logger
   alias Moss.Mail.{Checks, Screen, Store}
@@ -103,7 +106,7 @@ defmodule Moss.Mail do
           })
 
         if state == "delivered", do: delivered(recipient, id), else: changed()
-        {:reply, {String.to_atom(state), id}, soon(s)}
+        {:reply, {Map.fetch!(@states, state), id}, soon(s)}
     end
   end
 

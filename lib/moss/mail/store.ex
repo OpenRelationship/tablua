@@ -46,8 +46,16 @@ defmodule Moss.Mail.Store do
 
   def get(conn, id), do: one(conn, "select * from letters where id = ?", [id])
 
+  # the columns a letter's later changes may touch; a name is written into the statement, so only these
+  @settable ~w(state reason audited read verdict)a
+
   def set(conn, id, fields) do
     {cols, vals} = Enum.unzip(fields)
+
+    for c <- cols,
+        c not in @settable,
+        do: raise(ArgumentError, "letters has no settable column #{inspect(c)}")
+
     sets = Enum.map_join(cols, ", ", &"#{&1} = ?")
     {:ok, _} = Db.exec(conn, "update letters set #{sets} where id = ?", vals ++ [id])
     :ok
