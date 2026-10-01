@@ -67,9 +67,9 @@ defmodule Moss.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
-      # OpenRelationship/lua `arock`: tv-labs 1.0 plus load's chunkname (tv-labs/lua#427) and error's level (#428),
-      # until both are released
-      {:lua, github: "OpenRelationship/lua", branch: "arock"},
+      # luos (Arock's submodules/luos): our own tv-labs lua, maintained by us (owner, 2026-10-01), read from the
+      # Arock checkout Moss is attached to, as Arock Core and Shroomi are (AROCK_ROOT names another)
+      {:lua, path: Path.join(System.get_env("AROCK_ROOT") || Path.expand("../..", __DIR__), "submodules/luos")},
       {:exqlite, "~> 0.41"},
       {:req, "~> 0.5"}
     ]
