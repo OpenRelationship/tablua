@@ -47,6 +47,32 @@ defmodule MossWeb.GalleryTest do
     end
   end
 
+  # Shroomi's check 7 (§16.1): a typical page is rendered on tv-labs lua, cleaned and sent in under 50 ms. The
+  # median of seven requests, after one to wake the computer.
+  test "every gallery page is served in under 50 ms", %{base: base} do
+    times =
+      for path <- [""] ++ Enum.map(@names, &"#{&1}/") do
+        get(as(), base <> path)
+
+        ms =
+          for _ <- 1..7 do
+            {us, conn} = :timer.tc(fn -> get(as(), base <> path) end)
+            200 = conn.status
+            us / 1000
+          end
+          |> Enum.sort()
+          |> Enum.at(3)
+
+        {path, ms}
+      end
+
+    IO.puts(
+      "\n" <> Enum.map_join(times, "\n", fn {p, ms} -> "  /#{p}  #{Float.round(ms, 1)} ms" end)
+    )
+
+    for {p, ms} <- times, do: assert(ms < 50, "/#{p} took #{ms} ms")
+  end
+
   test "the examples work through htmx's requests", %{base: base} do
     hx = fn conn -> put_req_header(conn, "hx-request", "true") end
 
