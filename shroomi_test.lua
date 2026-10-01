@@ -71,10 +71,16 @@ spec.test("a page carries Basecoat, htmx and Shroomi's script, and CSS for the c
   spec.ok(string.find(page, "<title>Plants &amp; co</title>", 1, true))
   spec.ok(string.find(page, '<link rel="stylesheet" href="/shroomi/basecoat-1.0.2.min.css">', 1, true))
   spec.ok(string.find(page, '<script src="/shroomi/htmx-2.0.4.min.js"></script>', 1, true))
-  spec.ok(string.find(page, '<script src="/shroomi/shroomi.js" defer></script>', 1, true))
+  spec.ok(string.find(page, '<script src="/shroomi/shroomi.js"></script>', 1, true))
   spec.ok(string.find(page, ".text-2xl{font-size: 1.5rem;line-height: 2rem;}", 1, true))
   spec.ok(string.find(page, ".max-w-3xl{max-width: 48rem;}", 1, true))
   spec.eq(string.find(page, ".text-xl{", 1, true), nil)
+end)
+
+spec.test("a page follows the person's light or dark, unless it says which", function()
+  spec.ok(string.find(ui.page{ "x" }, '<html lang="en" data-theme="auto">', 1, true))
+  spec.ok(string.find(ui.page{ dark = true, "x" }, '<html lang="en" class="dark" data-theme="dark">', 1, true))
+  spec.ok(string.find(ui.page{ dark = false, "x" }, '<html lang="en" data-theme="light">', 1, true))
 end)
 
 spec.test("check names the classes Shroomi does not know", function()

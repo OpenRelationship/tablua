@@ -9,7 +9,8 @@
 --     htmx in short: get, post, put, patch, delete, target, swap, trigger, confirm, vals become hx-*
 --   ui.button{ "Add", variant = "outline", post = "plants" }, ui.card{ title = "Ferns", ... } and the rest of the
 --     kit (ui.kit lists them); ui.component("name", function(props, children) return node end) adds one
---   ui.page{ title = "Plants", dark = false, ...children } -> a whole document, its CSS and scripts included
+--   ui.page{ title = "Plants", ...children } -> a whole document, its CSS and scripts included; light or dark as
+--     the person's system is, or dark = true / false to fix it
 --   ui.render(node) -> HTML;  ui.template(text, view) -> Mustache;  ui.escape(s)
 --   ui.check(html) -> the classes Shroomi does not know, to fix before publishing
 local css = require("shroomi.css")
@@ -142,14 +143,16 @@ function ui.page(props)
   local inner = ui.render(ui.el("body", { class = props.class or "min-h-screen bg-background text-foreground", body }))
   local sheet = css.sheet(css.classes(inner))
   local a = policy.assets
-  return "<!doctype html>\n<html lang=\"en\"" .. (props.dark and " class=\"dark\"" or "") .. "><head>" ..
+  local theme = props.dark == true and ' class="dark" data-theme="dark"' or
+    props.dark == false and ' data-theme="light"' or ' data-theme="auto"'
+  return "<!doctype html>\n<html lang=\"en\"" .. theme .. "><head>" ..
     "<meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" ..
     "<title>" .. ui.escape(props.title or "") .. "</title>" ..
     "<meta name=\"htmx-config\" content='{\"allowEval\":false,\"includeIndicatorStyles\":false}'>" ..
     "<link rel=\"stylesheet\" href=\"" .. a.css .. "\">" ..
     (sheet ~= "" and "<style>" .. sheet .. "</style>" or "") ..
     "<script src=\"" .. a.htmx .. "\"></script><script src=\"" .. a.basecoat .. "\" defer></script>" ..
-    "<script src=\"" .. a.shroomi .. "\" defer></script>" ..
+    "<script src=\"" .. a.shroomi .. "\"></script>" ..
     "</head>" .. inner .. "</html>\n"
 end
 
