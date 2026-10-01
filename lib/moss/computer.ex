@@ -228,7 +228,8 @@ defmodule Moss.Computer do
        cwd: state.cwd,
        lines: Enum.reverse(state.lines),
        browser: state.browser,
-       files: Disk.list(state.disk, state.cwd)
+       files: Disk.list(state.disk, state.cwd),
+       app?: match?({:ok, %{dir: false}}, Disk.stat(state.disk, "/home/app.lua"))
      }, state}
   end
 

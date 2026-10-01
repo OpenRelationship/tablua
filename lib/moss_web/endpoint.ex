@@ -42,7 +42,7 @@ defmodule MossWeb.Endpoint do
   end
 
   plug Plug.RequestId
-  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint], log: {__MODULE__, :log_level, []}
 
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
@@ -53,4 +53,8 @@ defmodule MossWeb.Endpoint do
   plug Plug.Head
   plug Plug.Session, @session_options
   plug MossWeb.Router
+
+  @doc "A request's log level: none for an app's window, whose path holds its cap (MossWeb.Frame)."
+  def log_level(%{path_info: ["computers", _, "frame" | _]}), do: false
+  def log_level(_), do: :info
 end

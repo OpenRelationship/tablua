@@ -128,8 +128,20 @@ defmodule Moss.Computer.Disk do
 
   # one event on the computer's log, by the disk's actor
   defp log(disk, keyword, args) do
-    Log.append(disk.conn, disk.task, keyword, args, disk.actor)
+    with :ok <- Log.append(disk.conn, disk.task, keyword, args, disk.actor),
+         do: home_changed(disk, if(keyword == "Move File", do: args, else: Enum.take(args, 1)))
   end
+
+  # A change under /home by anyone but the person using the app (whose requests write its databases) is told on
+  # `home:<id>`, so the app's window reloads (MossWeb.ComputerLive).
+  defp home_changed(%{task: id, actor: actor}, paths) when is_binary(id) and actor != "user" do
+    if Enum.any?(paths, &(&1 == "/home" or String.starts_with?(&1, "/home/"))),
+      do: Phoenix.PubSub.broadcast(Moss.PubSub, "home:" <> id, {:home_changed, id})
+
+    :ok
+  end
+
+  defp home_changed(_, _), do: :ok
 
   @doc "The absolute, normalised form of `path`, taken from `cwd` when relative."
   def norm(path, cwd \\ "/") do

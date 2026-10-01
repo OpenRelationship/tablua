@@ -21,23 +21,28 @@ defmodule MossWeb.AppController do
         redirect(conn, to: "/computers/#{id}/app/")
 
       true ->
-        req =
-          App.request(
-            conn.method,
-            Enum.join(path, "/"),
-            conn.query_params,
-            form(conn.body_params),
-            for(
-              {k, v} <- conn.req_headers,
-              k == "accept" or String.starts_with?(k, "hx-"),
-              do: {k, v}
-            )
-          )
-
-        origin = "#{conn.scheme}://#{conn.host}#{port(conn)}"
-        {status, headers, body} = App.answer(id, req, origin, "/computers/#{id}/app/")
-        conn |> merge_resp_headers(headers) |> send_resp(status, body)
+        answer(conn, id, path, "/computers/#{id}/app/")
     end
+  end
+
+  @doc "Asks computer `id`'s app for `path` and sends its answer, the page's `<base>` at `base`."
+  def answer(conn, id, path, base) do
+    req =
+      App.request(
+        conn.method,
+        Enum.join(path, "/"),
+        conn.query_params,
+        form(conn.body_params),
+        for(
+          {k, v} <- conn.req_headers,
+          k == "accept" or String.starts_with?(k, "hx-"),
+          do: {k, v}
+        )
+      )
+
+    origin = "#{conn.scheme}://#{conn.host}#{port(conn)}"
+    {status, headers, body} = App.answer(id, req, origin, base)
+    conn |> merge_resp_headers(headers) |> send_resp(status, body)
   end
 
   # flat text fields only: what a form sends

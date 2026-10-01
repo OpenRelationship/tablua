@@ -24,6 +24,12 @@ defmodule MossWeb.Router do
     match :*, "/*path", AppController, :serve
   end
 
+  # the app in its window: authorized by the cap in its path alone, never a session (MossWeb.Frame); a cap is
+  # a token, so these routes are not logged
+  scope "/computers/:id/frame/:cap", MossWeb do
+    match :*, "/*path", FrameController, :serve, log: false
+  end
+
   scope "/", MossWeb do
     pipe_through :browser
 

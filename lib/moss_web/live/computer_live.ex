@@ -4,7 +4,12 @@ defmodule MossWeb.ComputerLive do
   from the computer's state, the only place its pixels exist. The Terminal shows
   every command the agent ran (live, from PubSub `computer:<id>`), the browser
   window the front page as the computer holds it (scripts off, in a sandboxed
-  frame, with what the agent typed in its fields), Files the working folder.
+  frame, with what the agent typed in its fields), Files the working folder,
+  and App the computer's own app (`/home/app.lua`), live, for the person to use.
+  The App window is a frame with an opaque origin (`sandbox` without
+  `allow-same-origin`), opened by a cap in its path (`MossWeb.Frame`), and it
+  loads again, with a fresh cap, when the agent changes anything under /home
+  (`home:<id>`, at most once each 300 ms).
   The person may type a command too; it runs as the agent's would. A computer
   is its owner's (`Moss.Owners`): opening one no one has claims it, and someone
   else's is not there.
@@ -14,15 +19,25 @@ defmodule MossWeb.ComputerLive do
   alias Moss.Computer
   alias Moss.Computer.{Browser, Page}
 
+  # a burst of the agent's writes reloads the app once
+  @reload_ms 300
+
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     if Computer.id?(id) and Moss.Owners.claim(id, socket.assigns.person) == :ok do
-      if connected?(socket), do: Phoenix.PubSub.subscribe(Moss.PubSub, "computer:" <> id)
+      if connected?(socket) do
+        Phoenix.PubSub.subscribe(Moss.PubSub, "computer:" <> id)
+        Phoenix.PubSub.subscribe(Moss.PubSub, "home:" <> id)
+      end
 
-      {:ok,
-       socket
-       |> assign(id: id, page_title: "Computer " <> id, front: "terminal", line: "")
-       |> refresh()}
+      socket =
+        socket
+        |> assign(id: id, page_title: "Computer " <> id, line: "", reload: nil)
+        # the frame loads once, from the connected view: a cap in the first render would load it twice
+        |> assign(cap: if(connected?(socket), do: MossWeb.Frame.cap(socket.assigns.person, id)))
+        |> refresh()
+
+      {:ok, assign(socket, front: if(socket.assigns.app?, do: "app", else: "terminal"))}
     else
       {:ok,
        socket
@@ -33,6 +48,19 @@ defmodule MossWeb.ComputerLive do
 
   @impl true
   def handle_info({:computer, _id, _entry}, socket), do: {:noreply, refresh(socket)}
+
+  def handle_info({:home_changed, _id}, %{assigns: %{reload: nil}} = socket),
+    do: {:noreply, assign(socket, reload: Process.send_after(self(), :reload, @reload_ms))}
+
+  def handle_info({:home_changed, _id}, socket), do: {:noreply, socket}
+
+  # a fresh cap is a new src, so the frame loads the app again
+  def handle_info(:reload, socket) do
+    {:noreply,
+     socket
+     |> assign(reload: nil, cap: MossWeb.Frame.cap(socket.assigns.person, socket.assigns.id))
+     |> refresh()}
+  end
 
   @impl true
   def handle_event("run", %{"line" => line}, socket) when line != "" do
@@ -62,6 +90,7 @@ defmodule MossWeb.ComputerLive do
       page: tab && tab.page,
       page_html: tab && Page.html(tab.page),
       files: files,
+      app?: view.app?,
       clock: Calendar.strftime(DateTime.utc_now(), "%a %H:%M")
     )
   end
@@ -135,6 +164,23 @@ defmodule MossWeb.ComputerLive do
         </div>
       </.window>
 
+      <%!-- the app, the person's to use --%>
+      <.window id="app" title="App" front={@front} class="left-[8%] top-[12%] h-[74%] w-[60%]">
+        <iframe
+          :if={@app? and @cap != nil}
+          id="app-frame"
+          src={MossWeb.Frame.base(@id, @cap)}
+          sandbox="allow-scripts allow-forms"
+          referrerpolicy="no-referrer"
+          class="min-h-0 w-full flex-1 bg-white"
+          title="the computer's app"
+        >
+        </iframe>
+        <div :if={!@app?} id="app-empty" class="grid flex-1 place-items-center text-stone-400">
+          The agent has not written /home/app.lua yet
+        </div>
+      </.window>
+
       <%!-- Terminal --%>
       <.window
         id="terminal"
@@ -178,6 +224,7 @@ defmodule MossWeb.ComputerLive do
           <button
             :for={
               {w, icon} <- [
+                {"app", "hero-squares-2x2"},
                 {"files", "hero-folder"},
                 {"browser", "hero-globe-alt"},
                 {"terminal", "hero-command-line"}
@@ -228,6 +275,7 @@ defmodule MossWeb.ComputerLive do
 
   defp window_name("files"), do: "Files"
   defp window_name("browser"), do: "Browser"
+  defp window_name("app"), do: "App"
   defp window_name(_), do: "Terminal"
 
   defp clip(s), do: if(String.length(s) > 4000, do: String.slice(s, 0, 4000) <> "\n…", else: s)
