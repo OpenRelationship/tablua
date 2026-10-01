@@ -52,8 +52,22 @@ defmodule Moss.AgentLoop do
       [_ | _] = tcs ->
         {results, ran} =
           Enum.map_reduce(tcs, cmds, fn tc, ran ->
-            args = Jason.decode!(tc["function"]["arguments"] || "{}")
-            r = Computer.exec(id, args)
+            # a model cut off mid-call sends half its JSON: it is told so, as a command's error would be
+            {args, r} =
+              case Jason.decode(tc["function"]["arguments"] || "{}") do
+                {:ok, %{} = args} ->
+                  {args, Computer.exec(id, args)}
+
+                _ ->
+                  {%{"cmd" => "(arguments not valid JSON)"},
+                   %{
+                     "code" => 2,
+                     "stdout" => "",
+                     "stderr" =>
+                       "the tool call's arguments were not valid JSON, perhaps cut off: send smaller files"
+                   }}
+              end
+
             IO.puts("$ #{args["cmd"]}  -> #{r["code"]}#{files(args)}")
 
             {%{
