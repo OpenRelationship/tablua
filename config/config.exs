@@ -25,7 +25,12 @@ config :moss,
   objects: :auto,
   # an awake computer's file streamed by Litestream and shipped as its log (Moss.Litestream): :litestream, :whole
   # (its whole file at sleep), or :auto (Litestream when its binary is found)
-  replication: :auto
+  replication: :auto,
+  # how often an awake computer's log is cut into a segment and shipped (owner's approval, 2026-10-01): each
+  # segment is one R2 write, so 10 s costs a tenth of 1 s (about 5 cents a month for a computer working an hour a
+  # day); a sleep still syncs and ships everything first, so only a crash of the node loses up to 10 s
+  litestream_sync: "10s",
+  ship_ms: 10_000
 
 # The node's own books (the post) live under host_dir.
 config :moss,

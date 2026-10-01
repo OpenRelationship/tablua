@@ -57,7 +57,7 @@ defmodule Moss.Litestream do
 
   @doc """
   The config: the directory watcher over the computers' files, each streamed
-  to the file replica every second, and the control socket. alog's
+  to the file replica every `:litestream_sync` (10 s on a node), and the control socket. alog's
   `litestream.yml` is this file with `${MOSS_WORK_DIR}` for the paths.
   """
   def litestream_config(dir) do
@@ -74,7 +74,7 @@ defmodule Moss.Litestream do
         replica:
           type: file
           path: #{Path.join(dir, "replica")}
-          sync-interval: #{Application.get_env(:moss, :litestream_sync, "1s")}
+          sync-interval: #{Application.get_env(:moss, :litestream_sync, "10s")}
     """
   end
 

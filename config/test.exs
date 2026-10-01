@@ -37,3 +37,6 @@ config :moss,
 
 # a run's instruction budget, small enough that the test that exhausts it is quick
 config :moss, script_instructions: 20_000_000
+
+# tests stream and ship every second, to wait less
+config :moss, litestream_sync: "1s", ship_ms: 1_000

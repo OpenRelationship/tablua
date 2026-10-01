@@ -6,7 +6,7 @@ defmodule Moss.Objects.Shipper do
   local directory), and deletes the ones Litestream compacted away, so the
   store holds what the replica holds (Arock PROJECT.md §14.7 goal 6, §15).
 
-  Every `ship_ms` (1 s) it ships each computer in the replica. What the store
+  Every `ship_ms` (10 s on a node) it ships each computer in the replica. What the store
   holds is listed once per computer and then remembered beside the replica
   (`.held/<id>`), and a node new to the computer starts from the store's own
   list against the files on disk: shipping is idempotent, a segment that went
@@ -266,7 +266,7 @@ defmodule Moss.Objects.Shipper do
       _ -> :ok
     end)
 
-    Process.send_after(self(), :round, Application.get_env(:moss, :ship_ms) || 1_000)
+    Process.send_after(self(), :round, Application.get_env(:moss, :ship_ms) || 10_000)
     {:noreply, state}
   end
 end
