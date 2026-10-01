@@ -7,18 +7,23 @@ defmodule Moss.Gate0Test do
 
   alias Moss.{Lua, LuaHost}
 
-  @library Path.join(Application.compile_env!(:moss, :core), "library")
-  @files @library |> Path.join("**/*_test.lua") |> Path.wildcard() |> Enum.sort()
+  @core Application.compile_env!(:moss, :core)
+  @files for(
+           dir <- ["library", "submodules/alog"],
+           do: Path.wildcard(Path.join([@core, dir, "**/*_test.lua"]))
+         )
+         |> List.flatten()
+         |> Enum.sort()
 
   test "the library has unit test files" do
     assert length(@files) >= 7
   end
 
   for file <- @files do
-    rel = Path.relative_to(file, @library)
+    rel = Path.relative_to(file, @core)
 
     @tag lua_test: rel
-    test "library/#{rel}" do
+    test rel do
       {:ok, [cases]} = LuaHost.call(:unit, [unquote(rel), File.read!(unquote(file))])
       cases = Enum.map(Lua.list(cases), &Map.new/1)
       failed = for c <- cases, !c["ok"], do: "#{c["name"]}: #{c["err"]}"

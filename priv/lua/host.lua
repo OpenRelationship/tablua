@@ -4,7 +4,7 @@
 -- the state, so nothing here is kept between calls.
 arock = {}
 
--- The ports as plain Lua values: host.db is the store's db port.
+-- The ports as plain Lua values: host.db is alog's db port.
 function arock.host()
   local h = __host
   return {
@@ -17,7 +17,7 @@ end
 
 function arock.store(host)
   host = host or arock.host()
-  return require("store").open(host.db, { clock = host.clock })
+  return require("alog").open(host.db, { clock = host.clock })
 end
 
 -- Jev's decisions for the host's own use (the post reading letters, PROJECT.md §14.5): the core's port, so the

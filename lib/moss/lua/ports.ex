@@ -3,7 +3,7 @@ defmodule Moss.Lua.Ports do
   The host's ports as Lua functions under `__host` (see `priv/lua/host.lua`).
 
     * `db_exec(sql, params) -> rows` on the connection given as `db:`, the
-      store's db port: rows are tables with NULL columns absent; params bind
+      alog's db port: rows are tables with NULL columns absent; params bind
       false as NULL.
     * `clock() -> "2026-09-28T00:00:00Z"`, `now() -> seconds`, `sleep(seconds)`.
     * `fetch{ method, url, headers, body, timeout } -> { status, body }` over

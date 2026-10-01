@@ -1,7 +1,7 @@
 defmodule Moss.LuaHost do
   @moduledoc """
   The test host: the node's base Lua state plus `mono.spec` (from Arock's
-  monomono), `store.ffi` over Exqlite, and `test/support/lua/test_host.lua`.
+  monomono), `alog.ffi` over Exqlite, and `test/support/lua/test_host.lua`.
   Built once per test run and kept in `:persistent_term`.
   """
   alias Moss.Lua.{Ports, Sources}
@@ -25,7 +25,7 @@ defmodule Moss.LuaHost do
 
     extra = %{
       "mono.spec" => File.read!(spec),
-      "store.ffi" => File.read!(Path.join(@here, "ffi.lua"))
+      "alog.ffi" => File.read!(Path.join(@here, "ffi.lua"))
     }
 
     lua = Moss.Lua.build(extra)

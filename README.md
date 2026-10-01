@@ -1,12 +1,12 @@
-# Moss
+# 🌿 Moss
 
 The agent's own computer, inside the BEAM (Arock PROJECT.md §14). Every agent gets a computer of its own: a
 process per agent, its disk one SQLite file, its programs WebAssembly modules (Python, JavaScript, Lua, SQLite,
 Ruby, C and C++, Zig, Go) whose system calls Moss answers in Elixir, a shell of Moss's own, a headless browser,
 and mail between computers that Jev reads. A person watches a computer and the post on pages behind a sign-in.
 
-Moss is attached to the Arock repository at `submodules/moss`, and reads Arock Core's Lua (the Jev port, the
-store) from that repository's `library/`; `AROCK_ROOT` names another checkout.
+Moss is attached to the Arock repository at `submodules/moss`, and reads Arock Core's Lua (the Jev port, and alog, the log) from that repository's `library/` and
+`submodules/alog`; `AROCK_ROOT` names another checkout.
 
 ```
 just build-script computer                # in the Arock repo: the programs and their /usr
