@@ -1,6 +1,6 @@
 -- The Elixir host as the core sees it. The host binds its ports as functions
 -- in __host before each call (db_exec on the run's SQLite file, clock, now,
--- sleep, fetch, colm, key), calls one volvox.* function, and discards the
+-- sleep, fetch, colm, key, exec on the run's computer), calls one volvox.* function, and discards the
 -- state. Everything a run knows is in its SQLite file, so nothing here is
 -- kept between calls.
 --
@@ -16,6 +16,8 @@ function volvox.host()
   return {
     db = { exec = function(_, sql, params) return h.db_exec(sql, params) end },
     clock = h.clock, now = h.now, sleep = h.sleep, fetch = h.fetch, key = h.key,
+    -- the run's own computer (PROJECT.md §14), when the host gave it one
+    exec = h.exec,
     run = function(name) return function(src) return h.colm(name, src) end end,
   }
 end

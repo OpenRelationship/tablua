@@ -14,6 +14,8 @@ defmodule VolvoxServer.Application do
       {DynamicSupervisor, name: VolvoxServer.Colm.Supervisor, strategy: :one_for_one},
       {Registry, keys: :unique, name: VolvoxServer.Run.Registry},
       {DynamicSupervisor, name: VolvoxServer.Run.Supervisor, strategy: :one_for_one},
+      {Registry, keys: :unique, name: VolvoxServer.Computer.Registry},
+      {DynamicSupervisor, name: VolvoxServer.Computer.Supervisor, strategy: :one_for_one},
       VolvoxServer.Schedule,
       VolvoxServer.Mac,
       VolvoxServerWeb.Endpoint

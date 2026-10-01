@@ -14,5 +14,6 @@ defmodule VolvoxServerWeb.Router do
     pipe_through :browser
 
     live "/runs/:id", RunLive
+    live "/computers/:id", ComputerLive
   end
 end

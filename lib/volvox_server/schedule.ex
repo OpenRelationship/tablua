@@ -62,7 +62,10 @@ defmodule VolvoxServer.Schedule do
         {:ok, [%{"id" => id}]} =
           Db.exec(
             state.conn,
-            "insert into jobs (run, task, goal, agent, at, every) values (?, ?, ?, ?, ?, ?) returning id",
+            # an id is never given twice: a removed job's history in `fired` stays its own
+            "insert into jobs (id, run, task, goal, agent, at, every) values " <>
+              "((select max(coalesce((select max(id) from jobs), 0), coalesce((select max(job) from fired), 0)) + 1), " <>
+              "?, ?, ?, ?, ?, ?) returning id",
             row
           )
 

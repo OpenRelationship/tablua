@@ -100,7 +100,7 @@ defmodule VolvoxServer.Run do
 
     with :ok <- pull(id, path),
          {:ok, conn} <- Db.open(path),
-         {:ok, _} <- VolvoxServer.Lua.call(:open, [], db: conn) do
+         {:ok, _} <- VolvoxServer.Lua.call(:open, [], db: conn, computer: id) do
       agent = opts[:agent] && VolvoxServer.Lua.agent!(opts[:agent])
       driving = Log.driving(conn)
       for {task, name} <- driving, do: send(self(), {:drive, task, name})
@@ -142,14 +142,14 @@ defmodule VolvoxServer.Run do
 
   def handle_call({:core, fun, args, agent?}, _from, state) do
     opts = if agent?, do: [agent: state.agent], else: []
-    result = VolvoxServer.Lua.call(fun, args, [db: state.conn], opts)
+    result = VolvoxServer.Lua.call(fun, args, [db: state.conn, computer: state.id], opts)
     # Each call's Lua state is garbage once it returns: hibernating drops it, so an awake run
     # holds only its connection between calls.
     {:reply, unwrap(result), broadcast(state), :hibernate}
   end
 
   def handle_call({:drive, task, goal, name}, _from, state) do
-    db = [db: state.conn]
+    db = [db: state.conn, computer: state.id]
 
     with {:ok, agent} <- Agents.chunk(name),
          {:ok, _} <- VolvoxServer.Lua.call(:start, [task, goal], db, agent: agent),
@@ -205,7 +205,7 @@ defmodule VolvoxServer.Run do
   end
 
   def handle_info({:drive, task, name}, state) do
-    db = [db: state.conn]
+    db = [db: state.conn, computer: state.id]
 
     result =
       with {:ok, agent} <- Agents.chunk(name),

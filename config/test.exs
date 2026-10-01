@@ -30,4 +30,5 @@ config :volvox_server,
   wake_on_boot: false,
   mac_tokens: %{"test-mac-token" => "owner1"},
   agents: %{"scripted" => Path.expand("../test/support/lua/scripted_agent.lua", __DIR__)},
-  req_options: [plug: {Req.Test, VolvoxServer.Fetch}]
+  req_options: [plug: {Req.Test, VolvoxServer.Fetch}],
+  computer_req_options: [plug: {Req.Test, VolvoxServer.Computer.Net}]

@@ -18,6 +18,7 @@ config :volvox_server,
 config :volvox_server,
   volvox: Path.expand("../submodules/volvox", __DIR__),
   suite: Path.expand("~/volvox/.cache/volvox/suite"),
+  programs: Path.expand("~/volvox/.cache/volvox/computer"),
   work_dir: Path.expand("../priv/work", __DIR__),
   local_objects: Path.expand("../priv/runs", __DIR__),
   objects: :auto

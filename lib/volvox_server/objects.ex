@@ -42,4 +42,5 @@ defmodule VolvoxServer.Objects do
 
   @doc "The key of a run's file."
   def run_key(id), do: "runs/#{id}.sqlite"
+  def computer_key(id), do: "computers/#{id}.sqlite"
 end

@@ -13,7 +13,11 @@ defmodule VolvoxServer.Lua.Ports do
     * `key(name) -> string | nil`: a model key from the environment or the
       keychain (`VolvoxServer.Keys`).
 
-  Only `db` is per call; the rest are the same for every run.
+    * `exec{ cmd, cwd, files, timeout } -> { code, stdout, stderr, timed_out }`
+      on the run's own computer (`VolvoxServer.Computer`, PROJECT.md §14),
+      given as `computer:` (its id): never the node's shell or files.
+
+  Only `db` and `computer` are per call; the rest are the same for every run.
   """
   alias VolvoxServer.{Colm, Db, Fetch, Keys}
 
@@ -26,6 +30,21 @@ defmodule VolvoxServer.Lua.Ports do
     |> Lua.set!([:__host, :colm], fn [name, src | _] -> Tuple.to_list(Colm.run(name, src)) end)
     |> Lua.set!([:__host, :key], fn [name | _] -> [Keys.get(name)] end)
     |> bind_db(ports[:db])
+    |> bind_computer(ports[:computer])
+  end
+
+  defp bind_computer(lua, nil), do: lua
+
+  defp bind_computer(lua, id) do
+    Lua.set!(lua, [:__host, :exec], fn [{:tref, _} = t | _], lua ->
+      req =
+        Map.new(Lua.decode!(lua, t), fn {k, v} ->
+          {k, if(k == "files", do: Map.new(v), else: v)}
+        end)
+
+      {table, lua} = Lua.encode!(lua, VolvoxServer.Computer.exec(id, req))
+      {[table], lua}
+    end)
   end
 
   defp bind_db(lua, nil), do: lua

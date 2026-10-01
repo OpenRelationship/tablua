@@ -13,3 +13,11 @@
 
 /* LiveView wrapper divs take no part in layout. */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
+
+/* An agent's computer (ComputerLive): a soft moss-and-stone wallpaper behind its windows. */
+.computer {
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 85%, oklch(0.62 0.09 145 / 0.75), transparent 70%),
+    radial-gradient(ellipse 55% 45% at 85% 20%, oklch(0.78 0.05 95 / 0.8), transparent 70%),
+    linear-gradient(160deg, oklch(0.86 0.03 120), oklch(0.7 0.05 150));
+}
