@@ -310,13 +310,13 @@ defmodule Moss.Computer do
   end
 
   # Letters delivered to this computer that its log does not yet hold, each a Receive Mail: the log's own
-  # recall index finds the ones it holds, and the post gives the rest.
+  # events name the ones it holds, and the post gives the rest.
   defp received(state) do
     {:ok, held} =
       Moss.Db.exec(
         state.disk.conn,
-        "select a.value from recall_log r join args a on a.seq = r.rowid and a.pos = 4 " <>
-          "where recall_log match 'keyword : \"Receive Mail\"'",
+        "select a.value from events e join args a on a.seq = e.seq and a.pos = 4 " <>
+          "where e.keyword = 'Receive Mail'",
         []
       )
 

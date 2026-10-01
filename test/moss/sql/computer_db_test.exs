@@ -199,7 +199,7 @@ defmodule Moss.Sql.ComputerDbTest do
     assert Enum.all?(
              sql,
              &(&1 =~
-                 ~r/sql_(dbs|schema|rows)|^(begin|commit|rollback)|events|files|kept|nodes|pragma|select|insert|update|delete|create/i)
+                 ~r/sql_(dbs|schema|rows)|^(begin|commit|rollback|savepoint|release)|events|files|kept|nodes|pragma|select|insert|update|delete|create/i)
            )
   end
 
