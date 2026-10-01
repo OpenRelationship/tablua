@@ -60,7 +60,6 @@ defmodule Moss.MixProject do
       {:bandit, "~> 1.5"},
       {:lua, "~> 1.0"},
       {:exqlite, "~> 0.41"},
-      {:wasmex, "~> 0.14"},
       {:req, "~> 0.5"}
     ]
   end

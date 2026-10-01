@@ -32,3 +32,6 @@ config :moss,
   # the post's batches run when a test says (Mail.screen_now), read by a stand-in for Jev
   mail_window: 3_600_000,
   mail_jev: Moss.TestJev
+
+# a run's instruction budget, small enough that the test that exhausts it is quick
+config :moss, script_instructions: 20_000_000

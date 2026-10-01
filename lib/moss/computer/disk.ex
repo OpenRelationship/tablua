@@ -9,12 +9,10 @@ defmodule Moss.Computer.Disk do
       Disk.read(disk, "/notes/todo.txt")                 # {:ok, "buy moss"}
       Disk.list(disk, "/notes")                          # {:ok, [%{name: "todo.txt", dir: false, size: 8, mtime: ...}]}
 
-  `/usr` is every computer's shared, read-only tree (`Computer.Usr`).
   `keep/3` and `kept/3` hold the computer's own state beside the files.
   Paths are normalised (`.`, `..`, repeated slashes) and never leave `/`.
   """
   alias Moss.Db
-  alias Moss.Computer.Usr
 
   @schema """
   create table if not exists nodes (
@@ -73,44 +71,16 @@ defmodule Moss.Computer.Disk do
     end
   end
 
-  def stat(disk, path) do
-    path = norm(path)
-    if Usr.owns?(path), do: Usr.stat(path), else: own_stat(disk, path)
-  end
+  def stat(disk, path), do: own_stat(disk, norm(path))
+  def read(disk, path), do: own_read(disk, norm(path))
 
-  def read(disk, path) do
-    path = norm(path)
-    if Usr.owns?(path), do: Usr.read(path), else: own_read(disk, path)
-  end
-
-  @doc "A folder's entries, sorted by name; `/` shows `usr` beside the agent's own."
-  def list(disk, path) do
-    path = norm(path)
-
-    cond do
-      Usr.owns?(path) ->
-        Usr.list(path)
-
-      path == "/" ->
-        with {:ok, own} <- own_list(disk, path),
-             do:
-               {:ok,
-                Enum.sort_by([%{name: "usr", dir: true, size: 0, mtime: 0} | own], & &1.name)}
-
-      true ->
-        own_list(disk, path)
-    end
-  end
-
-  # nothing under /usr is the agent's to change
-  defp ours(paths),
-    do: if(Enum.any?(paths, &Usr.owns?(norm(&1))), do: {:error, :eperm}, else: :ok)
+  @doc "A folder's entries, sorted by name."
+  def list(disk, path), do: own_list(disk, norm(path))
 
   def write(disk, path, data) do
     path = norm(path)
 
-    with :ok <- ours([path]),
-         :ok <- mkdir_p(disk, Path.dirname(path)),
+    with :ok <- mkdir_p(disk, Path.dirname(path)),
          {:ok, _} <-
            Db.exec(
              disk,
@@ -128,12 +98,7 @@ defmodule Moss.Computer.Disk do
 
   def mkdir(disk, path) do
     path = norm(path)
-    mkdir_own(disk, path, ours([path]))
-  end
 
-  defp mkdir_own(_disk, _path, {:error, _} = e), do: e
-
-  defp mkdir_own(disk, path, :ok) do
     case stat(disk, Path.dirname(path)) do
       {:ok, %{dir: true}} ->
         case Db.exec(disk, "insert or ignore into nodes (path, dir, mtime) values (?1, 1, ?2)", [
@@ -198,7 +163,7 @@ defmodule Moss.Computer.Disk do
   @doc "Removes a file, or a folder with everything in it when `all` is true (an empty one otherwise)."
   def remove(disk, path, all \\ false) do
     path = norm(path)
-    with :ok <- ours([path]), do: remove_own(disk, path, all)
+    remove_own(disk, path, all)
   end
 
   defp remove_own(disk, path, all) do
@@ -235,8 +200,7 @@ defmodule Moss.Computer.Disk do
   def rename(disk, from, to) do
     {from, to} = {norm(from), norm(to)}
 
-    with :ok <- ours([from, to]),
-         {:ok, _} <- stat(disk, from),
+    with {:ok, _} <- stat(disk, from),
          {:ok, %{dir: true}} <- stat(disk, Path.dirname(to)),
          :ok <- if(String.starts_with?(to <> "/", from <> "/"), do: {:error, :einval}, else: :ok) do
       {:ok, _} = Db.exec(disk, "begin", [])

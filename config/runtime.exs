@@ -20,8 +20,7 @@ if System.get_env("PHX_SERVER") do
   config :moss, MossWeb.Endpoint, server: true
 end
 
-config :moss, MossWeb.Endpoint,
-  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+config :moss, MossWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 # Who may sign in to the host's pages (MossWeb.Auth): MOSS_PAGE_TOKENS="name:token,name:token".
 # Unset in production, no one can; a token is a long random secret (mix phx.gen.secret), never committed.

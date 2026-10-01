@@ -3,26 +3,20 @@ defmodule Moss.Computer.Commands do
   The commands the computer's shell knows. `run(argv, stdin, state)` gives back
   `{code, out, err, state}`. Files and folders are the computer's disk; the text
   tools are `Computer.Text`, the web `Computer.Net`, the browser
-  `Computer.Browser`, and the rest of the names are programs
-  (`Computer.Programs`: `js`, `python`, `sqlite3`), run with the working folder
-  as `PWD`. A path names a module on the computer's own disk (one the agent
-  built or fetched), run the same way.
+  `Computer.Browser`, and `lua` the computer's language (`Computer.Script`).
   """
-  alias Moss.Computer.{Browser, Disk, Mailbox, Net, Programs, Text}
+  alias Moss.Computer.{Browser, Disk, Mailbox, Net, Script, Text}
 
-  @aliases %{"node" => "js", "python3" => "python"}
   @builtin ~w(cd pwd echo env export unset true false which help date sleep ls cat mkdir rm rmdir mv cp touch find tree)
 
   def names,
     do:
       Enum.sort(
         @builtin ++
-          Text.names() ++ Net.names() ++ Browser.names() ++ ["mail"] ++ Programs.names()
+          Text.names() ++ Net.names() ++ Browser.names() ++ ["mail"] ++ Script.names()
       )
 
   def run([name | args], stdin, state) do
-    name = Map.get(@aliases, name, name)
-
     cond do
       name in @builtin ->
         builtin(name, args, stdin, state)
@@ -39,11 +33,8 @@ defmodule Moss.Computer.Commands do
       name == "mail" ->
         ok(Mailbox.run(args, stdin, state), state)
 
-      name in Programs.names() ->
-        program(name, args, stdin, state)
-
-      String.contains?(name, "/") or String.ends_with?(name, ".wasm") ->
-        own(name, args, stdin, state)
+      name in Script.names() ->
+        Script.run(args, stdin, state)
 
       true ->
         {127, "", "#{name}: command not found\n", state}
@@ -51,46 +42,6 @@ defmodule Moss.Computer.Commands do
   end
 
   defp ok({code, out, err}, state), do: {code, out, err, state}
-
-  defp program(name, args, stdin, state) do
-    # a relative path is the working folder's: the kernel preopens it as "." (Computer.Files)
-    env = Map.put(state.env, "PWD", state.cwd)
-
-    case Programs.run(name, args, stdin, state.disk, env) do
-      {code, out, err} -> {code, out, err, state}
-      :unknown -> {127, "", "#{name}: command not found\n", state}
-    end
-  end
-
-  # a module on the computer's own disk, run by its path (./hello.wasm, /home/bin/tool)
-  defp own(name, args, stdin, state) do
-    path = Disk.norm(name, state.cwd)
-
-    case Disk.read(state.disk, path) do
-      {:ok, bytes} ->
-        if Programs.wasm?(bytes) do
-          {code, out, err} =
-            Programs.run_bytes(
-              bytes,
-              name,
-              args,
-              stdin,
-              state.disk,
-              Map.put(state.env, "PWD", state.cwd)
-            )
-
-          {code, out, err, state}
-        else
-          {126, "", "#{name}: not a WebAssembly program\n", state}
-        end
-
-      {:error, :eisdir} ->
-        {126, "", "#{name}: is a folder\n", state}
-
-      _ ->
-        {127, "", "#{name}: no such file\n", state}
-    end
-  end
 
   # -- the shell's own ---------------------------------------------------------------------------
 
@@ -150,7 +101,7 @@ defmodule Moss.Computer.Commands do
   end
 
   defp builtin("which", args, _, state) do
-    found = Enum.filter(args, &(&1 in names() or Map.has_key?(@aliases, &1)))
+    found = Enum.filter(args, &(&1 in names()))
 
     {if(length(found) == length(args), do: 0, else: 1), Enum.map_join(found, &"/bin/#{&1}\n"), "",
      state}

@@ -7,14 +7,14 @@ defmodule Moss.Application do
     # The core's base Lua state (Jev for the post), built once on this node.
     Moss.Lua.base()
 
-    Moss.Computer.Programs.table()
+    # Every module now, as a release loads them: a computer's kept session names their atoms (Disk.kept/3)
+    for m <- Application.spec(:moss, :modules), do: Code.ensure_loaded(m)
 
     children = [
       MossWeb.Telemetry,
       {Phoenix.PubSub, name: Moss.PubSub},
       {Registry, keys: :unique, name: Moss.Computer.Registry},
       {DynamicSupervisor, name: Moss.Computer.Supervisor, strategy: :one_for_one},
-      Supervisor.child_spec({Task, &Moss.Computer.Programs.warm/0}, id: :warm_programs),
       Moss.Mail,
       MossWeb.Endpoint
     ]

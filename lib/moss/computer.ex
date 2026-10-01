@@ -2,8 +2,8 @@ defmodule Moss.Computer do
   @moduledoc """
   An agent's own computer (Arock's PROJECT.md §14): one process per agent,
   whose disk is its own SQLite file (`Computer.Disk`), whose shell
-  (`Computer.Shell`) runs its commands and its WASI programs against a kernel
-  answered here in the BEAM (`Computer.Wasi`), and whose browser
+  (`Computer.Shell`) runs its commands and its Lua (`Computer.Script`) here in
+  the BEAM, and whose browser
   (`Computer.Browser`) keeps its pages headless. Nothing it does reaches the
   node's files, a real shell, or another agent's computer.
 
