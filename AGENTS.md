@@ -1,3 +1,16 @@
+# 🌙 luos
+
+This is luos, our own fork of tv-labs/lua (owner, 2026-10-01): the Lua VM on the BEAM that Arock's Moss runs,
+attached to Arock at `submodules/luos`. We maintain it ourselves. These rules come first; upstream's follow.
+
+- `main` is ours: upstream's `main` plus our changes. `upstream` (tv-labs/lua) is a remote, merged in when it
+  has something we want, with the full suite green after the merge.
+- Every change is test-first, under both engines (interpreter and dispatcher) where it touches execution, and
+  lands only with the whole `mix test` green.
+- A fix that would help any user of tv-labs/lua also goes upstream as a PR from its own branch; ours does not
+  wait on theirs.
+- The Mix app stays `:lua` and the modules `Lua.*`, so Moss and upstream code read it unchanged.
+
 <!-- usage-rules-start -->
 <!-- usage-rules-header -->
 # Usage Rules
