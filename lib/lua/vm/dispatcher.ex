@@ -44,6 +44,14 @@ defmodule Lua.VM.Dispatcher do
   @max_int 0x7FFFFFFFFFFFFFFF
   @min_int -0x8000000000000000
 
+  # The bounds of a BEAM small integer on a 64-bit VM (2^59 - 1 and -2^59).
+  # `@max_int` / `@min_int` are bignums, so comparing a result against them
+  # costs a bignum comparison. The integer fast paths of `+`, `-` and `*`
+  # test these small bounds first: any result inside them is already in
+  # int64 range, and only a result outside them pays the full check.
+  @small_max 0x7FFFFFFFFFFFFFF
+  @small_min -0x800000000000000
+
   @op_load_constant 1
   @op_load_boolean 2
   @op_load_nil 3
@@ -152,6 +160,12 @@ defmodule Lua.VM.Dispatcher do
   # Self-recursive call. The callee is the prototype currently running, so
   # the loop already holds everything the call needs.
   @op_call_self 76
+
+  # Short-circuit `and` / `or`: `{tag, dest, source, body}`. When `source`
+  # decides the result it is copied into `dest`; otherwise `body` (the right
+  # operand, ending in a write to `dest`) runs as a nested block.
+  @op_test_and 77
+  @op_test_or 78
 
   @doc """
   Execute a compiled prototype against `args` and `state`.
@@ -424,7 +438,12 @@ defmodule Lua.VM.Dispatcher do
         cond do
           is_integer(va) and is_integer(vb) ->
             sum = va + vb
-            wrapped = if sum >= @min_int and sum <= @max_int, do: sum, else: Numeric.to_signed_int64(sum)
+
+            wrapped =
+              if (sum <= @small_max and sum >= @small_min) or (sum >= @min_int and sum <= @max_int),
+                do: sum,
+                else: Numeric.to_signed_int64(sum)
+
             regs = :erlang.setelement(dest + 1, regs, wrapped)
             dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
 
@@ -445,7 +464,12 @@ defmodule Lua.VM.Dispatcher do
         cond do
           is_integer(va) and is_integer(vb) ->
             diff = va - vb
-            wrapped = if diff >= @min_int and diff <= @max_int, do: diff, else: Numeric.to_signed_int64(diff)
+
+            wrapped =
+              if (diff <= @small_max and diff >= @small_min) or (diff >= @min_int and diff <= @max_int),
+                do: diff,
+                else: Numeric.to_signed_int64(diff)
+
             regs = :erlang.setelement(dest + 1, regs, wrapped)
             dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
 
@@ -466,7 +490,12 @@ defmodule Lua.VM.Dispatcher do
         cond do
           is_integer(va) and is_integer(vb) ->
             prod = va * vb
-            wrapped = if prod >= @min_int and prod <= @max_int, do: prod, else: Numeric.to_signed_int64(prod)
+
+            wrapped =
+              if (prod <= @small_max and prod >= @small_min) or (prod >= @min_int and prod <= @max_int),
+                do: prod,
+                else: Numeric.to_signed_int64(prod)
+
             regs = :erlang.setelement(dest + 1, regs, wrapped)
             dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
 
@@ -493,7 +522,12 @@ defmodule Lua.VM.Dispatcher do
         cond do
           is_integer(va) and is_integer(k) ->
             sum = va + k
-            wrapped = if sum >= @min_int and sum <= @max_int, do: sum, else: Numeric.to_signed_int64(sum)
+
+            wrapped =
+              if (sum <= @small_max and sum >= @small_min) or (sum >= @min_int and sum <= @max_int),
+                do: sum,
+                else: Numeric.to_signed_int64(sum)
+
             regs = :erlang.setelement(dest + 1, regs, wrapped)
             dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
 
@@ -513,7 +547,12 @@ defmodule Lua.VM.Dispatcher do
         cond do
           is_integer(va) and is_integer(k) ->
             diff = va - k
-            wrapped = if diff >= @min_int and diff <= @max_int, do: diff, else: Numeric.to_signed_int64(diff)
+
+            wrapped =
+              if (diff <= @small_max and diff >= @small_min) or (diff >= @min_int and diff <= @max_int),
+                do: diff,
+                else: Numeric.to_signed_int64(diff)
+
             regs = :erlang.setelement(dest + 1, regs, wrapped)
             dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
 
@@ -533,7 +572,12 @@ defmodule Lua.VM.Dispatcher do
         cond do
           is_integer(va) and is_integer(k) ->
             prod = va * k
-            wrapped = if prod >= @min_int and prod <= @max_int, do: prod, else: Numeric.to_signed_int64(prod)
+
+            wrapped =
+              if (prod <= @small_max and prod >= @small_min) or (prod >= @min_int and prod <= @max_int),
+                do: prod,
+                else: Numeric.to_signed_int64(prod)
+
             regs = :erlang.setelement(dest + 1, regs, wrapped)
             dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
 
@@ -892,6 +936,56 @@ defmodule Lua.VM.Dispatcher do
           end
 
         dispatch(branch, 1, regs, upvalues, proto, state, [{code, pc + 1} | cont], frames, instruction_count, cs, cd, ou)
+
+      # `and` / `or` resume exactly like `:test`: the nested body ends and
+      # `finish_body` pops the `{code, pc + 1}` marker. When the left operand
+      # decides the result, no body runs and nothing is pushed.
+
+      {@op_test_and, dest, source, body} ->
+        case :erlang.element(source + 1, regs) do
+          v when v === nil or v === false ->
+            regs = :erlang.setelement(dest + 1, regs, v)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          _ ->
+            dispatch(
+              body,
+              1,
+              regs,
+              upvalues,
+              proto,
+              state,
+              [{code, pc + 1} | cont],
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+        end
+
+      {@op_test_or, dest, source, body} ->
+        case :erlang.element(source + 1, regs) do
+          v when v === nil or v === false ->
+            dispatch(
+              body,
+              1,
+              regs,
+              upvalues,
+              proto,
+              state,
+              [{code, pc + 1} | cont],
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+
+          v ->
+            regs = :erlang.setelement(dest + 1, regs, v)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
 
       # ── Calls ───────────────────────────────────────────────────────
       #
