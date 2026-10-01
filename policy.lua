@@ -49,7 +49,7 @@ P.attributes = {
   progress = set({ "value", "max" }), meter = set({ "value", "min", "max", "low", "high", "optimum" }),
   svg = set({ "viewBox", "width", "height", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin",
     "xmlns", "aria-hidden" }),
-  path = set({ "d", "fill", "stroke", "stroke-width", "fill-rule", "clip-rule" }),
+  path = set({ "d", "fill", "stroke", "stroke-width", "fill-rule", "clip-rule", "stroke-linecap", "stroke-linejoin" }),
   circle = set({ "cx", "cy", "r", "fill", "stroke" }), ellipse = set({ "cx", "cy", "rx", "ry", "fill", "stroke" }),
   rect = set({ "x", "y", "width", "height", "rx", "ry", "fill", "stroke" }),
   line = set({ "x1", "y1", "x2", "y2", "stroke" }), polyline = set({ "points", "fill", "stroke" }),

@@ -51,7 +51,13 @@ The page is the agent's writing, so none of it runs as code.
 | `css.lua`, `utilities.lua` | Utility classes as CSS, over Basecoat's theme |
 | `template.lua` | Mustache, for pages written as text |
 | `markdown.lua` | Markdown to safe HTML |
+| `icons.lua` | Lucide's icons as data, for `ui.icon` |
 | `policy.lua` | What a page may hold, enforced by the host |
+| `examples/` | The gallery: six apps and the app that shows them (see below) |
 | `assets/` | The pinned scripts and styles a page loads |
+
+## The gallery
+
+`examples/` holds apps written only in Shroomi: a plant tracker (a database and htmx), Markdown notes with a live preview, a dashboard, a settings form the server validates, a report, and an inbox. `examples/app.lua` is the gallery itself, which shows each one and the Lua that made it. To open it, put the folder on a computer from Moss: `mix moss.put shroomi-gallery <path>/examples --as examples --app app.lua --owner <you>`, then open `/computers/shroomi-gallery/app/`.
 
 Portable Lua: it runs unchanged on LuaJIT, Lua 5.4/5.5 and tv-labs `lua`. Tests are `*_test.lua` (buck2 `lua_test`; Moss runs them in tv-labs `lua` too).

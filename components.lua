@@ -9,11 +9,29 @@
 --              ui.badge{"new", variant = "secondary|outline|destructive"}  ui.empty{title, description, ...}
 --              ui.tabs{{"First", panel}, {"Second", panel}}  ui.data_table{columns = {...}, rows = {{...}}}
 --              ui.kbd"K"  ui.progress{value = 40}  ui.skeleton{class = "h-4 w-32"}  ui.markdown(text)
+--              ui.icon"sprout" (or {name, size = 16}; ui.icons lists the names: Lucide's, drawn in the text's colour)
 --   forms      ui.form{post = "plants", ...}  ui.field{label, hint, error, input}  ui.input{name, label, ...}
 --              ui.textarea{name, label}  ui.select{name, label, options = {"a", {"b", "B"}}}
 --              ui.checkbox{name, label, checked}  ui.switch{name, label}
 return function(ui)
   local markdown = require("shroomi.markdown")
+  local icons = require("shroomi.icons")
+
+  ui.icons = {}
+  for name in pairs(icons) do ui.icons[#ui.icons + 1] = name end
+  table.sort(ui.icons)
+
+  ui.component("icon", function(p, c)
+    local name = p.name or c[1]
+    local shape = icons[name]
+    if not shape then error("no icon named " .. tostring(name) .. " (ui.icons lists them)", 3) end
+    local size = tostring(p.size or 16)
+    local parts = {}
+    for i, part in ipairs(shape) do parts[i] = ui.el(part[1], part[2]) end
+    return ui.el("svg", { xmlns = "http://www.w3.org/2000/svg", width = size, height = size, viewBox = "0 0 24 24",
+      fill = "none", stroke = "currentColor", ["stroke-width"] = "2", ["stroke-linecap"] = "round",
+      ["stroke-linejoin"] = "round", ["aria-hidden"] = "true", class = p.class, parts })
+  end)
   local el = ui.el
 
   -- the props a component does not read, as attributes on its element; class joined with its own

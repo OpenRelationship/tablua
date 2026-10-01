@@ -17,6 +17,8 @@ spec.test("spacing, sizing and layout use the theme's spacing", function()
   spec.eq(rule("max-w-2xl"), ".max-w-2xl{max-width: 42rem;}")
   spec.eq(rule("space-y-2"), ".space-y-2 > :not(:last-child){margin-block-end: calc(var(--spacing) * 2);}")
   spec.eq(rule("flex"), ".flex{display: flex;}")
+  spec.eq(rule("rounded-t-md"),
+    ".rounded-t-md{border-top-left-radius: var(--radius-md);border-top-right-radius: var(--radius-md);}")
 end)
 
 spec.test("colours are the theme's, with opacity", function()
@@ -53,6 +55,16 @@ spec.test("a sheet holds each class once, later families after earlier, screens 
   local _, count = string.gsub(sheet, "%.px%-2{", "")
   spec.eq(count, 1)
   spec.eq(string.sub(sheet, 1, 17), "@layer utilities{")
+end)
+
+spec.test("Basecoat's component classes are known and cost no CSS; prose brings its typography", function()
+  local sheet, unknown = css.sheet({ "btn", "card", "field" })
+  spec.eq(sheet, "")
+  spec.same(unknown, {})
+  sheet = css.sheet({ "prose", "p-4" })
+  spec.ok(string.find(sheet, ".prose ul{list-style-type: disc;", 1, true))
+  spec.ok(string.find(sheet, "@layer utilities{.p-4{", 1, true))
+  spec.ok(css.known("btn") and css.known("md:flex") and not css.known("wobbly"))
 end)
 
 spec.test("classes are read from a page's class attributes", function()

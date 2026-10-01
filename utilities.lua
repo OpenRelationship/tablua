@@ -100,6 +100,12 @@ local SHADOWS = {
 }
 local RADII = { sm = "var(--radius-sm)", md = "var(--radius-md)", lg = "var(--radius-lg)",
   xl = "var(--radius-xl)", ["2xl"] = "calc(var(--radius) + 8px)", ["3xl"] = "calc(var(--radius) + 12px)" }
+local CORNERS = {
+  ["rounded-t"] = { "border-top-left-radius", "border-top-right-radius" },
+  ["rounded-b"] = { "border-bottom-left-radius", "border-bottom-right-radius" },
+  ["rounded-l"] = { "border-top-left-radius", "border-bottom-left-radius" },
+  ["rounded-r"] = { "border-top-right-radius", "border-bottom-right-radius" },
+}
 local TEXT = {
   xs = { "0.75rem", "1rem" }, sm = { "0.875rem", "1.25rem" }, base = { "1rem", "1.5rem" },
   lg = { "1.125rem", "1.75rem" }, xl = { "1.25rem", "1.75rem" }, ["2xl"] = { "1.5rem", "2rem" },
@@ -161,7 +167,8 @@ end
 
 local KEYS = { ["space-y"] = true, ["space-x"] = true, ["grid-cols"] = true, ["grid-rows"] = true,
   ["col-span"] = true, ["row-span"] = true, ["max-w"] = true, text = true, bg = true, border = true, ring = true,
-  rounded = true, shadow = true, opacity = true, z = true }
+  rounded = true, ["rounded-t"] = true, ["rounded-b"] = true, ["rounded-l"] = true, ["rounded-r"] = true,
+  shadow = true, opacity = true, z = true }
 for k in pairs(SIDES) do KEYS[k] = true end
 
 -- "gap-x-4" -> "gap-x", "4": the longest known key before a dash
@@ -234,6 +241,10 @@ function M.declarations(name)
     return nil
   elseif key == "rounded" then
     return RADII[value] and { "border-radius: " .. RADII[value] }, 74
+  elseif CORNERS[key] then
+    local r = RADII[value] or (value == "none" and "0") or (value == "full" and "9999px")
+    if not r then return nil end
+    return { CORNERS[key][1] .. ": " .. r, CORNERS[key][2] .. ": " .. r }, 75
   elseif key == "shadow" then
     return SHADOWS[value] and { "box-shadow: " .. SHADOWS[value] }, 76
   elseif key == "opacity" then

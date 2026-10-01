@@ -4,6 +4,7 @@
 --
 --   css.rule("md:hover:bg-primary/10")   -> the CSS for one class, or nil if Shroomi does not know it
 --   css.sheet(classes)                    -> the CSS for a list of classes, in cascade order; and the unknown ones
+--   css.known(name)                        -> whether a class is a utility, one of Basecoat's components, or prose
 --
 -- Variants: sm: md: lg: xl: 2xl: (min-width), hover: focus: focus-visible: active: disabled: first: last:
 -- odd: even: group-hover:, dark:. Colours are the theme's (primary, secondary, muted, accent, destructive,
@@ -12,6 +13,36 @@
 local u = require("shroomi.utilities")
 
 local css = {}
+
+-- Basecoat's own component classes: known, styled by its stylesheet, so no CSS is written for them here
+local COMPONENTS = {}
+for name in string.gmatch([[btn card card-title card-description card-action alert alert-dialog badge field fieldset
+  field-separator input input-group textarea select label kbd table table-container tabs dialog empty item
+  item-group progress skeleton form toaster toast toast-content popover dropdown-menu sidebar group dark]],
+  "%S+") do COMPONENTS[name] = true end
+
+-- Markdown's typography: Tailwind's reset takes headings, lists and quotes back to plain text, so `prose` puts
+-- them back, in the theme's sizes and colours
+local PROSE = table.concat({
+  ".prose{line-height: 1.7;}",
+  ".prose > * + *{margin-top: 1em;}",
+  ".prose h1{font-size: 1.875rem; line-height: 2.25rem; font-weight: 600; letter-spacing: -0.025em;}",
+  ".prose h2{font-size: 1.5rem; line-height: 2rem; font-weight: 600; margin-top: 1.5em;}",
+  ".prose h3{font-size: 1.25rem; line-height: 1.75rem; font-weight: 600; margin-top: 1.25em;}",
+  ".prose ul{list-style-type: disc; padding-left: 1.5em;}",
+  ".prose ol{list-style-type: decimal; padding-left: 1.5em;}",
+  ".prose li + li{margin-top: 0.25em;}",
+  ".prose a{color: var(--color-primary); text-decoration-line: underline; text-underline-offset: 2px;}",
+  ".prose strong{font-weight: 600;}",
+  ".prose blockquote{border-left: 3px solid var(--color-border); padding-left: 1em; color: var(--color-muted-foreground);}",
+  ".prose code{font-family: var(--font-mono); font-size: 0.875em; background: var(--color-muted); " ..
+    "border-radius: var(--radius-sm); padding: 0.125em 0.375em;}",
+  ".prose pre{background: var(--color-muted); border-radius: var(--radius-md); padding: 1em; overflow-x: auto;}",
+  ".prose pre code{background: none; padding: 0;}",
+  ".prose hr{border-top: 1px solid var(--color-border);}",
+}, "\n")
+
+function css.known(name) return COMPONENTS[name] == true or name == "prose" or css.rule(name) ~= nil end
 
 local SCREENS = { sm = "40rem", md = "48rem", lg = "64rem", xl = "80rem", ["2xl"] = "96rem" }
 local SCREEN_RANK = { sm = 1, md = 2, lg = 3, xl = 4, ["2xl"] = 5 }
@@ -81,19 +112,26 @@ local function before(a, b)
 end
 
 function css.sheet(classes)
-  local seen, rules, unknown = {}, {}, {}
+  local seen, rules, unknown, prose = {}, {}, {}, false
   for _, name in ipairs(classes) do
     if not seen[name] then
       seen[name] = true
       local r = css.rule(name)
-      if r then rules[#rules + 1] = r else unknown[#unknown + 1] = name end
+      if r then
+        rules[#rules + 1] = r
+      elseif name == "prose" then
+        prose = true
+      elseif not COMPONENTS[name] then
+        unknown[#unknown + 1] = name
+      end
     end
   end
   table.sort(rules, before)
   local out = {}
   for i, r in ipairs(rules) do out[i] = r.css end
-  if #out == 0 then return "", unknown end
-  return "@layer utilities{" .. table.concat(out, "\n") .. "}", unknown
+  local sheet = #out > 0 and "@layer utilities{" .. table.concat(out, "\n") .. "}" or ""
+  if prose then sheet = "@layer components{" .. PROSE .. "}" .. (sheet ~= "" and "\n" .. sheet or "") end
+  return sheet, unknown
 end
 
 -- every class named in an HTML text, in order of first use
