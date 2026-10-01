@@ -10,17 +10,24 @@ defmodule Moss.Application do
     # Every module now, as a release loads them: a computer's kept session names their atoms (Disk.kept/3)
     for m <- Application.spec(:moss, :modules), do: Code.ensure_loaded(m)
 
-    children = [
-      MossWeb.Telemetry,
-      {Phoenix.PubSub, name: Moss.PubSub},
-      {Registry, keys: :unique, name: Moss.Computer.Registry},
-      {DynamicSupervisor, name: Moss.Computer.Supervisor, strategy: :one_for_one},
-      Moss.Owners,
-      Moss.Mail,
-      MossWeb.Endpoint
-    ]
+    children =
+      [
+        MossWeb.Telemetry,
+        {Phoenix.PubSub, name: Moss.PubSub},
+        {Registry, keys: :unique, name: Moss.Computer.Registry},
+        {DynamicSupervisor, name: Moss.Computer.Supervisor, strategy: :one_for_one},
+        Moss.Owners,
+        Moss.Mail
+      ] ++ replication() ++ [MossWeb.Endpoint]
 
     Supervisor.start_link(children, strategy: :one_for_one, name: Moss.Supervisor)
+  end
+
+  # Each awake computer's log streamed by Litestream and shipped by the node's token (Arock PROJECT.md §15.4)
+  defp replication do
+    if Moss.Litestream.mode() == :litestream,
+      do: [Moss.Litestream, Moss.Objects.Shipper],
+      else: []
   end
 
   @impl true

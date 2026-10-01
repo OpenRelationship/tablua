@@ -22,7 +22,10 @@ config :moss,
   core: arock,
   work_dir: Path.expand("../priv/work", __DIR__),
   local_objects: Path.expand("../priv/runs", __DIR__),
-  objects: :auto
+  objects: :auto,
+  # an awake computer's file streamed by Litestream and shipped as its log (Moss.Litestream): :litestream, :whole
+  # (its whole file at sleep), or :auto (Litestream when its binary is found)
+  replication: :auto
 
 # The node's own books (the post) live under host_dir.
 config :moss,

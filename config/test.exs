@@ -25,6 +25,8 @@ config :moss,
   work_dir: Path.expand("../tmp/test/work", __DIR__),
   local_objects: Path.expand("../tmp/test/runs", __DIR__),
   objects: :local,
+  # whole files, as a node without Litestream keeps them; test/moss/replication_test.exs streams its own
+  replication: :whole,
   host_dir: Path.expand("../tmp/test/host", __DIR__),
   page_tokens: %{"test-page-token" => "tester", "test-other-token" => "other"},
   req_options: [plug: {Req.Test, Moss.Fetch}],

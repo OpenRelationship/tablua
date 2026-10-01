@@ -43,6 +43,7 @@ defmodule Moss.Computer.Disk do
     with {:ok, conn} <- Db.open(path),
          disk = %__MODULE__{conn: conn, task: task, actor: "host"},
          {:ok, _} <- Db.exec(conn, "pragma synchronous = normal", []),
+         {:ok, _} <- replicated(conn),
          {:ok, _} <- Db.exec(conn, @kept, []),
          :ok <- Log.open(conn),
          :ok <- from_nodes(disk),
@@ -54,7 +55,24 @@ defmodule Moss.Computer.Disk do
     end
   end
 
-  def close(disk), do: Db.checkpoint_and_close(disk.conn)
+  @doc """
+  Closes the disk. Kept whole (`Moss.Litestream.mode/0` is `:whole`), its WAL
+  is folded in first, so the file alone is the disk; streamed by Litestream,
+  the file is only closed: Litestream owns its checkpoints and its WAL.
+  """
+  def close(disk) do
+    if Moss.Litestream.mode() == :litestream,
+      do: Exqlite.Sqlite3.close(disk.conn),
+      else: Db.checkpoint_and_close(disk.conn)
+  end
+
+  # alog's replicated settings (alog.LITESTREAM) when Litestream streams the file: WAL and busy_timeout are
+  # Db.open's, synchronous normal is every disk's, and Litestream alone checkpoints
+  defp replicated(conn) do
+    if Moss.Litestream.mode() == :litestream,
+      do: Db.exec(conn, "pragma wal_autocheckpoint = 0", []),
+      else: {:ok, []}
+  end
 
   @doc """
   Gives back the pages SQLite keeps cached for this disk, for a computer at rest: an event reads and writes a

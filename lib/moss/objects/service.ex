@@ -8,7 +8,9 @@ defmodule Moss.Objects.Service do
   The token is MOSS_NODE_TOKEN or the keychain item `moss-node-token`; the
   service is MOSS_SERVICE or https://arock.ai. A disk over #{div(64 * 1024 * 1024, 1_048_576)} MB goes up in
   #{div(32 * 1024 * 1024, 1_048_576)} MB parts. The token is never logged, printed, written or put in an error.
-  Only computers' disks (`computers/<id>.sqlite`) are kept here.
+  Only computers' disks (`computers/<id>.sqlite`) are kept here, and their
+  logs: Litestream's segments, at `/moss/logs/<id>/<level>/<file>` under the
+  disk's claim (Arock's `app/worker/src/logs.ts`, PROJECT.md §15).
   """
   @behaviour Moss.Objects
 
@@ -58,6 +60,54 @@ defmodule Moss.Objects.Service do
     end
   end
 
+  @impl true
+  def log_list(id) do
+    with {:ok, path} <- log_path(id, nil) do
+      case json(request(:get, path, nil)) do
+        {:ok, 200, %{"segments" => segments}} ->
+          {:ok, Map.new(segments, fn %{"name" => n, "size" => s} -> {n, s} end)}
+
+        other ->
+          failure(other)
+      end
+    end
+  end
+
+  @impl true
+  def log_get(id, name) do
+    with {:ok, path} <- log_path(id, name) do
+      case request(:get, path, nil) do
+        {:ok, 200, body} -> {:ok, body}
+        {:ok, 404, _} -> :not_found
+        other -> failure(other)
+      end
+    end
+  end
+
+  @impl true
+  def log_put(id, name, body) do
+    with {:ok, path} <- log_path(id, name), do: done(request(:put, path, body))
+  end
+
+  @impl true
+  def log_delete(id, name) do
+    with {:ok, path} <- log_path(id, name) do
+      case request(:delete, path, nil) do
+        {:ok, s, _} when s in 200..299 or s == 404 -> :ok
+        other -> failure(other)
+      end
+    end
+  end
+
+  defp log_path(id, name) do
+    cond do
+      not Moss.Computer.id?(id) -> {:error, "not a computer id"}
+      name == nil -> {:ok, "logs/" <> id}
+      Moss.Objects.segment?(name) -> {:ok, "logs/#{id}/#{name}"}
+      true -> {:error, "not a log segment: #{inspect(name)}"}
+    end
+  end
+
   @doc "Whether this node has a token, so the service can be used at all."
   def available?, do: token() != nil
 
@@ -66,7 +116,7 @@ defmodule Moss.Objects.Service do
     Req.new(
       [
         method: method,
-        url: base() <> "/moss/disks/" <> path,
+        url: base() <> "/moss/" <> path,
         body: body,
         auth: {:bearer, token},
         headers: [{"content-type", "application/octet-stream"}],
@@ -94,7 +144,7 @@ defmodule Moss.Objects.Service do
   # computers/<id>.sqlite -> <id>, the only keys the service keeps
   defp path("computers/" <> file) do
     if String.ends_with?(file, ".sqlite"),
-      do: {:ok, String.trim_trailing(file, ".sqlite")},
+      do: {:ok, "disks/" <> String.trim_trailing(file, ".sqlite")},
       else: {:error, "the service keeps only computers' disks"}
   end
 

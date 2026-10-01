@@ -32,4 +32,41 @@ defmodule Moss.Objects.Local do
       other -> other
     end
   end
+
+  # a computer's log: its segments under logs/<id>/<level>/<file>
+  defp log_dir(id), do: path("logs/#{id}")
+
+  @impl true
+  def log_list(id) do
+    dir = log_dir(id)
+
+    segments =
+      for f <- Path.wildcard(Path.join(dir, "*/*.ltx")),
+          name = Path.relative_to(f, dir),
+          Moss.Objects.segment?(name),
+          into: %{},
+          do: {name, File.stat!(f).size}
+
+    {:ok, segments}
+  end
+
+  @impl true
+  def log_get(id, name),
+    do: if(Moss.Objects.segment?(name), do: get("logs/#{id}/#{name}"), else: :not_found)
+
+  @impl true
+  def log_put(id, name, body),
+    do:
+      if(Moss.Objects.segment?(name),
+        do: put("logs/#{id}/#{name}", body),
+        else: {:error, :bad_segment}
+      )
+
+  @impl true
+  def log_delete(id, name),
+    do:
+      if(Moss.Objects.segment?(name),
+        do: delete("logs/#{id}/#{name}"),
+        else: {:error, :bad_segment}
+      )
 end
