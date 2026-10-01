@@ -125,4 +125,57 @@ defmodule MossWeb.AppTest do
     assert %{code: 22, err: err} = Computer.run(c, "open app")
     assert err =~ "500"
   end
+
+  # what `help shroomi` tells an agent about apps is how they work: each line it states, done here as written
+  test "help shroomi teaches the app and the browser, and what it says holds" do
+    c = cid()
+    assert %{code: 0, out: help} = Computer.run(c, "help shroomi")
+
+    for line <- [
+          "/home/app.lua",
+          ~s(hx-post = "add" reaches path "/add"),
+          ~s(headers["hx-request"] == "true"),
+          "open app/plants",
+          "click <id|words>"
+        ],
+        do: assert(help =~ line, line)
+
+    assert Computer.run(c, "help click").out == Moss.Computer.App.help()
+
+    put_file(c, "/home/app.lua", ~S"""
+    local ui = require("shroomi")
+    return function(req)
+      local d = db.open("notes.db")
+      d:exec("create table if not exists note (text text)")
+      if req.method == "POST" and req.path == "/add" then
+        d:exec("insert into note values (?)", req.form.text)
+        if req.headers["hx-request"] == "true" then return ui.render(ui.li(req.form.text)) end
+        return { redirect = "notes/all" }
+      elseif req.path == "/notes/all" then
+        local items = {}
+        for i, r in ipairs(d:query("select text from note")) do items[i] = ui.li(r.text) end
+        return ui.page{ title = "All notes", ui.ul(items) }
+      end
+      return ui.page{ title = "Notes",
+        ui.form{ post = "add", ui.input{ name = "text", label = "Note" }, ui.button"Keep" } }
+    end
+    """)
+
+    :ok = Moss.Owners.claim(c, "tester")
+    hx = as("tester") |> put_req_header("hx-request", "true")
+    assert post(hx, "/computers/#{c}/app/add", %{"text" => "seeds"}).resp_body == "<li>seeds</li>"
+
+    assert redirected_to(post(as("tester"), "/computers/#{c}/app/add", %{"text" => "soil"}), 303) =~
+             "notes/all"
+
+    assert %{code: 0, out: out} = Computer.run(c, "open app/notes/all")
+    assert out =~ "seeds" and out =~ "soil"
+
+    assert %{code: 0, out: out} = Computer.run(c, "open app")
+    assert out =~ ~s(field "Note")
+    assert %{code: 0} = Computer.run(c, "type Note water")
+    assert %{code: 0} = Computer.run(c, "click Keep")
+    assert %{code: 0, out: out} = Computer.run(c, "open app/notes/all")
+    assert out =~ "water"
+  end
 end

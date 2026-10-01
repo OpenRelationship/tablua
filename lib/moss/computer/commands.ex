@@ -84,14 +84,19 @@ defmodule Moss.Computer.Commands do
     do: {0, Moss.Computer.Script.reference(), "", state}
 
   defp builtin("help", ["shroomi" | _], _, state),
-    do: {0, Moss.Computer.Script.shroomi_reference(), "", state}
+    do: {0, Moss.Computer.Script.shroomi_reference() <> Moss.Computer.App.help(), "", state}
+
+  defp builtin("help", [cmd | _], _, state)
+       when cmd in ~w(open page ui click type submit back tabs app),
+       do: {0, Moss.Computer.App.help(), "", state}
 
   defp builtin("help", _, _, state),
     do:
       {0,
        "commands: " <>
          Enum.join(names(), " ") <>
-         "\n(help lua: the Lua library; help shroomi: pages and apps)\n", "", state}
+         "\n(help lua: the Lua library; help shroomi: pages and apps; help open: the browser)\n",
+       "", state}
 
   defp builtin("date", _, _, state),
     do:

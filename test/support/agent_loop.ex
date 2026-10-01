@@ -1,0 +1,115 @@
+defmodule Moss.AgentLoop do
+  @moduledoc """
+  The live agent tests' loop: a model on OpenRouter, given one tool, `computer`, that runs a command line on its
+  own computer. The host's key never reaches the computer. A turn without a command ends the loop only when it
+  says DONE; otherwise the model is told `go_on` and asked again.
+  """
+  alias Moss.Computer
+
+  @tool %{
+    type: "function",
+    function: %{
+      name: "computer",
+      description:
+        "Runs one command line on your computer and returns its status, stdout and stderr. `files` (path -> text) " <>
+          "are written first, relative to `cwd` (default /home); use it to create or replace files.",
+      parameters: %{
+        type: "object",
+        properties: %{
+          cmd: %{type: "string", description: "the command line, e.g. `lua features/steps.lua`"},
+          cwd: %{type: "string"},
+          files: %{type: "object", additionalProperties: %{type: "string"}}
+        },
+        required: ["cmd"]
+      }
+    }
+  }
+
+  @doc "Gives the model its own folders, so another test run (which empties the shared ones) leaves its disk be."
+  def own_folders do
+    dir = Path.join(System.tmp_dir!(), "moss-agent-#{System.unique_integer([:positive])}")
+
+    for {key, sub} <- [work_dir: "work", local_objects: "runs"],
+        do: Application.put_env(:moss, key, Path.join(dir, sub))
+
+    Application.put_env(:moss, :objects, :local)
+  end
+
+  def model, do: System.get_env("MOSS_AGENT_MODEL") || "moonshotai/kimi-k2.7-code"
+
+  @doc "Runs the task to DONE on computer `id`; returns {turns, the command lines it ran}."
+  def run(id, task, go_on) do
+    key = Moss.Keys.get("jev") || raise "no OPENROUTER_API_KEY"
+    {turns, cmds} = loop(key, model(), id, [%{role: "user", content: task}], go_on, 0, [])
+    IO.puts("\n#{model()}: #{turns} turns, #{length(cmds)} commands on #{id}")
+    {turns, Enum.reverse(cmds)}
+  end
+
+  defp loop(key, model, id, messages, go_on, turns, cmds) do
+    msg = ask(key, model, messages)
+
+    case msg["tool_calls"] do
+      [_ | _] = tcs ->
+        {results, ran} =
+          Enum.map_reduce(tcs, cmds, fn tc, ran ->
+            args = Jason.decode!(tc["function"]["arguments"] || "{}")
+            r = Computer.exec(id, args)
+            IO.puts("$ #{args["cmd"]}  -> #{r["code"]}#{files(args)}")
+
+            {%{
+               role: "tool",
+               tool_call_id: tc["id"],
+               content:
+                 "status #{r["code"]}\n--- stdout\n#{clip(r["stdout"])}\n--- stderr\n#{clip(r["stderr"])}"
+             }, [args["cmd"] | ran]}
+          end)
+
+        loop(key, model, id, messages ++ [msg] ++ results, go_on, turns + 1, ran)
+
+      _ ->
+        said = msg["content"] || ""
+        IO.puts("agent: #{String.slice(said, 0, 400)}")
+
+        if said =~ ~r/\bDONE\b/,
+          do: {turns + 1, cmds},
+          else:
+            loop(
+              key,
+              model,
+              id,
+              messages ++ [msg, %{role: "user", content: go_on}],
+              go_on,
+              turns + 1,
+              cmds
+            )
+    end
+  end
+
+  defp ask(key, model, messages) do
+    resp =
+      Req.post!("https://openrouter.ai/api/v1/chat/completions",
+        auth: {:bearer, key},
+        json: %{model: model, messages: messages, tools: [@tool], max_tokens: 16_000},
+        receive_timeout: 300_000,
+        retry: :transient
+      )
+
+    case resp.body do
+      %{"choices" => [%{"message" => msg} | _]} ->
+        Map.take(msg, ["role", "content", "tool_calls"])
+
+      other ->
+        raise "the model answered #{resp.status}: #{inspect(other) |> String.slice(0, 400)}"
+    end
+  end
+
+  defp files(%{"files" => f}) when is_map(f) and map_size(f) > 0,
+    do: "  (wrote #{Enum.join(Map.keys(f), ", ")})"
+
+  defp files(_), do: ""
+
+  defp clip(s) when is_binary(s) and byte_size(s) > 8000,
+    do: binary_part(s, 0, 8000) <> "\n... (cut)"
+
+  defp clip(s), do: s
+end
