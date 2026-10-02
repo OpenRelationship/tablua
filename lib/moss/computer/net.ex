@@ -119,6 +119,7 @@ defmodule Moss.Computer.Net do
     jar = Keyword.get(opts, :cookies)
 
     with {:ok, method} <- if(method, do: {:ok, method}, else: {:error, :method}),
+         :ok <- Keyword.get(opts, :allow, fn _ -> :ok end).(url),
          {:ok, uri, ip} <- checked(url),
          cookie = jar && Cookies.header(jar, uri, System.os_time(:second)),
          {:ok, resp} <-

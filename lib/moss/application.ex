@@ -19,10 +19,14 @@ defmodule Moss.Application do
         Moss.Owners,
         Moss.Mail,
         Moss.Names
-      ] ++ replication() ++ [MossWeb.Endpoint]
+      ] ++ triggers() ++ replication() ++ [MossWeb.Endpoint]
 
     Supervisor.start_link(children, strategy: :one_for_one, name: Moss.Supervisor)
   end
+
+  # the node's clock for tools with an EVERY; tests tick it themselves
+  defp triggers,
+    do: if(Application.get_env(:moss, :triggers, true), do: [Moss.Triggers], else: [])
 
   # Each awake computer's file streamed by Litestream, its recent work packed by the node's token (Arock
   # PROJECT.md §15 item 4)

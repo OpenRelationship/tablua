@@ -235,6 +235,24 @@ defmodule Moss.Log do
     {:error, to_string(why)}
   end
 
+  @doc """
+  The person's grants and their taking back, in order (feature manifest): `{keyword, {tool, reach, value}}` for each
+  Grant Reach and Revoke Reach on the log.
+  """
+  def reach(conn) do
+    {:ok, rows} =
+      Db.exec(
+        conn,
+        "select e.keyword, a1.value as tool, a2.value as reach, a3.value as value from events e " <>
+          "join args a1 on a1.seq = e.seq and a1.pos = 1 join args a2 on a2.seq = e.seq and a2.pos = 2 " <>
+          "join args a3 on a3.seq = e.seq and a3.pos = 3 " <>
+          "where e.keyword in ('Grant Reach', 'Revoke Reach') order by e.seq",
+        []
+      )
+
+    for r <- rows, do: {r["keyword"], {r["tool"], r["reach"], r["value"]}}
+  end
+
   def clock, do: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
   # blobs.lua's text: what recall indexes, no NUL byte and at most 64 KB

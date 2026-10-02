@@ -40,3 +40,6 @@ config :moss, script_instructions: 20_000_000
 
 # tests stream every second and pack every second, to wait less
 config :moss, litestream_sync: "1s", pack_ms: 1_000
+
+# the triggers are ticked by the tests themselves (Moss.Triggers.tick/1)
+config :moss, :triggers, false

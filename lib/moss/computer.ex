@@ -69,6 +69,18 @@ defmodule Moss.Computer do
 
   @doc "One request to the computer's app (`Moss.Computer.Script.serve/2`): `{status, headers, body, err}`."
   def serve(id, req), do: GenServer.call(wake!(id), {:serve, req}, :infinity)
+
+  @doc "The person's yes to one request a tool asks for (`Moss.Computer.Person`): `:ok` or `{:error, why}`."
+  def grant(id, tool, reach, value),
+    do: GenServer.call(wake!(id), {:person, :grant, [tool, reach, value]})
+
+  def revoke(id, tool, reach, value),
+    do: GenServer.call(wake!(id), {:person, :revoke, [tool, reach, value]})
+
+  @doc "The person's answer to a tool marked ASK; a yes runs it."
+  def answer(id, line, yes?),
+    do: GenServer.call(wake!(id), {:person, :answer, [line, yes?]}, :infinity)
+
   def sleep(id), do: if(pid = whereis(id), do: GenServer.call(pid, :sleep, :infinity), else: :ok)
 
   @doc "Computer `id`'s snapshot now, awake (`Moss.Computer.Keeping.cut/1`); one asleep is whole already."
@@ -199,6 +211,12 @@ defmodule Moss.Computer do
 
     Disk.rest(state.disk)
     {:reply, answer, %{state | touched: now()}, :hibernate}
+  end
+
+  def handle_call({:person, what, args}, _from, state) do
+    reply = apply(Moss.Computer.Person, what, [state | args])
+    Disk.rest(state.disk)
+    {:reply, reply, %{state | touched: now()}}
   end
 
   def handle_call(:view, _from, state) do

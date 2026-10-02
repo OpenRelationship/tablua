@@ -37,6 +37,7 @@ defmodule MossWeb.PagesTest do
     files = %{
       "apps/plants/ui/index.lui" => @plants,
       "apps/plants/ui/_row.lui" => "<li>part</li>",
+      "manifest.org" => "* Apps\n- [[org:#{id}/plants]]\n",
       "ui/index.lui" => ~s(<lua>page.title = "Home"</lua><p class="text-sm">Home</p>),
       "ui/bad.lui" => ~s(<div>\n  <p class="p-4 glow-9000">x</p>\n</div>)
     }

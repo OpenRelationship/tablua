@@ -166,7 +166,9 @@ end })
 function __main(code, name)
   arg = { [0] = name }
   for i, v in ipairs(__args or {}) do arg[i] = v end
-  __args = nil
+  -- a tool's arguments by name too, typed as its manifest declares (arg.city, arg.days)
+  for k, v in pairs(__named or {}) do arg[k] = v end
+  __args, __named = nil, nil
   local function say(e)
     sys.ewrite("lua: " .. tostring(e) .. "\n")
     return 1

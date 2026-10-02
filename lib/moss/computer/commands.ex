@@ -3,9 +3,10 @@ defmodule Moss.Computer.Commands do
   The commands the computer's shell knows. `run(argv, stdin, state)` gives back
   `{code, out, err, state}`. Files and folders are the computer's disk; the text
   tools are `Computer.Text`, the web `Computer.Net`, the browser
-  `Computer.Browser`, and `lua` the computer's language (`Computer.Script`).
+  `Computer.Browser`, `lua` the computer's language (`Computer.Script`), and the tools its manifests declare
+  (`Computer.Tools`).
   """
-  alias Moss.Computer.{Browser, Disk, Mailbox, Net, Script, Text}
+  alias Moss.Computer.{Browser, Disk, Mailbox, Net, Script, Text, Tools}
 
   @builtin ~w(cd pwd echo env export unset true false which help date sleep ls cat mkdir rm rmdir mv cp touch find tree)
 
@@ -13,7 +14,7 @@ defmodule Moss.Computer.Commands do
     do:
       Enum.sort(
         @builtin ++
-          Text.names() ++ Net.names() ++ Browser.names() ++ ["mail"] ++ Script.names()
+          Text.names() ++ Net.names() ++ Browser.names() ++ ["mail", "tools"] ++ Script.names()
       )
 
   def run([name | args], stdin, state) do
@@ -35,6 +36,12 @@ defmodule Moss.Computer.Commands do
 
       name in Script.names() ->
         Script.run(args, stdin, state)
+
+      name == "tools" ->
+        ok(Tools.list(state), state)
+
+      tool = Tools.find(state, name) ->
+        Tools.run(tool, args, stdin, state)
 
       true ->
         {127, "", "#{name}: command not found\n", state}
@@ -88,6 +95,9 @@ defmodule Moss.Computer.Commands do
 
   defp builtin("help", ["app" | _], _, state), do: {0, Moss.Computer.App.help(), "", state}
 
+  defp builtin("help", [m | _], _, state) when m in ~w(manifest tools),
+    do: {0, Tools.help(), "", state}
+
   defp builtin("help", [cmd | _], _, state)
        when cmd in ~w(browser open page read ui click type submit back tabs close data cookies),
        do: {0, Browser.help(), "", state}
@@ -97,7 +107,7 @@ defmodule Moss.Computer.Commands do
       {0,
        "commands: " <>
          Enum.join(names(), " ") <>
-         "\n(help lua: the Lua library; help shroomi: pages and apps; help open: the browser)\n",
+         "\n(help lua: the Lua library; help shroomi: pages and apps; help manifest: tools and reach; help open: the browser)\n",
        "", state}
 
   defp builtin("date", _, _, state),

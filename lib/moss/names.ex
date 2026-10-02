@@ -21,7 +21,8 @@ defmodule Moss.Names do
 
   @reserved ~w(entries mail)
 
-  def computer(id), do: GenServer.call(__MODULE__, {:put, ["org:" <> id], id, "computer", "computer"})
+  def computer(id),
+    do: GenServer.call(__MODULE__, {:put, ["org:" <> id], id, "computer", "computer"})
 
   @doc "The names a manifest at `path` on computer `id` declares, replacing what it declared before; nil when it is gone."
   def manifest(id, path, text) do
@@ -34,7 +35,14 @@ defmodule Moss.Names do
   @doc "Forgets what the manifests at or under `path` on computer `id` declared (removed or moved away)."
   def gone(id, path), do: GenServer.call(__MODULE__, {:gone, id, path})
 
-  def entry(id, entry_id), do: GenServer.call(__MODULE__, {:put, ["org:#{id}/entries/#{entry_id}"], id, "entry", "org"})
+  def entry(id, entry_id),
+    do: GenServer.call(__MODULE__, {:put, ["org:#{id}/entries/#{entry_id}"], id, "entry", "org"})
+
+  @doc "Every tool on the node with an EVERY, as `%{computer, tool, every, since}` (`Moss.Triggers`)."
+  def triggers, do: GenServer.call(__MODULE__, :triggers)
+
+  @doc "Trigger `tool` on computer `id` last ran at `at` (unix seconds)."
+  def ran(id, tool, at), do: GenServer.call(__MODULE__, {:ran, id, tool, at})
 
   @doc "`{:ok, kind}` (computer, app, tool, entry, letter) or `{:error, why}`."
   def resolve(address), do: GenServer.call(__MODULE__, {:resolve, address})
@@ -65,6 +73,14 @@ defmodule Moss.Names do
         []
       )
 
+    {:ok, _} =
+      Db.exec(
+        conn,
+        "create table if not exists triggers (computer text not null, tool text not null, every text not null, " <>
+          "source text not null, since integer not null, primary key (computer, tool))",
+        []
+      )
+
     {:ok, conn}
   end
 
@@ -77,6 +93,7 @@ defmodule Moss.Names do
   def handle_call({:manifest, id, path, app, text}, _from, conn) do
     source = "manifest:" <> path
     {:ok, _} = Db.exec(conn, "delete from names where computer = ? and source = ?", [id, source])
+    triggers(conn, id, source, app, text)
 
     if text do
       %{"apps" => apps, "tools" => tools} = read(text)
@@ -99,6 +116,40 @@ defmodule Moss.Names do
           "(source >= 'manifest:' || ?2 || '/' and source < 'manifest:' || ?2 || '0'))",
         [id, path]
       )
+
+    {:ok, _} =
+      Db.exec(
+        conn,
+        "delete from triggers where computer = ?1 and (source = 'manifest:' || ?2 or " <>
+          "(source >= 'manifest:' || ?2 || '/' and source < 'manifest:' || ?2 || '0'))",
+        [id, path]
+      )
+
+    {:reply, :ok, conn}
+  end
+
+  def handle_call(:triggers, _from, conn) do
+    {:ok, rows} =
+      Db.exec(
+        conn,
+        "select computer, tool, every, since from triggers order by computer, tool",
+        []
+      )
+
+    triggers =
+      for r <- rows,
+          do: %{computer: r["computer"], tool: r["tool"], every: r["every"], since: r["since"]}
+
+    {:reply, triggers, conn}
+  end
+
+  def handle_call({:ran, id, tool, at}, _from, conn) do
+    {:ok, _} =
+      Db.exec(conn, "update triggers set since = ? where computer = ? and tool = ?", [
+        at,
+        id,
+        tool
+      ])
 
     {:reply, :ok, conn}
   end
@@ -143,6 +194,34 @@ defmodule Moss.Names do
     {:ok, [pairs]} = Moss.Lua.call("names", ["manifest", text], %{})
     m = Map.new(pairs)
     %{"apps" => Moss.Lua.list(m["apps"]), "tools" => Moss.Lua.list(m["tools"])}
+  end
+
+  # the manifest's EVERY tools, replacing what it declared; one kept keeps when it last ran
+  defp triggers(conn, id, source, app, text) do
+    {:ok, before} =
+      Db.exec(conn, "select tool, every, since from triggers where computer = ? and source = ?", [
+        id,
+        source
+      ])
+
+    {:ok, _} =
+      Db.exec(conn, "delete from triggers where computer = ? and source = ?", [id, source])
+
+    {:ok, [json]} = if text, do: Moss.Lua.call("names", ["full", text], %{}), else: {:ok, ["{}"]}
+    tools = with(%{"tools" => [_ | _] = t} <- Jason.decode!(json), do: t, else: (_ -> []))
+    now = System.os_time(:second)
+
+    for %{"every" => every, "name" => name} <- tools, is_binary(every) do
+      tool = if app == :root, do: name, else: "#{app}:#{name}"
+      kept = Enum.find(before, &(&1["tool"] == tool and &1["every"] == every))
+
+      {:ok, _} =
+        Db.exec(
+          conn,
+          "insert or replace into triggers (computer, tool, every, source, since) values (?, ?, ?, ?, ?)",
+          [id, tool, every, source, if(kept, do: kept["since"], else: now)]
+        )
+    end
   end
 
   defp put(conn, address, id, kind, source) do

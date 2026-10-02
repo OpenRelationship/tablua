@@ -243,6 +243,7 @@ defmodule Moss.Computer.Disk do
     path = norm(path)
 
     with :ok <- kind(disk, path, &Kinds.file/1),
+         :ok <- Named.check(disk, path, data),
          :ok <- mkdir_p(disk, Path.dirname(path)),
          {:ok, %{dir: false} = st} <- file_or_none(disk, path),
          false <- Map.get(st, :db, false) do
@@ -265,13 +266,20 @@ defmodule Moss.Computer.Disk do
     path = norm(path)
 
     case {stat(disk, Path.dirname(path)), stat(disk, path)} do
-      {{:ok, %{dir: true}}, {:ok, %{dir: true}}} -> :ok
-      {{:ok, %{dir: true}}, {:ok, _}} -> {:error, :eexist}
+      {{:ok, %{dir: true}}, {:ok, %{dir: true}}} ->
+        :ok
+
+      {{:ok, %{dir: true}}, {:ok, _}} ->
+        {:error, :eexist}
+
       {{:ok, %{dir: true}}, {:error, :enoent}} ->
         with :ok <- kind(disk, path, &Kinds.folder/1), do: log(disk, "Make Folder", [path])
 
-      {{:ok, _}, _} -> {:error, :enotdir}
-      {error, _} -> error
+      {{:ok, _}, _} ->
+        {:error, :enotdir}
+
+      {error, _} ->
+        error
     end
   end
 
@@ -380,7 +388,11 @@ defmodule Moss.Computer.Disk do
 
   defp movable(disk, from, to, %{dir: true}) do
     {:ok, rows} =
-      Db.exec(disk.conn, "select path, dir from nodes where path >= ?1 || '/' and path < ?1 || '0'", [from])
+      Db.exec(
+        disk.conn,
+        "select path, dir from nodes where path >= ?1 || '/' and path < ?1 || '0'",
+        [from]
+      )
 
     Enum.reduce_while([%{"path" => from, "dir" => 1} | rows], :ok, fn r, :ok ->
       dest = to <> binary_part(r["path"], byte_size(from), byte_size(r["path"]) - byte_size(from))

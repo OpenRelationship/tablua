@@ -14,7 +14,7 @@ defmodule Moss.Computer.Script do
   #{div(120_000, 1000)} s, and its VM stops itself past #{div(500_000_000, 1_000_000)} million instructions or
   a #{div(16 * 1024 * 1024, 1_048_576)} MB string; output past #{div(1024 * 1024, 1024)} KB ends it too.
   """
-  alias Moss.Computer.{Disk, Net}
+  alias Moss.Computer.Disk
   alias Moss.Computer.Script.Sql
 
   @heap_words div(64 * 1024 * 1024, :erlang.system_info(:wordsize))
@@ -104,6 +104,7 @@ defmodule Moss.Computer.Script do
       )
       |> bind(stdin, state)
       |> Lua.set!([:__args], args)
+      |> Lua.set!([:__named], Map.get(state, :tool_args, %{}))
 
     {_, lua} = Lua.eval!(lua, prelude())
     lua
@@ -200,7 +201,7 @@ defmodule Moss.Computer.Script do
     |> fun(:rename, fn [a, b | _] -> result(Disk.rename(disk, path.(a), path.(b))) end)
     |> fun(:stat, fn [p | _] -> stat(Disk.stat(disk, path.(p))) end)
     |> list_fun(disk, path)
-    |> http_fun()
+    |> Moss.Computer.Script.Http.bind(state)
     |> json_funs()
     |> mail_fun(state)
     |> db_funs(disk, path)
@@ -229,36 +230,6 @@ defmodule Moss.Computer.Script do
     end)
   end
 
-  # http.request{ method, url, headers, body } -> { status, body, url, headers }, under the web rules
-  defp http_fun(lua) do
-    fun(lua, :http, fn [{:tref, _} = t | _], lua ->
-      req = Map.new(Lua.decode!(lua, t))
-      headers = for {k, v} <- Map.new(req["headers"] || []), do: {to_string(k), to_string(v)}
-      method = String.upcase(req["method"] || "GET")
-
-      if method in ~w(GET POST PUT PATCH DELETE HEAD) do
-        case Net.get(req["url"] || "", method: method, headers: headers, body: req["body"]) do
-          {:ok, r} ->
-            hs = for {k, v} <- r.headers, do: {k, Enum.join(List.wrap(v), ", ")}
-
-            {t, lua} =
-              Lua.encode!(lua, %{
-                "status" => r.status,
-                "body" => r.body,
-                "url" => r.url,
-                "headers" => Map.new(hs)
-              })
-
-            {[t], lua}
-
-          {:error, why} ->
-            {[nil, to_string(why)], lua}
-        end
-      else
-        {[nil, "no such method: #{method}"], lua}
-      end
-    end)
-  end
 
   defp json_funs(lua) do
     lua

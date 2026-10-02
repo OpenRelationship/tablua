@@ -123,7 +123,22 @@ defmodule Moss.ScriptTest do
     print(http.request({ method = "TRACE", url = "http://93.184.215.14/echo" }))
     """)
 
-    assert %{code: 0, out: out} = sh(c, "lua code/f.lua")
+    # a lua run outside a tool reaches nothing; the tool reaches what it asks and the person granted
+    assert %{code: 0, out: "nil\ta lua run outside a tool" <> _} =
+             sh(c, ~s|lua -e 'print(http.get("http://93.184.215.14/echo"))'|)
+
+    put(c, "/home/manifest.org", """
+    * Tools
+    ** f
+    :PROPERTIES:
+    :RUN: code/f.lua
+    :NET: 93.184.215.14, 10.0.0.8, 127.0.0.1
+    :END:
+    Fetches under the web rules.
+    """)
+
+    for h <- ~w(93.184.215.14 10.0.0.8 127.0.0.1), do: :ok = Computer.grant(c, "f", "NET", h)
+    assert %{code: 0, out: out} = sh(c, "f")
 
     assert [
              "201\tfern\t2",

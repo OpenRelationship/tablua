@@ -65,6 +65,7 @@ end
 -- Names (Arock's feature manifest): what a manifest.org declares, read by alog, for the node's registry.
 --   arock.names("manifest", text) -> { apps = { name, ... }, tools = { name, ... } }, the valid ones only
 --   arock.names("address", s)     -> { computer, part, ... } | nil, why
+--   arock.names("full", text), arock.names("check", text): below
 local names = {}
 
 function names.manifest(text)
@@ -77,6 +78,30 @@ function names.manifest(text)
 end
 
 function names.address(s) return require("alog.org").address(s) end
+
+-- arock.names("full", text) -> JSON { apps = { name, ... }, tools = { tool, ... } } in their order, each tool as
+-- alog.manifest reads it (run, description, args, every, on, net, mail, account, ask, publish), the valid ones only
+function names.full(text)
+  local m = require("alog.manifest").read(require("alog.org").parse(text), { host = true })
+  local out = { apps = {}, tools = {} }
+  for _, a in ipairs(m.apps) do out.apps[#out.apps + 1] = a.name end
+  for _, n in ipairs(m.order) do
+    local t = m.tools[n]
+    out.tools[#out.tools + 1] = { name = t.name, run = t.run, description = t.description, args = t.args,
+      every = t.every, on = t.on, net = t.net, mail = t.mail, account = t.account, ask = t.ask or false,
+      publish = t.publish or false }
+  end
+  return require("ports.json").encode(out)
+end
+
+-- arock.names("check", text) -> JSON { "line: why", ... }: a manifest as an agent wrote it, checked as alog checks
+-- it (GRANTED is the host's, never an agent's)
+function names.check(text)
+  local _, errs = require("alog.org_kinds").check("manifest", text)
+  local out = {}
+  for i, e in ipairs(errs) do out[i] = e.line .. ": " .. e.msg end
+  return require("ports.json").encode(out)
+end
 
 function arock.names(what, ...)
   return names[what](...)

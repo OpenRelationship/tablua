@@ -3,9 +3,10 @@ defmodule Moss.Computer.Pages do
   Which page answers a request (Arock's feature `file-kinds`): a `.lui` page is served at its path in its app.
   `/plants/list` is `apps/plants/ui/list.lui` when the computer has an app `plants`, and `/list` is
   `/home/ui/list.lui`; a path ending at a folder is its `index.lui`. A part (`ui/_row.lui`) is never served.
-  The page runs in its app's folder, so `data/plants.dbl` is the app's own.
+  The page runs in its app's folder, so `data/plants.dbl` is the app's own. An app is served only when the root
+  manifest lists it (feature manifest): a folder under apps/ not listed is not found.
   """
-  alias Moss.Computer.Disk
+  alias Moss.Computer.{Disk, Manifest}
 
   @doc "`{cwd, page}`: the folder a request runs in and its page's path, or `{\"/home\", nil}` for none."
   def route(path, disk) do
@@ -66,7 +67,8 @@ defmodule Moss.Computer.Pages do
   defp app?(disk, name),
     do:
       Regex.match?(~r"\A[a-z0-9][a-z0-9-]{0,63}\z", name) and
-        match?({:ok, %{dir: true}}, Disk.stat(disk, "/home/apps/" <> name))
+        match?({:ok, %{dir: true}}, Disk.stat(disk, "/home/apps/" <> name)) and
+        Manifest.listed?(disk, name)
 
   defp page(root, rest, folder?) do
     cond do

@@ -15,7 +15,7 @@ defmodule MossWeb.GalleryTest do
     id = "gallery-#{System.unique_integer([:positive])}"
 
     files =
-      for f <- Path.wildcard(@examples <> "/**/*.lui"),
+      for f <- Path.wildcard(@examples <> "/**/*.{lui,org}"),
           into: %{},
           do: {Path.relative_to(f, @examples), File.read!(f)}
 
