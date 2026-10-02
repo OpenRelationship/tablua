@@ -1,9 +1,7 @@
 defmodule Moss do
   @moduledoc """
-  Moss keeps the contexts that define your domain
-  and business logic.
-
-  Contexts are also responsible for managing your data, regardless
-  if it comes from the database, an external API or others.
+  MOSS, the agent's own computer (Arock PROJECT.md §14): a process per agent (`Moss.Computer`), its disk one SQLite
+  file, a shell of its own, a browser, mail at its host's post, and Lua run on moss-lua with the computer as its
+  library. A host runs it (`Moss.Host`): arock-server on a node, or `Moss.Host.Local` on its own.
   """
 end

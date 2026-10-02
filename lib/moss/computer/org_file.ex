@@ -44,7 +44,7 @@ defmodule Moss.Computer.OrgFile do
   end
 
   defp resolve(_disk, _path, "org:" <> _ = address) do
-    case Moss.Names.resolve(address) do
+    case Moss.Host.resolve(address) do
       {:ok, _} -> true
       {:error, why} -> {false, why}
     end

@@ -1,6 +1,6 @@
 defmodule Moss.Computer.Named do
   @moduledoc """
-  A computer's manifests on the node's names (`Moss.Names`, Arock's feature manifest): a manifest.org an agent
+  A computer's manifests on the node's names (`Moss.Host`, Arock's feature manifest): a manifest.org an agent
   writes is checked first, as arock-log checks it (a bad line, or a GRANTED only the host writes, refuses the write);
   written, removed or moved, it re-registers what it names and its triggers, and a request it no longer makes
   takes its grant back. The person's own requests and a disk with no computer name nothing.
@@ -18,9 +18,8 @@ defmodule Moss.Computer.Named do
   end
 
   def written(%{task: id} = disk, path, data) when is_binary(id) do
-    if disk.actor != "user" and String.ends_with?(path, "/manifest.org") and
-         Process.whereis(Moss.Names) do
-      Moss.Names.manifest(id, path, data)
+    if disk.actor != "user" and String.ends_with?(path, "/manifest.org") do
+      Moss.Host.manifest(id, path, data)
       Manifest.revoke_dropped(disk, id)
     end
 
@@ -30,10 +29,8 @@ defmodule Moss.Computer.Named do
   def written(_, _, _), do: :ok
 
   def removed(%{task: id} = disk, path) when is_binary(id) do
-    if Process.whereis(Moss.Names) do
-      Moss.Names.gone(id, path)
-      Manifest.revoke_dropped(disk, id)
-    end
+    Moss.Host.gone(id, path)
+    Manifest.revoke_dropped(disk, id)
 
     :ok
   end

@@ -12,8 +12,7 @@ defmodule Moss.Computer do
 
   Asleep, the computer is its whole file in the object store
   (`computers/<id>.sqlite`); awake, Litestream streams it on the node and the
-  node keeps its recent work in packs (`Moss.Litestream`,
-  `Moss.Computer.Keeping`, `Moss.Objects.Packer`); `run` wakes it. It sleeps by itself after `idle_ms` with nothing to do. Every
+  node keeps its recent work in packs (the host's, `Moss.Host`); `run` wakes it. It sleeps by itself after `idle_ms` with nothing to do. Every
   command is broadcast on `computer:<id>` for a person watching
   (`ComputerLive`).
 
@@ -25,8 +24,8 @@ defmodule Moss.Computer do
   """
   use GenServer
   require Logger
-  alias Moss.{Litestream, Log, Mail}
-  alias Moss.Computer.{Browser, Disk, Keeping, Script, Session, Shell}
+  alias Moss.{Host, Log}
+  alias Moss.Computer.{Browser, Disk, Script, Session, Shell}
 
   @registry Moss.Computer.Registry
   @lines 200
@@ -57,12 +56,12 @@ defmodule Moss.Computer do
   def view(id), do: GenServer.call(wake!(id), :view)
 
   @doc """
-  Posts a letter from computer `id` (`Moss.Mail.post/4`) and tells the computer,
+  Posts a letter from computer `id` (`Moss.Host.post/4`) and tells the computer,
   which logs it when the run that sent it is over. Called inside a run, so the
   computer's own process is busy: the post never calls back into it.
   """
   def mail(id, to, subject, body) do
-    result = Mail.post(id, to, subject, body)
+    result = Host.post(id, to, subject, body)
     if pid = whereis(id), do: send(pid, {:mailed, to, subject, body, result})
     result
   end
@@ -86,7 +85,7 @@ defmodule Moss.Computer do
 
   def sleep(id), do: if(pid = whereis(id), do: GenServer.call(pid, :sleep, :infinity), else: :ok)
 
-  @doc "Computer `id`'s snapshot now, awake (`Moss.Computer.Keeping.cut/1`); one asleep is whole already."
+  @doc "Computer `id`'s snapshot now, awake (`Moss.Host.cut/1`); one asleep is whole already."
   def snapshot(id),
     do: if(pid = whereis(id), do: GenServer.call(pid, :snapshot, :infinity), else: :ok)
 
@@ -126,17 +125,17 @@ defmodule Moss.Computer do
 
     File.mkdir_p!(Path.dirname(path))
 
-    with :ok <- Keeping.pull(id, path),
+    with :ok <- Host.pull(id, path),
          {:ok, disk} <- Disk.open(path, id) do
       :ok = Disk.mkdir_p(disk, "/home")
       :ok = Disk.mkdir_p(disk, "/tmp")
-      Moss.Names.computer(id)
+      Host.computer(id)
       :ok = Moss.Computer.Procedures.ensure(disk)
       disk = %{disk | actor: "agent"}
       Phoenix.PubSub.subscribe(Moss.PubSub, "mail:" <> id)
       idle = opts[:idle_ms] || Application.get_env(:moss, :idle_ms, 300_000)
       Process.send_after(self(), :idle, idle)
-      if Litestream.mode() == :litestream, do: snapshot_later()
+      if Host.streamed?(), do: snapshot_later()
       kept = Session.kept(disk, %{})
 
       {:ok,
@@ -236,14 +235,14 @@ defmodule Moss.Computer do
   end
 
   def handle_call(:snapshot, _from, state) do
-    case Keeping.cut(state) do
+    case Host.cut(state) do
       {:stop, why, state} -> {:stop, why, {:error, why}, state}
       {result, state} -> {:reply, result, state}
     end
   end
 
   def handle_call(:sleep, _from, state) do
-    case Keeping.sleep(state) do
+    case Host.sleep(state) do
       :ok -> {:stop, :normal, :ok, %{state | disk: nil}}
       # its disk is closed and its files are still on the node: the next wake opens them
       error -> {:stop, :normal, error, %{state | disk: nil}}
@@ -270,7 +269,7 @@ defmodule Moss.Computer do
   end
 
   def handle_info(:snapshot, state) do
-    case Keeping.cut(state) do
+    case Host.cut(state) do
       {:stop, why, state} ->
         {:stop, why, state}
 
@@ -293,7 +292,7 @@ defmodule Moss.Computer do
       Process.send_after(self(), :idle, left)
       {:noreply, state, :hibernate}
     else
-      case Keeping.sleep(state) do
+      case Host.sleep(state) do
         :ok -> {:stop, :normal, %{state | disk: nil}}
         error -> {:stop, {:sleep_failed, error}, state}
       end
@@ -357,7 +356,7 @@ defmodule Moss.Computer do
 
     except = for %{"value" => v} <- held, {n, ""} <- [Integer.parse(v)], do: n
 
-    for l <- Mail.inbox_except(state.id, except) do
+    for l <- Host.inbox_except(state.id, except) do
       log(
         state,
         "Receive Mail",
@@ -370,7 +369,7 @@ defmodule Moss.Computer do
   end
 
   # A computer awake longer than snapshot_ms (4 hours, config.exs says why) is snapshotted where it is,
-  # so its old packs can go (Moss.Computer.Keeping.cut/1).
+  # so its old packs can go (Moss.Host.cut/1).
   defp snapshot_later,
     do: Process.send_after(self(), :snapshot, Application.fetch_env!(:moss, :snapshot_ms))
 

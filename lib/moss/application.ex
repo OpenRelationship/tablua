@@ -4,7 +4,7 @@ defmodule Moss.Application do
 
   @impl true
   def start(_type, _args) do
-    # The core's base Lua state (Jev for the post), built once on this node.
+    # The core's base Lua state, built once on this node.
     Moss.Lua.base()
 
     # Every module now, as a release loads them: a computer's kept session names their atoms (Moss.Computer.Session.kept/2)
@@ -13,35 +13,15 @@ defmodule Moss.Application do
     # the node's compiled .lui pages (Moss.Computer.Script), owned by this process for the node's life
     Moss.Computer.Script.compiled_table()
 
+    # The computers and what they tell their watchers (a computer's commands, its home, its mail), on Moss.PubSub;
+    # the host (Moss.Host) starts its own services beside these.
     children =
       [
-        MossWeb.Telemetry,
         {Phoenix.PubSub, name: Moss.PubSub},
         {Registry, keys: :unique, name: Moss.Computer.Registry},
-        {DynamicSupervisor, name: Moss.Computer.Supervisor, strategy: :one_for_one},
-        Moss.Owners,
-        Moss.Mail,
-        Moss.Names
-      ] ++ Moss.Computer.Look.children() ++ triggers() ++ replication() ++ [MossWeb.Endpoint]
+        {DynamicSupervisor, name: Moss.Computer.Supervisor, strategy: :one_for_one}
+      ] ++ Moss.Computer.Look.children()
 
     Supervisor.start_link(children, strategy: :one_for_one, name: Moss.Supervisor)
-  end
-
-  # the node's clock for tools with an EVERY; tests tick it themselves
-  defp triggers,
-    do: if(Application.get_env(:moss, :triggers, true), do: [Moss.Triggers], else: [])
-
-  # Each awake computer's file streamed by Litestream, its recent work packed by the node's token (Arock
-  # PROJECT.md §15 item 4)
-  defp replication do
-    if Moss.Litestream.mode() == :litestream,
-      do: [Moss.Litestream, Moss.Objects.Packer],
-      else: []
-  end
-
-  @impl true
-  def config_change(changed, _new, removed) do
-    MossWeb.Endpoint.config_change(changed, removed)
-    :ok
   end
 end

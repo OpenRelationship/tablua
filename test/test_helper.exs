@@ -1,15 +1,8 @@
-# Runs, their objects and the node's books start empty on every test run: the
-# app is stopped first, so nothing holds a file in them while they go.
+# Computers start empty on every test run: the app is stopped first, so nothing holds a file while they go.
 Application.stop(:moss)
-
-for dir <- [:work_dir, :local_objects, :host_dir],
-    do: File.rm_rf!(Application.fetch_env!(:moss, dir))
-
+File.rm_rf!(Application.fetch_env!(:moss, :work_dir))
 {:ok, _} = Application.ensure_all_started(:moss)
-# Litestream's end-to-end tests run where its binary is (Moss.Litestream.bin/0)
-exclude =
-  [:service, :agent, :bench, :build] ++ if(Moss.Litestream.bin(), do: [], else: [:litestream])
 
 # the look's tests run where its module is (mix moss.look) and the node started its look node
-exclude = exclude ++ if(Process.whereis(Moonflower.Look.Node), do: [], else: [:look])
+exclude = [:service, :agent, :bench, :build] ++ if(Process.whereis(Moonflower.Look.Node), do: [], else: [:look])
 ExUnit.start(exclude: exclude)

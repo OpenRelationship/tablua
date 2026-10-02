@@ -3,7 +3,7 @@ defmodule Moss.LogTest do
   # events on its own SQLite file, its `nodes` the fold of that log, so what a computer did is its history.
   use ExUnit.Case, async: false
 
-  alias Moss.{Computer, Db, Log, Mail}
+  alias Moss.{Computer, Db, Log}
   alias Moss.Computer.{App, Disk}
 
   defp id, do: "log-#{System.unique_integer([:positive])}"
@@ -159,52 +159,6 @@ defmodule Moss.LogTest do
              events(c, ["Serve Request"])
 
     assert {_, ""} = Float.parse(ms)
-  end
-
-  test "mail is an event on both ends: sent after the run, received on delivery or on the next wake" do
-    n = System.unique_integer([:positive])
-    {a, b, z} = {"log-a#{n}", "log-b#{n}", "log-z#{n}"}
-    :ok = Mail.route(a, b, "audit")
-    :ok = Mail.route(a, z, "audit")
-    sh(b, "true")
-
-    sh(a, "lua -e 'print(mail.send(\"#{b}\", \"fern\", \"water it\"))'")
-    sh(a, "mail send #{z} moss -m keep it damp")
-    sh(a, "mail send nobody-#{n} hi -m hello")
-
-    [{:delivered, l1}, {:delivered, l2}] =
-      for l <- Mail.sent(a), l["state"] == "delivered", do: {:delivered, l["id"]}
-
-    assert [
-             {"Send Mail", "agent", [^b, "fern", "water it", "delivered", s1]},
-             {"Send Mail", "agent", [^z, "moss", "keep it damp", "delivered", s2]},
-             {"Send Mail", "agent", ["nobody-" <> _, "hi", "hello", "refused: " <> _, ""]}
-           ] = events(a, ["Send Mail"])
-
-    assert {s1, s2} == {to_string(l1), to_string(l2)}
-
-    # each Send Mail comes before the run that sent it is logged
-    assert [
-             "Send Mail",
-             "Run Command" | _
-           ] = events(a, ["Send Mail", "Run Command"]) |> Enum.map(&elem(&1, 0))
-
-    # b was awake: the letter is logged as it arrives, as the post keeps it (an org entry)
-    letter = fn subject, to, id, text ->
-      "* #{subject}\n:PROPERTIES:\n:FROM: org:#{a}\n:TO: org:#{to}\n:ID: org:#{a}/mail/#{id}\n:END:\n#{text}\n"
-    end
-
-    fern = letter.("fern", b, s1, "water it")
-    assert [{"Receive Mail", "host", [^a, "fern", ^fern, ^s1]}] = events(b, ["Receive Mail"])
-
-    # z was asleep: on its wake, once
-    refute Computer.whereis(z)
-
-    moss = letter.("moss", z, s2, "keep it damp")
-    assert [{"Receive Mail", "host", [^a, "moss", ^moss, ^s2]}] = events(z, ["Receive Mail"])
-
-    :ok = Computer.sleep(z)
-    assert [_] = events(z, ["Receive Mail"])
   end
 
   test "recall finds a file by its text, and the event that wrote it" do

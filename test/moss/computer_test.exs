@@ -4,7 +4,7 @@ defmodule Moss.ComputerTest do
   # and nothing it does reaches the node or another agent's computer.
   use ExUnit.Case, async: false
 
-  alias Moss.{Computer, Objects}
+  alias Moss.Computer
   alias Moonflower.Page
   alias Moss.Computer.Net
 
@@ -64,13 +64,14 @@ defmodule Moss.ComputerTest do
     assert %{out: "secret\n"} = sh(a, "cat files/mine.txt")
   end
 
-  test "it sleeps to the object store and wakes with its files, folder and tabs" do
+  # on its own host (Moss.Host.Local) its file stays where it is; arock-server's tests send it to the object store
+  test "it sleeps and wakes with its files, folder and tabs" do
     c = id()
     sh(c, "mkdir -p files/work && cd files/work && echo kept > a.txt")
     ref = Process.monitor(Computer.whereis(c))
     assert :ok = Computer.sleep(c)
     assert_receive {:DOWN, ^ref, :process, _, :normal}, 2_000
-    assert {:ok, _} = Objects.get(Objects.computer_key(c))
+    assert File.exists?(Path.join([Application.fetch_env!(:moss, :work_dir), "computers", c <> ".sqlite"]))
     {us, r} = :timer.tc(fn -> sh(c, "cat a.txt") end)
     assert %{out: "kept\n", cwd: "/home/files/work"} = r
     assert us < 500_000

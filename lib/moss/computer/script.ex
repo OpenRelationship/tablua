@@ -287,7 +287,7 @@ defmodule Moss.Computer.Script do
 
   defp json(v), do: v
 
-  # mail.send(to, subject, body) -> id, or nil and why; along the routes a person set (Moss.Mail), and logged by
+  # mail.send(to, subject, body) -> id, or nil and why; along the routes a person set (the host's post, Moss.Host), and logged by
   # the computer when the run is over (Moss.Computer.mail/4)
   defp mail_fun(lua, state) do
     fun(lua, :mail, fn [to, subject, body | _] ->

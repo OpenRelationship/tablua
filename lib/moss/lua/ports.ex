@@ -20,7 +20,7 @@ defmodule Moss.Lua.Ports do
 
   Only `db` and `computer` are per call; the rest are the same for every call.
   """
-  alias Moss.{Db, Fetch, Keys}
+  alias Moss.{Db, Fetch}
 
   def bind(lua, ports) do
     lua
@@ -28,7 +28,7 @@ defmodule Moss.Lua.Ports do
     |> Lua.set!([:__host, :now], fn _ -> [System.monotonic_time(:microsecond) / 1.0e6] end)
     |> Lua.set!([:__host, :sleep], &sleep/1)
     |> Lua.set!([:__host, :fetch], &fetch/2)
-    |> Lua.set!([:__host, :key], fn [name | _] -> [Keys.get(name)] end)
+    |> Lua.set!([:__host, :key], fn [name | _] -> [Moss.Host.key(name)] end)
     |> Lua.set!([:__host, :sha256], fn [s | _] ->
       [Base.encode16(:crypto.hash(:sha256, s), case: :lower)]
     end)

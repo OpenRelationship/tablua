@@ -83,7 +83,7 @@ defmodule Moss.AgentLoop do
   def run(id, task, go_on, opts) do
     model = opts[:model] || @model
     spec = @models[model] || raise "#{model} is not a model the loop runs: #{inspect(models())}"
-    key = Moss.Keys.get(spec.key) || raise "no key for #{model} (Moss.Keys #{spec.key})"
+    key = Moss.Host.key(spec.key) || raise "no key for #{model} (Moss.Host.key #{spec.key})"
 
     messages = [%{role: "system", content: context(id)}, %{role: "user", content: task}]
     Process.put(:agent_cost, 0.0)

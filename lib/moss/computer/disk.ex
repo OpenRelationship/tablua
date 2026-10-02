@@ -64,12 +64,12 @@ defmodule Moss.Computer.Disk do
   end
 
   @doc """
-  Closes the disk. Kept whole (`Moss.Litestream.mode/0` is `:whole`), its WAL
+  Closes the disk. Kept whole (`Moss.Host.streamed?/0` is false), its WAL
   is folded in first, so the file alone is the disk; streamed by Litestream,
   the file is only closed: Litestream owns its checkpoints and its WAL.
   """
   def close(disk) do
-    if Moss.Litestream.mode() == :litestream,
+    if Moss.Host.streamed?(),
       do: Exqlite.Sqlite3.close(disk.conn),
       else: Db.checkpoint_and_close(disk.conn)
   end
@@ -85,7 +85,7 @@ defmodule Moss.Computer.Disk do
 
   @doc """
   Marks the file at `path` (made if missing) as the computer's `gen`th wake, its `user_version`, and leaves it whole:
-  a woken computer's chain of segments is named by it, and its snapshot carries it (Moss.Objects.Snapshot).
+  a woken computer's chain of segments is named by it, and its snapshot carries it (the host's, `Moss.Host.cut/1`).
   """
   def stamp(path, gen) when is_integer(gen) and gen > 0 do
     with {:ok, conn} <- Db.open(path),
@@ -96,7 +96,7 @@ defmodule Moss.Computer.Disk do
   # arock-log's replicated settings (alog.LITESTREAM) when Litestream streams the file: WAL and busy_timeout are
   # Db.open's, synchronous normal is every disk's, and Litestream alone checkpoints
   defp replicated(conn) do
-    if Moss.Litestream.mode() == :litestream,
+    if Moss.Host.streamed?(),
       do: Db.exec(conn, "pragma wal_autocheckpoint = 0", []),
       else: {:ok, []}
   end

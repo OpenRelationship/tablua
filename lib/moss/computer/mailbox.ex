@@ -1,6 +1,6 @@
 defmodule Moss.Computer.Mailbox do
   @moduledoc """
-  `mail` on an agent's computer: its inbox at the post (`Moss.Mail`, PROJECT.md §14.5); `help mail` is its help.
+  `mail` on an agent's computer: its inbox at the post (the host's, `Moss.Host`; PROJECT.md §14.5); `help mail` is its help.
   `run(args, stdin, state)` gives back `{code, out, err}`.
   """
 
@@ -28,7 +28,7 @@ defmodule Moss.Computer.Mailbox do
   """
 
   def help, do: @help
-  alias Moss.Mail
+  alias Moss.Host, as: Mail
 
   def run([], _stdin, state) do
     case Mail.inbox(state.id) do
