@@ -16,7 +16,10 @@ defmodule Moss.GuardTest do
       "SQLite, for the host's own storage only: fixed statements, an agent's bytes only as bound values " <>
         "(its SQL runs in Moss.Sql, and a trace test holds that)",
     "lazy_html" =>
-      "test-only (Phoenix.LiveViewTest needs it; cleaner tests use it as an independent check)"
+      "test-only (Phoenix.LiveViewTest needs it; cleaner tests use it as an independent check)",
+    "wasmex" =>
+      "moonflower's look only (Arock PROJECT.md §16.3): one pinned module, run in a node of its own " <>
+        "(Moonflower.Look.Node over :peer), never in this one, and no Moss source calls it"
   }
 
   # the only files that may call SQLite, each running statements written here, never an agent's
@@ -65,6 +68,7 @@ defmodule Moss.GuardTest do
     lazy = Enum.find(Mix.Project.config()[:deps], &(elem(&1, 0) == :lazy_html))
     assert lazy && Keyword.get(elem(lazy, tuple_size(lazy) - 1), :only) == :test
     assert sources_with(~r/\bLazyHTML\b/) == [], "LazyHTML is used outside tests"
+    assert sources_with(~r/\bWasmex\b/) == [], "Moss calls wasmex itself: only moonflower's look node may"
   end
 
   test "only the host's own storage reaches SQLite" do
