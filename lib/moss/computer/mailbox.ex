@@ -18,7 +18,13 @@ defmodule Moss.Computer.Mailbox do
   task's new state. The post stamps :FROM:, :TO: and :ID:. Every org: link must name something on the node.
 
       echo '* TODO Build the plants page' | mail send moss-1
-      printf '* DONE Built it\n:PROPERTIES:\n:TASK: org:fern/mail/7\n:END:\nIt lists the plants.\n' | mail send fern
+  mail send fern -m '* DONE Built it
+  :PROPERTIES:
+  :TASK: org:fern/mail/7
+  :END:
+  It lists the plants at /plants/.'
+
+  A longer letter: write it with the tool's files (files/reply.txt), then mail send fern < files/reply.txt.
   """
 
   def help, do: @help
@@ -80,7 +86,9 @@ defmodule Moss.Computer.Mailbox do
   def run(["board" | _], _stdin, state), do: {0, Mail.board(state.id), ""}
 
   def run(_, _stdin, _state),
-    do: {2, "", "mail: mail | mail read <n> | mail send <to> [subject...] | mail sent | mail board\n"}
+    do:
+      {2, "",
+       "mail: mail | mail read <n> | mail send <to> [subject...] | mail sent | mail board\n"}
 
   defp line(l),
     do:

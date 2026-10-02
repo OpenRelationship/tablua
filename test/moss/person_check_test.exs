@@ -25,10 +25,18 @@ defmodule Moss.PersonCheckTest do
   end
 
   test "a page whose table was never made, or that only says it added, does not" do
-    broken = String.replace(@works, ~s|d:exec("create table if not exists plant (name text primary key)")\n|, "")
+    broken =
+      String.replace(
+        @works,
+        ~s|d:exec("create table if not exists plant (name text primary key)")\n|,
+        ""
+      )
+
     assert %{added: false} = Moss.PersonCheck.uses(computer(broken), "/")
 
-    pretend = String.replace(@works, ~s|d:exec("insert into plant values (?)", req.form.name)|, "")
+    pretend =
+      String.replace(@works, ~s|d:exec("insert into plant values (?)", req.form.name)|, "")
+
     assert %{status: 200, added: false} = Moss.PersonCheck.uses(computer(pretend), "/")
   end
 end
