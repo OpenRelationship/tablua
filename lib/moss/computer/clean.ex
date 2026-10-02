@@ -49,7 +49,8 @@ defmodule Moss.Computer.Clean do
       url_attributes: keys.(p["urls"]["attributes"]),
       schemes: keys.(p["urls"]["schemes"]),
       css: assets["css"],
-      scripts: MapSet.new([assets["htmx"], assets["basecoat"], assets["shroomi"]]),
+      scripts:
+        MapSet.new([assets["htmx"], assets["basecoat"], assets["idiomorph"], assets["shroomi"]]),
       files: assets["files"]
     }
   end

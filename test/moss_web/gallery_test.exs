@@ -1,6 +1,7 @@
 defmodule MossWeb.GalleryTest do
-  # Shroomi's gallery (Arock PROJECT.md §16): every example is an app written only in Shroomi, served by a
-  # computer to its person, using no class Shroomi does not know, and working through htmx's requests.
+  # Shroomi's gallery (Arock PROJECT.md §16, feature file-kinds): every example is an app of the computer under
+  # apps/<name>/, its page a .lui file, served to its person, using no class Shroomi does not know, and working
+  # through its actions.
   use MossWeb.ConnCase, async: false
 
   alias Moss.Computer
@@ -14,9 +15,9 @@ defmodule MossWeb.GalleryTest do
     id = "gallery-#{System.unique_integer([:positive])}"
 
     files =
-      for f <- Path.wildcard(@examples <> "/*.lua"),
-          into: %{"app.lua" => File.read!(@examples <> "/app.lua")},
-          do: {"code/examples/" <> Path.basename(f), File.read!(f)}
+      for f <- Path.wildcard(@examples <> "/**/*.lui"),
+          into: %{},
+          do: {Path.relative_to(f, @examples), File.read!(f)}
 
     %{"code" => 0} = Computer.exec(id, %{"cwd" => "/home", "cmd" => "true", "files" => files})
     :ok = Moss.Owners.claim(id, "tester")
@@ -33,11 +34,11 @@ defmodule MossWeb.GalleryTest do
     |> String.trim()
   end
 
-  test "the gallery and every example, and its Lua, are pages with no unknown class", %{
+  test "the gallery and every example, and its page, are pages with no unknown class", %{
     id: id,
     base: base
   } do
-    for path <- [""] ++ Enum.flat_map(@names, &["#{&1}/", "#{&1}/code"]) do
+    for path <- [""] ++ Enum.flat_map(@names, &["#{&1}/", "source?app=#{&1}"]) do
       conn = get(as(), base <> path)
       assert conn.status == 200, "#{path}: #{conn.status} #{String.slice(conn.resp_body, 0, 300)}"
       assert conn.resp_body =~ "Shroomi", path
@@ -76,26 +77,33 @@ defmodule MossWeb.GalleryTest do
   test "the examples work through htmx's requests", %{base: base} do
     hx = fn conn -> put_req_header(conn, "hx-request", "true") end
 
-    # plants: add, then water, each answered with the list alone
-    list = post(hx.(as()), base <> "plants/add", %{"name" => "Pothos", "every" => "5"}).resp_body
-    assert list =~ ~s(id="plants") and list =~ "Pothos" and not (list =~ "<html")
-    assert post(hx.(as()), base <> "plants/water", %{"name" => "Pothos"}).resp_body =~ "in 5 days"
+    # plants: add, then water; each answer is the page again, to be merged
+    page =
+      post(hx.(as()), base <> "plants/?do=add", %{"name" => "Pothos", "every" => "5"}).resp_body
 
-    # notes: a new note, then its preview as it is typed
-    assert redirected_to(post(as(), base <> "notes/new", %{"title" => "Seed list"}), 303) =~
-             "notes/note/seed-list"
+    assert page =~ "<!doctype html>" and page =~ "Pothos"
 
-    assert post(hx.(as()), base <> "notes/save/seed-list", %{"text" => "# Seeds\n\n*basil*"}).resp_body =~
-             "<em>basil</em>"
+    assert post(hx.(as()), base <> "plants/?do=water", %{"name" => "Pothos"}).resp_body =~
+             "in 5 days"
 
-    assert get(as(), base <> "notes/note/seed-list").resp_body =~ "# Seeds"
+    # notes: a new note, then its preview alone as it is typed
+    assert redirected_to(post(as(), base <> "notes/?do=new", %{"title" => "Seed list"}), 303) =~
+             "notes/?note=seed-list"
+
+    preview =
+      post(hx.(as()), base <> "notes/?note=seed-list&do=save", %{"text" => "# Seeds\n\n*basil*"}).resp_body
+
+    assert preview =~ ~s(<body data-part="preview") and preview =~ "<em>basil</em>"
+    assert get(as(), base <> "notes/?note=seed-list").resp_body =~ "# Seeds"
 
     # settings: the server says what is wrong, then keeps what is right
-    bad = post(hx.(as()), base <> "settings/save", %{"name" => "", "email" => "nope"}).resp_body
+    bad =
+      post(hx.(as()), base <> "settings/?do=save", %{"name" => "", "email" => "nope"}).resp_body
+
     assert bad =~ "A name, please." and bad =~ "That is not an address."
 
     good =
-      post(hx.(as()), base <> "settings/save", %{
+      post(hx.(as()), base <> "settings/?do=save", %{
         "name" => "Rocky",
         "email" => "r@example.com",
         "tone" => "brief"
@@ -104,8 +112,8 @@ defmodule MossWeb.GalleryTest do
     assert good.resp_body =~ "Saved"
     assert get(as(), base <> "settings/").resp_body =~ ~s(value="Rocky")
 
-    # inbox: a letter loads alone for htmx, in the page otherwise
-    assert get(hx.(as()), base <> "inbox/letter/3").resp_body =~ "Ordered two bags"
-    refute get(hx.(as()), base <> "inbox/letter/3").resp_body =~ "<html"
+    # inbox: a letter opens with a get action, the page around it the same
+    letter = get(hx.(as()), base <> "inbox/?do=open&id=3").resp_body
+    assert letter =~ "Ordered two bags" and letter =~ "Cuttings are rooted"
   end
 end

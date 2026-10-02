@@ -1,0 +1,80 @@
+defmodule Moss.Computer.Pages do
+  @moduledoc """
+  Which page answers a request (Arock's feature `file-kinds`): a `.lui` page is served at its path in its app.
+  `/plants/list` is `apps/plants/ui/list.lui` when the computer has an app `plants`, and `/list` is
+  `/home/ui/list.lui`; a path ending at a folder is its `index.lui`. A part (`ui/_row.lui`) is never served.
+  The page runs in its app's folder, so `data/plants.dbl` is the app's own.
+  """
+  alias Moss.Computer.Disk
+
+  @doc "`{cwd, page}`: the folder a request runs in and its page's path, or `{\"/home\", nil}` for none."
+  def route(path, disk) do
+    parts = String.split(path, "/", trim: true)
+
+    {root, rest} =
+      case parts do
+        [app | rest] ->
+          if app?(disk, app), do: {"/home/apps/" <> app, rest}, else: {"/home", parts}
+
+        [] ->
+          {"/home", []}
+      end
+
+    case page(root, rest, String.ends_with?(path, "/")) do
+      nil -> {"/home", nil}
+      file -> if file?(disk, file), do: {root, file}, else: {"/home", nil}
+    end
+  end
+
+  @doc """
+  The request as its page sees it, the folder it runs in, and the app it is in (nil for the computer's own, or
+  for `/home/app.lua`): `req` gains `page`, and its path is from the app's root.
+  """
+  def request(req, disk) do
+    case route(req["path"], disk) do
+      {cwd, nil} ->
+        {req, cwd, nil}
+
+      {cwd, page} ->
+        app = app(cwd)
+        {Map.merge(req, %{"page" => page, "path" => local_path(req["path"], app)}), cwd, app}
+    end
+  end
+
+  @doc "An app's answer, marked so its page gets its <base> at the app (`Moss.Computer.App`)."
+  def from_app(answer, nil), do: answer
+  def from_app({s, h, b, e}, app), do: {s, Map.put(h, "x-moss-app", app), b, e}
+
+  @doc "The app a page of `cwd` belongs to, or nil for the computer's own."
+  def app("/home/apps/" <> name), do: name
+  def app(_cwd), do: nil
+
+  @doc "The path as the page sees it: from its app's root (`/plants/list` is `/list` in the app plants)."
+  def local_path(path, nil), do: path
+
+  def local_path(path, app) do
+    case String.split(path, "/", trim: true) do
+      [^app | rest] ->
+        folder = if rest != [] and String.ends_with?(path, "/"), do: "/", else: ""
+        "/" <> Enum.join(rest, "/") <> folder
+
+      _ ->
+        path
+    end
+  end
+
+  defp app?(disk, name),
+    do:
+      Regex.match?(~r"\A[a-z0-9][a-z0-9-]{0,63}\z", name) and
+        match?({:ok, %{dir: true}}, Disk.stat(disk, "/home/apps/" <> name))
+
+  defp page(root, rest, folder?) do
+    cond do
+      Enum.any?(rest, &(String.starts_with?(&1, "_") or String.starts_with?(&1, "."))) -> nil
+      rest == [] or folder? -> Path.join([root, "ui" | rest] ++ ["index.lui"])
+      true -> Path.join([root, "ui" | rest]) <> ".lui"
+    end
+  end
+
+  defp file?(disk, file), do: match?({:ok, %{dir: false}}, Disk.stat(disk, file))
+end

@@ -6,7 +6,7 @@ defmodule Mix.Tasks.Moss.Put do
   person (otherwise the first person to open it claims it). Used to seed
   Shroomi's gallery:
 
-      mix moss.put shroomi-gallery ../shroomi/examples --as code/examples --app app.lua
+      mix moss.put shroomi-gallery ../shroomi/examples --owner you
 
   `--as` puts the folder under /home/<as>; `--app <file>` also copies that
   file of it to /home/app.lua, the computer's app.

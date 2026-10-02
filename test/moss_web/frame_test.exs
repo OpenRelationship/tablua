@@ -20,8 +20,9 @@ defmodule MossWeb.FrameTest do
       return { body = ui.render(ui.p"swapped"), headers = { ["hx-trigger"] = "grown" } }
     end
     local rows = d:query("select name from plant order by name")
-    return ui.page{ title = "Plants", ui.raw(ui.template(
-      [[<h1>Plants</h1><ul>{{#rows}}<li>{{name}}</li>{{/rows}}</ul><a hx-get="hx">More</a>]], { rows = rows })) }
+    local items = {}
+    for i, r in ipairs(rows) do items[i] = ui.li(r.name) end
+    return ui.page{ title = "Plants", ui.h1"Plants", ui.ul(items), ui.raw([[<a hx-get="hx">More</a>]]) }
   end
   """
 

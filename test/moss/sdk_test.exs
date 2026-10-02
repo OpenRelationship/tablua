@@ -1,6 +1,6 @@
 defmodule Moss.SdkTest do
   # The Lua SDK agents build with (Arock PROJECT.md §14.7, goal 4): a database per computer, CSV, dates, HTML
-  # templates, Markdown, and Gherkin features run by Lua steps as Robot rows, on top of fs, http, json and mail.
+  # Markdown, and Gherkin features run by Lua steps as Robot rows, on top of fs, http, json and mail.
   use ExUnit.Case, async: false
 
   alias Moss.Computer
@@ -25,7 +25,10 @@ defmodule Moss.SdkTest do
 
     # left open, still saved when the run ends
     assert %{code: 0} =
-             sh(c, ~s|lua -e 'db.open("data/plants.dbl"):exec("update plant set water = water + 1")'|)
+             sh(
+               c,
+               ~s|lua -e 'db.open("data/plants.dbl"):exec("update plant set water = water + 1")'|
+             )
 
     assert %{code: 0, out: "fern\t4\tnil\nmoss\t2\tnil\nmoss\n"} =
              sh(
@@ -79,7 +82,11 @@ defmodule Moss.SdkTest do
   test "csv and date read and write what agents meet" do
     c = id()
 
-    put(c, "/home/files/t.csv", "name,note\nfern,\"likes \"\"shade\"\", damp\"\nmoss,\"two\nlines\"\n")
+    put(
+      c,
+      "/home/files/t.csv",
+      "name,note\nfern,\"likes \"\"shade\"\", damp\"\nmoss,\"two\nlines\"\n"
+    )
 
     put(c, "/home/code/c.lua", ~S"""
     local csv, date = require("csv"), require("date")
@@ -116,7 +123,7 @@ defmodule Moss.SdkTest do
     local page = ui.page{ title = "Plants",
       ui.card{ title = "<Ferns & co>", ui.ul{ ui.plant{ name = "fern" } }, ui.markdown("**dry** <b>") } }
     print(string.match(page, "<body.-</body>"))
-    print(string.find(page, ".gap-2{", 1, true) ~= nil, ui.template("{{x}}", { x = "<i>" }))
+    print(string.find(page, ".gap-2{", 1, true) ~= nil, ui.escape("<i>"))
     print(table.concat(ui.check('<p class="p-4 wobbly">'), ","))
     """)
 

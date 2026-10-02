@@ -16,15 +16,28 @@ defmodule Moss.Computer.App do
 
   @help """
 
-  Apps: a computer has one app, /home/app.lua, that its person opens in their browser.
+  Pages: each is a .lui file in ui/, served at its path: /home/ui/index.lui at /, apps/plants/ui/index.lui at
+  /plants/ and apps/plants/ui/list.lui at /plants/list. HTML with Lua in it:
 
-    return function(req) ... end      (or a table with handle = function(req))
-    req = { method = "GET", path = "/plants/fern", query = {k = v}, form = {k = v}, headers = {k = v} }
-    answer HTML text (ui.page{...} for a page, ui.render(node) for a fragment htmx swaps in), or
-    { status = 404, body = "...", headers = {...} }, or { redirect = "plants" }
-  It runs with /home as its working folder. Paths are the app's own: hx-post = "add" reaches path "/add", and
-  a request from htmx has headers["hx-request"] == "true". Keep what it shows in a database (db.open), since
-  each request is a fresh run.
+    <lua>
+      local d = db.open("data/plants.dbl")          -- the app's own folder is the working folder
+      page.title = "Plants"
+      function post.water(req) d:exec("update plant set watered = 1 where name = ?", req.form.name) end
+    </lua>
+    <card title="Plants">
+      {% for _, p in ipairs(d:query("select * from plant")) do %}
+        <p>{{ p.name }} <button post="water" vals={{ {name = p.name} }}>Water</button></p>
+      {% end %}
+    </card>
+
+  {{ e }} is text, escaped; {{{ e }}} markup as it is; {% lua %} a statement ({% end %} closes a block).
+  Kit components are tags; attr={{ e }} passes a table or a boolean; every tag is closed (<x/> or </x>).
+  post="water" names the page's action: it runs, the page runs again from its top, and the person's page is
+  updated in place. An action may return "#id" (that element alone), { redirect = "?x=1" }, or a value the
+  markup reads as result (a form's errors). Links in an app are relative to it ("list", "?note=a").
+  A page that does not compile answers with its file, line and why.
+
+  /home/app.lua, the old way, still answers any path no page does: return function(req) ... end.
 
   The app as its person sees it, in this computer's browser:
     open app              its page: title, words and controls, each control with an id
@@ -53,6 +66,7 @@ defmodule Moss.Computer.App do
   @doc "Asks the computer's app; `{status, headers, body}` ready to send from `origin` (scheme://host:port)."
   def answer(id, req, origin, base) do
     {status, headers, body, _err} = Moss.Computer.serve(id, req)
+    base = app_base(base, headers["x-moss-app"])
     type = content_type(headers)
     # htmx swaps a fragment into a page that has its <base> already
     page_base = if req["headers"]["hx-request"] == "true", do: nil, else: base
@@ -85,6 +99,13 @@ defmodule Moss.Computer.App do
       })
 
     {status, headers, body}
+  end
+
+  # a page of an app answers from the app's own root: its links, forms and redirects are the app's
+  defp app_base(base, nil), do: base
+
+  defp app_base(base, app) do
+    if Regex.match?(~r"\A[a-z0-9][a-z0-9-]{0,63}\z", app), do: base <> app <> "/", else: base
   end
 
   defp content_type(headers) do

@@ -16,12 +16,17 @@ defmodule MossWeb.AppTest do
   local ui = require("shroomi")
   local function page(d)
     local rows = d:query("select name from plant order by name")
-    return ui.page{ title = "Plants", ui.raw(ui.template([[
+    local items = {}
+    for _, r in ipairs(rows) do
+      local n = ui.escape(r.name)
+      items[#items + 1] = '<li>' .. n .. ' <button hx-delete="plants/' .. n .. '">Remove ' .. n .. '</button></li>'
+    end
+    return ui.page{ title = "Plants", ui.raw([[
       <h1>Plants</h1>
-      <ul>{{#rows}}<li>{{name}} <button hx-delete="plants/{{name}}">Remove {{name}}</button></li>{{/rows}}</ul>
+      <ul>]] .. table.concat(items) .. [[</ul>
       <form hx-post="plants"><label>Name <input name="name"></label><button>Add</button></form>
       <a hx-get="about">About</a>
-      <script>alert(1)</script><img src="x" onerror="alert(2)"><a href="javascript:alert(3)">x</a>]], { rows = rows })) }
+      <script>alert(1)</script><img src="x" onerror="alert(2)"><a href="javascript:alert(3)">x</a>]]) }
   end
   return function(req)
     local d = db.open("data/plants.dbl")
@@ -63,7 +68,8 @@ defmodule MossWeb.AppTest do
 
     assert csp =~
              "script-src http://www.example.com/shroomi/basecoat-1.0.2.min.js " <>
-               "http://www.example.com/shroomi/htmx-2.0.4.min.js http://www.example.com/shroomi/shroomi.js;"
+               "http://www.example.com/shroomi/htmx-2.0.4.min.js http://www.example.com/shroomi/idiomorph-0.7.3.min.js " <>
+                "http://www.example.com/shroomi/shroomi.js;"
 
     assert csp =~ "connect-src http://www.example.com/computers/#{c}/app/;"
     refute csp =~ "unsafe-eval"
@@ -133,14 +139,15 @@ defmodule MossWeb.AppTest do
 
     for line <- [
           "/home/app.lua",
-          ~s(hx-post = "add" reaches path "/add"),
-          ~s(headers["hx-request"] == "true"),
+          "apps/plants/ui/index.lui",
+          ~s(post="water" names the page's action),
           "open app/plants",
           "click <id|words>"
         ],
         do: assert(help =~ line, line)
 
-    assert Computer.run(c, "help click").out == Moss.Computer.App.help()
+    assert Computer.run(c, "help click").out == Moss.Computer.Browser.help()
+    assert Computer.run(c, "help app").out == Moss.Computer.App.help()
 
     put_file(c, "/home/app.lua", ~S"""
     local ui = require("shroomi")

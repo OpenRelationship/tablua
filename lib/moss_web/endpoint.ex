@@ -31,7 +31,7 @@ defmodule MossWeb.Endpoint do
   plug Plug.Static,
     at: "/shroomi",
     from: Path.join(Application.compile_env!(:moss, :core), "submodules/shroomi/assets"),
-    only_matching: ~w(htmx basecoat shroomi)
+    only_matching: ~w(htmx basecoat idiomorph shroomi)
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.

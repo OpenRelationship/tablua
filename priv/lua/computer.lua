@@ -16,10 +16,8 @@
 --     on conflict do update/nothing, returning); select with joins, group by, subqueries, union; update;
 --     delete; begin/commit/rollback; ?, ?N and :name bind the arguments after it. Views, triggers, WITH,
 --     window functions and pragma are refused by name. 64 MB at most.
---   An app: /home/app.lua returns function(req) -> html | { status, body, headers, redirect }, with
---     req = { method, path, query, form, headers }. The person opens it in their browser; `open app` opens it
---     here. Build its pages with Shroomi (require("shroomi"), `help shroomi`); links, forms and hx- paths are
---     relative (write "add", not "/add"), and no script of the page's own runs.
+--   Pages: ui/*.lui, HTML with Lua in it, served at their path in their app (`help shroomi`); the person
+--     opens them in their browser, `open app` here. /home/app.lua, the old way, answers any path no page does.
 --   require("name"): the SDK's own modules (csv, date, test, shroomi), then name.lua or
 --     name/init.lua in the working folder, then the app's code/, then /home/code/
 -- A failure returns nil and why, as Lua's own io does.
@@ -175,17 +173,34 @@ function __main(code, name)
   return say(e)
 end
 
--- An app (Moss.Computer.App): /home/app.lua returns a function, or a table with handle, that is given each request
--- { method, path, query = {k = v}, form = {k = v}, headers } and answers with HTML text, or
--- { status, body, headers, redirect }. It runs with /home as its working folder, as a command does.
+-- A request (Moss.Computer.App): a .lui page when one answers its path (req.page, chosen by Moss.Computer.Pages, run in
+-- its app's folder), else /home/app.lua, which returns a function, or a table with handle, given each request
+-- { method, path, query = {k = v}, form = {k = v}, headers }. Either answers with HTML text, or
+-- { status, body, headers, redirect }.
+local function say(e)
+  e = tostring(e)
+  sys.ewrite("app: " .. e .. "\n")
+  return e
+end
+
+local function reply(res)
+  if type(res) == "string" then return 200, {}, res end
+  if type(res) ~= "table" then return 500, {}, "The app answered with no page." end
+  if res.redirect then return 303, { location = res.redirect }, "" end
+  return tonumber(res.status) or 200, res.headers or {}, tostring(res.body or "")
+end
+
+local function page(req)
+  local name = string.gsub(req.page, "^/home/", "")
+  local ok, res = xpcall(function() return require("shroomi.lui").answer(sys.read(req.page), name, req) end, tostring)
+  if not ok then return 500, {}, "The page failed: " .. say(res) end
+  return reply(res)
+end
+
 function __serve(req)
+  if req.page then return page(req) end
   local src = sys.read("/home/app.lua")
-  if not src then return 404, {}, "This computer has no app yet: /home/app.lua makes one." end
-  local function say(e)
-    e = tostring(e)
-    sys.ewrite("app: " .. e .. "\n")
-    return e
-  end
+  if not src then return 404, {}, "This computer has no page here: ui/index.lui is its first." end
   local chunk, why = load(src, "@/home/app.lua")
   if not chunk then return 500, {}, "The app does not load: " .. say(why) end
   local ok, res = xpcall(function()
@@ -195,8 +210,5 @@ function __serve(req)
     return handle(req)
   end, tostring)
   if not ok then return 500, {}, "The app failed: " .. say(res) end
-  if type(res) == "string" then return 200, {}, res end
-  if type(res) ~= "table" then return 500, {}, "The app answered with no page." end
-  if res.redirect then return 303, { location = res.redirect }, "" end
-  return tonumber(res.status) or 200, res.headers or {}, tostring(res.body or "")
+  return reply(res)
 end
