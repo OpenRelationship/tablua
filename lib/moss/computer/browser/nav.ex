@@ -5,9 +5,10 @@ defmodule Moss.Computer.Browser.Nav do
   `Referer` sent on a link (the origin alone across sites, nothing from https to http) and `Origin` on a form.
   The computer's own app answers `http://app/` from its disk. `load/1` fetches a woken tab's page again.
   """
-  alias Moss.Computer.{Charset, Net, Page, Script}
+  alias Moonflower.{Charset, Page}
+  alias Moss.Computer.{Net, Script}
   alias Moss.Computer.Browser.Tabs
-  alias Moss.Computer.Page.Parts
+  alias Moonflower.Page.Parts
 
   @app "http://app/"
   @max 5 * 1024 * 1024

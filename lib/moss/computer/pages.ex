@@ -1,4 +1,4 @@
-defmodule Moss.Computer.Pages do
+defmodule Moonflower.Pages do
   @moduledoc """
   Which page answers a request (Arock's feature `file-kinds`): a `.lui` page is served at its path in its app.
   `/plants/list` is `apps/plants/ui/list.lui` when the computer has an app `plants`, and `/list` is

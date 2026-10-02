@@ -10,7 +10,7 @@ defmodule Moss.Computer.Browser.Tabs do
   the cookie jar; never a page but a form's answer. `restore/1` reads it back with every page unloaded; a tab's
   page is fetched again the first time it is used (`Browser.Nav.load/2`), its typed values put back.
   """
-  alias Moss.Computer.{Cookies, Page}
+  alias Moonflower.{Cookies, Page}
 
   @tabs 8
   @back 20

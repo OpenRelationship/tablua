@@ -125,8 +125,8 @@ defmodule Moss.GuardTest do
       ~s(<x-#{w} a-#{w}="1" on#{w}="x" data-#{w}="2"><#{w}>t</#{w}><svg><#{w}-g k#{w}="v"/></svg></x-#{w}>)
 
     Moss.Computer.Clean.html("<!doctype html><html><body>" <> html <> "</body></html>")
-    Moss.HTML.parse(html)
-    Moss.Computer.Page.new("http://example.test/#{w}", html)
+    Moonflower.HTML.parse(html)
+    Moonflower.Page.new("http://example.test/#{w}", html)
   end
 
   # Arock's feature file-kinds, goal 10: what the kinds replaced is gone, from the code and the help alike

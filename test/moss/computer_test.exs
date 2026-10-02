@@ -5,7 +5,8 @@ defmodule Moss.ComputerTest do
   use ExUnit.Case, async: false
 
   alias Moss.{Computer, Objects}
-  alias Moss.Computer.{Net, Page}
+  alias Moonflower.Page
+  alias Moss.Computer.Net
 
   defp id, do: "computer-#{System.unique_integer([:positive])}"
   defp sh(id, line), do: Computer.run(id, line)

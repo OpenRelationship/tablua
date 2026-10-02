@@ -4,7 +4,8 @@ defmodule Moss.BrowserWebTest do
   use ExUnit.Case, async: false
 
   alias Moss.Computer
-  alias Moss.Computer.{Cookies, Net, Page}
+  alias Moonflower.{Cookies, Page}
+  alias Moss.Computer.Net
 
   setup do
     Application.put_env(:moss, :resolver, fn _ -> [{93, 184, 215, 14}] end)
@@ -31,7 +32,7 @@ defmodule Moss.BrowserWebTest do
 
   defp text(c), do: Page.text(Computer.Browser.front(Computer.view(c)).page)
 
-  test "a fetch sends a browser's headers" do
+  test "a fetch sends a browser's headers, and says it is Arock" do
     test = self()
 
     c =
@@ -47,6 +48,8 @@ defmodule Moss.BrowserWebTest do
     assert h["accept-language"] =~ "en"
     assert h["accept-encoding"] =~ "gzip"
     assert h["accept-encoding"] =~ "deflate"
+    assert h["user-agent"] =~ ~r{^Arock/1\.0 .*\+https://arock\.ai/agent}
+    refute h["user-agent"] =~ "Safari"
   end
 
   test "a compressed answer is inflated, and inflating stops at the cap" do

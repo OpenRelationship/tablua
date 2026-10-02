@@ -69,14 +69,11 @@ defmodule Moss.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
-      # luos (Arock's submodules/luos): our own tv-labs lua, maintained by us (owner, 2026-10-01), read from the
-      # Arock checkout Moss is attached to, as Arock Core and Shroomi are (AROCK_ROOT names another)
-      {:lua,
-       path:
-         Path.join(
-           System.get_env("AROCK_ROOT") || Path.expand("../..", __DIR__),
-           "submodules/luos"
-         )},
+      # luex (submodules/luex): our own tv-labs lua, maintained by us (owner, 2026-10-01; renamed from luos and
+      # attached inside Moss, 2026-10-02)
+      {:lua, path: "submodules/luex"},
+      # moonflower (submodules/moonflower): the browser engine, its own repository (owner, 2026-10-02)
+      {:moonflower, path: "submodules/moonflower"},
       {:exqlite, "~> 0.41"},
       {:req, "~> 0.5"}
     ]

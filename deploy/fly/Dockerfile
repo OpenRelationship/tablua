@@ -1,6 +1,6 @@
 # A Moss node to measure on (Arock PROJECT.md §15 item 5): Moss built from source with the Litestream release it
 # runs on the Mac, its benches run over `fly ssh console`. The build context is made by stage.sh, since Moss reads
-# Arock Core (library/), alog, Shroomi, rockmail, connectory's port and luos from the Arock checkout (AROCK_ROOT).
+# Arock Core (library/), alog, Shroomi, rockmail and connectory's port from the Arock checkout (AROCK_ROOT); luex is inside Moss.
 # No key or token is in the image or the machine: the benches play the service in memory.
 FROM hexpm/elixir:1.20.3-erlang-29.0.5-debian-bookworm-20260824
 
@@ -25,7 +25,6 @@ WORKDIR /arock
 COPY library library
 COPY submodules/alog submodules/alog
 COPY submodules/shroomi submodules/shroomi
-COPY submodules/luos submodules/luos
 COPY submodules/rockmail submodules/rockmail
 COPY submodules/connectory/lua submodules/connectory/lua
 COPY submodules/moss submodules/moss

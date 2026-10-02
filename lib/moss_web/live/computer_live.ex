@@ -17,7 +17,8 @@ defmodule MossWeb.ComputerLive do
   use MossWeb, :live_view
 
   alias Moss.Computer
-  alias Moss.Computer.{Browser, Page}
+  alias Moonflower.Page
+  alias Moss.Computer.Browser
 
   # a burst of the agent's writes reloads the app once
   @reload_ms 300
