@@ -4,7 +4,7 @@ defmodule Moonflower.HTML.CharRef do
   that need no semicolon, `&#123;` and `&#x7b;`. `decode/2` takes the text after an `&` and gives back
   `{replacement, rest}`; when nothing matches the `&` stands for itself.
 
-  The table of names is the standard's own (`priv/html/entities.txt`), read when moonflower is compiled.
+  The table of names is the standard's own (`priv/html/entities.txt`), read when moss-browser is compiled.
   """
 
   @table_file Path.expand("../../../priv/html/entities.txt", __DIR__)

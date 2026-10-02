@@ -1,4 +1,4 @@
-# The look module (look/, Rust from pinned Blitz) built to WebAssembly, moonflower's tests run against it, and on a
+# The look module (look/, Rust from pinned Blitz) built to WebAssembly, moss-browser's tests run against it, and on a
 # tag the module published as a release asset with its SHA-384. CI is the only place it is built (AGENTS.md).
 name: look
 on:

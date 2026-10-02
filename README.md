@@ -1,9 +1,9 @@
-# 🌙🌸 moonflower
+# 🌙🌸 moss-browser
 
 The browser engine of VMOSS, the agent's own computer in [Arock](https://arock.ai)'s Moss. An Elixir library: it
 fetches a page the way a browser does, reads it the way a screen reader does, and (next) looks at it the way a
 person's browser lays it out. Moss keeps what belongs to a computer (tabs, history, the commands, the jar kept in
-its session); moonflower is the part that knows nothing of computers.
+its session); moss-browser is the part that knows nothing of computers.
 
 - **`Moonflower.Fetch`**: http and https to public addresses only, every redirect checked again, a name resolved
   once and the checked address dialled; a browser's headers and an honest user-agent (`Arock/1.0 (an AI agent
