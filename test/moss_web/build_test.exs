@@ -3,7 +3,7 @@ defmodule MossWeb.BuildTest do
   # agent on a fresh computer builds the app, agreed to shipped, with no human edits. The ask arrives as a task in
   # the post; the agent works from its procedures and help alone (Moss.AgentLoop); the person's part is only
   # theirs to give: agreeing to each feature as written, and saying yes to the publish. Live and paid:
-  # `mix test --only build`; AROCK_ASK is the ask, AROCK_BUILD_OUT where the measures go, MOSS_AGENT_MODEL the model.
+  # `mix test --only build`; AROCK_ASK is the ask, AROCK_EFFORT the reasoning effort, AROCK_BUILD_OUT where the measures go. The agent is Mercury unless AROCK_COMPARE names a comparison from Moss.AgentLoop.models/0, and the row says which.
   use MossWeb.ConnCase, async: false
 
   alias Moss.{Computer, Log, Mail}
@@ -47,6 +47,8 @@ defmodule MossWeb.BuildTest do
     n = System.unique_integer([:positive])
     {rock, id} = {"rock-#{n}", "plants-#{n}"}
     ask = System.get_env("AROCK_ASK") || @ask
+    compare = if (m = System.get_env("AROCK_COMPARE")) not in [nil, ""], do: m
+    effort = if (e = System.get_env("AROCK_EFFORT")) not in [nil, ""], do: e
     :ok = Moss.Owners.claim(id, "tester")
     for {a, b} <- [{rock, id}, {id, rock}], do: :ok = Mail.route(a, b, "audit")
     for c <- [rock, id], do: Computer.run(c, "true")
@@ -65,6 +67,8 @@ defmodule MossWeb.BuildTest do
           "and you have answered the task. Then answer with one word: DONE.",
         "Keep going as your procedures say: the task is done when it has shipped and you have answered it.",
         between: &person/1,
+        effort: effort,
+        model: compare,
         max_turns: 150
       )
 
@@ -91,6 +95,10 @@ defmodule MossWeb.BuildTest do
         {path, elem(Computer.serve(id, %{"method" => "GET", "path" => path}), 0)}
       end
 
+    # the person's own use of each page, which the agent never saw: add something, see it there
+    used = for {path, _} <- served, do: Map.put(Moss.PersonCheck.uses(id, path), :path, path)
+    works = Enum.any?(used, & &1.added)
+
     agreements = length(Log.events(st.disk.conn, ["Agree Feature"]))
 
     # what a computer costs, measured as §14.6 measures it: asleep, then woken by a command
@@ -100,16 +108,21 @@ defmodule MossWeb.BuildTest do
     {:memory, memory} = Process.info(Computer.whereis(id), :memory)
 
     result = %{
-      model: Moss.AgentLoop.model(),
+      model: run.model,
+      effort: effort || "default",
       ask: ask,
       shipped: shipped,
       answered: answered,
       turns: run.turns,
       commands: length(run.cmds),
+      errors: run.errors,
+      tokens: Tuple.to_list(run.tokens),
       cost: run.cost,
       seconds: seconds,
       features: for(r <- board, do: %{path: Board.rel(r.path), stage: r.stage}),
       pages: for({p, s} <- served, do: %{path: p, status: s}),
+      used: used,
+      works: works,
       agreements: agreements,
       wake_ms: wake_us / 1000,
       memory_kb: div(memory, 1024),
@@ -119,9 +132,11 @@ defmodule MossWeb.BuildTest do
     IO.puts("\n" <> Jason.encode!(result, pretty: true))
     if out = System.get_env("AROCK_BUILD_OUT"), do: File.write!(out, Jason.encode!(result))
 
+    assert result.model == (compare || Moss.AgentLoop.model())
     assert shipped, "it never shipped"
     assert answered, "the task was never answered DONE"
     assert board != [] and Enum.all?(board, &(&1.stage == "shipped")), inspect(board)
     assert served != [] and Enum.all?(served, &(elem(&1, 1) == 200)), inspect(served)
+    assert works, "the person could not add anything: #{inspect(used)}"
   end
 end

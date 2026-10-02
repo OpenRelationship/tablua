@@ -1,7 +1,7 @@
 defmodule MossWeb.AgentAppTest do
   # Shroomi's check 5 (Arock PROJECT.md §16.1): a model given only its computer, and `help page` there, builds a
   # working app, looks at it with its own browser (`open app`), and the app then does what was asked when its
-  # person uses it. Live, through Moss.AgentLoop: `mix test --only agent`; MOSS_AGENT_MODEL picks the model.
+  # person uses it. Live, through Moss.AgentLoop: `mix test --only agent`.
   use MossWeb.ConnCase, async: false
 
   alias Moss.Computer

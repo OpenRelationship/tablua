@@ -1,8 +1,8 @@
 defmodule Moss.AgentToolTest do
   # Goal 4's proof (Arock PROJECT.md §14.7): a model, given only its own computer, learns the Lua SDK from `help lua`,
   # specifies a small tool in Gherkin, builds it to green on its own computer, and the tool then does what was asked
-  # when this test drives it. Live: it calls a model on OpenRouter (Moss.AgentLoop) with the host's key, which never reaches the
-  # computer. Run with `mix test --only agent`; MOSS_AGENT_MODEL picks the model.
+  # when this test drives it. Live: it calls Mercury (Moss.AgentLoop) with the host's key, which never reaches the
+  # computer. Run with `mix test --only agent`.
   use ExUnit.Case, async: false
 
   alias Moss.Computer
