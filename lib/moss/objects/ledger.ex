@@ -9,7 +9,8 @@ defmodule Moss.Objects.Ledger do
       its segments are already in a pack. Written at its wake and by each pack,
       removed at its sleep, all under the computer's lock.
     * `.slept/<id>`: the chain of the computer's last snapshot, written once its
-      whole file is in the store and its files are off the node.
+      whole file is in the store, at a sleep or at a cut while it stays awake
+      (`Moss.Objects.Snapshot.cut/3`), which ends its chain.
     * `.packs/<name>.json`: a pack's header, so the node knows which packs hold
       which computer's segments with no index in the store. The folder is also
       the mark of a work dir that has met the store: a node without it lists

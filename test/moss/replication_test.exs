@@ -204,6 +204,45 @@ defmodule Moss.ReplicationTest do
     loss(id("ls-loss"))
   end
 
+  # A computer awake for days never sleeps, so nothing outgrows its packs. Every snapshot_ms awake (a few hours) its
+  # whole file goes to the store, ending its chain: the packs of that chain are deleted, and its work goes on as
+  # the next chain, which a lost disk rebuilds on top of nothing but its own packs.
+  @tag :manual
+  test "a computer awake a long time is snapshotted, so its old packs are deleted" do
+    id = id("ls-awake")
+    Computer.run(id, "mkdir -p notes && echo 'before the snapshot' > notes/a.txt")
+    for n <- 1..3, do: Computer.run(id, "echo #{n} >> notes/log.txt")
+    packed!(id)
+    assert [_ | _] = Map.keys(Ledger.packs())
+
+    t0 = System.monotonic_time(:millisecond)
+    assert :ok = Computer.snapshot(id)
+    took = ms(t0)
+    assert snapshot_gen(id) == 1
+    assert %{"gen" => 2} = Ledger.gen(id)
+    assert File.exists?(path(id))
+
+    # still awake, still streamed: its next work is packed as the next chain, and the old chain's packs are gone
+    Computer.run(id, "echo 'after the snapshot' > notes/b.txt")
+    packed!(id)
+    chains = for {_, es} <- Ledger.packs(), c <- Ledger.chains(es), uniq: true, do: c
+    assert chains == [{id, 2}]
+
+    lose_disk!([id])
+    start_supervised!(Litestream)
+    start_supervised!(Packer)
+    assert %{out: "before the snapshot\n"} = Computer.run(id, "cat notes/a.txt")
+    assert %{out: "1\n2\n3\n"} = Computer.run(id, "cat notes/log.txt")
+    assert %{out: "after the snapshot\n"} = Computer.run(id, "cat notes/b.txt")
+    sleep!(id)
+    assert {:ok, _} = Packer.pack()
+    assert Ledger.packs() == %{}
+
+    IO.puts(
+      "\n#{id}: snapshotted awake in #{took} ms; its old packs deleted, its work rebuilt across the cut"
+    )
+  end
+
   test "a computer that slept as its log before packs wakes from it, and sleeps whole after" do
     c = id("ls-old")
     Computer.run(c, "echo old > old.txt")

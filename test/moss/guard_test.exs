@@ -23,6 +23,8 @@ defmodule Moss.GuardTest do
   @sqlite_callers %{
     "lib/moss/db.ex" => "the connection itself",
     "lib/moss/computer/disk.ex" => "a computer's file: fixed statements, its bytes bound",
+    "lib/moss/computer/session.ex" =>
+      "the computer's kept session: two fixed statements, the term bound",
     "lib/moss/log.ex" => "alog's hot path: fixed statements, an event's arguments bound",
     "lib/moss/log/recall.ex" =>
       "alog's recall index on the hot path: fixed statements (two literal subqueries for the document), " <>
@@ -41,7 +43,7 @@ defmodule Moss.GuardTest do
   # the only terms decoded from bytes: encoded by the host itself, into a place no agent writes, and decoded
   # with [:safe], which never makes an atom
   @decoders %{
-    "lib/moss/computer/disk.ex" =>
+    "lib/moss/computer/session.ex" =>
       "a computer's kept session, which only the host writes to its file"
   }
 

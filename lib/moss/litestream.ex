@@ -107,6 +107,14 @@ defmodule Moss.Litestream do
     {:error, _} = e -> e
   end
 
+  @doc "Litestream streams a computer's file on after `stop/2`, its chain carrying on."
+  def resume(path) do
+    case cmd(["start", "-socket", @socket, "-timeout", "60", path]) do
+      {_, 0} -> :ok
+      {out, _} -> {:error, "litestream start: " <> clip(out)}
+    end
+  end
+
   @doc "Litestream's sync of a computer's file now, into the replica: `{:ok, txid}` (tests and benches use it)."
   def sync(path, wait_ms \\ 5_000),
     do: synced(path, System.monotonic_time(:millisecond) + wait_ms)

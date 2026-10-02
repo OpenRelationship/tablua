@@ -37,7 +37,13 @@ config :moss,
   # make packs several times larger for a busy computer and shorten the window a lost disk costs only from 65 s to
   # 61 s; 10 s would save little more in bytes and add 5 s to the window.
   litestream_sync: "5s",
-  pack_ms: 60_000
+  pack_ms: 60_000,
+  # A computer that never sleeps would keep its packs forever, so every snapshot_ms awake its whole file goes up as
+  # at a sleep and it carries on as a new chain (Moss.Objects.Snapshot.cut/3): its packs older than that are
+  # deleted. A computer busy round the clock writes about 34 MB of segments an hour, so 4 hours holds about 135 MB
+  # of packs (0.2 cents a month) and costs 180 snapshot writes a month (0.08 cents); 1 hour would hold a quarter as
+  # much but write four times as often, about the same in all, and pause the computer for each cut four times as often.
+  snapshot_ms: 4 * 3_600_000
 
 # The node's own books (the post) live under host_dir.
 config :moss,

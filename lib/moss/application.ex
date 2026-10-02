@@ -7,7 +7,7 @@ defmodule Moss.Application do
     # The core's base Lua state (Jev for the post), built once on this node.
     Moss.Lua.base()
 
-    # Every module now, as a release loads them: a computer's kept session names their atoms (Disk.kept/3)
+    # Every module now, as a release loads them: a computer's kept session names their atoms (Moss.Computer.Session.kept/2)
     for m <- Application.spec(:moss, :modules), do: Code.ensure_loaded(m)
 
     children =

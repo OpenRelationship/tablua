@@ -13,7 +13,7 @@ defmodule Moss.Computer do
   Asleep, the computer is its whole file in the object store
   (`computers/<id>.sqlite`); awake, Litestream streams it on the node and the
   node keeps its recent work in packs (`Moss.Litestream`,
-  `Moss.Objects.Snapshot`, `Moss.Objects.Packer`); `run` wakes it. It sleeps by itself after `idle_ms` with nothing to do. Every
+  `Moss.Computer.Keeping`, `Moss.Objects.Packer`); `run` wakes it. It sleeps by itself after `idle_ms` with nothing to do. Every
   command is broadcast on `computer:<id>` for a person watching
   (`ComputerLive`).
 
@@ -25,9 +25,8 @@ defmodule Moss.Computer do
   """
   use GenServer
   require Logger
-  alias Moss.{Litestream, Log, Mail, Objects}
-  alias Moss.Objects.Snapshot
-  alias Moss.Computer.{Browser, Disk, Script, Shell}
+  alias Moss.{Litestream, Log, Mail}
+  alias Moss.Computer.{Browser, Disk, Keeping, Script, Session, Shell}
 
   @registry Moss.Computer.Registry
   @lines 200
@@ -70,7 +69,11 @@ defmodule Moss.Computer do
 
   @doc "One request to the computer's app (`Moss.Computer.Script.serve/2`): `{status, headers, body, err}`."
   def serve(id, req), do: GenServer.call(wake!(id), {:serve, req}, :infinity)
-  def sleep(id), do: if(pid = whereis(id), do: GenServer.call(pid, :sleep), else: :ok)
+  def sleep(id), do: if(pid = whereis(id), do: GenServer.call(pid, :sleep, :infinity), else: :ok)
+
+  @doc "Computer `id`'s snapshot now, awake (`Moss.Computer.Keeping.cut/1`); one asleep is whole already."
+  def snapshot(id),
+    do: if(pid = whereis(id), do: GenServer.call(pid, :snapshot, :infinity), else: :ok)
 
   def whereis(id) do
     case Registry.lookup(@registry, id) do
@@ -108,7 +111,7 @@ defmodule Moss.Computer do
 
     File.mkdir_p!(Path.dirname(path))
 
-    with :ok <- pull(id, path),
+    with :ok <- Keeping.pull(id, path),
          {:ok, disk} <- Disk.open(path, id) do
       :ok = Disk.mkdir_p(disk, "/home")
       :ok = Disk.mkdir_p(disk, "/tmp")
@@ -116,7 +119,8 @@ defmodule Moss.Computer do
       Phoenix.PubSub.subscribe(Moss.PubSub, "mail:" <> id)
       idle = opts[:idle_ms] || Application.get_env(:moss, :idle_ms, 300_000)
       Process.send_after(self(), :idle, idle)
-      kept = Disk.kept(disk, "session", %{})
+      if Litestream.mode() == :litestream, do: snapshot_later()
+      kept = Session.kept(disk, %{})
 
       {:ok,
        %{
@@ -133,24 +137,6 @@ defmodule Moss.Computer do
        }, {:continue, :mail}}
     else
       {:error, reason} -> {:stop, reason}
-    end
-  end
-
-  # A computer whose file is not on this node wakes from its snapshot (streamed: as the next chain of its
-  # segments, Moss.Objects.Snapshot), else from its whole file.
-  defp pull(id, path) do
-    cond do
-      Litestream.mode() == :litestream -> Snapshot.wake(id, path)
-      File.exists?(path) -> :ok
-      true -> pull_whole(id, path)
-    end
-  end
-
-  defp pull_whole(id, path) do
-    case Objects.get(Objects.computer_key(id)) do
-      {:ok, body} -> File.write(path, body)
-      :not_found -> :ok
-      {:error, reason} -> {:error, {:pull, reason}}
     end
   end
 
@@ -226,8 +212,15 @@ defmodule Moss.Computer do
      }, state}
   end
 
+  def handle_call(:snapshot, _from, state) do
+    case Keeping.cut(state) do
+      {:stop, why, state} -> {:stop, why, {:error, why}, state}
+      {result, state} -> {:reply, result, state}
+    end
+  end
+
   def handle_call(:sleep, _from, state) do
-    case sleep_now(state) do
+    case Keeping.sleep(state) do
       :ok -> {:stop, :normal, :ok, %{state | disk: nil}}
       # its disk is closed and its files are still on the node: the next wake opens them
       error -> {:stop, :normal, error, %{state | disk: nil}}
@@ -253,6 +246,23 @@ defmodule Moss.Computer do
     {:noreply, state}
   end
 
+  def handle_info(:snapshot, state) do
+    case Keeping.cut(state) do
+      {:stop, why, state} ->
+        {:stop, why, state}
+
+      {result, state} ->
+        with {:error, why} <- result,
+             do:
+               Logger.warning(
+                 "computer #{state.id}: not snapshotted, its packs kept: #{inspect(why)}"
+               )
+
+        snapshot_later()
+        {:noreply, state, :hibernate}
+    end
+  end
+
   def handle_info(:idle, state) do
     left = state.touched + state.idle - now()
 
@@ -260,15 +270,19 @@ defmodule Moss.Computer do
       Process.send_after(self(), :idle, left)
       {:noreply, state, :hibernate}
     else
-      case sleep_now(state) do
+      case Keeping.sleep(state) do
         :ok -> {:stop, :normal, %{state | disk: nil}}
         error -> {:stop, {:sleep_failed, error}, state}
       end
     end
   end
 
-  defp keep(state),
-    do: Disk.keep(state.disk, "session", Map.take(state, [:cwd, :env, :browser, :lines]))
+  # the session beside the files; one not kept (a file busy too long) is told, and the next command keeps it
+  defp keep(state) do
+    with {:error, why} <-
+           Session.keep(state.disk, Map.take(state, [:cwd, :env, :browser, :lines])),
+         do: Logger.warning("computer #{state.id}: session not kept: #{why}")
+  end
 
   # -- the log ------------------------------------------------------------------------------------
 
@@ -327,31 +341,10 @@ defmodule Moss.Computer do
     state
   end
 
-  # Asleep, a computer is its whole file in the store: streamed, written whole beside the open disk and sent up
-  # before Litestream lets it go; kept whole, its file after a checkpoint. Its files stay on the node until the
-  # store holds it, so a failed sleep loses nothing and the next wake opens them.
-  defp sleep_now(state) do
-    if Litestream.mode() == :litestream, do: sleep_streamed(state), else: sleep_whole(state)
-  end
-
-  defp sleep_streamed(state) do
-    snap = Snapshot.tmp_path(state.id)
-    File.mkdir_p!(Path.dirname(snap))
-
-    with :ok <- Disk.snapshot(state.disk, snap),
-         :ok <- Disk.close(state.disk) do
-      Snapshot.sleep(state.id, state.path, snap)
-    end
-  end
-
-  defp sleep_whole(state) do
-    with :ok <- Disk.close(state.disk),
-         {:ok, body} <- File.read(state.path),
-         :ok <- Objects.put(Objects.computer_key(state.id), body) do
-      for suffix <- ["", "-wal", "-shm"], do: File.rm(state.path <> suffix)
-      :ok
-    end
-  end
+  # A computer awake longer than snapshot_ms (4 hours, config.exs says why) is snapshotted where it is,
+  # so its old packs can go (Moss.Computer.Keeping.cut/1).
+  defp snapshot_later,
+    do: Process.send_after(self(), :snapshot, Application.fetch_env!(:moss, :snapshot_ms))
 
   defp now, do: System.monotonic_time(:millisecond)
 end

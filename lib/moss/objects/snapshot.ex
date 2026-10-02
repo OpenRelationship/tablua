@@ -90,6 +90,50 @@ defmodule Moss.Objects.Snapshot do
   end
 
   @doc """
+  A computer's snapshot while it stays awake (`Moss.Computer`, every `snapshot_ms`): one awake for days never
+  sleeps, so without it nothing would outgrow its packs. After `Disk.snapshot/2` wrote its whole file at `snap`
+  and the disk closed, the snapshot goes up as the end of its chain, exactly as at a sleep, and becomes its file
+  on the node as the next chain, as at a wake: Litestream finds a new file and streams it from a new replica, so
+  the packs of the chain it ended are garbage and a lost disk rebuilds the new chain from its own packs.
+
+  Litestream lets the file go before anything changes. A snapshot that fails to go up changes nothing: the file
+  stays and Litestream carries on its chain. The computer opens its file again either way.
+  """
+  def cut(id, path, snap) do
+    Lock.locked(id, :infinity, fn ->
+      with {:ok, _txid} <- Litestream.stop(path),
+           {:ok, body} <- up(id, path, snap) do
+        let_go(id, path, gen_of(body))
+        Ledger.put_gen(id, gen_of(body) + 1, %{})
+        File.rename(snap, path)
+      end
+    end)
+  after
+    File.rm(snap)
+  end
+
+  # the whole file in the store and its copy on the node stamped as the next chain; when either fails, Litestream
+  # streams the file on as if nothing happened
+  defp up(id, path, snap) do
+    with {:ok, body} <- File.read(snap),
+         :ok <- Disk.stamp(snap, gen_of(body) + 1),
+         :ok <- Objects.put(Objects.computer_key(id), body) do
+      {:ok, body}
+    else
+      e -> tap(e, fn _ -> Litestream.resume(path) end)
+    end
+  end
+
+  # a chain ended by a snapshot in the store: its file and replica leave the node and the ledger says so
+  defp let_go(id, path, gen) do
+    for s <- ["", "-wal", "-shm"], do: File.rm(path <> s)
+    File.rm_rf(Litestream.meta_dir(id))
+    File.rm_rf(Litestream.replica_dir(id))
+    Ledger.drop_gen(id)
+    Ledger.put_slept(id, gen)
+  end
+
+  @doc """
   A computer's sleep, after `Disk.snapshot/2` wrote its whole file at `snap`
   and the disk closed: the snapshot goes up, Litestream lets the file go, and
   only then its files leave the node and the ledger says which chain the
@@ -101,12 +145,7 @@ defmodule Moss.Objects.Snapshot do
       with {:ok, body} <- File.read(snap),
            :ok <- Objects.put(Objects.computer_key(id), body),
            {:ok, _txid} <- Litestream.stop(path) do
-        for s <- ["", "-wal", "-shm"], do: File.rm(path <> s)
-        File.rm_rf(Litestream.meta_dir(id))
-        File.rm_rf(Litestream.replica_dir(id))
-        Ledger.drop_gen(id)
-        Ledger.put_slept(id, gen_of(body))
-        :ok
+        let_go(id, path, gen_of(body))
       end
     end)
   after

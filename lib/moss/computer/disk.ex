@@ -13,8 +13,8 @@ defmodule Moss.Computer.Disk do
       Disk.list(disk, "/notes")                          # {:ok, [%{name: "todo.txt", dir: false, size: 8, mtime: ...}]}
 
   A disk is its connection, the computer it belongs to (the log's task) and
-  who its changes are by (`actor`: "agent", "user" or "host"). `keep/3` and
-  `kept/3` hold the computer's own state beside the files.
+  who its changes are by (`actor`: "agent", "user" or "host"). Its `kept` table
+  holds the computer's own state beside the files (`Moss.Computer.Session`).
 
   The agent's databases (`db.open` in Lua, `Moss.Sql.Store`) are entries
   too: `ls` and `stat` show them, `cat` reads a summary, `rm` removes one;
@@ -368,22 +368,4 @@ defmodule Moss.Computer.Disk do
 
   @doc "Tells the app's window that `paths` changed (a database's write, by `Moss.Computer.Script.Sql`)."
   def changed(disk, paths), do: home_changed(disk, paths)
-
-  @doc "Keeps a term beside the files (the terminal's lines, the browser's tabs), for when the computer wakes."
-  def keep(disk, key, term) do
-    {:ok, _} =
-      Db.exec(disk.conn, "insert or replace into kept (key, value) values (?1, ?2)", [
-        key,
-        {:blob, :erlang.term_to_binary(term)}
-      ])
-
-    :ok
-  end
-
-  def kept(disk, key, default) do
-    case Db.exec(disk.conn, "select value from kept where key = ?1", [key]) do
-      {:ok, [%{"value" => v}]} -> :erlang.binary_to_term(v, [:safe])
-      _ -> default
-    end
-  end
 end
