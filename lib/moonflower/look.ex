@@ -7,7 +7,8 @@ defmodule Moonflower.Look do
       {:ok, look} = Moonflower.Look.look(node, html, width: 390, base: url)
       Moonflower.Look.shown?(look, "button", "Menu")
 
-  Options: `:width` (1280), `:dark` (false), `:base` (the page's address, for what it links), `:fuel`
+  Options: `:width` (1280), `:dark` (false), `:base` (the page's address, for what it links), `:css` (a stylesheet
+  laid out with the page, as a `<link>` of it would be, and left out of its tree), `:fuel`
   (#{10_000_000_000}; Wikipedia's longest article needs under 5e9), `:timeout` (ms, 10 s). An error is
   `:too_costly`, `:failed` or `:down`; the caller reads the page without a look then.
   """
@@ -31,7 +32,13 @@ defmodule Moonflower.Look do
     dark = Keyword.get(opts, :dark, false)
     timeout = Keyword.get(opts, :timeout, 10_000)
     {marked, tree} = Mark.mark(html)
-    input = "#{width} #{if dark, do: 1, else: 0} #{Keyword.get(opts, :base) || ""}\n" <> marked
+
+    # CSS given beside the page goes in first, so the parser puts it in the head; the page's tree is left as it was
+    css = if css = Keyword.get(opts, :css), do: "<style>" <> css <> "</style>", else: ""
+
+    input =
+      "#{width} #{if dark, do: 1, else: 0} #{Keyword.get(opts, :base) || ""}\n" <> css <> marked
+
     fuel = Keyword.get(opts, :fuel, 10_000_000_000)
 
     with {:ok, peer} <- Node.peer(node),

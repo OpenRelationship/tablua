@@ -120,6 +120,20 @@ defmodule Moonflower.LookTest do
     assert text =~ "inside contents"
   end
 
+  test "CSS given beside the page is laid out with it, and does not join the page", %{node: node} do
+    css = ".secret { display: none }"
+
+    {:ok, look} =
+      Look.look(node, ~s(<p class="secret">gone</p><p>kept</p>),
+        css: css,
+        base: "https://example.com/"
+      )
+
+    refute Look.shown?(look, "p", "gone")
+    assert Look.shown?(look, "p", "kept")
+    refute Moonflower.HTML.to_html(look.tree) =~ "display: none"
+  end
+
   test "a crash of the look node stops nothing, and the next look starts a new one", %{node: node} do
     Look.Node.kill(node)
     assert {:ok, look} = Look.look(node, "<p>back</p>", base: "https://example.com/")
