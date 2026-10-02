@@ -12,8 +12,6 @@ alias Moss.Computer
   end
 
 scratch = Path.join(System.tmp_dir!(), "moss-bench-#{System.unique_integer([:positive])}")
-Application.put_env(:moss, :objects, :local)
-Application.put_env(:moss, :local_objects, Path.join(scratch, "objects"))
 Application.put_env(:moss, :work_dir, Path.join(scratch, "work"))
 Application.put_env(:moss, :idle_ms, 3_600_000)
 
@@ -67,7 +65,7 @@ IO.puts("node: #{cores} schedulers; Lua ready in #{round(warm)} ms")
 # One at a time first: a new computer's wake and first command with nothing else running.
 alone =
   for i <- 1..50 do
-    {t, %{code: 0}} = ms.(fn -> Computer.run("bench-alone-#{i}", "echo hi > /home/a.txt") end)
+    {t, %{code: 0}} = ms.(fn -> Computer.run("bench-alone-#{i}", "echo hi > /home/files/a.txt") end)
     Computer.sleep("bench-alone-#{i}")
     t
   end
@@ -85,7 +83,7 @@ wakes =
     fn id ->
       {t, %{code: 0}} =
         ms.(fn ->
-          Computer.run(id, "echo 'water the fern' > /home/todo.txt && cat /home/todo.txt")
+          Computer.run(id, "echo 'water the fern' > /home/files/todo.txt && cat /home/files/todo.txt")
         end)
 
       t
@@ -104,11 +102,11 @@ IO.puts(
   "#{awake} awake: #{Float.round(up, 1)} MB, #{Float.round((up - base) * 1024 / awake, 1)} KB each (BEAM #{Float.round((beam_up - beam) * 1024 / awake, 1)} KB each)"
 )
 
-# 2. Asleep: each computer is its file in the object store, and nothing on the node.
+# 2. Asleep: each computer is its file (on its own host it stays in the work dir), and nothing else on the node.
 {t_sleep, _} = ms.(fn -> Enum.each(ids, &Computer.sleep/1) end)
 settle.()
 down = rss_mb.()
-files = Path.wildcard(Path.join([scratch, "objects", "computers", "bench-*.sqlite"]))
+files = Path.wildcard(Path.join([scratch, "work", "computers", "bench-*.sqlite"]))
 bytes = files |> Enum.map(&File.stat!(&1).size) |> Enum.sum()
 
 IO.puts(
@@ -120,7 +118,7 @@ sample = Enum.take_every(ids, max(div(awake, 200), 1))
 
 rewakes =
   for id <- sample do
-    {t, %{out: "water the fern\n"}} = ms.(fn -> Computer.run(id, "cat /home/todo.txt") end)
+    {t, %{out: "water the fern\n"}} = ms.(fn -> Computer.run(id, "cat /home/files/todo.txt") end)
     t
   end
 
@@ -133,12 +131,12 @@ tool =
   table.sort(plants, function(a, b) return a.cm > b.cm end)
   local rows = {}
   for i, p in ipairs(plants) do rows[i] = p.n .. "," .. p.cm end
-  fs.write("plants.csv", table.concat(rows, "\n"))
-  print(#fs.read("plants.csv"))
+  fs.write("files/plants.csv", table.concat(rows, "\n"))
+  print(#fs.read("files/plants.csv"))
   """
 
 # the tool is a file on each computer, written before anything is timed
-Enum.each(sample, &Computer.exec(&1, %{"files" => %{"tool.lua" => tool}, "cmd" => "true"}))
+Enum.each(sample, &Computer.exec(&1, %{"files" => %{"code/tool.lua" => tool}, "cmd" => "true"}))
 
 jobs =
   for i <- 1..programs do
@@ -146,7 +144,7 @@ jobs =
 
     if rem(i, 2) == 0,
       do: {:sum, id, "lua -e 'local s = 0 for i = 1, 10000 do s = s + i * i end print(s)'"},
-      else: {:tool, id, "lua tool.lua"}
+      else: {:tool, id, "lua code/tool.lua"}
   end
 
 peak = :counters.new(1, [])
