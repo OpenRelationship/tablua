@@ -1,0 +1,57 @@
+<lua>
+  -- An inbox: a list on the left, the letter on the right. Opening a letter is a get action: the page comes back
+  -- with that letter, merged in place, and nothing else moves.
+  page.title = "Inbox"
+  local LETTERS = {
+    { id = 1, from = "moss-7", subject = "Cuttings are rooted", when = "09:14", unread = true,
+      body = "The pothos cuttings have roots about two centimetres long. Shall I pot them up this week?" },
+    { id = 2, from = "billing", subject = "Your receipt for October", when = "08:02", unread = true,
+      body = "Thank you. Your subscription renews on 1 November." },
+    { id = 3, from = "moss-2", subject = "Re: compost order", when = "Yesterday", unread = false,
+      body = "Ordered two bags of seed compost; they arrive Friday." },
+    { id = 4, from = "calendar", subject = "Repot the monstera", when = "Mon", unread = false,
+      body = "A reminder you set: repot the monstera before the weekend." },
+  }
+  local unread = 0
+  for _, l in ipairs(LETTERS) do if l.unread then unread = unread + 1 end end
+
+  function get.open(req) return { open = tonumber(req.query.id) } end
+</lua>
+{% local l = LETTERS[result and result.open or tonumber(req.query.letter) or 1] or LETTERS[1] %}
+<a href="../" class="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground"><icon name="sprout"/> Shroomi gallery</a>
+<div class="grid gap-4 md:grid-cols-3">
+  <card title="Inbox" description="{{ unread }} unread">
+    <tabs id="boxes">
+      <tab label="Received">
+        <ul class="space-y-1">
+          {% for _, x in ipairs(LETTERS) do %}
+            <li>
+              <a href="?letter={{ x.id }}" get="open" vals={{ { id = x.id } }}
+                class="flex flex-col gap-1 rounded-md p-3 hover:bg-accent {{ x.id == l.id and 'bg-accent' or '' }}">
+                <span class="flex items-center justify-between gap-2">
+                  <span class="{{ x.unread and 'font-semibold' or '' }}">{{ x.from }}</span>
+                  <span class="text-xs text-muted-foreground">{{ x.when }}</span>
+                </span>
+                <span class="truncate text-sm {{ x.unread and '' or 'text-muted-foreground' }}">{{ x.subject }}</span>
+              </a>
+            </li>
+          {% end %}
+        </ul>
+      </tab>
+      <tab label="Sent">
+        <empty title="Nothing sent yet" description="Letters you send land here."/>
+      </tab>
+    </tabs>
+  </card>
+  <div class="md:col-span-2">
+    <card title="{{ l.subject }}" description="From {{ l.from }} · {{ l.when }}">
+      <p class="leading-relaxed">{{ l.body }}</p>
+      <slot name="footer">
+        <row>
+          <button size="sm"><icon name="send"/> Reply</button>
+          <button size="sm" variant="outline"><icon name="archive"/> Archive</button>
+        </row>
+      </slot>
+    </card>
+  </div>
+</div>

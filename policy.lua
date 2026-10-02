@@ -71,12 +71,14 @@ P.assets = {
   css = "/shroomi/basecoat-1.0.2.min.css",
   htmx = "/shroomi/htmx-2.0.4.min.js",
   basecoat = "/shroomi/basecoat-1.0.2.min.js",
+  idiomorph = "/shroomi/idiomorph-0.7.3.min.js",
   shroomi = "/shroomi/shroomi.js",
   files = {
-    ["shroomi.js"] = "sha384-TSAT3IHLu70OM0/KHq++v+Ln+Ts3x4+Xn6USRI7tbB2ZWC4z06+XQJbppBnzAhul",
+    ["shroomi.js"] = "sha384-Z+n9DUToMf97ZpqVBrjf24iPRLHfSH9o4vjDnKwCoqziGR7vO3WvNZi+RdW7Nk3c",
     ["basecoat-1.0.2.min.css"] = "sha384-XWKdrxzE2X33lI8Q03C9fIbqdLWV11whVNycR2/3bMNJY73EEQOa7rmN+SeiSCor",
     ["htmx-2.0.4.min.js"] = "sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+",
     ["basecoat-1.0.2.min.js"] = "sha384-rD2ZCuReXV7nIneJcn1lsTn6yOv87YARLQyUsemVAxrYYHdy5hcAW8XZEQxx87Dj",
+    ["idiomorph-0.7.3.min.js"] = "sha384-JcorokHTL/m+D6ZHe2+yFVQopVwZ+91GxAPDyEZ6/A/OEPGEx1+MeNSe2OGvoRS9",
   },
 }
 

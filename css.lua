@@ -136,9 +136,12 @@ end
 
 -- every class named in an HTML text, in order of first use
 function css.classes(html)
+  -- in tags only: a page that shows code holds class="..." as text
   local list = {}
-  for value in string.gmatch(html, "class%s*=%s*\"([^\"]*)\"") do
-    for name in string.gmatch(value, "%S+") do list[#list + 1] = name end
+  for tag in string.gmatch(html, "<%a[^>]*>") do
+    for value in string.gmatch(tag, "%sclass%s*=%s*\"([^\"]*)\"") do
+      for name in string.gmatch(value, "%S+") do list[#list + 1] = name end
+    end
   end
   return list
 end

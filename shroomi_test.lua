@@ -93,10 +93,8 @@ spec.test("check names the classes Shroomi does not know", function()
   spec.same(ui.check('<div class="p-4 text-red-500 hover:bg-primary/10 fancy">'), { "text-red-500", "fancy" })
 end)
 
-spec.test("markdown and templates are part of the page", function()
+spec.test("markdown is part of the page", function()
   spec.eq(ui.render(ui.markdown("**hi** <b>")), '<div class="prose"><p><strong>hi</strong> &lt;b&gt;</p>\n</div>')
-  spec.eq(ui.template("<p>{{name}}</p>{{#xs}}<i>{{.}}</i>{{/xs}}", { name = "<a>", xs = { 1, 2 } }),
-    "<p>&lt;a&gt;</p><i>1</i><i>2</i>")
 end)
 
 spec.run()

@@ -1,0 +1,61 @@
+<lua>
+  -- Notes in Markdown: a list, an editor, and a preview that follows your typing. Saving returns "#preview", so
+  -- only the preview is sent back while the person types.
+  local date = require("date")
+  local DIR = "files/notes"
+  if not fs.isdir(DIR) then
+    fs.mkdir("files")
+    fs.mkdir(DIR)
+    fs.write(DIR .. "/welcome.md", "# Welcome\n\nNotes are **Markdown** files on this computer's disk.\n\n" ..
+      "- Lists, *emphasis* and `code`\n- [Links](https://example.com)\n\n> The preview is the same HTML a page shows.")
+    fs.write(DIR .. "/garden.md", "# Garden\n\n1. Repot the monstera\n2. Cuttings from the pothos\n3. Order seed compost")
+  end
+
+  local function slug(s) return (string.gsub(string.lower(s), "[^%w]+", "-")) end
+  local current = string.match(req.query.note or "", "^[%w%-]+$") or "welcome"
+  page.title = "Notes · " .. current
+
+  function post.save(req)
+    fs.write(DIR .. "/" .. current .. ".md", req.form.text or "")
+    return "#preview"
+  end
+
+  function post.new(req)
+    local s = slug(req.form.title or "")
+    if s == "" or s == "-" then return end
+    if not fs.exists(DIR .. "/" .. s .. ".md") then
+      fs.write(DIR .. "/" .. s .. ".md", "# " .. req.form.title .. "\n\nWritten " .. date.day(date.now()) .. ".\n")
+    end
+    return { redirect = "?note=" .. s }
+  end
+
+  local names = {}
+  for _, f in ipairs(fs.list(DIR) or {}) do names[#names + 1] = (string.gsub(f, "%.md$", "")) end
+  table.sort(names)
+  local text = fs.read(DIR .. "/" .. current .. ".md") or ""
+</lua>
+<a href="../" class="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground"><icon name="sprout"/> Shroomi gallery</a>
+<div class="grid gap-4 md:grid-cols-4">
+  <card title="Notes" description="{{ #names }} on disk">
+    <ul class="space-y-1">
+      {% for _, name in ipairs(names) do %}
+        <li><link_button href="?note={{ name }}" size="sm" class="w-full justify-start"
+          variant={{ name == current and "secondary" or "ghost" }}><icon name="file-text"/> {{ name }}</link_button></li>
+      {% end %}
+    </ul>
+    <form class="mt-4 flex gap-2" post="new">
+      <input name="title" placeholder="New note" required class="flex-1"/>
+      <button size="icon" aria-label="Add"><icon name="plus"/></button>
+    </form>
+  </card>
+  <div class="grid gap-4 md:col-span-3 md:grid-cols-2">
+    <card title="{{ current }}" description="Saved as you type">
+      <form post="save" trigger="input changed delay:400ms">
+        <textarea name="text" rows="16" class="font-mono text-sm" value={{ text }}/>
+      </form>
+    </card>
+    <card title="Preview">
+      <div id="preview" class="space-y-3 leading-relaxed"><markdown text={{ text }}/></div>
+    </card>
+  </div>
+</div>

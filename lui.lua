@@ -1,0 +1,226 @@
+-- .lui: a page as HTML with Lua in it (Arock's feature file-kinds), compiled to Shroomi's elements so escaping, the
+-- class check and the policy stay one path. A <lua> block on top, markup below:
+--
+--   <lua>
+--     local d = db.open("data/plants.dbl")
+--     page.title = "Plants"
+--     function post.water(req) d:exec("update plant set watered = ? where name = ?", today, req.form.name) end
+--   </lua>
+--   <card title="Plants">
+--     {% for _, p in ipairs(d:query("select * from plant")) do %}
+--       <p>{{ p.name }} <button post="water" vals={{ {name = p.name} }}>Water</button></p>
+--     {% end %}
+--   </card>
+--
+--   {{ e }} text, escaped      {{{ e }}} markup as is (still cleaned)      {% lua %} a statement
+--   attr="text {{ e }}"  a string     attr={{ e }}  the value itself (a table, a boolean)     attr  true
+--   every tag closed (<x/> or </x>; br, hr, img and input may stand alone); kit components are tags
+--   <slot name="footer">...</slot> inside an element gives it that prop as markup (a card's footer, say)
+--   post="name" or get="name" is the page's action of that name (shroomi.page): the page is rendered again
+--   result is what the last action returned; page.title is the page's title
+--
+--   lui.compile(text, name) -> Lua source, or nil and "name:line: why" (an unknown tag, class or action,
+--     a tag left open, a Jinja habit)
+--   lui.load(text, name) -> def for shroomi.page.answer and { line } (the page line running), or nil and why
+--   lui.answer(text, name, req) -> what shroomi.page.answer gives
+local ui = require("shroomi")
+local css = require("shroomi.css")
+local policy = require("shroomi.policy")
+local page = require("shroomi.page")
+local scan = require("shroomi.lui_scan")
+
+local lui = {}
+
+local VOID = { area = true, br = true, col = true, hr = true, img = true, input = true, wbr = true, source = true }
+local KEEP = { pre = true, textarea = true, code = true }
+local NEVER = { script = "behaviour comes from Shroomi's own scripts, never a page's",
+  style = "style with classes; Shroomi writes the CSS", iframe = "a page holds no other page",
+  link = "Shroomi loads the only styles", meta = "Shroomi writes the head", base = "Shroomi writes the head" }
+
+local function q(s)
+  return '"' .. string.gsub(s, '[%c"\\]', function(c)
+    if c == "\n" then return "\\n" end
+    if c == '"' or c == "\\" then return "\\" .. c end
+    return string.format("\\%03d", string.byte(c))
+  end) .. '"'
+end
+
+-- what the page's own Lua declares: components, and its post and get actions
+local function declared(block)
+  local found = { components = {}, post = {}, get = {} }
+  for n in string.gmatch(block, "ui%.component%(%s*[\"']([%w_]+)[\"']") do found.components[n] = true end
+  for verb in pairs({ post = true, get = true }) do
+    for n in string.gmatch(block, "function%s+" .. verb .. "%.([%a_][%w_]*)") do found[verb][n] = true end
+    for n in string.gmatch(block, "%f[%w_]" .. verb .. "%.([%a_][%w_]*)%s*=[^=]") do found[verb][n] = true end
+  end
+  return found
+end
+
+-- Lua's complaint about the page's Lua as "name:line: why": luos says "Parse Error at line 2, column 13" and
+-- shows the compiled source, which is not what the agent wrote
+local function lua_error(why, name)
+  local line = string.match(why, "at line (%d+)")
+  if not line then return why end
+  local what = string.match(why, "at line %d+[^\n]*\n%s*([^\n]+)")
+  return name .. ":" .. line .. ": " .. (what or "the Lua does not parse")
+end
+
+function lui.compile(text, name)
+  name = name or "page.lui"
+  local ok, src = pcall(function()
+    local st = scan.new(text, name)
+    local out, oline = {}, 1
+    local function emit(code, at)
+      while oline < at do out[#out + 1] = "\n"; oline = oline + 1 end
+      out[#out + 1] = code
+      local _, n = string.gsub(code, "\n", "")
+      oline = oline + n
+    end
+    local block = st:lua_block()
+    local known = declared(block and block.code or "")
+    emit("local req, post, get, page, ui, __el, __raw, __s, __at = ... ", 1)
+    -- the line running, for a VM whose errors carry none (luos)
+    local marked
+    local function mark(line)
+      if line ~= marked then emit("__at.line = " .. line .. " ", line); marked = line end
+    end
+    if block then mark(block.line); emit(block.code, block.line) end
+    emit(" return function(result) local __c = {} ", st.line)
+
+    local open = {}
+    local function check_tag(tag, line)
+      if NEVER[tag] then st:fail(line, "no <" .. tag .. "> on a page: " .. NEVER[tag]) end
+      if tag == "lua" then st:fail(line, "a page has one <lua> block, at its top") end
+      if not (policy.tags[tag] or known.components[tag] or ui[tag]) then
+        st:fail(line, "<" .. tag .. "> is no element a page may use nor a kit component (ui.kit lists the kit)")
+      end
+    end
+    local function check_attr(a)
+      if a.name == "class" then
+        for _, word in ipairs(a.words) do
+          if not css.known(word) then
+            st:fail(a.line, 'no class "' .. word .. '": Shroomi knows Tailwind\'s utilities and the kit\'s classes')
+          end
+        end
+      elseif (a.name == "post" or a.name == "get") and a.literal and string.match(a.literal, "^[%a_][%w_]*$")
+        and not known[a.name][a.literal] then
+        st:fail(a.line, a.name .. '="' .. a.literal .. '" names no action: define function ' .. a.name .. "." ..
+          a.literal .. "(req) in the <lua> block")
+      end
+    end
+    local function attrs_code(list)
+      local parts = {}
+      for _, a in ipairs(list) do
+        check_attr(a)
+        local key = string.match(a.name, "^[%a_][%w_]*$") and a.name or "[" .. q(a.name) .. "]"
+        parts[#parts + 1] = { key .. " = " .. a.code .. ", ", a.line }
+      end
+      return parts
+    end
+
+    -- space across lines between tags is layout, and dropped; beside text it is a space, as a browser shows it
+    local CONTENT = { text = true, expr = true, raw = true }
+    local last, pending
+    while true do
+      local tok = st:next(open[#open] and KEEP[open[#open].tag])
+      if not tok then break end
+      if tok.blank and not CONTENT[last] then
+        pending = tok
+      else
+        if pending and CONTENT[tok.kind] then emit("__c[#__c + 1] = \" \" ", pending.line) end
+        pending = nil
+        if tok.kind ~= "stmt" then last = tok.kind end
+      end
+      mark(tok.line)
+      if tok == pending then
+        -- held until the next token says whether it is a space
+      elseif tok.kind == "text" then
+        emit("__c[#__c + 1] = " .. q(tok.text) .. " ", tok.line)
+      elseif tok.kind == "expr" then
+        emit("__c[#__c + 1] = (" .. tok.code .. ") ", tok.line)
+      elseif tok.kind == "raw" then
+        emit("__c[#__c + 1] = __raw(" .. tok.code .. ") ", tok.line)
+      elseif tok.kind == "stmt" then
+        emit(" " .. tok.code .. " ", tok.line)
+      elseif tok.kind == "open" and tok.tag == "slot" then
+        -- <slot name="footer">...</slot>: markup given to the element around it as a prop
+        local a = tok.attrs[1]
+        if #tok.attrs ~= 1 or a.name ~= "name" or not a.literal or not string.match(a.literal, "^[%a_][%w_]*$") then
+          st:fail(tok.line, 'a slot is <slot name="prop">, the prop of the element around it it fills')
+        end
+        if tok.closed then st:fail(tok.line, "a slot holds what it gives: <slot name=\"" .. a.literal .. "\">...</slot>") end
+        if not open[#open] or open[#open].slot then st:fail(tok.line, "a slot fills a prop of the element around it") end
+        emit(" do local __p, __c = __c, {} ", tok.line)
+        open[#open + 1] = { tag = "slot", line = tok.line, slot = a.literal }
+      elseif tok.kind == "open" then
+        check_tag(tok.tag, tok.line)
+        local alone = tok.closed or VOID[tok.tag]
+        emit(alone and "__c[#__c + 1] = __el(" .. tok.line .. ", " .. q(tok.tag) .. ", { "
+          or " do local __p, __a, __c = __c, { ", tok.line)
+        for _, p in ipairs(attrs_code(tok.attrs)) do emit(p[1], p[2]) end
+        if alone then
+          emit("}, {}) ", tok.line)
+        else
+          emit("}, {} ", tok.line)
+          open[#open + 1] = { tag = tok.tag, line = tok.line }
+        end
+      elseif tok.kind == "close" then
+        local top = open[#open]
+        if VOID[tok.tag] then st:fail(tok.line, "<" .. tok.tag .. "> stands alone: no </" .. tok.tag .. ">") end
+        if not top then st:fail(tok.line, "</" .. tok.tag .. "> closes nothing") end
+        if top.tag ~= tok.tag then
+          st:fail(tok.line, "</" .. tok.tag .. "> closes <" .. top.tag .. ">, opened on line " .. top.line)
+        end
+        open[#open] = nil
+        if top.slot then
+          emit(" __a[" .. q(top.slot) .. "] = __c end ", tok.line)
+        else
+          emit("__p[#__p + 1] = __el(" .. top.line .. ", " .. q(top.tag) .. ", __a, __c) end ", tok.line)
+        end
+      end
+    end
+    if open[#open] then
+      local top = open[#open]
+      st:fail(top.line, "<" .. top.tag .. "> is never closed")
+    end
+    emit(" return __c end", st.line)
+    return table.concat(out)
+  end)
+  if not ok then return nil, type(src) == "table" and src.why or tostring(src) end
+  local chunk, why = load(src, "@" .. name, "t")
+  if not chunk then return nil, lua_error(why, name) end
+  return src
+end
+
+local function cat(...)
+  local out = {}
+  for i = 1, select("#", ...) do
+    local v = select(i, ...)
+    out[i] = v == nil and "" or tostring(v)
+  end
+  return table.concat(out)
+end
+
+function lui.load(text, name)
+  name = name or "page.lui"
+  local src, why = lui.compile(text, name)
+  if not src then return nil, why end
+  local chunk = load(src, "@" .. name, "t")
+  local at = { line = 1 }
+  return function(req, post, get, meta)
+    return chunk(req, post, get, meta, ui, page.el(req, post, get, name), ui.raw, cat, at)
+  end, at
+end
+
+function lui.answer(text, name, req)
+  name = name or "page.lui"
+  local def, at = lui.load(text, name)
+  if not def then error(at, 0) end
+  local ok, res = pcall(page.answer, def, req)
+  if ok then return res end
+  res = tostring(res)
+  if string.sub(res, 1, #name + 1) == name .. ":" then error(res, 0) end
+  error(name .. ":" .. at.line .. ": " .. res, 0)
+end
+
+return lui

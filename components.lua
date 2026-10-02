@@ -7,7 +7,7 @@
 --              ui.link_button{"Open", href = "x"}  ui.dialog{id, title, description, trigger = "Open", footer, ...}
 --   content    ui.card{title, description, footer, ...}  ui.alert{title, variant = "destructive", ...}
 --              ui.badge{"new", variant = "secondary|outline|destructive"}  ui.empty{title, description, ...}
---              ui.tabs{{"First", panel}, {"Second", panel}}  ui.data_table{columns = {...}, rows = {{...}}}
+--              ui.tabs{{"First", panel}, ui.tab{label = "Second", panel}}  ui.data_table{columns = {...}, rows = {{...}}}
 --              ui.kbd"K"  ui.progress{value = 40}  ui.skeleton{class = "h-4 w-32"}  ui.markdown(text)
 --              ui.icon"sprout" (or {name, size = 16}; ui.icons lists the names: Lucide's, drawn in the text's colour)
 --   forms      ui.form{post = "plants", ...}  ui.field{label, hint, error, input}  ui.input{name, label, ...}
@@ -135,6 +135,8 @@ return function(ui)
     return el("div", with(a, { el("nav", with({ role = "tablist", ["aria-orientation"] = "horizontal" }, nav)), panels }))
   end)
 
+  -- <tabs><tab label="First">...</tab></tabs> in a .lui page: a tab is its label and its panel
+  ui.component("tab", function(p, c) return { p.label or "", c } end)
   ui.component("data_table", function(p, c)
     local head, body = {}, {}
     for i, col in ipairs(p.columns or {}) do head[i] = el("th", { col }) end

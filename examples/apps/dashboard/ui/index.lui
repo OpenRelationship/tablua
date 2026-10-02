@@ -1,0 +1,65 @@
+<lua>
+  -- A dashboard: figures, a bar chart drawn with nothing but elements and widths, a table, and tabs.
+  page.title = "Dashboard"
+  local WEEK = { { "Mon", 42 }, { "Tue", 58 }, { "Wed", 35 }, { "Thu", 71 }, { "Fri", 64 }, { "Sat", 28 }, { "Sun", 19 } }
+  local STATS = { { "Runs this week", "317", "+12%", "chart-column" }, { "Files written", "1,204", "+4%", "file-text" },
+    { "Letters sent", "23", "-8%", "send" } }
+  local GOALS = { { "Inbox zero", 80 }, { "Tests green", 100 }, { "Plants watered", 45 } }
+
+  local top = 0
+  for _, d in ipairs(WEEK) do top = math.max(top, d[2]) end
+
+  local runs = {}
+  for i, r in ipairs({ { "Import orders", "done", "1.2 s", "2026-10-01 09:12" },
+      { "Rebuild index", "done", "8.4 s", "2026-10-01 08:40" }, { "Send digest", "failed", "0.3 s", "2026-10-01 08:00" },
+      { "Water reminder", "done", "0.1 s", "2026-10-01 07:30" } }) do
+    runs[i] = { r[1], ui.badge{ variant = r[2] == "done" and "secondary" or "destructive", r[2] }, r[3], r[4] }
+  end
+</lua>
+<a href="../" class="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground"><icon name="sprout"/> Shroomi gallery</a>
+<stack gap="6">
+  <div class="grid gap-4 md:grid-cols-3">
+    {% for _, s in ipairs(STATS) do local up = string.sub(s[3], 1, 1) == "+" %}
+      <card>
+        <div class="flex items-start justify-between">
+          <div class="space-y-1">
+            <p class="text-sm text-muted-foreground">{{ s[1] }}</p>
+            <p class="text-3xl font-semibold tabular-nums">{{ s[2] }}</p>
+          </div>
+          <div class="rounded-md bg-muted p-2 text-muted-foreground"><icon name={{ s[4] }}/></div>
+        </div>
+        <p class="mt-2 flex items-center gap-1 text-sm {{ up and 'text-primary' or 'text-destructive' }}">
+          <icon name={{ up and "trending-up" or "trending-down" }}/> {{ s[3] }} on last week
+        </p>
+      </card>
+    {% end %}
+  </div>
+  <tabs id="views">
+    <tab label="This week">
+      <card title="Runs per day" description="Every command and script the agent ran.">
+        <div class="flex items-end gap-2">
+          {% for _, d in ipairs(WEEK) do %}
+            <div class="flex flex-1 flex-col items-center gap-2">
+              <div class="flex h-40 w-full items-end">
+                <div class="w-full rounded-t-md bg-primary" style="height: {{ math.floor(d[2] / top * 100) }}%" title="{{ d[2] }} runs"/>
+              </div>
+              <span class="text-xs text-muted-foreground">{{ d[1] }}</span>
+            </div>
+          {% end %}
+        </div>
+      </card>
+    </tab>
+    <tab label="Recent jobs">
+      <card title="Recent jobs"><data_table columns={{ { "Job", "Status", "Took", "When" } }} rows={{ runs }}/></card>
+    </tab>
+    <tab label="Goals">
+      <card title="Goals">
+        <stack>
+          {% for _, g in ipairs(GOALS) do %}
+            <div class="space-y-2"><p class="text-sm">{{ g[1] }}</p><progress value={{ g[2] }}/></div>
+          {% end %}
+        </stack>
+      </card>
+    </tab>
+  </tabs>
+</stack>
