@@ -138,7 +138,7 @@ defmodule Moss.GuardTest do
     shroomi =
       Path.expand("../../submodules/shroomi", Path.expand("..", @lib) |> Path.join("../.."))
 
-    rockmail = Path.join(Path.dirname(shroomi), "arock-mail")
+    rockmail = Path.join([Path.dirname(shroomi), "..", "library", "arock-mail"])
 
     files =
       Path.wildcard(Path.join(@lib, "**/*.ex")) ++

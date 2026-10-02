@@ -39,11 +39,11 @@ defmodule Moss.MixProject do
       # agent writes or fetches reaches it (Arock PROJECT.md §14.7).
       {:lazy_html, ">= 0.1.0", only: :test},
       {:jason, "~> 1.2"},
-      # moss-lua (submodules/moss-lua): our own tv-labs lua, maintained by us (owner, 2026-10-01; renamed from luos and
+      # moss-lua (lua/): our own tv-labs lua, maintained by us (owner, 2026-10-01; renamed from luos and
       # luex, 2026-10-02)
-      {:lua, path: "submodules/moss-lua"},
-      # moss-browser (submodules/moss-browser): the browser engine, its own repository (owner, 2026-10-02)
-      {:moonflower, path: "submodules/moss-browser"},
+      {:lua, path: "lua"},
+      # moss-browser (browser/): the browser engine, its own repository (owner, 2026-10-02)
+      {:moonflower, path: "browser"},
       {:exqlite, "~> 0.41"},
       {:req, "~> 0.5"},
       # a form or query string encoded as Phoenix does (Moss.Computer.Script.Http)

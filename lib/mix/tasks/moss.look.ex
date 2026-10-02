@@ -9,6 +9,8 @@ defmodule Mix.Tasks.Moss.Look do
   """
   use Mix.Task
 
+  # the pinned release is moss-browser's (v0.1.1, kept by GitHub with that repository); a release cut after VMOSS took
+  # the browser in (browser/) is VMOSS's, OpenRelationship/vmoss
   @repo "OpenRelationship/moss-browser"
   @asset "look.wasm"
 

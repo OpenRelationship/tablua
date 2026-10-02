@@ -1,7 +1,7 @@
 # 🌙🌸 moss-browser
 
-moss-browser is the browser engine of VMOSS (Arock's Moss), its own repository (owner, 2026-10-02), attached inside
-Moss at `submodules/moss-browser`. README.md is the method; these are the rules for changing it.
+moss-browser is the browser engine of VMOSS (Arock's Moss), a folder of the VMOSS repository at `browser/`
+(owner, 2026-10-02). README.md is the method; these are the rules for changing it.
 
 - **A library, not a host.** Nothing here knows a computer, a person or a session. Settings arrive as options;
   `lib/` never reads `Application.get_env`. What belongs to a computer (tabs, history, commands, where a jar is

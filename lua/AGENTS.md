@@ -1,10 +1,11 @@
 # 🌙 moss-lua
 
 This is moss-lua, our own fork of tv-labs/lua (owner, 2026-10-01): the Lua VM on the BEAM that Arock's Moss runs,
-attached to VMOSS (Moss) at `submodules/moss-lua`. We maintain it ourselves. These rules come first; upstream's follow.
+a folder of the VMOSS repository at `lua/` (owner, 2026-10-02). We maintain it ourselves. These rules come first; upstream's follow.
 
-- `main` is ours: upstream's `main` plus our changes. `upstream` (tv-labs/lua) is a remote, merged in when it
-  has something we want, with the full suite green after the merge.
+- This folder is upstream's `main` plus our changes, its history kept. Upstream (tv-labs/lua) is merged in when
+  it has something we want (`git subtree pull --prefix=lua https://github.com/tv-labs/lua main`), with the full
+  suite green after the merge.
 - Every change is test-first, under both engines (interpreter and dispatcher) where it touches execution, and
   lands only with the whole `mix test` green.
 - A fix that would help any user of tv-labs/lua also goes upstream as a PR from its own branch; ours does not
