@@ -93,6 +93,33 @@ defmodule Moonflower.LookTest do
     assert {:ok, _} = Look.look(node, "<p>x</p>", base: "https://example.com/")
   end
 
+  test "a page read through its look reads only what is shown", %{node: node} do
+    {:ok, look} = Look.look(node, @page, width: 390, base: "https://example.com/")
+    page = Moonflower.Page.looked("https://example.com/", look)
+    text = Moonflower.Page.text(page)
+
+    refute text =~ "hidden by the stylesheet"
+    refute text =~ "Plants"
+    assert text =~ "wide"
+    refute Moonflower.Page.outline(page) =~ ~s(field "d")
+    assert Moonflower.Page.outline(page) =~ ~s(button "Menu")
+    assert Enum.any?(page.notes, &(&1 =~ "390"))
+  end
+
+  test "what is invisible is not read, but a child that shows itself is", %{node: node} do
+    html = """
+    <style>.ghost { visibility: hidden } .back { visibility: visible }</style>
+    <div class="ghost">unseen <span class="back">seen again</span></div>
+    <div style="display: contents"><p>inside contents</p></div>
+    """
+
+    {:ok, look} = Look.look(node, html, base: "https://example.com/")
+    text = Moonflower.Page.text(Moonflower.Page.looked("https://example.com/", look))
+    refute text =~ "unseen"
+    assert text =~ "seen again"
+    assert text =~ "inside contents"
+  end
+
   test "a crash of the look node stops nothing, and the next look starts a new one", %{node: node} do
     Look.Node.kill(node)
     assert {:ok, look} = Look.look(node, "<p>back</p>", base: "https://example.com/")

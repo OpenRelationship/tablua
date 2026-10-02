@@ -2,8 +2,10 @@
 //!
 //! In, on stdin: one line `<width> <dark: 0|1> <base url>`, then the page's HTML, its CSS inside it. The host marks
 //! each element it parsed with `data-mf="<n>"`.
-//! Out, on stdout: a line for each marked element, `<n> -` when it is not shown (display: none, inside something
-//! not shown, or visibility: hidden) or `<n> <x> <y> <w> <h>` (its border box, CSS pixels, rounded); then
+//! Out, on stdout: a line for each marked element: `<n> -` when it is not rendered (display: none, or inside
+//! something that is not), `<n> v` when it is rendered but invisible (visibility: hidden; its children may show
+//! themselves), `<n> +` when it is shown with no box of its own (display: contents), or `<n> <x> <y> <w> <h>` (its
+//! border box, CSS pixels, rounded); then
 //! `= <elements> <unmarked> <parse ms> <resolve ms>`, where unmarked counts elements this parser built that the
 //! host's did not.
 //!
@@ -52,15 +54,18 @@ fn main() {
             unmarked += 1;
             continue;
         };
-        let shown = match node.primary_styles() {
-            Some(s) => {
-                s.get_box().display != Display::None
-                    && s.get_inherited_box().visibility != Visibility::Hidden
-            }
-            None => false,
+        let (rendered, visible) = match node.primary_styles() {
+            Some(s) => (
+                s.get_box().display != Display::None,
+                s.get_inherited_box().visibility != Visibility::Hidden,
+            ),
+            None => (false, false),
         };
-        match (shown, doc.get_client_bounding_rect(id)) {
-            (true, Some(r)) => writeln!(
+        match (rendered, visible, doc.get_client_bounding_rect(id)) {
+            (false, _, _) => writeln!(out, "{} -", mark.value),
+            (true, false, _) => writeln!(out, "{} v", mark.value),
+            (true, true, None) => writeln!(out, "{} +", mark.value),
+            (true, true, Some(r)) => writeln!(
                 out,
                 "{} {} {} {} {}",
                 mark.value,
@@ -69,7 +74,6 @@ fn main() {
                 r.width.round() as i64,
                 r.height.round() as i64
             ),
-            _ => writeln!(out, "{} -", mark.value),
         }
         .expect("stdout");
     }

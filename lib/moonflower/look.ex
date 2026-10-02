@@ -20,6 +20,7 @@ defmodule Moonflower.Look do
     :tree,
     shown: %{},
     hidden: MapSet.new(),
+    invisible: MapSet.new(),
     elements: 0,
     unmarked: 0,
     ms: {0, 0}
@@ -56,6 +57,8 @@ defmodule Moonflower.Look do
       line, look ->
         case String.split(line) do
           [n, "-"] -> %{look | hidden: MapSet.put(look.hidden, n)}
+          [n, "v"] -> %{look | invisible: MapSet.put(look.invisible, n)}
+          [n, "+"] -> %{look | shown: Map.put(look.shown, n, nil)}
           [n, x, y, w, h] -> %{look | shown: Map.put(look.shown, n, box(x, y, w, h))}
         end
     end)
@@ -74,10 +77,43 @@ defmodule Moonflower.Look do
 
   @doc "The boxes of the shown elements of this tag (holding these words, when given)."
   def boxes(look, tag, words \\ nil),
-    do: for(id <- ids(look.tree, tag, words), box = look.shown[id], do: box)
+    do: for(id <- ids(look.tree, tag, words), box = look.shown[id], box != nil, do: box)
 
-  @doc "Whether the element with this mark is shown."
-  def shown_id?(look, id), do: Map.has_key?(look.shown, id)
+  @doc """
+  The page's tree as the look showed it, its marks taken off: what is not rendered is gone, what is invisible
+  keeps only the children that show themselves, and the head is kept whole (the title is in it). An element the
+  look did not see (the two parsers differ there) is kept.
+  """
+  def visible(look), do: keep(look.tree, look, false)
+
+  defp keep(nodes, look, head?) do
+    Enum.flat_map(nodes, fn
+      {tag, attrs, kids} when is_binary(tag) ->
+        id = Attrs.attr(attrs, "data-mf")
+        attrs = List.keydelete(attrs, "data-mf", 0)
+        head? = head? or tag == "head"
+
+        cond do
+          head? ->
+            [{tag, attrs, keep(kids, look, true)}]
+
+          MapSet.member?(look.hidden, id) ->
+            []
+
+          MapSet.member?(look.invisible, id) ->
+            case Enum.filter(keep(kids, look, false), &match?({_, _, _}, &1)) do
+              [] -> []
+              shown -> [{tag, attrs, shown}]
+            end
+
+          true ->
+            [{tag, attrs, keep(kids, look, false)}]
+        end
+
+      other ->
+        [other]
+    end)
+  end
 
   defp ids(nodes, tag, words) do
     Enum.flat_map(nodes, fn

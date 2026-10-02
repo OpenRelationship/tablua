@@ -32,8 +32,23 @@ defmodule Moonflower.Page do
     answer: false
   ]
 
-  def new(url, html, notes \\ []) do
-    tree = Moonflower.HTML.parse(html)
+  def new(url, html, notes \\ []), do: from_tree(url, Moonflower.HTML.parse(html), notes)
+
+  @doc """
+  The page as a look laid it out (`Moonflower.Look`): what the person would not see is not read, and the note says
+  the width and theme it was laid out at.
+  """
+  def looked(url, %Moonflower.Look{} = look, notes \\ []) do
+    theme = if look.dark, do: ", dark", else: ""
+
+    from_tree(
+      url,
+      Moonflower.Look.visible(look),
+      notes ++ ["(laid out at #{look.width} px#{theme})"]
+    )
+  end
+
+  defp from_tree(url, tree, notes) do
     {tree, {blocks, headings}, notes} = visible(tree, notes)
     {controls, marked} = Controls.collect(tree)
 
