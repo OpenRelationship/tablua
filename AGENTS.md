@@ -1,7 +1,7 @@
-# 🌙 luos
+# 🌙 luex
 
-This is luos, our own fork of tv-labs/lua (owner, 2026-10-01): the Lua VM on the BEAM that Arock's Moss runs,
-attached to Arock at `submodules/luos`. We maintain it ourselves. These rules come first; upstream's follow.
+This is luex, our own fork of tv-labs/lua (owner, 2026-10-01): the Lua VM on the BEAM that Arock's Moss runs,
+attached to VMOSS (Moss) at `submodules/luex`. We maintain it ourselves. These rules come first; upstream's follow.
 
 - `main` is ours: upstream's `main` plus our changes. `upstream` (tv-labs/lua) is a remote, merged in when it
   has something we want, with the full suite green after the merge.
