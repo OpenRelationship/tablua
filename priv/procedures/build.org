@@ -4,11 +4,13 @@
 A task comes in the post: a TODO letter (mail, then mail read <n>). I build what it asks as an app on this
 computer, with the person agreeing before I build and saying yes before it ships, and I answer the task.
 - [ ] Say back what was asked as a feature, in the person's words: new feature <name>, then edit it.
-- [ ] Wait for the person to agree to it: status shows it agreed. Until then I build nothing.
+- [ ] Wait for the person to agree to it: I run status, and it says :agreed: once they have (they agree to
+  the feature itself; no letter is needed). Until then I build nothing. A change to it needs their yes again.
 - [ ] Run test. Each step it cannot find comes with a stub: I paste it into code/steps/ and make it pass.
 - [ ] Write the pages (new page, help page) and the code they need, then run check until it names nothing.
 - [ ] Look at the app as the person will: open app, then click and type.
-- [ ] publish: it waits for green, then for the person's yes.
+- [ ] publish: it waits for green, then asks the person (status 3 means they are asked). I run status until
+  it says :shipped:.
 - [ ] Answer the task: a DONE letter whose TASK is the task's address, saying what shipped and where.
 
 * When I am stuck

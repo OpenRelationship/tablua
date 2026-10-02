@@ -91,6 +91,8 @@ defmodule MossWeb.BuildTest do
         {path, elem(Computer.serve(id, %{"method" => "GET", "path" => path}), 0)}
       end
 
+    agreements = length(Log.events(st.disk.conn, ["Agree Feature"]))
+
     # what a computer costs, measured as §14.6 measures it: asleep, then woken by a command
     :ok = Computer.sleep(id)
     file = Path.join([Application.fetch_env!(:moss, :work_dir), "computers", id <> ".sqlite"])
@@ -108,7 +110,7 @@ defmodule MossWeb.BuildTest do
       seconds: seconds,
       features: for(r <- board, do: %{path: Board.rel(r.path), stage: r.stage}),
       pages: for({p, s} <- served, do: %{path: p, status: s}),
-      agreements: length(Log.events(st.disk.conn, ["Agree Feature"])),
+      agreements: agreements,
       wake_ms: wake_us / 1000,
       memory_kb: div(memory, 1024),
       file_kb: div(File.stat!(file).size, 1024)

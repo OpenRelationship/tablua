@@ -129,18 +129,24 @@ defmodule Moss.AgentLoop do
         said = msg["content"] || ""
         IO.puts("agent: #{String.slice(said, 0, 400)}")
 
-        if said =~ ~r/\bDONE\b/,
-          do: {turns + 1, cmds},
-          else:
-            loop(
-              key,
-              model,
-              id,
-              messages ++ [msg, %{role: "user", content: go_on}],
-              go_on,
-              turns + 1,
-              cmds
-            )
+        # DONE alone on its last line: "then I will answer DONE" is not done
+        if said
+           |> String.trim()
+           |> String.split("\n")
+           |> List.last()
+           |> String.trim()
+           |> Kernel.in(["DONE", "DONE."]),
+           do: {turns + 1, cmds},
+           else:
+             loop(
+               key,
+               model,
+               id,
+               messages ++ [msg, %{role: "user", content: go_on}],
+               go_on,
+               turns + 1,
+               cmds
+             )
     end
   end
 
