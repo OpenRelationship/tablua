@@ -36,6 +36,9 @@ defmodule Moss.Mail do
   def inbox_except(agent, except), do: GenServer.call(__MODULE__, {:inbox_except, agent, except})
   def sent(agent), do: GenServer.call(__MODULE__, {:sent, agent})
   def read(agent, id), do: GenServer.call(__MODULE__, {:read, agent, id})
+
+  @doc "Whether letter `id` was sent by or to `agent` (its `org:<agent>/mail/<id>` address, `Moss.Names`)."
+  def party?(agent, id), do: GenServer.call(__MODULE__, {:party, agent, id})
   def recent(limit \\ 100), do: GenServer.call(__MODULE__, {:recent, limit})
 
   def recent_for(agents, limit \\ 100),
@@ -125,6 +128,10 @@ defmodule Moss.Mail do
 
   def handle_call(:routes, _from, s), do: {:reply, Store.routes(s.conn), s}
   def handle_call(:flagged, _from, s), do: {:reply, Store.flagged(s.conn), s}
+
+  def handle_call({:party, agent, id}, _from, s) do
+    {:reply, match?(%{"sender" => ^agent}, Store.get(s.conn, id)) or match?(%{"recipient" => ^agent}, Store.get(s.conn, id)), s}
+  end
 
   def handle_call({:read, agent, id}, _from, s) do
     case Store.get(s.conn, id) do

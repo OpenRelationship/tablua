@@ -36,6 +36,8 @@ defmodule Moss.GuardTest do
       "an agent database's rows, by fixed statements; its SQL runs in Moss.Sql",
     "lib/moss/computer.ex" => "the post's delivery query, fixed",
     "lib/moss/owners.ex" => "who owns which computer, fixed statements",
+    "lib/moss/names.ex" =>
+      "the node's org: names: fixed statements, every address and name bound (a manifest is read by alog's Lua)",
     "lib/moss/mail/store.ex" =>
       "the post: fixed statements, and `set` names only its known columns"
   }

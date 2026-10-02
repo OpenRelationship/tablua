@@ -62,6 +62,26 @@ function arock.mail(what, ...)
   return mail[what](...)
 end
 
+-- Names (Arock's feature manifest): what a manifest.org declares, read by alog, for the node's registry.
+--   arock.names("manifest", text) -> { apps = { name, ... }, tools = { name, ... } }, the valid ones only
+--   arock.names("address", s)     -> { computer, part, ... } | nil, why
+local names = {}
+
+function names.manifest(text)
+  local doc = require("alog.org").parse(text)
+  local m = require("alog.manifest").read(doc, { host = true })
+  local out = { apps = {}, tools = {} }
+  for _, a in ipairs(m.apps) do out.apps[#out.apps + 1] = a.name end
+  for _, t in ipairs(m.order) do out.tools[#out.tools + 1] = t end
+  return out
+end
+
+function names.address(s) return require("alog.org").address(s) end
+
+function arock.names(what, ...)
+  return names[what](...)
+end
+
 -- The host calls every arock.* function through this, so an error object
 -- (ports.call raises tables with __tostring) reaches the host as its text.
 function arock.call(name, ...)

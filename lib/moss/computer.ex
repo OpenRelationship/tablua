@@ -115,6 +115,7 @@ defmodule Moss.Computer do
          {:ok, disk} <- Disk.open(path, id) do
       :ok = Disk.mkdir_p(disk, "/home")
       :ok = Disk.mkdir_p(disk, "/tmp")
+      Moss.Names.computer(id)
       disk = %{disk | actor: "agent"}
       Phoenix.PubSub.subscribe(Moss.PubSub, "mail:" <> id)
       idle = opts[:idle_ms] || Application.get_env(:moss, :idle_ms, 300_000)

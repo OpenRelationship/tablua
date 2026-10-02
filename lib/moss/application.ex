@@ -17,7 +17,8 @@ defmodule Moss.Application do
         {Registry, keys: :unique, name: Moss.Computer.Registry},
         {DynamicSupervisor, name: Moss.Computer.Supervisor, strategy: :one_for_one},
         Moss.Owners,
-        Moss.Mail
+        Moss.Mail,
+        Moss.Names
       ] ++ replication() ++ [MossWeb.Endpoint]
 
     Supervisor.start_link(children, strategy: :one_for_one, name: Moss.Supervisor)

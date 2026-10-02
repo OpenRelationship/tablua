@@ -244,7 +244,7 @@ defmodule Moss.Computer.Disk do
     with :ok <- mkdir_p(disk, Path.dirname(path)),
          {:ok, %{dir: false} = st} <- file_or_none(disk, path),
          false <- Map.get(st, :db, false) do
-      log(disk, "Write File", [path, data])
+      with :ok <- log(disk, "Write File", [path, data]), do: named(disk, path, data)
     else
       true -> {:error, @database}
       {:ok, %{dir: true}} -> {:error, :eisdir}
@@ -340,10 +340,10 @@ defmodule Moss.Computer.Disk do
 
         if kids != [] and not all,
           do: {:error, :enotempty},
-          else: log(disk, "Delete File", [path])
+          else: with(:ok <- log(disk, "Delete File", [path]), do: unnamed(disk, path))
 
       {_, {:ok, _}} ->
-        log(disk, "Delete File", [path])
+        with :ok <- log(disk, "Delete File", [path]), do: unnamed(disk, path)
 
       {_, error} ->
         error
@@ -358,12 +358,39 @@ defmodule Moss.Computer.Disk do
          {:ok, _} <- stat(disk, from),
          {:ok, %{dir: true}} <- stat(disk, Path.dirname(to)),
          :ok <- if(String.starts_with?(to <> "/", from <> "/"), do: {:error, :einval}, else: :ok) do
-      log(disk, "Move File", [from, to])
+      with :ok <- log(disk, "Move File", [from, to]), do: renamed(disk, from, to)
     else
       true -> {:error, @database}
       {:ok, _} -> {:error, :enotdir}
       error -> error
     end
+  end
+
+  # A manifest written, removed or moved re-registers what it names on the node (`Moss.Names`); the user's
+  # requests and a disk with no computer name nothing.
+  defp named(%{task: id} = disk, path, data) when is_binary(id) do
+    if disk.actor != "user" and String.ends_with?(path, "/manifest.org") and Process.whereis(Moss.Names),
+      do: Moss.Names.manifest(id, path, data)
+
+    :ok
+  end
+
+  defp named(_, _, _), do: :ok
+
+  defp unnamed(%{task: id}, path) when is_binary(id) do
+    if Process.whereis(Moss.Names), do: Moss.Names.gone(id, path)
+    :ok
+  end
+
+  defp unnamed(_, _), do: :ok
+
+  defp renamed(disk, from, to) do
+    unnamed(disk, from)
+
+    for p <- [to, to <> "/manifest.org"], String.ends_with?(p, "/manifest.org"), {:ok, data} <- [read(disk, p)],
+        do: named(disk, p, data)
+
+    :ok
   end
 
   @doc "Tells the app's window that `paths` changed (a database's write, by `Moss.Computer.Script.Sql`)."
