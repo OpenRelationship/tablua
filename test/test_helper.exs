@@ -7,5 +7,5 @@ for dir <- [:work_dir, :local_objects, :host_dir],
 
 {:ok, _} = Application.ensure_all_started(:moss)
 # Litestream's end-to-end tests run where its binary is (Moss.Litestream.bin/0)
-exclude = [:service, :agent, :bench] ++ if(Moss.Litestream.bin(), do: [], else: [:litestream])
+exclude = [:service, :agent, :bench, :build] ++ if(Moss.Litestream.bin(), do: [], else: [:litestream])
 ExUnit.start(exclude: exclude)

@@ -40,11 +40,38 @@ defmodule Moss.AgentLoop do
 
   @doc "Runs the task to DONE on computer `id`; returns {turns, the command lines it ran}."
   def run(id, task, go_on) do
+    %{turns: turns, cmds: cmds} = run(id, task, go_on, [])
+    {turns, cmds}
+  end
+
+  @doc """
+  The same, with `between` (a function of the computer's id, called after each turn: the person's part, say)
+  and `max_turns` (default 150): `%{turns, cmds, cost}`, cost being OpenRouter's own in USD.
+  """
+  def run(id, task, go_on, opts) do
     key = Moss.Keys.get("jev") || raise "no OPENROUTER_API_KEY"
     messages = [%{role: "system", content: context(id)}, %{role: "user", content: task}]
-    {turns, cmds} = loop(key, model(), id, messages, go_on, 0, [])
-    IO.puts("\n#{model()}: #{turns} turns, #{length(cmds)} commands on #{id}")
-    {turns, Enum.reverse(cmds)}
+    Process.put(:agent_cost, 0.0)
+
+    Process.put(:agent_opts, %{
+      between: opts[:between] || fn _ -> :ok end,
+      max: opts[:max_turns] || 150
+    })
+
+    {turns, cmds} =
+      try do
+        loop(key, model(), id, messages, go_on, 0, [])
+      catch
+        {:stopped, turns, cmds} -> IO.puts("agent: stopped at #{turns} turns") && {turns, cmds}
+      end
+
+    cost = Process.get(:agent_cost)
+
+    IO.puts(
+      "\n#{model()}: #{turns} turns, #{length(cmds)} commands on #{id}, $#{Float.round(cost, 4)}"
+    )
+
+    %{turns: turns, cmds: Enum.reverse(cmds), cost: cost}
   end
 
   @doc "The model's context, from its computer: `help`, then each of its procedures."
@@ -60,7 +87,11 @@ defmodule Moss.AgentLoop do
   end
 
   defp loop(key, model, id, messages, go_on, turns, cmds) do
+    if turns >= Process.get(:agent_opts, %{max: 150}).max,
+      do: throw({:stopped, turns, cmds})
+
     msg = ask(key, model, messages)
+    Process.get(:agent_opts, %{between: fn _ -> :ok end}).between.(id)
 
     case msg["tool_calls"] do
       [_ | _] = tcs ->
@@ -117,13 +148,21 @@ defmodule Moss.AgentLoop do
     resp =
       Req.post!("https://openrouter.ai/api/v1/chat/completions",
         auth: {:bearer, key},
-        json: %{model: model, messages: messages, tools: [@tool], max_tokens: 16_000},
+        json: %{
+          model: model,
+          messages: messages,
+          tools: [@tool],
+          max_tokens: 16_000,
+          usage: %{include: true}
+        },
         receive_timeout: 300_000,
         retry: :transient
       )
 
     case resp.body do
-      %{"choices" => [%{"message" => msg} | _]} ->
+      %{"choices" => [%{"message" => msg} | _]} = body ->
+        cost = get_in(body, ["usage", "cost"]) || 0
+        Process.put(:agent_cost, (Process.get(:agent_cost) || 0.0) + cost)
         Map.take(msg, ["role", "content", "tool_calls"])
 
       other ->
