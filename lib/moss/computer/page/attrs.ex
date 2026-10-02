@@ -36,6 +36,25 @@ defmodule Moss.Computer.Page.Attrs do
   end
 
   @doc """
+  The tree with nothing hidden: `hidden`, `aria-hidden` and an inline style that hides taken off. For a page
+  that hides nearly all its words until its scripts run (X's posts, rendered on the server inside a hidden div).
+  """
+  def reveal(tree) do
+    Enum.map(tree, fn
+      {tag, attrs, kids} ->
+        attrs =
+          Enum.reject(attrs, fn {k, v} ->
+            k in ["hidden", "aria-hidden"] or (k == "style" and hidden?([{k, v}]))
+          end)
+
+        {tag, attrs, reveal(kids)}
+
+      other ->
+        other
+    end)
+  end
+
+  @doc """
   The region an element opens, given the walk's context (`%{region, sectioning}`): a header or footer is the
   page's banner or footer only outside an article, section, aside or main.
   """

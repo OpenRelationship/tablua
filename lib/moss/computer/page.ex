@@ -32,7 +32,7 @@ defmodule Moss.Computer.Page do
 
   def new(url, html, notes \\ []) do
     tree = Moss.HTML.parse(html)
-    {blocks, headings} = Read.lines(tree)
+    {tree, {blocks, headings}, notes} = visible(tree, notes)
     {controls, marked} = Controls.collect(tree)
 
     %__MODULE__{
@@ -49,6 +49,28 @@ defmodule Moss.Computer.Page do
       notes: notes
     }
   end
+
+  # a page that shows almost nothing but hides much more (to reveal with its scripts) is read with it revealed
+  defp visible(tree, notes) do
+    read = Read.lines(tree)
+    shown = count(read)
+
+    if shown < 150 do
+      revealed = Moss.Computer.Page.Attrs.reveal(tree)
+      again = Read.lines(revealed)
+
+      if count(again) >= max(100, 3 * shown),
+        do:
+          {revealed, again,
+           notes ++ ["(the page hides most of its words until its scripts run; shown anyway)"]},
+        else: {tree, read, notes}
+    else
+      {tree, read, notes}
+    end
+  end
+
+  defp count({blocks, _}),
+    do: Enum.reduce(blocks, 0, fn {_, _, t}, n -> n + length(String.split(t)) end)
 
   @doc "The page without its watcher's copy or JSON: what history keeps of a page a form answered."
   def slim(page), do: %{page | watch: nil, data: %{page.data | blobs: []}}

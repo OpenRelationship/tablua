@@ -236,6 +236,19 @@ defmodule Moss.BrowserTest do
       assert Enum.reject(page.controls, &(&1.role == "hidden")) == []
     end
 
+    test "a page that hides nearly all its words until its scripts run is read anyway, and says so" do
+      posts = Enum.map_join(1..40, &"<p>Post #{&1} about the launch window</p>")
+      page = Page.new("https://example.com/", "<p>Log in</p><div hidden>#{posts}</div>")
+      assert Page.text(page) =~ "Post 40 about the launch"
+      assert Enum.any?(page.notes, &(&1 =~ "hides most of its words"))
+
+      menu = Enum.map_join(1..40, &"<a href='/#{&1}'>Menu item #{&1}</a>")
+      body = Enum.map_join(1..20, &"<p>Visible paragraph #{&1} with several words in it</p>")
+      page = Page.new("https://example.com/", "<div hidden>#{menu}</div>#{body}")
+      refute Page.text(page) =~ "Menu item"
+      assert page.notes == []
+    end
+
     test "a control is named as a screen reader names it" do
       out =
         ui("""
