@@ -22,3 +22,7 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 moonflower-*.tar
 
+
+# the look module is built by CI and published as a release asset (AGENTS.md)
+/priv/look.wasm
+/look/target/

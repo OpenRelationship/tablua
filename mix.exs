@@ -20,6 +20,7 @@ defmodule Moonflower.MixProject do
   defp deps do
     [
       {:req, "~> 0.5"},
+      {:wasmex, "~> 0.15"},
       {:plug, "~> 1.16", only: :test}
     ]
   end
