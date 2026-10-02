@@ -9,12 +9,17 @@ defmodule Moss.Computer.Kinds do
       org/*.org            tasks, notes, plans         files/**      every other format, data and binary
       manifest.org         what the computer or app offers (feature manifest)
 
-  A write anywhere else is refused with the folder it belongs in. `/tmp` is scratch and free. `/home/app.lua` is
-  served until the gallery moves to apps (feature file-kinds, goal 10), and goes with it.
+  A write anywhere else is refused with the folder it belongs in. `/tmp` is scratch and free.
   """
 
   @folders ~w(features code ui data org files)
-  @ext %{".feature" => "features", ".lua" => "code", ".lui" => "ui", ".org" => "org", ".dbl" => "data"}
+  @ext %{
+    ".feature" => "features",
+    ".lua" => "code",
+    ".lui" => "ui",
+    ".org" => "org",
+    ".dbl" => "data"
+  }
   @what %{
     "features" => "a feature goes in features/ as .feature",
     "code" => "code goes in code/ as .lua",
@@ -31,7 +36,6 @@ defmodule Moss.Computer.Kinds do
     case where(path) do
       :free -> :ok
       {:bad_app, app} -> {:error, bad_app(app)}
-      {:root, "app.lua"} -> :ok
       {_scope, "manifest.org"} -> :ok
       {_scope, [folder | rest]} -> in_folder(folder, rest, path)
       {:apps, _} -> {:error, "apps/ holds apps, each a folder with the same six"}
@@ -56,9 +60,14 @@ defmodule Moss.Computer.Kinds do
   @doc "`:ok` when a database may be named `path` (db.open): data/*.dbl at /home or in an app."
   def database(path) do
     case where(path) do
-      :free -> :ok
-      {_scope, ["data" | rest]} when rest != [] -> if Path.extname(path) == ".dbl", do: :ok, else: {:error, @what["data"]}
-      _ -> {:error, @what["data"] <> ": db.open(\"data/#{Path.rootname(Path.basename(path))}.dbl\")"}
+      :free ->
+        :ok
+
+      {_scope, ["data" | rest]} when rest != [] ->
+        if Path.extname(path) == ".dbl", do: :ok, else: {:error, @what["data"]}
+
+      _ ->
+        {:error, @what["data"] <> ": db.open(\"data/#{Path.rootname(Path.basename(path))}.dbl\")"}
     end
   end
 
@@ -86,16 +95,25 @@ defmodule Moss.Computer.Kinds do
   defp in_scope(scope, parts), do: {scope, parts}
 
   defp in_folder("files", _rest, _path), do: :ok
-  defp in_folder("data", _rest, _path), do: {:error, @what["data"] <> "; a file\x27s bytes never become one"}
+
+  defp in_folder("data", _rest, _path),
+    do: {:error, @what["data"] <> "; a file\x27s bytes never become one"}
 
   defp in_folder(folder, rest, path) when folder in @folders do
     want = @ext[Path.extname(path)]
 
     cond do
-      rest == [] -> {:error, "#{folder}/ is a folder"}
-      want == folder -> :ok
-      want == nil -> {:error, "#{folder}/ holds #{kind(folder)}; #{Path.basename(path)} goes in files/"}
-      true -> {:error, "#{@what[folder]}; #{Path.basename(path)} is #{kind(want)} and goes in #{want}/"}
+      rest == [] ->
+        {:error, "#{folder}/ is a folder"}
+
+      want == folder ->
+        :ok
+
+      want == nil ->
+        {:error, "#{folder}/ holds #{kind(folder)}; #{Path.basename(path)} goes in files/"}
+
+      true ->
+        {:error, "#{@what[folder]}; #{Path.basename(path)} is #{kind(want)} and goes in #{want}/"}
     end
   end
 
@@ -115,7 +133,8 @@ defmodule Moss.Computer.Kinds do
   end
 
   defp outside_folder(name),
-    do: "folders under /home are features/, code/, ui/, data/, org/, files/ and apps/<app>/, not #{name}/"
+    do:
+      "folders under /home are features/, code/, ui/, data/, org/, files/ and apps/<app>/, not #{name}/"
 
   defp bad_app(app), do: "an app\x27s name is a-z, 0-9 and -, at most 64, not #{app}"
 end

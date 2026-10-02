@@ -246,7 +246,8 @@ defmodule Moss.Computer.Disk do
          :ok <- Named.check(disk, path, data),
          :ok <- mkdir_p(disk, Path.dirname(path)),
          {:ok, %{dir: false} = st} <- file_or_none(disk, path),
-         false <- Map.get(st, :db, false) do
+         false <- Map.get(st, :db, false),
+         {:ok, data} <- Moss.Computer.OrgFile.kept(disk, path, data) do
       with :ok <- log(disk, "Write File", [path, data]), do: Named.written(disk, path, data)
     else
       true -> {:error, @database}

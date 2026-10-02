@@ -8,15 +8,14 @@ defmodule Mix.Tasks.Moss.Put do
 
       mix moss.put shroomi-gallery ../shroomi/examples --owner you
 
-  `--as` puts the folder under /home/<as>; `--app <file>` also copies that
-  file of it to /home/app.lua, the computer's app.
+  `--as` puts the folder under /home/<as>.
   """
   use Mix.Task
 
   @impl true
   def run(argv) do
     {opts, [id, dir], _} =
-      OptionParser.parse(argv, strict: [owner: :string, as: :string, app: :string])
+      OptionParser.parse(argv, strict: [owner: :string, as: :string])
 
     # the node beside this task, if one runs, streams the work dir: this BEAM starts no Litestream of its own
     Mix.Task.run("app.config")
@@ -29,11 +28,6 @@ defmodule Mix.Tasks.Moss.Put do
       for f <- Path.wildcard(Path.join(root, "**/*")), File.regular?(f), into: %{} do
         {Path.join(under, Path.relative_to(f, root)), File.read!(f)}
       end
-
-    files =
-      if app = opts[:app],
-        do: Map.put(files, "app.lua", File.read!(Path.join(root, app))),
-        else: files
 
     r = Moss.Computer.exec(id, %{"cwd" => "/home", "cmd" => "ls", "files" => files})
     if r["code"] != 0, do: Mix.raise(r["stderr"])

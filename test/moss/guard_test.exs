@@ -129,6 +129,34 @@ defmodule Moss.GuardTest do
     Moss.Computer.Page.new("http://example.test/#{w}", html)
   end
 
+  # Arock's feature file-kinds, goal 10: what the kinds replaced is gone, from the code and the help alike
+  test "no old path remains: no app.lua, no long help, no JSON tasks" do
+    shroomi =
+      Path.expand("../../submodules/shroomi", Path.expand("..", @lib) |> Path.join("../.."))
+
+    rockmail = Path.join(Path.dirname(shroomi), "rockmail")
+
+    files =
+      Path.wildcard(Path.join(@lib, "**/*.ex")) ++
+        Path.wildcard(Path.join(Path.expand("../priv", @lib), "**/*.lua")) ++
+        Path.wildcard(Path.join(shroomi, "*.lua")) ++ Path.wildcard(Path.join(rockmail, "*.lua"))
+
+    assert length(files) > 50
+
+    for f <- files,
+        old <- [
+          "/home/app.lua",
+          "app.lua",
+          "help shroomi",
+          "shroomi_reference",
+          "tasks.new",
+          "tasks.parse",
+          # rockmail's JSON task subject marker, quoted as the code wrote it
+          ~s("task: ")
+        ],
+        do: refute(File.read!(f) =~ old, "#{Path.basename(f)} still says #{old}")
+  end
+
   defp sources_with(re) do
     for f <- Path.wildcard(Path.join(@lib, "**/*.ex")),
         File.read!(f) =~ re,

@@ -172,16 +172,29 @@ defmodule Moss.Computer.Shell do
 
   defp build([[op] | rest], _prev, acc) when op in [:and, :or, :then], do: build(rest, op, acc)
 
-  defp build([tokens | rest], op, acc) do
-    cmds =
-      tokens
-      |> Enum.chunk_by(&(&1 == :pipe))
-      |> Enum.reject(&(&1 == [:pipe]))
-      |> Enum.map(&cmd(&1, %{words: [], redirects: []}))
+  # operators side by side: blank lines and ;s between commands are nothing, a && or || with nothing before it
+  # is a mistake
+  defp build([[op | _] = ops | rest], _prev, acc) when op in [:and, :or, :then] do
+    if Enum.all?(ops, &(&1 == :then)),
+      do: build(rest, :then, acc),
+      else: {:error, "a command is missing beside && or ||"}
+  end
 
-    if Enum.any?(cmds, &(&1 == :error)),
-      do: {:error, "a redirect names no file"},
-      else: build(rest, op, [{op, cmds} | acc])
+  defp build([tokens | rest], op, acc) do
+    pieces = Enum.chunk_by(tokens, &(&1 == :pipe))
+
+    if Enum.any?(pieces, &match?([:pipe, :pipe | _], &1)) do
+      {:error, "a command is missing beside |"}
+    else
+      cmds =
+        pieces
+        |> Enum.reject(&(&1 == [:pipe]))
+        |> Enum.map(&cmd(&1, %{words: [], redirects: []}))
+
+      if Enum.any?(cmds, &(&1 == :error)),
+        do: {:error, "a redirect names no file"},
+        else: build(rest, op, [{op, cmds} | acc])
+    end
   end
 
   defp cmd([], c), do: %{c | words: Enum.reverse(c.words), redirects: Enum.reverse(c.redirects)}

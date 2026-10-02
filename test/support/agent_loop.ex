@@ -1,7 +1,8 @@
 defmodule Moss.AgentLoop do
   @moduledoc """
   The live agent tests' loop: a model on OpenRouter, given one tool, `computer`, that runs a command line on its
-  own computer. The host's key never reaches the computer. A turn without a command ends the loop only when it
+  own computer. Its context is its computer's own (Arock's feature file-kinds): `help` and its procedures,
+  the org files in org/procedures/, read from the computer as the run starts. The host's key never reaches the computer. A turn without a command ends the loop only when it
   says DONE; otherwise the model is told `go_on` and asked again.
   """
   alias Moss.Computer
@@ -40,9 +41,22 @@ defmodule Moss.AgentLoop do
   @doc "Runs the task to DONE on computer `id`; returns {turns, the command lines it ran}."
   def run(id, task, go_on) do
     key = Moss.Keys.get("jev") || raise "no OPENROUTER_API_KEY"
-    {turns, cmds} = loop(key, model(), id, [%{role: "user", content: task}], go_on, 0, [])
+    messages = [%{role: "system", content: context(id)}, %{role: "user", content: task}]
+    {turns, cmds} = loop(key, model(), id, messages, go_on, 0, [])
     IO.puts("\n#{model()}: #{turns} turns, #{length(cmds)} commands on #{id}")
     {turns, Enum.reverse(cmds)}
+  end
+
+  @doc "The model's context, from its computer: `help`, then each of its procedures."
+  def context(id) do
+    help = Computer.run(id, "help").out
+    %{out: names} = Computer.run(id, "ls org/procedures")
+
+    procedures =
+      for name <- String.split(names, "\n", trim: true),
+          do: Computer.run(id, "cat org/procedures/#{name}").out
+
+    Enum.join([help | procedures], "\n")
   end
 
   defp loop(key, model, id, messages, go_on, turns, cmds) do

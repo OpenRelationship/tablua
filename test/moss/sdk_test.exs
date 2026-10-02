@@ -43,7 +43,7 @@ defmodule Moss.SdkTest do
            } =
              sh(c, "cat data/plants.dbl")
 
-    assert %{code: 0, out: "code/\ndata/\n"} = sh(c, "ls")
+    assert %{code: 0, out: "code/\ndata/\norg/\n"} = sh(c, "ls")
     assert %{code: 0, out: "plants.dbl\n"} = sh(c, "ls data")
   end
 
@@ -62,7 +62,7 @@ defmodule Moss.SdkTest do
 
     assert %{code: 0, out: out} = sh(c, "lua code/x.lua")
     assert [a, p, v, cv, w, q] = String.split(out, "\n", trim: true)
-    assert a == "nil\tATTACH is not supported (the database speaks a subset of SQLite: help lua)"
+    assert a == "nil\tATTACH is not supported (the database speaks a subset of SQLite: help data)"
     assert p =~ ~r/^nil\tPRAGMA is not supported/
     assert v =~ ~r/^nil\tVACUUM is not supported/
     assert cv =~ ~r/^nil\tCREATE VIEW is not supported/

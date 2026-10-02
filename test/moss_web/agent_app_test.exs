@@ -1,5 +1,5 @@
 defmodule MossWeb.AgentAppTest do
-  # Shroomi's check 5 (Arock PROJECT.md §16.1): a model given only its computer, and `help shroomi` there, builds a
+  # Shroomi's check 5 (Arock PROJECT.md §16.1): a model given only its computer, and `help page` there, builds a
   # working app, looks at it with its own browser (`open app`), and the app then does what was asked when its
   # person uses it. Live, through Moss.AgentLoop: `mix test --only agent`; MOSS_AGENT_MODEL picks the model.
   use MossWeb.ConnCase, async: false
@@ -16,13 +16,13 @@ defmodule MossWeb.AgentAppTest do
 
   @task """
   You have your own computer, reached through the `computer` tool. It is not Linux: its commands are few (run
-  `help`), and its one language is Lua. Run `help shroomi` first: it is how you publish pages and apps there.
+  `help`), and its one language is Lua. Run `help page` first: it is how you publish pages there.
 
-  Make the computer's app (its person opens it in their browser): a reading list, written with Shroomi.
+  Make the computer's page, ui/index.lui (its person opens it in their browser): a reading list.
 
     - The page shows the books not yet read, then the ones read, and says "<n> to read" (e.g. "2 to read").
-    - A form adds a book: a field named "title", sent with htmx to "add" (POST /add).
-    - Each unread book has a button that marks it read: POST /read with the form field title = the book's title.
+    - A form adds a book: a field named "title", sent to the page's action named add.
+    - Each unread book has a button that marks it read: the action named read, with title = the book's title.
     - Books are kept in a database, so they are there the next time the page is opened.
     - It should look finished: use the kit's components, and run ui.check on your page until it names no class.
 
@@ -32,7 +32,7 @@ defmodule MossWeb.AgentAppTest do
 
   defp as, do: Plug.Test.init_test_session(build_conn(), person: "tester")
 
-  test "an agent builds a Shroomi app from help shroomi, and it works for its person" do
+  test "an agent builds a page from help page, and it works for its person" do
     id = "agent-app-#{System.unique_integer([:positive])}"
     :ok = Moss.Owners.claim(id, "tester")
 
@@ -54,10 +54,13 @@ defmodule MossWeb.AgentAppTest do
     Computer.exec(id, %{"cwd" => "/home", "cmd" => "true"})
     page = html_response(get(as(), base), 200)
     assert page =~ ~s(name="title")
-    assert page =~ ~s(hx-post="add")
+    assert page =~ ~s(hx-post="?do=add")
 
     for title <- ["Dune", "Middlemarch"],
-        do: assert(post(hx.(as()), base <> "add", %{"title" => title}).status in [200, 204, 303])
+        do:
+          assert(
+            post(hx.(as()), base <> "?do=add", %{"title" => title}).status in [200, 204, 303]
+          )
 
     page = html_response(get(as(), base), 200)
     assert page =~ "Dune" and page =~ "Middlemarch"
@@ -65,7 +68,7 @@ defmodule MossWeb.AgentAppTest do
     before = count.(page)
     assert before, "no \"<n> to read\" on the page"
 
-    assert post(hx.(as()), base <> "read", %{"title" => "Dune"}).status in [200, 204, 303]
+    assert post(hx.(as()), base <> "?do=read", %{"title" => "Dune"}).status in [200, 204, 303]
     page = html_response(get(as(), base), 200)
     assert String.to_integer(hd(count.(page))) == String.to_integer(hd(before)) - 1
 
@@ -79,6 +82,6 @@ defmodule MossWeb.AgentAppTest do
       })["stdout"]
 
     assert String.trim(unknown) == "", "classes Shroomi does not know: #{unknown}"
-    IO.puts("\n" <> Computer.run(id, "cat /home/app.lua").out)
+    IO.puts("\n" <> Computer.run(id, "cat /home/ui/index.lui").out)
   end
 end

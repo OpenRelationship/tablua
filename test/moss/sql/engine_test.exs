@@ -49,7 +49,7 @@ defmodule Moss.Sql.EngineTest do
       why = err(db, sql)
       assert why =~ named, "#{sql}: #{why}"
 
-      assert why =~ "is not supported (the database speaks a subset of SQLite: help lua)",
+      assert why =~ "is not supported (the database speaks a subset of SQLite: help data)",
              "#{sql}: #{why}"
     end
   end

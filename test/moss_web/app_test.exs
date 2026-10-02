@@ -1,5 +1,5 @@
 defmodule MossWeb.AppTest do
-  # Apps the person opens (Arock PROJECT.md §14.7, goal 5): the computer serves its Lua app as HTML and htmx, the
+  # Apps the person opens (Arock PROJECT.md §14.7, goal 5): the computer serves its .lui pages as HTML and htmx, the
   # person's browser draws it, and the agent reads the same page as words and controls with its own browser.
   use MossWeb.ConnCase, async: false
 
@@ -12,46 +12,43 @@ defmodule MossWeb.AppTest do
   defp put_file(c, path, text),
     do: :ok = Disk.write(:sys.get_state(Computer.wake!(c)).disk, path, text)
 
-  @app ~S"""
-  local ui = require("shroomi")
-  local function page(d)
-    local rows = d:query("select name from plant order by name")
-    local items = {}
-    for _, r in ipairs(rows) do
-      local n = ui.escape(r.name)
-      items[#items + 1] = '<li>' .. n .. ' <button hx-delete="plants/' .. n .. '">Remove ' .. n .. '</button></li>'
-    end
-    return ui.page{ title = "Plants", ui.raw([[
-      <h1>Plants</h1>
-      <ul>]] .. table.concat(items) .. [[</ul>
-      <form hx-post="plants"><label>Name <input name="name"></label><button>Add</button></form>
-      <a hx-get="about">About</a>
-      <script>alert(1)</script><img src="x" onerror="alert(2)"><a href="javascript:alert(3)">x</a>]]) }
-  end
-  return function(req)
+  @page ~S"""
+  <lua>
     local d = db.open("data/plants.dbl")
     d:exec("create table if not exists plant (name text primary key)")
-    if req.method == "POST" and req.path == "/plants" then
+    page.title = "Plants"
+    function post.add(req)
       d:exec("insert or ignore into plant values (?)", req.form.name)
       return { redirect = "./" }
-    elseif req.method == "DELETE" then
-      d:exec("delete from plant where name = ?", string.match(req.path, "^/plants/(.+)$"))
-      return { status = 200, body = "" }
-    elseif req.path == "/about" then
-      return ui.page{ title = "About", ui.p"A plant list, by an agent." }
-    elseif req.path == "/boom" then
-      error("no such plant")
-    elseif req.path == "/script" then
-      return { body = "alert(1)", headers = { ["content-type"] = "text/javascript" } }
     end
-    return page(d)
-  end
+    function post.remove(req) d:exec("delete from plant where name = ?", req.form.name) end
+    function get.boom() error("no such plant") end
+  </lua>
+  <h1>Plants</h1>
+  <ul>
+    {% for _, r in ipairs(d:query("select name from plant order by name")) do %}
+      <li>{{ r.name }} <button post="remove" vals={{ {name = r.name} }}>Remove {{ r.name }}</button></li>
+    {% end %}
+  </ul>
+  <form post="add"><input name="name" label="Name"/><button>Add</button></form>
+  <a href="about">About</a>
+  {{{ '<script>alert(1)</script><img src="x" onerror="alert(2)"><a href="javascript:alert(3)">x</a>' }}}
   """
+
+  @about ~S"""
+  <lua>page.title = "About"</lua>
+  <p>A plant list, by an agent.</p>
+  """
+
+  defp put_app(c) do
+    put_file(c, "/home/ui/index.lui", @page)
+    put_file(c, "/home/ui/about.lui", @about)
+  end
 
   test "the person opens the app: HTML with htmx, the agent's scripts unable to run" do
     c = cid()
     Moss.Owners.claim(c, "tester")
-    put_file(c, "/home/app.lua", @app)
+    put_app(c)
 
     assert redirected_to(get(as("tester"), "/computers/#{c}/app"), 302) == "/computers/#{c}/app/"
 
@@ -69,21 +66,20 @@ defmodule MossWeb.AppTest do
     assert csp =~
              "script-src http://www.example.com/shroomi/basecoat-1.0.2.min.js " <>
                "http://www.example.com/shroomi/htmx-2.0.4.min.js http://www.example.com/shroomi/idiomorph-0.7.3.min.js " <>
-                "http://www.example.com/shroomi/shroomi.js;"
+               "http://www.example.com/shroomi/shroomi.js;"
 
     assert csp =~ "connect-src http://www.example.com/computers/#{c}/app/;"
     refute csp =~ "unsafe-eval"
     assert get_resp_header(conn, "x-content-type-options") == ["nosniff"]
 
     # htmx posts without a CSRF token, and the app's redirect stays inside it
-    conn = post(as("tester"), "/computers/#{c}/app/plants", %{"name" => "fern"})
+    conn = post(as("tester"), "/computers/#{c}/app/?do=add", %{"name" => "fern"})
     assert redirected_to(conn, 303) == "http://www.example.com/computers/#{c}/app/"
     assert get(as("tester"), "/computers/#{c}/app/").resp_body =~ "<li>fern"
 
-    # an app cannot serve a script, and its failures are its own page
-    conn = get(as("tester"), "/computers/#{c}/app/script")
-    assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
-    conn = get(as("tester"), "/computers/#{c}/app/boom")
+    # a path no page answers is not found, and a page's failures are its own
+    assert get(as("tester"), "/computers/#{c}/app/script").status == 404
+    conn = get(as("tester"), "/computers/#{c}/app/?do=boom")
     assert conn.status == 500 and conn.resp_body =~ "no such plant"
 
     # no one else reaches it
@@ -102,7 +98,7 @@ defmodule MossWeb.AppTest do
 
   test "the agent reads its app as words and controls, and works it with its own browser" do
     c = cid()
-    put_file(c, "/home/app.lua", @app)
+    put_app(c)
 
     assert %{code: 0, out: out} = Computer.run(c, "open app")
     assert out =~ "# Plants"
@@ -127,18 +123,17 @@ defmodule MossWeb.AppTest do
     assert %{code: 0, out: out} = Computer.run(c, "click About")
     assert out =~ "A plant list, by an agent."
 
-    put_file(c, "/home/app.lua", "return function() error('broken') end")
+    put_file(c, "/home/ui/index.lui", "<lua>error('broken')</lua>")
     assert %{code: 22, err: err} = Computer.run(c, "open app")
     assert err =~ "500"
   end
 
-  # what `help shroomi` tells an agent about apps is how they work: each line it states, done here as written
-  test "help shroomi teaches the app and the browser, and what it says holds" do
+  # what `help page` tells an agent about pages is how they work: each line it states, done here as written
+  test "help page teaches pages and the browser, and what it says holds" do
     c = cid()
-    assert %{code: 0, out: help} = Computer.run(c, "help shroomi")
+    assert %{code: 0, out: help} = Computer.run(c, "help page")
 
     for line <- [
-          "/home/app.lua",
           "apps/plants/ui/index.lui",
           ~s(post="water" names the page's action),
           "open app/plants",
@@ -146,43 +141,38 @@ defmodule MossWeb.AppTest do
         ],
         do: assert(help =~ line, line)
 
+    refute help =~ "app.lua"
     assert Computer.run(c, "help click").out == Moss.Computer.Browser.help()
-    assert Computer.run(c, "help app").out == Moss.Computer.App.help()
 
-    put_file(c, "/home/app.lua", ~S"""
-    local ui = require("shroomi")
-    return function(req)
+    put_file(c, "/home/apps/notes/ui/index.lui", ~S"""
+    <lua>
       local d = db.open("data/notes.dbl")
       d:exec("create table if not exists note (text text)")
-      if req.method == "POST" and req.path == "/add" then
-        d:exec("insert into note values (?)", req.form.text)
-        if req.headers["hx-request"] == "true" then return ui.render(ui.li(req.form.text)) end
-        return { redirect = "notes/all" }
-      elseif req.path == "/notes/all" then
-        local items = {}
-        for i, r in ipairs(d:query("select text from note")) do items[i] = ui.li(r.text) end
-        return ui.page{ title = "All notes", ui.ul(items) }
-      end
-      return ui.page{ title = "Notes",
-        ui.form{ post = "add", ui.input{ name = "text", label = "Note" }, ui.button"Keep" } }
-    end
+      page.title = "Notes"
+      function post.add(req) d:exec("insert into note values (?)", req.form.text) end
+    </lua>
+    <form post="add"><input name="text" label="Note"/><button>Keep</button></form>
+    <a href="all">All notes</a>
     """)
 
+    put_file(c, "/home/apps/notes/ui/all.lui", ~S"""
+    <lua>local d = db.open("data/notes.dbl") page.title = "All notes"</lua>
+    <ul>{% for _, r in ipairs(d:query("select text from note")) do %}<li>{{ r.text }}</li>{% end %}</ul>
+    """)
+
+    put_file(c, "/home/manifest.org", "* Apps\n- [[org:#{c}/notes]]\n")
     :ok = Moss.Owners.claim(c, "tester")
     hx = as("tester") |> put_req_header("hx-request", "true")
-    assert post(hx, "/computers/#{c}/app/add", %{"text" => "seeds"}).resp_body == "<li>seeds</li>"
-
-    assert redirected_to(post(as("tester"), "/computers/#{c}/app/add", %{"text" => "soil"}), 303) =~
-             "notes/all"
+    assert post(hx, "/computers/#{c}/app/notes/?do=add", %{"text" => "seeds"}).resp_body =~ "Keep"
 
     assert %{code: 0, out: out} = Computer.run(c, "open app/notes/all")
-    assert out =~ "seeds" and out =~ "soil"
+    assert out =~ "seeds"
 
-    assert %{code: 0, out: out} = Computer.run(c, "open app")
+    assert %{code: 0, out: out} = Computer.run(c, "open app/notes")
     assert out =~ ~s(field "Note")
     assert %{code: 0} = Computer.run(c, "type Note water")
     assert %{code: 0} = Computer.run(c, "click Keep")
     assert %{code: 0, out: out} = Computer.run(c, "open app/notes/all")
-    assert out =~ "water"
+    assert out =~ "water" and out =~ "seeds"
   end
 end

@@ -70,8 +70,8 @@ defmodule Moss.Computer.Script do
   end
 
   @doc """
-  One request to the computer's app: its `.lui` page (`Moss.Computer.Pages`), run in its app's folder, or
-  `/home/app.lua` while the gallery moves to apps (see `__serve` in computer.lua):
+  One request to the computer's app: its `.lui` page (`Moss.Computer.Pages`), run in its app's folder (see
+  `__serve` in computer.lua):
   `req` is `%{"method", "path", "query", "form", "headers"}`; the answer is
   `{status, headers, body, err}`, under the same bounds as a command's run.
   """
@@ -232,6 +232,7 @@ defmodule Moss.Computer.Script do
     |> mail_fun(state)
     |> db_funs(disk, path)
     |> fun(:module, fn [n | _] -> [builtin(to_string(n))] end)
+    |> fun(:compiled, &compiled/1)
     |> fun(:report, fn [json | _] ->
       with {pid, ref} <- state[:report], do: send(pid, {ref, :report, json})
       [true]
@@ -337,16 +338,54 @@ defmodule Moss.Computer.Script do
     end)
   end
 
-  @doc "`help lua`: the library as its files describe it, the opening comment of each."
-  def reference do
-    sdk = sdk() |> Enum.reject(fn {n, _} -> String.starts_with?(n, "shroomi") end) |> Enum.sort()
-    Enum.map_join([prelude() | Enum.map(sdk, &elem(&1, 1))], "\n", &header/1)
+  # compiled .lui pages, kept on the node by their name and text (computer.lua's page): the same page compiles
+  # to the same Lua for every computer, so one table serves them all; past @kept pages it starts over
+  @kept 2000
+
+  @doc false
+  def compiled_table do
+    case :ets.whereis(:moss_lui) do
+      :undefined -> :ets.new(:moss_lui, [:named_table, :public, read_concurrency: true])
+      t -> t
+    end
   end
 
-  @doc "`help shroomi`: how to publish, from Shroomi's own files."
-  def shroomi_reference do
-    m = sdk()
-    Enum.map_join(~w(shroomi.lui shroomi.components shroomi.css), "\n", &header(m[&1]))
+  defp compiled([name, text]) do
+    case :ets.lookup(:moss_lui, key(name, text)) do
+      [{_, src}] -> [src]
+      [] -> [nil]
+    end
+  end
+
+  defp compiled([name, text, src | _]) do
+    if :ets.info(:moss_lui, :size) >= @kept, do: :ets.delete_all_objects(:moss_lui)
+    :ets.insert(:moss_lui, {key(name, text), src})
+    [true]
+  end
+
+  defp key(name, text), do: :crypto.hash(:sha256, [to_string(name), 0, to_string(text)])
+
+  @doc "`help code`: Lua on this computer, as computer.lua's opening comment says it."
+  def prelude_help, do: header(prelude())
+
+  @doc "`help lua <module>`: a library module's opening comment, or nil for no such module."
+  def module_help(name) do
+    case builtin(name) do
+      nil -> nil
+      src -> header(src)
+    end
+  end
+
+  # the modules a script has no reason to require: the host's loop and Shroomi's insides
+  @inside ~w(loop shroomi.icons shroomi.icons_more shroomi.lui_scan shroomi.page shroomi.policy shroomi.utilities)
+
+  @doc "Each library module a script may require, with its first sentence (cut at 90 bytes)."
+  def module_index do
+    for {name, src} <- Enum.sort(sdk()),
+        name not in @inside,
+        [first | _] <- [String.split(header(src), "\n", trim: true)],
+        sentence = Regex.replace(~r/^[\w.]+: /, first, "") |> String.split(". ", parts: 2) |> hd(),
+        do: {name, String.slice(sentence, 0, 90)}
   end
 
   # a file's opening comment, as text

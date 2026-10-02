@@ -14,10 +14,13 @@ defmodule MossWeb.GalleryTest do
   setup do
     id = "gallery-#{System.unique_integer([:positive])}"
 
+    # the gallery as `mix moss.put` puts it on its computer, its addresses naming this one
     files =
       for f <- Path.wildcard(@examples <> "/**/*.{lui,org}"),
           into: %{},
-          do: {Path.relative_to(f, @examples), File.read!(f)}
+          do:
+            {Path.relative_to(f, @examples),
+             String.replace(File.read!(f), "org:shroomi-gallery", "org:" <> id)}
 
     %{"code" => 0} = Computer.exec(id, %{"cwd" => "/home", "cmd" => "true", "files" => files})
     :ok = Moss.Owners.claim(id, "tester")
@@ -50,6 +53,18 @@ defmodule MossWeb.GalleryTest do
 
   # Shroomi's check 7 (§16.1): a typical page is rendered on tv-labs lua, cleaned and sent in under 50 ms. The
   # median of seven requests, after one to wake the computer.
+  # Arock's feature manifest (goal 4): every org: link in the gallery names something on the node
+  test "the gallery's links resolve", %{id: id} do
+    links =
+      for f <- Path.wildcard(@examples <> "/**/*.{lui,org}"),
+          [_, a] <- Regex.scan(~r/\[\[(org:[^\]]+)\]/, File.read!(f)),
+          do: String.replace(a, "org:shroomi-gallery", "org:" <> id)
+
+    assert length(links) >= 6
+    for a <- links, do: assert({:ok, _} = Moss.Names.resolve(a), a)
+    assert {:error, _} = Moss.Names.resolve("org:#{id}/no-such-app")
+  end
+
   test "every gallery page is served in under 50 ms", %{base: base} do
     times =
       for path <- [""] ++ Enum.map(@names, &"#{&1}/") do

@@ -67,7 +67,8 @@ defmodule Moss.LogTest do
              {"Delete File", "agent", ["/home/files/notes/b.txt"]},
              {"Delete File", "agent", ["/home/files/notes/old"]}
            ] =
-             events(c, ["Make Folder", "Write File", "Move File", "Delete File"]) |> Enum.drop(3)
+             events(c, ["Make Folder", "Write File", "Move File", "Delete File"])
+             |> Enum.filter(&(elem(&1, 1) == "agent"))
 
     # a new disk: its root and its two folders, by the host
     assert [
@@ -95,7 +96,8 @@ defmodule Moss.LogTest do
     {:ok, [dump]} = Log.alog(d, "dump", [])
 
     assert Enum.map(before, & &1["path"]) ==
-             ~w(/ /home /home/files /home/files/empty /home/files/keep /home/files/z /home/files/z/b /home/files/z/b/1.txt /tmp)
+             ~w(/ /home /home/files /home/files/empty /home/files/keep /home/files/z /home/files/z/b /home/files/z/b/1.txt
+                /home/org /home/org/procedures /home/org/procedures/build.org /tmp)
 
     {:ok, _} = Log.alog(d, "rebuild", [])
     assert nodes(d) == before
@@ -135,12 +137,16 @@ defmodule Moss.LogTest do
     c = id()
 
     :ok =
-      Disk.write(disk(c), "/home/app.lua", """
-      return function(req) fs.write("files/seen.txt", req.form.name or "") return "<p>hi " .. (req.form.name or "") .. "</p>" end
+      Disk.write(disk(c), "/home/ui/add.lui", ~S"""
+      <lua>
+        function post.seen(req) fs.write("files/seen.txt", req.form.name or "") return { name = req.form.name } end
+      </lua>
+      <p>hi {{ result.name or "" }}</p>
       """)
 
-    req = App.request("post", "/add", %{"q" => "1"}, %{"name" => "fern"}, [])
-    assert {200, _, "<p>hi fern</p>", _} = Computer.serve(c, req)
+    req = App.request("post", "/add", %{"q" => "1", "do" => "seen"}, %{"name" => "fern"}, [])
+    assert {200, _, page, _} = Computer.serve(c, req)
+    assert page =~ "<p>hi fern</p>"
 
     assert [{"Write File", "user", ["/home/files/seen.txt", "fern"]}] =
              events(c, ["Write File"])
@@ -148,7 +154,7 @@ defmodule Moss.LogTest do
 
     assert [
              {"Serve Request", "user",
-              ["POST", "/add", "200", ms, "q=1&name=fern", "<p>hi fern</p>"]}
+              ["POST", "/add", "200", ms, "do=seen&q=1&name=fern", ^page]}
            ] =
              events(c, ["Serve Request"])
 
@@ -247,7 +253,7 @@ defmodule Moss.LogTest do
              {"Write File", "host", ["/home/old.txt", "old\n"]},
              {"Write File", "host", ["/home/sub/b.bin", <<0, 255, 0>>]},
              {"Run Command", "agent", ["cat old.txt" | _]}
-           ] = events(c)
+           ] = Enum.reject(events(c), &procedures?/1)
 
     assert {:ok, [%{"type" => "view"}]} =
              Db.exec(d.conn, "select type from sqlite_master where name = 'nodes'", [])
@@ -255,6 +261,14 @@ defmodule Moss.LogTest do
     # and only once
     :ok = Computer.sleep(c)
     sh(c, "true")
-    assert length(events(c, ["Write File"])) == 2
+    assert length(Enum.reject(events(c, ["Write File"]), &procedures?/1)) == 2
   end
+
+  # what the host writes on a first wake: the agent's procedures, an org file on the log (Moss.Computer.Procedures)
+  defp procedures?({keyword, "host", [first | _]}),
+    do:
+      String.starts_with?(to_string(first), "/home/org") or
+        keyword in ["Add Entry", "Set Header", "Set State", "Edit Entry"]
+
+  defp procedures?(_), do: false
 end

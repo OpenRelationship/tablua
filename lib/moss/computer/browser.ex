@@ -20,7 +20,7 @@ defmodule Moss.Computer.Browser do
     data [n [path|find <words>]]   the JSON the page carries (JSON-LD, __NEXT_DATA__ ...), read by path
     cookies [clear [site]]  the sites with cookies, by name (never their values), or forgetting them
   A password field is the person's: the browser never types into one.
-  `open app` opens the computer's own app (`/home/app.lua`, at http://app/), as its person sees it.
+  `open app` opens the computer's own pages (`ui/*.lui` and its apps', at http://app/), as its person sees it.
   """
 
   @names ~w(open page read ui click type submit back tabs close data cookies)
@@ -163,6 +163,7 @@ defmodule Moss.Computer.Browser do
 
       %{role: "button", hx: {method, url}} = c ->
         pairs = if c.form > 0, do: Nav.form_pairs(tab.page, c), else: Nav.own_pair(c)
+        pairs = pairs ++ (c.vals || [])
         Nav.act(state, tab, method, Nav.resolve(tab.page, url), pairs)
 
       %{role: "button", type: t} = c when t in ["submit", "image"] and c.form > 0 ->

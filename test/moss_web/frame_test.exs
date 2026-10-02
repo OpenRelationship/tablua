@@ -8,28 +8,26 @@ defmodule MossWeb.FrameTest do
   alias Moss.Computer
   alias MossWeb.Frame
 
-  @app ~S"""
-  local ui = require("shroomi")
-  return function(req)
+  @page ~S"""
+  <lua>
     local d = db.open("data/plants.dbl")
     d:exec("create table if not exists plant (name text primary key)")
-    if req.method == "POST" and req.path == "/plants" then
+    page.title = "Plants"
+    function post.plant(req)
       d:exec("insert or ignore into plant values (?)", req.form.name)
       return { redirect = "./" }
-    elseif req.path == "/hx" then
-      return { body = ui.render(ui.p"swapped"), headers = { ["hx-trigger"] = "grown" } }
     end
-    local rows = d:query("select name from plant order by name")
-    local items = {}
-    for i, r in ipairs(rows) do items[i] = ui.li(r.name) end
-    return ui.page{ title = "Plants", ui.h1"Plants", ui.ul(items), ui.raw([[<a hx-get="hx">More</a>]]) }
-  end
+    function get.more() return "#more" end
+  </lua>
+  <h1>Plants</h1>
+  <ul>{% for _, r in ipairs(d:query("select name from plant order by name")) do %}<li>{{ r.name }}</li>{% end %}</ul>
+  <p id="more">swapped</p>
   """
 
   setup do
     id = "frame-#{System.unique_integer([:positive])}"
     :ok = Moss.Owners.claim(id, "tester")
-    %{"code" => 0} = Computer.exec(id, %{"cmd" => "true", "files" => %{"app.lua" => @app}})
+    %{"code" => 0} = Computer.exec(id, %{"cmd" => "true", "files" => %{"ui/index.lui" => @page}})
     cap = Frame.cap("tester", id)
     %{id: id, cap: cap, base: Frame.base(id, cap)}
   end
@@ -68,7 +66,7 @@ defmodule MossWeb.FrameTest do
       |> null_origin()
       |> put_req_header("access-control-request-method", "POST")
       |> put_req_header("access-control-request-headers", "hx-request,hx-current-url,hx-target")
-      |> options(base <> "plants")
+      |> options(base <> "?do=plant")
 
     assert conn.status == 204
     assert get_resp_header(conn, "access-control-allow-origin") == ["*"]
@@ -78,15 +76,14 @@ defmodule MossWeb.FrameTest do
     for h <- ~w(hx-request hx-current-url hx-target hx-trigger), do: assert(allowed =~ h)
     assert get_resp_header(conn, "access-control-allow-credentials") == []
 
-    conn = anon() |> null_origin() |> put_req_header("hx-request", "true") |> get(base <> "hx")
-    assert conn.resp_body =~ "swapped"
+    conn = anon() |> null_origin() |> put_req_header("hx-request", "true") |> get(base <> "?do=more")
+    assert conn.resp_body =~ ~s(data-part="more")
     refute conn.resp_body =~ "<base"
-    assert get_resp_header(conn, "hx-trigger") == ["grown"]
     [exposed] = get_resp_header(conn, "access-control-expose-headers")
     assert exposed =~ "hx-trigger"
 
     # a form post's redirect stays inside the cap's path
-    conn = post(null_origin(anon()), base <> "plants", %{"name" => "fern"})
+    conn = post(null_origin(anon()), base <> "?do=plant", %{"name" => "fern"})
     assert redirected_to(conn, 303) == "http://www.example.com" <> base
     assert get_resp_header(conn, "access-control-allow-origin") == ["*"]
     assert get(anon(), base).resp_body =~ "<li>fern"
@@ -114,7 +111,7 @@ defmodule MossWeb.FrameTest do
           not_owner: Frame.base(id, not_owner)
         ] do
       assert get(anon(), path).status == 403, "#{why}"
-      assert post(anon(), path <> "plants", %{"name" => "x"}).status == 403, "#{why}"
+      assert post(anon(), path <> "?do=plant", %{"name" => "x"}).status == 403, "#{why}"
       assert options(anon(), path).status == 403, "#{why}"
     end
 

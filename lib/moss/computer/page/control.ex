@@ -11,6 +11,8 @@ defmodule Moss.Computer.Page.Control do
     :field,
     :value,
     :hx,
+    # what an htmx request of it sends besides its form: hx-vals, as {name, value}
+    :vals,
     :href,
     :on,
     :options,

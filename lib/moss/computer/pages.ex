@@ -28,8 +28,8 @@ defmodule Moss.Computer.Pages do
   end
 
   @doc """
-  The request as its page sees it, the folder it runs in, and the app it is in (nil for the computer's own, or
-  for `/home/app.lua`): `req` gains `page`, and its path is from the app's root.
+  The request as its page sees it, the folder it runs in, and the app it is in (nil for the computer's own):
+  `req` gains `page`, and its path is from the app's root.
   """
   def request(req, disk) do
     case route(req["path"], disk) do

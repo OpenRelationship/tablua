@@ -96,31 +96,7 @@ defmodule Moss.Computer.Commands do
   defp builtin("true", _, _, state), do: {0, "", "", state}
   defp builtin("false", _, _, state), do: {1, "", "", state}
 
-  defp builtin("help", ["lua" | _], _, state),
-    do: {0, Moss.Computer.Script.reference(), "", state}
-
-  defp builtin("help", ["shroomi" | _], _, state),
-    do: {0, Moss.Computer.Script.shroomi_reference() <> Moss.Computer.App.help(), "", state}
-
-  defp builtin("help", ["app" | _], _, state), do: {0, Moss.Computer.App.help(), "", state}
-
-  defp builtin("help", [m | _], _, state) when m in ~w(loop new test check status publish),
-    do: {0, Loop.help(), "", state}
-
-  defp builtin("help", [m | _], _, state) when m in ~w(manifest tools),
-    do: {0, Tools.help(), "", state}
-
-  defp builtin("help", [cmd | _], _, state)
-       when cmd in ~w(browser open page read ui click type submit back tabs close data cookies),
-       do: {0, Browser.help(), "", state}
-
-  defp builtin("help", _, _, state),
-    do:
-      {0,
-       "commands: " <>
-         Enum.join(names(), " ") <>
-         "\n(help lua: the Lua library; help shroomi: pages and apps; help loop: features, test and publish; help manifest: tools and reach; help open: the browser)\n",
-       "", state}
+  defp builtin("help", args, _, state), do: {0, Moss.Computer.Help.run(args), "", state}
 
   defp builtin("date", _, _, state),
     do:

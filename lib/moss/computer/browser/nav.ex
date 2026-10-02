@@ -67,7 +67,7 @@ defmodule Moss.Computer.Browser.Nav do
     cut = Map.get(r, :cut) && "(read to #{size(max())}; the rest of the page was not read)"
     notes = Enum.filter([note, cut], & &1)
 
-    page = Page.new(r.url, html, notes)
+    page = %{Page.new(r.url, html, notes) | base: Map.get(r, :base)}
     if Keyword.get(opts, :method, "GET") != "GET", do: %{page | answer: true}, else: page
   end
 
@@ -129,7 +129,9 @@ defmodule Moss.Computer.Browser.Nav do
         fetch_app(state, URI.to_string(URI.merge(@app, to)), [], hops - 1)
 
       _ ->
-        {:ok, %{status: status, body: body, url: url, headers: headers}}
+        # an app's page reads its addresses against the app's root, as its <base> has the person's browser do
+        base = if app = headers["x-moss-app"], do: @app <> app <> "/"
+        {:ok, %{status: status, body: body, url: url, headers: headers, base: base}}
     end
   end
 
@@ -221,6 +223,7 @@ defmodule Moss.Computer.Browser.Nav do
   # -- addresses and where a request comes from ----------------------------------------------------
 
   # an app's page is read against the app's root, as its <base> has the person's browser read it
+  def resolve(%{base: base}, href) when is_binary(base), do: base |> URI.merge(href) |> URI.to_string()
   def resolve(%{url: @app <> _}, href), do: @app |> URI.merge(href) |> URI.to_string()
   def resolve(page, href), do: page.url |> URI.merge(href) |> URI.to_string()
 

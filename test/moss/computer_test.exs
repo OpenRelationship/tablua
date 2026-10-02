@@ -37,12 +37,29 @@ defmodule Moss.ComputerTest do
     assert %{code: 1, err: "rm: /home/files/notes/old: is a folder (rm -r)\n"} = sh(c, "rm old")
   end
 
+  test "an empty command between operators is nothing, or a mistake said plainly, never a crash" do
+    c = id()
+    assert %{code: 0, out: "a\nb\n"} = sh(c, "echo a; ; echo b")
+    assert %{code: 0, out: "a\nb\n"} = sh(c, "echo a\n\necho b")
+
+    assert %{code: 2, err: "sh: a command is missing beside && or ||\n"} =
+             sh(c, "echo a && && echo b")
+
+    assert %{code: 2, err: "sh: a command is missing beside && or ||\n"} =
+             sh(c, "echo a || ; echo b")
+
+    assert %{code: 2, err: "sh: a command is missing beside |\n"} = sh(c, "echo a | | cat")
+    assert %{code: 0, out: "ok\n"} = sh(c, "echo ok")
+  end
+
   test "one computer never sees another's files" do
     {a, b} = {id(), id()}
     sh(a, "echo secret > files/mine.txt")
     assert %{code: 1} = sh(b, "cat files/mine.txt")
     assert %{code: 1} = sh(b, "cat /home/../../home/files/mine.txt")
-    assert %{out: ""} = sh(b, "ls")
+    # b holds only what every computer starts with: its procedures
+    assert %{out: "org/\n"} = sh(b, "ls")
+    assert %{out: "build.org\n"} = sh(b, "ls org/procedures")
     assert %{out: "secret\n"} = sh(a, "cat files/mine.txt")
   end
 

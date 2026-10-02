@@ -18,6 +18,8 @@ defmodule Moss.Computer.Page do
 
   defstruct [
     :url,
+    # what its relative addresses are read against, when not its url: an app's root (http://app/<app>/)
+    :base,
     :title,
     :watch,
     :refresh,

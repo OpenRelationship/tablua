@@ -9,17 +9,10 @@
 --   http.get(url [, headers]), http.post(url, body [, headers]), http.request{ method, url, headers, body }
 --   json.encode(v), json.decode(s)
 --   mail.send(to, subject, body)
---   db.open(name) -> d; d:exec(sql, ...) -> changes; d:query(sql, ...) -> rows; d:one(sql, ...) -> row;
---     d:close(); d:save() (a no-op: each statement is kept as it ends, a transaction at COMMIT). A database is
---     named in data/ as .dbl ("data/plants.dbl"), shows in ls, cat sums it up, rm removes it; no file is ever opened as
---     one. Its SQL is SQLite's: create table/index, alter table add column, drop; insert (or ignore/replace,
---     on conflict do update/nothing, returning); select with joins, group by, subqueries, union; update;
---     delete; begin/commit/rollback; ?, ?N and :name bind the arguments after it. Views, triggers, WITH,
---     window functions and pragma are refused by name. 64 MB at most.
---   Pages: ui/*.lui, HTML with Lua in it, served at their path in their app (`help shroomi`); the person
---     opens them in their browser, `open app` here. /home/app.lua, the old way, answers any path no page does.
---   date and csv are at hand (`help lua`); require("name"): the SDK's own modules (csv, date, test, shroomi), then name.lua or
+--   db.open("data/plants.dbl") -> d; d:exec(sql, ...), d:query(sql, ...) -> rows, d:one(sql, ...) (`help data`)
+--   date, csv and test are at hand; require("name"): the library's modules (`help lua`), then name.lua or
 --     name/init.lua in the working folder, then the app's code/, then /home/code/
+--   Pages are ui/*.lui (`help page`); a tool is code named in manifest.org (`help manifest`).
 -- A failure returns nil and why, as Lua's own io does.
 
 -- (Moss.Computer.Script binds __sys, the host's functions; everything here is plain Lua over them.)
@@ -184,10 +177,9 @@ function __main(code, name)
   return say(e)
 end
 
--- A request (Moss.Computer.App): a .lui page when one answers its path (req.page, chosen by Moss.Computer.Pages, run in
--- its app's folder), else /home/app.lua, which returns a function, or a table with handle, given each request
--- { method, path, query = {k = v}, form = {k = v}, headers }. Either answers with HTML text, or
--- { status, body, headers, redirect }.
+-- A request (Moss.Computer.App): the .lui page that answers its path (req.page, chosen by Moss.Computer.Pages, run in
+-- its app's folder), given { method, path, query = {k = v}, form = {k = v}, headers }; it answers with HTML text,
+-- or { status, body, headers, redirect }.
 local function say(e)
   e = tostring(e)
   sys.ewrite("app: " .. e .. "\n")
@@ -201,9 +193,18 @@ local function reply(res)
   return tonumber(res.status) or 200, res.headers or {}, tostring(res.body or "")
 end
 
+-- a page is compiled once for its name and text, and the node keeps what it compiled to (sys.compiled)
 local function page(req)
   local name = string.gsub(req.page, "^/home/", "")
-  local ok, res = xpcall(function() return require("shroomi.lui").answer(sys.read(req.page), name, req) end, tostring)
+  local ok, res = xpcall(function()
+    local lui, text = require("shroomi.lui"), sys.read(req.page)
+    local src = sys.compiled(name, text)
+    if not src then
+      src = lui.compile(text, name)
+      if src then sys.compiled(name, text, src) end
+    end
+    return lui.answer(text, name, req, src)
+  end, tostring)
   if not ok then return 500, {}, "The page failed: " .. say(res) end
   return reply(res)
 end
@@ -219,16 +220,5 @@ end
 
 function __serve(req)
   if req.page then return page(req) end
-  local src = sys.read("/home/app.lua")
-  if not src then return 404, {}, "This computer has no page here: ui/index.lui is its first." end
-  local chunk, why = load(src, "@/home/app.lua")
-  if not chunk then return 500, {}, "The app does not load: " .. say(why) end
-  local ok, res = xpcall(function()
-    local app = chunk()
-    local handle = type(app) == "table" and app.handle or app
-    if type(handle) ~= "function" then error("/home/app.lua returns no function to handle a request", 0) end
-    return handle(req)
-  end, tostring)
-  if not ok then return 500, {}, "The app failed: " .. say(res) end
-  return reply(res)
+  return 404, {}, "This computer has no page here: ui/index.lui is its first."
 end

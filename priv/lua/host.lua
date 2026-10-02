@@ -29,6 +29,21 @@ function arock.log(method, ...)
   if method then return log[method](log, ...) end
 end
 
+-- An org file kept on the computer's log (Arock's feature file-kinds, alog.org_log): the write checked whole
+-- against the file's history and its events appended, or refused by line. Links resolve through the host
+-- (__host.resolve: org: addresses on the node, file: on the disk).
+--   arock.org(path, text, actor, task) -> the file as the log reads it back | nil, { "line: why", ... }
+function arock.org(path, text, actor, task)
+  local host = arock.host()
+  local log = require("alog").open(host.db, { clock = host.clock, hash = __host.sha256 })
+  local resolve = __host.resolve and function(target) return __host.resolve(target) end
+  local out, errs = require("alog.org_log").write(log, path, text, { actor = actor, task = task, resolve = resolve })
+  if out then return out end
+  local lines = {}
+  for i, e in ipairs(errs) do lines[i] = e.line .. ": " .. e.msg end
+  return nil, lines
+end
+
 -- Jev's decisions for the host's own use (the post reading letters, PROJECT.md §14.5): the core's port, so the
 -- host asks Jev as the core does. Gives the answers and what the call cost.
 function arock.decide(state, questions)
@@ -168,6 +183,12 @@ end
 -- arock.names("template", kind, computer, today) -> what `new task|note|letter|manifest` writes (alog.org_kinds)
 function names.template(kind, computer, today)
   return require("alog.org_kinds").template(kind, { computer = computer, today = today, from = computer })
+end
+
+-- arock.names("help", kind) -> `help org [kind]`: the org this computer speaks, and that kind's part
+function names.help(kind)
+  local kinds = require("alog.org_kinds")
+  return kind and kinds.KIND_HELP[kind] and kinds.help(kind) or kinds.HELP
 end
 
 function arock.names(what, ...)

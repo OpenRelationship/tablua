@@ -33,6 +33,7 @@ defmodule Moss.Lua.Ports do
       [Base.encode16(:crypto.hash(:sha256, s), case: :lower)]
     end)
     |> bind_db(ports[:db])
+    |> bind_resolve(ports[:resolve])
     |> bind_computer(ports[:computer])
   end
 
@@ -47,6 +48,18 @@ defmodule Moss.Lua.Ports do
 
       {table, lua} = Lua.encode!(lua, Moss.Computer.exec(id, req))
       {[table], lua}
+    end)
+  end
+
+  # how a link is resolved: a function of the target, true or {false, why}
+  defp bind_resolve(lua, nil), do: lua
+
+  defp bind_resolve(lua, f) do
+    Lua.set!(lua, [:__host, :resolve], fn [target | _] ->
+      case f.(to_string(target)) do
+        true -> [true]
+        {false, why} -> [false, why]
+      end
     end)
   end
 

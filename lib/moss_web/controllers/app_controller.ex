@@ -1,7 +1,7 @@
 defmodule MossWeb.AppController do
   @moduledoc """
   A computer's app for its person (`Moss.Computer.App`): `/computers/<id>/app/...`
-  is whatever `/home/app.lua` answers, for the computer's owner only. It takes
+  is whatever the `.lui` page at that path answers, for the computer's owner only. It takes
   htmx's requests without a CSRF token, as a page with no script of its own
   cannot carry one; the session cookie is SameSite=Lax, so another site's form
   posts arrive without it.

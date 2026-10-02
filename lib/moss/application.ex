@@ -10,6 +10,9 @@ defmodule Moss.Application do
     # Every module now, as a release loads them: a computer's kept session names their atoms (Moss.Computer.Session.kept/2)
     for m <- Application.spec(:moss, :modules), do: Code.ensure_loaded(m)
 
+    # the node's compiled .lui pages (Moss.Computer.Script), owned by this process for the node's life
+    Moss.Computer.Script.compiled_table()
+
     children =
       [
         MossWeb.Telemetry,

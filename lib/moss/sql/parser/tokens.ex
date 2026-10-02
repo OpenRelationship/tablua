@@ -133,5 +133,5 @@ defmodule Moss.Sql.Parser.Tokens do
   end
 
   def unsupported(what),
-    do: fail("#{what} is not supported (the database speaks a subset of SQLite: help lua)")
+    do: fail("#{what} is not supported (the database speaks a subset of SQLite: help data)")
 end

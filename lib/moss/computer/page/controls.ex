@@ -137,7 +137,8 @@ defmodule Moss.Computer.Page.Controls do
       type: attr(attrs, "type") || "submit",
       field: attr(attrs, "name"),
       value: attr(attrs, "value"),
-      hx: hx(attrs)
+      hx: hx(attrs),
+      vals: vals(attrs)
     })
   end
 
@@ -313,6 +314,16 @@ defmodule Moss.Computer.Page.Controls do
       (attr(attrs, "disabled") != nil or on.("aria-disabled")) && "disabled"
     ]
     |> Enum.filter(&is_binary/1)
+  end
+
+  # hx-vals: a JSON object of strings, numbers and booleans, as {name, text}; anything else sends nothing
+  defp vals(attrs) do
+    with s when is_binary(s) <- attr(attrs, "hx-vals"),
+         {:ok, %{} = m} <- Jason.decode(s) do
+      for {k, v} <- Enum.sort(m), is_binary(v) or is_number(v) or is_boolean(v), do: {k, to_string(v)}
+    else
+      _ -> []
+    end
   end
 
   # an htmx request an element makes: {method, url}

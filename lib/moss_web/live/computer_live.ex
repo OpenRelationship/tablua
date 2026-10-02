@@ -5,7 +5,7 @@ defmodule MossWeb.ComputerLive do
   every command the agent ran (live, from PubSub `computer:<id>`), the browser
   window the front page as the computer holds it (scripts off, in a sandboxed
   frame, with what the agent typed in its fields), Files the working folder,
-  and App the computer's own app (`/home/app.lua`), live, for the person to use.
+  and App the computer's own pages (`ui/index.lui` and its apps), live, for the person to use.
   The App window is a frame with an opaque origin (`sandbox` without
   `allow-same-origin`), opened by a cap in its path (`MossWeb.Frame`), and it
   loads again, with a fresh cap, when the agent changes anything under /home
@@ -177,7 +177,7 @@ defmodule MossWeb.ComputerLive do
         >
         </iframe>
         <div :if={!@app?} id="app-empty" class="grid flex-1 place-items-center text-stone-400">
-          The agent has not written /home/app.lua yet
+          The agent has not written ui/index.lui yet
         </div>
       </.window>
 

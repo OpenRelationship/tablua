@@ -1,8 +1,8 @@
 defmodule Moss.Computer.App do
   @moduledoc """
-  The computer's app, as a browser gets it: `/home/app.lua` answers each
-  request (`Moss.Computer.Script.serve/2`), and its page goes out as HTML the
-  person's browser draws, with htmx as its only script.
+  The computer's app, as a browser gets it: the `.lui` page at a request's path
+  answers it (`Moss.Computer.Pages`, `Moss.Computer.Script.serve/2`), and goes
+  out as HTML the person's browser draws, with htmx as its only script.
 
   The page is the agent's writing, so nothing in it runs as code. It is held
   to Shroomi's policy (`Moss.Computer.Clean`); the only scripts allowed are
@@ -37,8 +37,6 @@ defmodule Moss.Computer.App do
   markup reads as result (a form's errors). Links in an app are relative to it ("list", "?note=a").
   A page that does not compile answers with its file, line and why.
 
-  /home/app.lua, the old way, still answers any path no page does: return function(req) ... end.
-
   The app as its person sees it, in this computer's browser:
     open app              its page: title, words and controls, each control with an id
     open app/plants       any path of it
@@ -47,7 +45,7 @@ defmodule Moss.Computer.App do
     page                  the page's words again  ui   its controls   back   tabs
   """
 
-  @doc "`help shroomi`'s last part: how this computer serves an app, and how to look at it."
+  @doc "`help page`'s last part: how this computer serves its pages, and how to look at it."
   def help, do: @help
 
   @types ~w(text/html text/plain text/css text/csv application/json)

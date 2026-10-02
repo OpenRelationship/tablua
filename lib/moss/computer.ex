@@ -131,6 +131,7 @@ defmodule Moss.Computer do
       :ok = Disk.mkdir_p(disk, "/home")
       :ok = Disk.mkdir_p(disk, "/tmp")
       Moss.Names.computer(id)
+      :ok = Moss.Computer.Procedures.ensure(disk)
       disk = %{disk | actor: "agent"}
       Phoenix.PubSub.subscribe(Moss.PubSub, "mail:" <> id)
       idle = opts[:idle_ms] || Application.get_env(:moss, :idle_ms, 300_000)
@@ -230,7 +231,7 @@ defmodule Moss.Computer do
        lines: Enum.reverse(state.lines),
        browser: state.browser,
        files: Disk.list(state.disk, state.cwd),
-       app?: match?({:ok, %{dir: false}}, Disk.stat(state.disk, "/home/app.lua"))
+       app?: match?({:ok, %{dir: false}}, Disk.stat(state.disk, "/home/ui/index.lui"))
      }, state}
   end
 

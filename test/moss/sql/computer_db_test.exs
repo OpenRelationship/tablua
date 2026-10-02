@@ -24,16 +24,20 @@ defmodule Moss.Sql.ComputerDbTest do
                ~S|local d = db.open("data/p.dbl") d:exec("create table t (a)") d:exec("insert into t values (1), (2)")|
              )
 
-    assert %{out: "data/\n"} = sh(c, "ls")
+    assert %{out: "data/\norg/\n"} = sh(c, "ls")
     assert %{out: "p.dbl\n"} = sh(c, "ls data")
     assert %{out: "- " <> _} = sh(c, "ls -l data")
-    assert %{out: "true\tfalse\n"} = lua(c, ~S|print(fs.exists("data/p.dbl"), fs.isdir("data/p.dbl"))|)
+
+    assert %{out: "true\tfalse\n"} =
+             lua(c, ~S|print(fs.exists("data/p.dbl"), fs.isdir("data/p.dbl"))|)
 
     assert %{out: "p.dbl: a database (SQL; open it in Lua with db.open), 1 table\n  t: 2 rows\n"} =
              sh(c, "cat data/p.dbl")
 
     # data/ holds databases only, so a file's bytes are refused there before they meet one
-    in_data = "a database goes in data/ as .dbl, opened with db.open; a file's bytes never become one"
+    in_data =
+      "a database goes in data/ as .dbl, opened with db.open; a file's bytes never become one"
+
     database = "is a database (change it with SQL through db.open in Lua; rm removes it)"
     assert %{out: out} = lua(c, ~S|print(fs.write("data/p.dbl", "x"))|)
     assert out == "nil\t#{in_data}\n"
@@ -41,10 +45,17 @@ defmodule Moss.Sql.ComputerDbTest do
     put(c, "/home/files/f.txt", "hello")
     assert %{code: 1, err: err} = sh(c, "cp files/f.txt data/p.dbl")
     assert err =~ in_data
-    assert %{code: 1, err: "mv: /home/files/f.txt: " <> ^database <> "\n"} = sh(c, "mv files/f.txt data/p.dbl")
-    assert %{code: 1, err: "mv: /home/data/p.dbl: " <> ^database <> "\n"} = sh(c, "mv data/p.dbl data/r.dbl")
+
+    assert %{code: 1, err: "mv: /home/files/f.txt: " <> ^database <> "\n"} =
+             sh(c, "mv files/f.txt data/p.dbl")
+
+    assert %{code: 1, err: "mv: /home/data/p.dbl: " <> ^database <> "\n"} =
+             sh(c, "mv data/p.dbl data/r.dbl")
+
     assert %{code: 1} = sh(c, "mkdir data/p.dbl")
-    assert %{out: "2\n"} = lua(c, ~S|print(db.open("data/p.dbl"):one("select count(*) as n from t").n)|)
+
+    assert %{out: "2\n"} =
+             lua(c, ~S|print(db.open("data/p.dbl"):one("select count(*) as n from t").n)|)
 
     assert %{code: 0} = sh(c, "rm data/p.dbl")
     assert %{out: ""} = sh(c, "ls data")
@@ -92,7 +103,10 @@ defmodule Moss.Sql.ComputerDbTest do
              "1\tinteger\treal\ttext\tblob\tnull\tx\t3\n3\tinteger\tnull\tnull\tnull\tnull\tx\tnil\n3\n"
 
     assert %{out: "1\n"} =
-             lua(c, ~S|print(#db.open("data/v.dbl"):query("select * from t where s = ?", "seven"))|)
+             lua(
+               c,
+               ~S|print(#db.open("data/v.dbl"):query("select * from t where s = ?", "seven"))|
+             )
 
     assert %{out: "4\n"} =
              lua(

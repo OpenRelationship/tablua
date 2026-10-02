@@ -11,7 +11,7 @@ defmodule Moss.Log do
   calls any of alog's methods the same way (`rebuild`, `recall`, `events`).
 
   `append/6` is the hot path, the cost of every command and file write. It is
-  an insert into the view `moss_append_2`, whose trigger writes what alog's
+  an insert into the view `moss_append_3`, whose trigger writes what alog's
   `append` writes (`init.lua`'s `record`, `blobs.lua`'s content kept once by
   id, `fold.lua`'s folds for the four disk keywords), each argument its own
   bound value, then the event's recall postings (`Moss.Log.Recall`), all in one
@@ -58,14 +58,15 @@ defmodule Moss.Log do
   # event's postings and a Move File's new paths follow from Elixir (Moss.Log.Recall), in the same savepoint.
   @append """
   drop view if exists moss_append_1;
-  create view if not exists moss_append_2
+  drop view if exists moss_append_2;
+  create view if not exists moss_append_3
     (at, task, keyword, actor, a1, a2, a3, a4, a5, a6, id1, c1, id2, c2, len, lo, hi, blen, plen, terms) as
     select null, null, null, null, null, null, null, null, null, null,
       null, null, null, null, null, null, null, null, null, null where 0;
-  create trigger if not exists moss_append_2_fold instead of insert on moss_append_2 begin
+  create trigger if not exists moss_append_3_fold instead of insert on moss_append_3 begin
     select raise(abort, 'alog: a blob id names other bytes')
-      where exists (select 1 from blobs where id = new.id1 and content is not new.c1)
-         or exists (select 1 from blobs where id = new.id2 and content is not new.c2);
+      where exists (select 1 from blobs where id = new.id1 and cast(content as blob) is not cast(new.c1 as blob))
+         or exists (select 1 from blobs where id = new.id2 and cast(content as blob) is not cast(new.c2 as blob));
     insert or ignore into blobs (id, content) select new.id1, new.c1 where new.id1 is not null;
     insert or ignore into blobs (id, content) select new.id2, new.c2 where new.id2 is not null;
     insert into events (at, task, keyword, actor) values (new.at, new.task, new.keyword, new.actor);
@@ -187,7 +188,7 @@ defmodule Moss.Log do
              {:ok, _} <-
                Db.exec(
                  conn,
-                 "insert into moss_append_2 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 "insert into moss_append_3 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                  params ++ [id1, c1, id2, c2, elen, lo, hi] ++ row
                ),
              :ok <- Recall.pend(conn, :event, erows, elen),

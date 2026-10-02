@@ -1,7 +1,11 @@
 defmodule Moss.Computer.Mailbox do
   @moduledoc """
-  `mail` on an agent's computer: its inbox at the post (`Moss.Mail`,
-  PROJECT.md §14.5). The computer's id is the agent's address.
+  `mail` on an agent's computer: its inbox at the post (`Moss.Mail`, PROJECT.md §14.5); `help mail` is its help.
+  `run(args, stdin, state)` gives back `{code, out, err}`.
+  """
+
+  @help """
+  The post: the computer's id is its address; a letter goes only along a route the person set.
 
       mail                          the inbox: number, sender, subject; * marks unread
       mail read <n>                 one letter, marked read
@@ -9,12 +13,15 @@ defmodule Moss.Computer.Mailbox do
       mail sent                     what this computer sent, and where each letter is now
       mail board                    every task sent or received, its state now, as org
 
-  A letter is one org entry (feature file-kinds): its headline the subject, `TODO` for a task, and a reply's
-  `TASK` the address of the task it answers (`org:fern/mail/7`), its keyword the task's new state. The post
-  stamps `FROM`, `TO` and `ID`.
+  A letter is one org entry: its headline the subject, TODO when it hands over work. A reply names the task it
+  answers in :TASK: (the task's address, org:fern/mail/7, its :ID:), and its keyword (WAIT, DONE, DROP) is the
+  task's new state. The post stamps :FROM:, :TO: and :ID:. Every org: link must name something on the node.
 
-  `run(args, stdin, state)` gives back `{code, out, err}`.
+      echo '* TODO Build the plants page' | mail send moss-1
+      printf '* DONE Built it\n:PROPERTIES:\n:TASK: org:fern/mail/7\n:END:\nIt lists the plants.\n' | mail send fern
   """
+
+  def help, do: @help
   alias Moss.Mail
 
   def run([], _stdin, state) do
