@@ -1,0 +1,43 @@
+# The look module (look/, Rust from pinned Blitz) built to WebAssembly, moss-browser's tests run against it, and on a
+# tag the module published as a release asset with its SHA-384. CI is the only place it is built (AGENTS.md).
+name: look
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+permissions:
+  contents: write
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: look
+      - name: build the look
+        run: cargo build --release --target wasm32-wasip1 --manifest-path look/Cargo.toml --locked
+      - name: binaryen
+        run: sudo apt-get update && sudo apt-get install -y binaryen
+      - name: optimize
+        run: |
+          mkdir -p priv
+          wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int --enable-sign-ext \
+            --enable-mutable-globals look/target/wasm32-wasip1/release/look.wasm -o priv/look.wasm
+          sha384sum priv/look.wasm | tee priv/look.wasm.sha384
+          ls -l priv/look.wasm
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20"
+      - run: mix deps.get
+      - run: mix test
+      - name: release the module
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" priv/look.wasm priv/look.wasm.sha384 --title "$GITHUB_REF_NAME" --notes "look.wasm, SHA-384 $(cut -d' ' -f1 priv/look.wasm.sha384)"
