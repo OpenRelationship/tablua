@@ -346,7 +346,7 @@ defmodule Moss.Computer.Script do
   @doc "`help shroomi`: how to publish, from Shroomi's own files."
   def shroomi_reference do
     m = sdk()
-    Enum.map_join(~w(shroomi shroomi.components shroomi.css), "\n", &header(m[&1]))
+    Enum.map_join(~w(shroomi.lui shroomi.components shroomi.css), "\n", &header(m[&1]))
   end
 
   # a file's opening comment, as text

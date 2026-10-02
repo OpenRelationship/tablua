@@ -18,7 +18,7 @@
 --     window functions and pragma are refused by name. 64 MB at most.
 --   Pages: ui/*.lui, HTML with Lua in it, served at their path in their app (`help shroomi`); the person
 --     opens them in their browser, `open app` here. /home/app.lua, the old way, answers any path no page does.
---   require("name"): the SDK's own modules (csv, date, test, shroomi), then name.lua or
+--   date and csv are at hand (`help lua`); require("name"): the SDK's own modules (csv, date, test, shroomi), then name.lua or
 --     name/init.lua in the working folder, then the app's code/, then /home/code/
 -- A failure returns nil and why, as Lua's own io does.
 
@@ -152,6 +152,15 @@ function require(name)
   end
   error("module '" .. name .. "' not found (looked in the working folder, the app's code/ and /home/code/)", 2)
 end
+
+-- date and csv at hand, as db and json are: loaded the first time a script names them (require works too)
+setmetatable(_G, { __index = function(g, name)
+  if name == "date" or name == "csv" then
+    local m = require(name)
+    rawset(g, name, m)
+    return m
+  end
+end })
 
 -- The run: the code under xpcall; an error is written to stderr and is status 1, os.exit(n) is status n.
 function __main(code, name)
