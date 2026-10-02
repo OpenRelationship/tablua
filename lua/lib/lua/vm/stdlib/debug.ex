@@ -1,0 +1,283 @@
+defmodule Lua.VM.Stdlib.Debug do
+  @moduledoc """
+  Lua 5.3 debug standard library.
+
+  Provides introspection and debugging facilities. Many functions are stubs
+  that return plausible values since full debug support is not needed for
+  most embedded use cases.
+
+  ## Functions
+
+  - `debug.getinfo(f [, what])` - Returns info about a function
+  - `debug.traceback([message [, level]])` - Returns a traceback string
+  - `debug.getmetatable(obj)` - Returns metatable bypassing __metatable
+  - `debug.setmetatable(obj, mt)` - Sets metatable bypassing __metatable
+  - `debug.getlocal(level, local)` - Stub returning nil
+  - `debug.setlocal(level, local, value)` - Stub returning nil
+  - `debug.sethook([hook, mask [, count]])` - Stub no-op
+  - `debug.gethook([thread])` - Stub returning nil
+  - `debug.getupvalue(f, up)` - Returns the name and value of an upvalue
+  - `debug.setupvalue(f, up, value)` - Sets an upvalue, returning its name
+  - `debug.upvalueid(f, n)` - Stub returning nil
+  """
+
+  @behaviour Lua.VM.Stdlib.Library
+
+  alias Lua.VM.Executor
+  alias Lua.VM.State
+  alias Lua.VM.Value
+
+  @impl true
+  def lib_name, do: "debug"
+
+  @impl true
+  def install(state) do
+    debug_table = %{
+      "getinfo" => {:native_func, &debug_getinfo/2},
+      "traceback" => {:native_func, &debug_traceback/2},
+      "getmetatable" => {:native_func, &debug_getmetatable/2},
+      "setmetatable" => {:native_func, &debug_setmetatable/2},
+      "getlocal" => {:native_func, &debug_getlocal/2},
+      "setlocal" => {:native_func, &debug_setlocal/2},
+      "sethook" => {:native_func, &debug_sethook/2},
+      "gethook" => {:native_func, &debug_gethook/2},
+      "getupvalue" => {:native_func, &debug_getupvalue/2},
+      "setupvalue" => {:native_func, &debug_setupvalue/2},
+      "upvalueid" => {:native_func, &debug_upvalueid/2}
+    }
+
+    {tref, state} = State.alloc_table(state, debug_table)
+    State.set_global(state, "debug", tref)
+  end
+
+  # debug.getinfo(f [, what]) — returns table with function info
+  defp debug_getinfo([func | rest], state) do
+    _what = List.first(rest) || "flnStu"
+
+    info =
+      case func do
+        {tag, proto, _upvalues} when tag in [:lua_closure, :compiled_closure] ->
+          %{
+            "source" => Map.get(proto, :source, "=?"),
+            "currentline" => -1,
+            "what" => "Lua",
+            "name" => nil,
+            "linedefined" => Map.get(proto, :line_defined, 0),
+            "lastlinedefined" => Map.get(proto, :last_line_defined, 0),
+            "nparams" => Map.get(proto, :param_count, 0),
+            "isvararg" => if(Map.get(proto, :is_vararg, false), do: true, else: false)
+          }
+
+        {:native_func, _} ->
+          %{
+            "source" => "=[C]",
+            "currentline" => -1,
+            "what" => "C",
+            "name" => nil
+          }
+
+        n when is_integer(n) ->
+          stack_info_for_level(n, state)
+
+        _ ->
+          %{
+            "source" => "=?",
+            "currentline" => -1,
+            "what" => "main",
+            "name" => nil
+          }
+      end
+
+    {info_tref, state} = State.alloc_table(state, info)
+    {[info_tref], state}
+  end
+
+  defp debug_getinfo([], state) do
+    {info_tref, state} =
+      State.alloc_table(state, %{
+        "source" => "=?",
+        "currentline" => -1,
+        "what" => "main",
+        "name" => nil
+      })
+
+    {[info_tref], state}
+  end
+
+  # Per Lua 5.3, debug.getinfo(level) reports info about the function `level`
+  # frames up the stack. Level 1 is the function that called `getinfo` (the
+  # currently-running Lua chunk from the native callback's perspective).
+  # Higher levels walk the saved call frames.
+  defp stack_info_for_level(level, state) do
+    {name, namewhat} = name_info_for_level(level, state)
+
+    case stack_position_for_level(level, state) do
+      {line, source} ->
+        %{
+          "source" => source || "=?",
+          "currentline" => line || -1,
+          "what" => "Lua",
+          "name" => name,
+          "namewhat" => namewhat
+        }
+
+      nil ->
+        %{
+          "source" => "=?",
+          "currentline" => -1,
+          "what" => "main",
+          "name" => name,
+          "namewhat" => namewhat
+        }
+    end
+  end
+
+  # The `"n"` fields describe how the function at `level` was reached, recovered
+  # from the caller's call instruction (Lua 5.3 §6.10, PUC-Lua `getfuncname`).
+  # When a native callback is executing, the running Lua function's own frame is
+  # the head of `call_stack`, so level `L` maps to `call_stack[L - 1]`. A frame
+  # without a recovered name (e.g. a call through a temporary, or a function
+  # reached by a tail call) reports `name == nil` / `namewhat == ""`.
+  defp name_info_for_level(level, state) when level >= 1 do
+    case Enum.at(state.call_stack, level - 1) do
+      nil -> {nil, ""}
+      frame -> {Executor.frame_name(frame), Executor.frame_namewhat(frame)}
+    end
+  end
+
+  defp name_info_for_level(_level, _state), do: {nil, ""}
+
+  defp stack_position_for_level(1, _state) do
+    case Executor.current_position() do
+      {nil, nil} -> nil
+      pos -> pos
+    end
+  end
+
+  defp stack_position_for_level(level, state) when level > 1 do
+    case Enum.at(state.call_stack, level - 2) do
+      nil -> nil
+      frame -> {Executor.frame_line(frame), Executor.frame_source(frame)}
+    end
+  end
+
+  defp stack_position_for_level(_, _state), do: nil
+
+  # debug.traceback([message [, level]]) — returns traceback string
+  defp debug_traceback(args, state) do
+    message = List.first(args)
+    _level = Enum.at(args, 1, 1)
+
+    traceback =
+      state.call_stack
+      |> Enum.with_index(1)
+      |> Enum.map(fn {frame, _i} ->
+        source = Executor.frame_source(frame) || "?"
+        line = Executor.frame_line(frame) || 0
+        "\t#{source}:#{line}: in ?"
+      end)
+
+    header = "stack traceback:"
+    body = Enum.join([header | traceback], "\n")
+
+    result =
+      if message do
+        "#{Value.to_string(message)}\n#{body}"
+      else
+        body
+      end
+
+    {[result], state}
+  end
+
+  # debug.getmetatable(obj) — returns metatable bypassing __metatable protection
+  defp debug_getmetatable([{:tref, _} = tref | _], state) do
+    table = State.get_table(state, tref)
+
+    case table.metatable do
+      nil -> {[nil], state}
+      mt_ref -> {[mt_ref], state}
+    end
+  end
+
+  defp debug_getmetatable([value | _], state) when is_binary(value) do
+    case Map.get(state.metatables, "string") do
+      nil -> {[nil], state}
+      mt_ref -> {[mt_ref], state}
+    end
+  end
+
+  defp debug_getmetatable([_ | _], state), do: {[nil], state}
+  defp debug_getmetatable([], state), do: {[nil], state}
+
+  # debug.setmetatable(obj, mt) — sets metatable bypassing __metatable protection
+  defp debug_setmetatable([{:tref, _} = tref, mt | _], state) do
+    mt_ref =
+      case mt do
+        nil -> nil
+        {:tref, _} = ref -> ref
+        _ -> nil
+      end
+
+    state =
+      State.update_table(state, tref, fn table ->
+        %{table | metatable: mt_ref}
+      end)
+
+    {[tref], state}
+  end
+
+  defp debug_setmetatable([obj | _], state), do: {[obj], state}
+  defp debug_setmetatable([], state), do: {[nil], state}
+
+  # debug.getupvalue(f, up) — returns the name and value of the up-th upvalue of
+  # function `f`, or nil when `up` is out of range or `f` is not a Lua closure.
+  defp debug_getupvalue([closure, n | _], state) when is_number(n) do
+    case upvalue_slot(closure, n) do
+      {:ok, name, cell} -> {[name, Map.get(state.upvalue_cells, cell)], state}
+      :error -> {[nil], state}
+    end
+  end
+
+  defp debug_getupvalue(_args, state), do: {[nil], state}
+
+  # debug.setupvalue(f, up, value) — assigns `value` to the up-th upvalue of
+  # function `f`, returning its name (or nil when out of range / not a closure).
+  defp debug_setupvalue([closure, n | rest], state) when is_number(n) do
+    value = List.first(rest)
+
+    case upvalue_slot(closure, n) do
+      {:ok, name, cell} ->
+        {[name], %{state | upvalue_cells: Map.put(state.upvalue_cells, cell, value)}}
+
+      :error ->
+        {[nil], state}
+    end
+  end
+
+  defp debug_setupvalue(_args, state), do: {[nil], state}
+
+  # Resolve the up-th (1-based) upvalue of a closure to {name, cell_ref}. Every
+  # element of a closure's upvalue tuple is a cell ref keyed in
+  # `state.upvalue_cells`; the name comes from the prototype's `upvalue_names`,
+  # which is built alongside the upvalue tuple and is the same length by
+  # construction.
+  defp upvalue_slot({tag, proto, upvalues}, n) when tag in [:lua_closure, :compiled_closure] do
+    index = trunc(n) - 1
+
+    if index >= 0 and index < tuple_size(upvalues) do
+      {:ok, Enum.at(proto.upvalue_names, index), elem(upvalues, index)}
+    else
+      :error
+    end
+  end
+
+  defp upvalue_slot(_closure, _n), do: :error
+
+  # Stubs
+  defp debug_getlocal(_args, state), do: {[nil], state}
+  defp debug_setlocal(_args, state), do: {[nil], state}
+  defp debug_sethook(_args, state), do: {[], state}
+  defp debug_gethook(_args, state), do: {[nil, "", 0], state}
+  defp debug_upvalueid(_args, state), do: {[nil], state}
+end

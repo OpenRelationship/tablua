@@ -1,0 +1,195 @@
+defmodule Lua.VM.ArgumentError do
+  @moduledoc false
+
+  # Internal VM exception. Never surfaces to the host directly — it is wrapped
+  # into the public `Lua.RuntimeException` (kind: `:argument`) at the API
+  # boundary, which projects `raw_message/1` onto `:value`.
+  #
+  # Raised when a function is called with invalid arguments; provides
+  # standardized "bad argument #N to 'F'" messages across all Lua standard
+  # library functions.
+  #
+  # Fields:
+  #
+  #   - `:function_name` - fully qualified function name (e.g., "string.rep")
+  #   - `:arg_num` - the argument number (1-based)
+  #   - `:expected` - what type or value was expected ("number", "string", …)
+  #   - `:got` - what was actually received (optional, "nil", "boolean", …)
+  #   - `:details` - additional details about the error (optional)
+  #   - `:line` / `:source` - call origin, auto-populated from
+  #     `Lua.VM.Executor.current_position/0` when not given explicitly
+  #   - `:call_stack` - call stack frames at the raise site (default `[]`)
+  #
+  # Examples:
+  #
+  #     raise ArgumentError, function_name: "string.rep", arg_num: 2, expected: "number"
+  #     raise ArgumentError, function_name: "string.sub", arg_num: 2, expected: "number", got: "string"
+  #     raise ArgumentError, function_name: "string.char", arg_num: 1, expected: "number", details: "value out of range"
+
+  alias Lua.VM.ErrorFormatter
+  alias Lua.VM.RuntimeError
+
+  @type t :: %__MODULE__{}
+
+  # `:state` carries the `Lua.VM.State` as of the raise, so protected calls
+  # (pcall/xpcall) can keep heap effects made before the error instead of
+  # rolling back to their entry snapshot. It is out-of-band metadata: it never
+  # participates in `message` and stays `nil` when no state was in scope.
+  @derive {Inspect, except: [:state]}
+  defexception [
+    :function_name,
+    :arg_num,
+    :expected,
+    :got,
+    :details,
+    :line,
+    :source,
+    :call_stack,
+    :state
+  ]
+
+  @impl true
+  def exception(opts) do
+    {auto_line, auto_source} = Lua.VM.Executor.current_position()
+
+    function_name = Keyword.fetch!(opts, :function_name)
+
+    %__MODULE__{
+      function_name: function_name,
+      arg_num: Keyword.get(opts, :arg_num),
+      expected: Keyword.get(opts, :expected),
+      got: Keyword.get(opts, :got),
+      details: Keyword.get(opts, :details),
+      line: Keyword.get(opts, :line) || auto_line,
+      source: Keyword.get(opts, :source) || auto_source,
+      call_stack: Keyword.get(opts, :call_stack, []),
+      state: Keyword.get(opts, :state)
+    }
+  end
+
+  # Plain, single-line, ANSI-free body — safe to log and consumed by the public
+  # `Lua.RuntimeException` wrapper. The rich multi-line render lives in
+  # `format/1`.
+  @impl true
+  def message(%__MODULE__{} = e), do: raw_message(e)
+
+  @doc """
+  Rich multi-line render — location header and stack trace, ANSI-colored when
+  `IO.ANSI.enabled?/0` is true at call time (evaluated lazily, never frozen at
+  construction; see issue #384). Used by `Lua.format_exception/1`.
+  """
+  @spec format(t()) :: String.t()
+  def format(%__MODULE__{} = e) do
+    ErrorFormatter.format(:type_error, raw_message(e),
+      source: e.source,
+      line: e.line,
+      call_stack: e.call_stack
+    )
+  end
+
+  @doc """
+  Returns a wire-safe structured map for this error. See
+  `Lua.VM.ErrorFormatter.to_map/3` for the shape.
+
+  Pass `:source_code` to populate `source_context`.
+  """
+  @spec to_map(t(), keyword()) :: map()
+  def to_map(%__MODULE__{} = e, opts \\ []) do
+    ErrorFormatter.to_map(:argument_error, raw_message(e),
+      source: e.source,
+      line: e.line,
+      call_stack: e.call_stack,
+      source_code: Keyword.get(opts, :source_code)
+    )
+  end
+
+  @doc """
+  Returns the unformatted Lua-facing error value — the bare
+  `"bad argument #N to 'F' (expected, got got)"` string with no location
+  header, no ANSI, no stack trace.
+
+  This is the §6.1 error value that `pcall`/`xpcall` and
+  `Lua.call_function/3` hand back at a protected-call boundary.
+  """
+  @spec raw_message(t()) :: String.t()
+  def raw_message(%__MODULE__{} = e) do
+    build_base(e.function_name, e.arg_num, e.expected, e.got, e.details)
+  end
+
+  defp build_base(function_name, arg_num, expected, got, details) do
+    base =
+      if arg_num do
+        "bad argument ##{arg_num} to '#{function_name}'"
+      else
+        "bad argument to '#{function_name}'"
+      end
+
+    expectation =
+      case {expected, got} do
+        {nil, nil} ->
+          nil
+
+        {exp, nil} ->
+          "(#{exp} expected)"
+
+        {exp, got_val} ->
+          "(#{exp} expected, got #{got_val})"
+      end
+
+    case {expectation, details} do
+      {nil, nil} -> base
+      {exp, nil} -> "#{base} #{exp}"
+      {nil, detail} -> "#{base} (#{detail})"
+      {_exp, detail} -> "#{base} (#{detail})"
+    end
+  end
+
+  @doc """
+  Creates an ArgumentError when no value is provided for a required argument.
+
+  ## Example
+
+      ArgumentError.value_expected("string.lower", 1)
+  """
+  @spec value_expected(String.t(), pos_integer()) :: t()
+  def value_expected(function_name, arg_num) do
+    exception(
+      function_name: function_name,
+      arg_num: arg_num,
+      expected: "value"
+    )
+  end
+
+  @doc """
+  Creates an ArgumentError for type mismatches.
+
+  ## Example
+
+      ArgumentError.type_error("string.rep", 2, "number", "string")
+  """
+  @spec type_error(String.t(), pos_integer(), String.t(), String.t()) :: t()
+  def type_error(function_name, arg_num, expected, got) do
+    exception(
+      function_name: function_name,
+      arg_num: arg_num,
+      expected: expected,
+      got: got
+    )
+  end
+
+  @doc """
+  Builds the PUC-Lua "wrong number of arguments to 'X'" runtime error.
+
+  This is not a bad-argument error — it is the top-level message PUC-Lua's
+  `luaL_error(L, "wrong number of arguments to '%s'", name)` emits when a
+  variadic stdlib function is called with too few or too many positional
+  arguments. Returns a `Lua.VM.RuntimeError` so callers can `raise` it
+  directly:
+
+      raise ArgumentError.wrong_number_of_arguments("insert")
+  """
+  @spec wrong_number_of_arguments(String.t()) :: RuntimeError.t()
+  def wrong_number_of_arguments(function_name) do
+    RuntimeError.exception(value: "wrong number of arguments to '#{function_name}'")
+  end
+end

@@ -1,0 +1,3123 @@
+defmodule Lua.VM.Dispatcher do
+  @moduledoc """
+  Hand-written executor over the dense bytecode produced by
+  `Lua.Compiler.Bytecode`.
+
+  The dispatcher exists to test the hypothesis that integer-tagged opcode
+  dispatch over a tuple-encoded instruction stream measurably outperforms
+  the existing list-of-tagged-tuples interpreter. It implements a narrow
+  subset of opcodes — arithmetic, comparison, logical ops, conditional
+  `:test`, single-result `:call`, single-value `:return`, plus the
+  surrounding plumbing (constants, moves, env/upvalue/global lookups).
+  Anything the bytecode encoder rejects keeps its prototype on the
+  interpreter via the bytecode-compiler's `:fallback` cascade.
+
+  Inter-mode calls grow the Erlang stack by one frame at the boundary.
+  Dispatcher → dispatcher chains stay flat through `frames`. Mixed-mode
+  programs (compiled prototype calling an interpreted one, or vice versa)
+  pay a single recursive call at the transition; the recursion is bounded
+  by the number of mode switches, not the call depth within a single
+  mode.
+  """
+
+  alias Lua.Compiler.Prototype
+  alias Lua.VM.Executor
+  alias Lua.VM.InternalError
+  alias Lua.VM.Numeric
+  alias Lua.VM.RuntimeError
+  alias Lua.VM.State
+  alias Lua.VM.Table
+
+  # Mirror of the interpreter's concat ceiling, inlined as a compile-time
+  # constant so the binary-binary fast path stays a single comparison. See
+  # `Lua.VM.Executor.concat_checked/2` for the rationale.
+
+  # Opcode tags. These must stay in lockstep with `Lua.Compiler.Bytecode`.
+  # The module-attribute form lets each case branch match a constant
+  # integer, which the BEAM collapses to a jump table.
+
+  # Lua 5.3 signed-int64 bounds — duplicated from `Lua.VM.Numeric` to
+  # make the in-range check a guard-eligible compile-time constant.
+  # `to_signed_int64/1` is still called for the (rare) overflow path;
+  # the guard short-circuits the common case where the sum is already
+  # in range, saving one function call per integer-arithmetic opcode.
+  @max_int 0x7FFFFFFFFFFFFFFF
+  @min_int -0x8000000000000000
+
+  # The bounds of a BEAM small integer on a 64-bit VM (2^59 - 1 and -2^59).
+  # `@max_int` / `@min_int` are bignums, so comparing a result against them
+  # costs a bignum comparison. The integer fast paths of `+`, `-` and `*`
+  # test these small bounds first: any result inside them is already in
+  # int64 range, and only a result outside them pays the full check.
+  @small_max 0x7FFFFFFFFFFFFFF
+  @small_min -0x800000000000000
+
+  @op_load_constant 1
+  @op_load_boolean 2
+  @op_load_nil 3
+  @op_move 4
+  @op_load_env 5
+  @op_get_upvalue 6
+  @op_get_global 7
+  @op_get_field 8
+  @op_add 9
+  @op_subtract 10
+  @op_multiply 11
+  @op_divide 12
+  @op_floor_divide 13
+  @op_modulo 14
+  @op_power 15
+  @op_negate 16
+  @op_less_than 17
+  @op_less_equal 18
+  @op_greater_than 19
+  @op_greater_equal 20
+  @op_equal 21
+  @op_not_equal 22
+  @op_not 23
+  @op_test 24
+  # Tag `25` was `@op_test_true`; codegen never emitted it. Reused by
+  # B5b-v2 for `:call` with `result_count == 0` (statement calls).
+  @op_call_zero 25
+  @op_call_one 26
+  @op_return_one 27
+  @op_return_zero 28
+  # `@op_source_line 29` is reserved but never reaches the dispatcher: the
+  # bytecode encoder strips `:source_line` entries in `encode_list/3`,
+  # baking the rolling line into the call opcodes (and `:generic_for`)
+  # instead so this dispatcher can attribute native-call errors without a
+  # parallel per-instruction lookup.
+  @op_new_table 30
+  @op_get_table 31
+  @op_set_table 32
+  @op_set_field 33
+  @op_set_list 34
+  @op_length 35
+  @op_numeric_for 36
+
+  # B5c-v2 additions. The contiguous 37..50 block keeps the BEAM's
+  # case-jump table dense across the dispatcher's outer match.
+  @op_closure 37
+  @op_set_upvalue 38
+  @op_get_open_upvalue 39
+  @op_set_open_upvalue 40
+  @op_vararg 41
+  @op_return_proto_varargs 42
+  @op_return_collect 43
+  @op_return_multi 44
+  @op_call_multi 45
+  @op_self 46
+  @op_concatenate 47
+  @op_break 48
+  @op_while_loop 49
+  @op_repeat_loop 50
+  @op_generic_for 51
+  @op_close_upvalues 52
+
+  # Bitwise family plus the `:set_list` multi-return tail. Mirrors the
+  # `@op_*` block in `Lua.Compiler.Bytecode`; the integers must stay
+  # identical in both files.
+  @op_bitwise_and 53
+  @op_bitwise_or 54
+  @op_bitwise_xor 55
+  @op_shift_left 56
+  @op_shift_right 57
+  @op_bitwise_not 58
+  @op_set_list_multi 59
+
+  # `@op_label` is a no-op anchoring a goto target. `@op_goto` carries
+  # `{depth, target_pc, level}`: close open upvalues at or above `level`, drop
+  # `depth` `cont` entries to leave the intervening blocks, then dispatch the
+  # destination tuple (recovered from the unwound markers) at `target_pc`.
+  @op_label 60
+  @op_goto 61
+
+  # Fused opcodes from `Lua.Compiler.Peephole`. The `_k` family carries its
+  # right operand inline, so the fast path skips one register read and the
+  # `load_constant` that fed it. `@op_get_field_upvalue` /
+  # `@op_set_field_upvalue` source the table straight out of `upvalues`
+  # instead of a scratch register.
+  @op_add_k 62
+  @op_subtract_k 63
+  @op_multiply_k 64
+  @op_less_than_k 65
+  @op_less_equal_k 66
+  @op_equal_k 67
+  @op_get_field_upvalue 68
+  @op_set_field_upvalue 69
+
+  # Static-arity call variants. Same semantics as `@op_call_one` /
+  # `@op_call_zero`; the encoder picks them whenever the argument count is
+  # one of the small ones that dominate real programs, and the handler then
+  # reads the arguments at constant offsets into the caller's registers.
+  @op_call_one_0 70
+  @op_call_one_1 71
+  @op_call_one_2 72
+  @op_call_zero_0 73
+  @op_call_zero_1 74
+  @op_call_zero_2 75
+
+  # Self-recursive call. The callee is the prototype currently running, so
+  # the loop already holds everything the call needs.
+  @op_call_self 76
+
+  # Short-circuit `and` / `or`: `{tag, dest, source, body}`. When `source`
+  # decides the result it is copied into `dest`; otherwise `body` (the right
+  # operand, ending in a write to `dest`) runs as a nested block.
+  @op_test_and 77
+  @op_test_or 78
+
+  @doc """
+  Execute a compiled prototype against `args` and `state`.
+  """
+  @spec execute(Prototype.t(), [term()], State.t()) :: {[term()], State.t()}
+  def execute(%Prototype{} = proto, args, %State{} = state) do
+    do_execute_top(proto, args, {}, state)
+  end
+
+  @doc """
+  Execute a compiled prototype with explicit upvalues.
+
+  Used from the interpreter's `:call` opcode and from
+  `Executor.call_function/3` when the callee is a `:compiled_closure`
+  carrying upvalue cells.
+  """
+  @spec execute(Prototype.t(), [term()], tuple(), State.t()) :: {[term()], State.t()}
+  def execute(%Prototype{} = proto, args, upvalues, %State{} = state) when is_tuple(upvalues) do
+    do_execute_top(proto, args, upvalues, state)
+  end
+
+  defp do_execute_top(proto, args, upvalues, state) do
+    regs = init_regs(proto, args)
+
+    proto =
+      if proto.is_vararg do
+        %{proto | varargs: Enum.drop(args, proto.param_count)}
+      else
+        proto
+      end
+
+    try do
+      # Seed the loop-carried control parameters — instruction tally, call
+      # stack, call depth, open upvalues — from the state crossing the
+      # boundary. `open_upvalues` starts empty: cells are keyed by register
+      # index, so a nested evaluation must not see the caller's. The
+      # terminals stamp all four back into the struct on the way out.
+      {results, state} =
+        dispatch(
+          proto.bytecode,
+          1,
+          regs,
+          upvalues,
+          proto,
+          state,
+          [],
+          [],
+          state.instruction_count,
+          state.call_stack,
+          state.call_depth,
+          %{}
+        )
+
+      {results, state}
+    rescue
+      # Backstop net: any raise site missed by the per-site state
+      # annotations still ferries out at least this frame's entry state,
+      # so protected calls keep heap effects from enclosing frames —
+      # see `Lua.VM.Executor.annotate_frame_state/2`.
+      e -> reraise Executor.annotate_frame_state(e, state), __STACKTRACE__
+    end
+  end
+
+  # Register tuples are sized to the prototype's exact register peak. No
+  # slack buffer: codegen reports an honest `max_registers` (its
+  # `instruction_peak/1` backstop counts every statically-fixed destination),
+  # and every runtime-dynamic write — vararg spread, multi-return result
+  # distribution — grows the tuple on demand via `grow_regs/2`. This avoids
+  # over-allocating a register tuple on every call frame, which dominated
+  # call-dense workloads like deep recursion (issue #324).
+  defp init_regs(proto, args) do
+    regs = Tuple.duplicate(nil, max(proto.max_registers, proto.param_count))
+    copy_args(regs, 0, args, proto.param_count)
+  end
+
+  defp copy_args(regs, _i, _args, 0), do: regs
+
+  defp copy_args(regs, i, [arg | rest], n) do
+    copy_args(:erlang.setelement(i + 1, regs, arg), i + 1, rest, n - 1)
+  end
+
+  defp copy_args(regs, _i, [], _n), do: regs
+
+  # ── Dispatch loop ───────────────────────────────────────────────────────
+  #
+  # Single recursive function. Each opcode's handler lives directly inside
+  # the outer `case` so the BEAM can emit a jump table on the integer
+  # opcode tag — no per-opcode function call overhead, no intermediate
+  # pattern-match frame.
+  #
+  # `code` is the current bytecode tuple, `pc` is 1-indexed. When `pc`
+  # exceeds `tuple_size(code)` the current body has finished — pop a
+  # continuation from `cont` or unwind through `frames`.
+  #
+  # `cont` holds `{code, pc}` resume markers pushed by `:test` when
+  # descending into a branch body.
+  #
+  # `frames` holds dispatcher-side call frames for in-mode calls. Out-of-
+  # mode calls (compiled → interpreted) bridge through
+  # `Executor.call_function/3` instead, paying one Erlang stack frame
+  # at the boundary.
+
+  defp dispatch(code, pc, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+       when pc > tuple_size(code) do
+    finish_body(regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+  end
+
+  defp dispatch(code, pc, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou) do
+    case :erlang.element(pc, code) do
+      {@op_load_constant, dest, value} ->
+        regs = :erlang.setelement(dest + 1, regs, value)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_load_boolean, dest, value} ->
+        regs = :erlang.setelement(dest + 1, regs, value)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_load_nil, dest, count} ->
+        regs = clear_nils(regs, dest, count + 1)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_move, dest, src} ->
+        v = :erlang.element(src + 1, regs)
+        regs = :erlang.setelement(dest + 1, regs, v)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_load_env, dest} ->
+        env =
+          if tuple_size(upvalues) > 0 do
+            :maps.get(:erlang.element(1, upvalues), state.upvalue_cells, nil)
+          else
+            State.g_ref(state)
+          end
+
+        regs = :erlang.setelement(dest + 1, regs, env)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_get_upvalue, dest, index} ->
+        cell_ref = :erlang.element(index + 1, upvalues)
+        # Mirror the interpreter's defaulting read (nil for a dangling
+        # cell) rather than `:erlang.map_get/2` (which raises `:badkey`).
+        # Compiled closures should never carry stale cell refs, but the
+        # invariant is the interpreter's, not ours, and the error shape
+        # has to match where it does fire.
+        v = :maps.get(cell_ref, state.upvalue_cells, nil)
+        regs = :erlang.setelement(dest + 1, regs, v)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_get_global, dest, name} ->
+        v = State.get_global(state, name)
+        regs = :erlang.setelement(dest + 1, regs, v)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_get_field, dest, table_reg, name, name_hint} ->
+        table_val = :erlang.element(table_reg + 1, regs)
+        # Inline the tref fast path the interpreter uses for `_ENV.name`
+        # global lookups (overwhelmingly the dominant `:get_field` shape).
+        # Falling through to the helper for non-tref values, missing
+        # keys, or metatable cases keeps fidelity.
+        case table_val do
+          {:tref, id} ->
+            table = :erlang.map_get(id, state.tables)
+            data = :erlang.map_get(:data, table)
+
+            case data do
+              %{^name => value} ->
+                regs = :erlang.setelement(dest + 1, regs, value)
+                dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+              _ ->
+                case :erlang.map_get(:metatable, table) do
+                  nil ->
+                    regs = :erlang.setelement(dest + 1, regs, nil)
+                    dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+                  _ ->
+                    {value, state} =
+                      Executor.dispatcher_get_field(table_val, name, sync(state, cs, cd), proto, name_hint)
+
+                    regs = :erlang.setelement(dest + 1, regs, value)
+                    dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+                end
+            end
+
+          _ ->
+            {value, state} =
+              Executor.dispatcher_get_field(table_val, name, sync(state, cs, cd), proto, name_hint)
+
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      # Same shape as `@op_get_field`, but the table comes from the
+      # upvalue cell rather than a register — the fused form of the
+      # `get_upvalue` + `get_field` pair every global read compiles to.
+      {@op_get_field_upvalue, dest, index, name, name_hint} ->
+        cell_ref = :erlang.element(index + 1, upvalues)
+        table_val = :maps.get(cell_ref, state.upvalue_cells, nil)
+
+        case table_val do
+          {:tref, id} ->
+            table = :erlang.map_get(id, state.tables)
+            data = :erlang.map_get(:data, table)
+
+            case data do
+              %{^name => value} ->
+                regs = :erlang.setelement(dest + 1, regs, value)
+                dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+              _ ->
+                case :erlang.map_get(:metatable, table) do
+                  nil ->
+                    regs = :erlang.setelement(dest + 1, regs, nil)
+                    dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+                  _ ->
+                    {value, state} =
+                      Executor.dispatcher_get_field(table_val, name, sync(state, cs, cd), proto, name_hint)
+
+                    regs = :erlang.setelement(dest + 1, regs, value)
+                    dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+                end
+            end
+
+          _ ->
+            {value, state} =
+              Executor.dispatcher_get_field(table_val, name, sync(state, cs, cd), proto, name_hint)
+
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      # Mirror of `@op_set_field` sourcing the table from an upvalue cell —
+      # the fused form of the pair every global write compiles to.
+      {@op_set_field_upvalue, index, name, value_reg, name_hint} ->
+        cell_ref = :erlang.element(index + 1, upvalues)
+        table_val = :maps.get(cell_ref, state.upvalue_cells, nil)
+        value = :erlang.element(value_reg + 1, regs)
+
+        case table_val do
+          {:tref, id} ->
+            table = :erlang.map_get(id, state.tables)
+
+            state =
+              case :erlang.map_get(:metatable, table) do
+                nil ->
+                  %{state | tables: :maps.put(id, Table.put(table, name, value), state.tables)}
+
+                _ ->
+                  Executor.dispatcher_set_field(table_val, name, value, sync(state, cs, cd), proto, name_hint)
+              end
+
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          _ ->
+            Executor.dispatcher_set_field(table_val, name, value, sync(state, cs, cd), proto, name_hint)
+        end
+
+      # ── Arithmetic ──────────────────────────────────────────────────
+      #
+      # Integer fast paths mirror the interpreter's. Numbers can't carry
+      # metatables in Lua, so the metamethod dispatch is wasted work
+      # when both operands are already numeric. The two `is_number`
+      # guards inline directly in the case body.
+
+      {@op_add, dest, a, b, hint_a, hint_b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+
+        cond do
+          is_integer(va) and is_integer(vb) ->
+            sum = va + vb
+
+            wrapped =
+              if (sum <= @small_max and sum >= @small_min) or (sum >= @min_int and sum <= @max_int),
+                do: sum,
+                else: Numeric.to_signed_int64(sum)
+
+            regs = :erlang.setelement(dest + 1, regs, wrapped)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_number(va) and is_number(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va + vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_binop(:add, va, vb, sync(state, cs, cd), proto, hint_a, hint_b)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_subtract, dest, a, b, hint_a, hint_b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+
+        cond do
+          is_integer(va) and is_integer(vb) ->
+            diff = va - vb
+
+            wrapped =
+              if (diff <= @small_max and diff >= @small_min) or (diff >= @min_int and diff <= @max_int),
+                do: diff,
+                else: Numeric.to_signed_int64(diff)
+
+            regs = :erlang.setelement(dest + 1, regs, wrapped)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_number(va) and is_number(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va - vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_binop(:subtract, va, vb, sync(state, cs, cd), proto, hint_a, hint_b)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_multiply, dest, a, b, hint_a, hint_b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+
+        cond do
+          is_integer(va) and is_integer(vb) ->
+            prod = va * vb
+
+            wrapped =
+              if (prod <= @small_max and prod >= @small_min) or (prod >= @min_int and prod <= @max_int),
+                do: prod,
+                else: Numeric.to_signed_int64(prod)
+
+            regs = :erlang.setelement(dest + 1, regs, wrapped)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_number(va) and is_number(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va * vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_binop(:multiply, va, vb, sync(state, cs, cd), proto, hint_a, hint_b)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      # ── Constant-folded arithmetic ──────────────────────────────────
+      #
+      # Same three tiers as the register forms, with `k` read straight out
+      # of the opcode tuple. The slow path boxes `k` and hands it to the
+      # shared bridge, so `__add` / `__sub` / `__mul` fidelity and the
+      # `(local 'n')` error suffix are unchanged.
+
+      {@op_add_k, dest, a, k, hint_a} ->
+        va = :erlang.element(a + 1, regs)
+
+        cond do
+          is_integer(va) and is_integer(k) ->
+            sum = va + k
+
+            wrapped =
+              if (sum <= @small_max and sum >= @small_min) or (sum >= @min_int and sum <= @max_int),
+                do: sum,
+                else: Numeric.to_signed_int64(sum)
+
+            regs = :erlang.setelement(dest + 1, regs, wrapped)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_number(va) and is_number(k) ->
+            regs = :erlang.setelement(dest + 1, regs, va + k)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_binop(:add, va, k, sync(state, cs, cd), proto, hint_a, nil)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_subtract_k, dest, a, k, hint_a} ->
+        va = :erlang.element(a + 1, regs)
+
+        cond do
+          is_integer(va) and is_integer(k) ->
+            diff = va - k
+
+            wrapped =
+              if (diff <= @small_max and diff >= @small_min) or (diff >= @min_int and diff <= @max_int),
+                do: diff,
+                else: Numeric.to_signed_int64(diff)
+
+            regs = :erlang.setelement(dest + 1, regs, wrapped)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_number(va) and is_number(k) ->
+            regs = :erlang.setelement(dest + 1, regs, va - k)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_binop(:subtract, va, k, sync(state, cs, cd), proto, hint_a, nil)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_multiply_k, dest, a, k, hint_a} ->
+        va = :erlang.element(a + 1, regs)
+
+        cond do
+          is_integer(va) and is_integer(k) ->
+            prod = va * k
+
+            wrapped =
+              if (prod <= @small_max and prod >= @small_min) or (prod >= @min_int and prod <= @max_int),
+                do: prod,
+                else: Numeric.to_signed_int64(prod)
+
+            regs = :erlang.setelement(dest + 1, regs, wrapped)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_number(va) and is_number(k) ->
+            regs = :erlang.setelement(dest + 1, regs, va * k)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_binop(:multiply, va, k, sync(state, cs, cd), proto, hint_a, nil)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_divide, dest, a, b, hint_a, hint_b} ->
+        {value, state} =
+          Executor.dispatcher_binop(
+            :divide,
+            :erlang.element(a + 1, regs),
+            :erlang.element(b + 1, regs),
+            sync(state, cs, cd),
+            proto,
+            hint_a,
+            hint_b
+          )
+
+        regs = :erlang.setelement(dest + 1, regs, value)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_floor_divide, dest, a, b, hint_a, hint_b} ->
+        {value, state} =
+          Executor.dispatcher_binop(
+            :floor_divide,
+            :erlang.element(a + 1, regs),
+            :erlang.element(b + 1, regs),
+            sync(state, cs, cd),
+            proto,
+            hint_a,
+            hint_b
+          )
+
+        regs = :erlang.setelement(dest + 1, regs, value)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_modulo, dest, a, b, hint_a, hint_b} ->
+        {value, state} =
+          Executor.dispatcher_binop(
+            :modulo,
+            :erlang.element(a + 1, regs),
+            :erlang.element(b + 1, regs),
+            sync(state, cs, cd),
+            proto,
+            hint_a,
+            hint_b
+          )
+
+        regs = :erlang.setelement(dest + 1, regs, value)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_power, dest, a, b, hint_a, hint_b} ->
+        {value, state} =
+          Executor.dispatcher_binop(
+            :power,
+            :erlang.element(a + 1, regs),
+            :erlang.element(b + 1, regs),
+            sync(state, cs, cd),
+            proto,
+            hint_a,
+            hint_b
+          )
+
+        regs = :erlang.setelement(dest + 1, regs, value)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_negate, dest, src, hint} ->
+        {value, state} =
+          Executor.dispatcher_unop(:negate, :erlang.element(src + 1, regs), sync(state, cs, cd), proto, hint)
+
+        regs = :erlang.setelement(dest + 1, regs, value)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      # ── Bitwise ─────────────────────────────────────────────────────
+      #
+      # band/bor/bxor of two integers take a fast path, but still apply the
+      # `to_signed_int64` narrow the executor uses: a register can hold an
+      # integer outside [-2^63, 2^63-1] (e.g. a host int injected via
+      # `Lua.set!` / `Value.encode/2`, which do not narrow), and skipping
+      # the narrow would both diverge from the interpreter and leak an
+      # out-of-range integer back into Lua state. For two already-narrow
+      # int64s the narrow is a cheap range check that masks nothing. Any
+      # non-integer operand (incl. float-with-fraction, string-coercible,
+      # tref with `__band` etc.) bridges to `Executor.dispatcher_bitwise/7`
+      # so coercion, metamethod dispatch, and hint-suffixed error
+      # attribution all match the interpreter. Shifts and bnot have no
+      # profitable number-only fast path (shift amounts and pre-truncation
+      # values need `lua_shift_*` masking), so they always bridge.
+
+      {@op_bitwise_and, dest, a, b, hint_a, hint_b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+
+        if is_integer(va) and is_integer(vb) do
+          regs = :erlang.setelement(dest + 1, regs, Numeric.to_signed_int64(Bitwise.band(va, vb)))
+          dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        else
+          {value, state} = Executor.dispatcher_bitwise(:band, va, vb, sync(state, cs, cd), proto, hint_a, hint_b)
+          regs = :erlang.setelement(dest + 1, regs, value)
+          dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_bitwise_or, dest, a, b, hint_a, hint_b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+
+        if is_integer(va) and is_integer(vb) do
+          regs = :erlang.setelement(dest + 1, regs, Numeric.to_signed_int64(Bitwise.bor(va, vb)))
+          dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        else
+          {value, state} = Executor.dispatcher_bitwise(:bor, va, vb, sync(state, cs, cd), proto, hint_a, hint_b)
+          regs = :erlang.setelement(dest + 1, regs, value)
+          dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_bitwise_xor, dest, a, b, hint_a, hint_b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+
+        if is_integer(va) and is_integer(vb) do
+          regs = :erlang.setelement(dest + 1, regs, Numeric.to_signed_int64(Bitwise.bxor(va, vb)))
+          dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        else
+          {value, state} = Executor.dispatcher_bitwise(:bxor, va, vb, sync(state, cs, cd), proto, hint_a, hint_b)
+          regs = :erlang.setelement(dest + 1, regs, value)
+          dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_shift_left, dest, a, b, hint_a, hint_b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+        {value, state} = Executor.dispatcher_bitwise(:shl, va, vb, sync(state, cs, cd), proto, hint_a, hint_b)
+        regs = :erlang.setelement(dest + 1, regs, value)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_shift_right, dest, a, b, hint_a, hint_b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+        {value, state} = Executor.dispatcher_bitwise(:shr, va, vb, sync(state, cs, cd), proto, hint_a, hint_b)
+        regs = :erlang.setelement(dest + 1, regs, value)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_bitwise_not, dest, src, hint} ->
+        val = :erlang.element(src + 1, regs)
+        {value, state} = Executor.dispatcher_bnot(val, sync(state, cs, cd), proto, hint)
+        regs = :erlang.setelement(dest + 1, regs, value)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      # ── Comparisons ─────────────────────────────────────────────────
+
+      {@op_less_than, dest, a, b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+
+        cond do
+          is_number(va) and is_number(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va < vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_binary(va) and is_binary(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va < vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_cmp(:less_than, va, vb, sync(state, cs, cd), proto)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_less_equal, dest, a, b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+
+        cond do
+          is_number(va) and is_number(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va <= vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_binary(va) and is_binary(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va <= vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_cmp(:less_equal, va, vb, sync(state, cs, cd), proto)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_greater_than, dest, a, b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+
+        cond do
+          is_number(va) and is_number(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va > vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_binary(va) and is_binary(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va > vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_cmp(:greater_than, va, vb, sync(state, cs, cd), proto)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_greater_equal, dest, a, b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+
+        cond do
+          is_number(va) and is_number(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va >= vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_binary(va) and is_binary(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va >= vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_cmp(:greater_equal, va, vb, sync(state, cs, cd), proto)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_equal, dest, a, b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+
+        cond do
+          is_number(va) and is_number(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va == vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_binary(va) and is_binary(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va == vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_cmp(:equal, va, vb, sync(state, cs, cd), proto)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_not_equal, dest, a, b} ->
+        va = :erlang.element(a + 1, regs)
+        vb = :erlang.element(b + 1, regs)
+
+        cond do
+          is_number(va) and is_number(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va != vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_binary(va) and is_binary(vb) ->
+            regs = :erlang.setelement(dest + 1, regs, va != vb)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_cmp(:not_equal, va, vb, sync(state, cs, cd), proto)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      # ── Constant-folded comparisons ─────────────────────────────────
+      #
+      # `k` is a literal, so it can never carry a metatable: the fast
+      # paths fire whenever the register side is a number or a binary.
+      # Everything else still routes through the shared bridge so `__lt`
+      # / `__le` / `__eq` behave exactly as in the register form.
+
+      {@op_less_than_k, dest, a, k} ->
+        va = :erlang.element(a + 1, regs)
+
+        cond do
+          is_number(va) and is_number(k) ->
+            regs = :erlang.setelement(dest + 1, regs, va < k)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_binary(va) and is_binary(k) ->
+            regs = :erlang.setelement(dest + 1, regs, va < k)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_cmp(:less_than, va, k, sync(state, cs, cd), proto)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_less_equal_k, dest, a, k} ->
+        va = :erlang.element(a + 1, regs)
+
+        cond do
+          is_number(va) and is_number(k) ->
+            regs = :erlang.setelement(dest + 1, regs, va <= k)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_binary(va) and is_binary(k) ->
+            regs = :erlang.setelement(dest + 1, regs, va <= k)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_cmp(:less_equal, va, k, sync(state, cs, cd), proto)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_equal_k, dest, a, k} ->
+        va = :erlang.element(a + 1, regs)
+
+        cond do
+          is_number(va) and is_number(k) ->
+            regs = :erlang.setelement(dest + 1, regs, va == k)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          is_binary(va) and is_binary(k) ->
+            regs = :erlang.setelement(dest + 1, regs, va == k)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          true ->
+            {value, state} = Executor.dispatcher_cmp(:equal, va, k, sync(state, cs, cd), proto)
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_not, dest, src} ->
+        v = :erlang.element(src + 1, regs)
+        # Inline truthiness — Lua treats nil and false as the only falsy
+        # values. Saves a function call per `:not` opcode.
+        result = v === nil or v === false
+        regs = :erlang.setelement(dest + 1, regs, result)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      # ── Conditional branching ───────────────────────────────────────
+      #
+      # `:test` dispatches into the chosen branch's nested bytecode
+      # tuple, pushing the post-test resume `{code, pc + 1}` onto
+      # `cont`. The branch-end clause of `dispatch/8` pops it.
+
+      {@op_test, reg, then_bc, else_bc} ->
+        # Inline truthiness. The default case (anything other than `nil`
+        # or `false`) is the common path for `:test` in arithmetic-heavy
+        # workloads — booleans returned from `:less_than` etc.
+        branch =
+          case :erlang.element(reg + 1, regs) do
+            nil -> else_bc
+            false -> else_bc
+            _ -> then_bc
+          end
+
+        dispatch(branch, 1, regs, upvalues, proto, state, [{code, pc + 1} | cont], frames, instruction_count, cs, cd, ou)
+
+      # `and` / `or` resume exactly like `:test`: the nested body ends and
+      # `finish_body` pops the `{code, pc + 1}` marker. When the left operand
+      # decides the result, no body runs and nothing is pushed.
+
+      {@op_test_and, dest, source, body} ->
+        case :erlang.element(source + 1, regs) do
+          v when v === nil or v === false ->
+            regs = :erlang.setelement(dest + 1, regs, v)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          _ ->
+            dispatch(
+              body,
+              1,
+              regs,
+              upvalues,
+              proto,
+              state,
+              [{code, pc + 1} | cont],
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+        end
+
+      {@op_test_or, dest, source, body} ->
+        case :erlang.element(source + 1, regs) do
+          v when v === nil or v === false ->
+            dispatch(
+              body,
+              1,
+              regs,
+              upvalues,
+              proto,
+              state,
+              [{code, pc + 1} | cont],
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+
+          v ->
+            regs = :erlang.setelement(dest + 1, regs, v)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      # ── Calls ───────────────────────────────────────────────────────
+      #
+      # `:call_one` always asks for exactly one result placed at `base`.
+      # `:call_zero` is the statement-call form (`table.sort(t)`,
+      # `print(x)`): results are discarded. `:compiled_closure` callees
+      # stay in the dispatcher via the frame stack — no Erlang stack
+      # growth. Everything else bridges to the interpreter through
+      # `Executor.call_function/3`, which grows the Erlang stack by one
+      # frame at the mode boundary.
+      #
+      # The `:discard` sentinel in the frame's `base` slot signals
+      # "throw the return value away"; `return_one/3` skips its
+      # setelement write when it sees it.
+
+      {@op_call_zero, base, arg_count, name_hint, line} ->
+        case :erlang.element(base + 1, regs) do
+          {:compiled_closure, callee_proto, callee_upvalues} ->
+            callee_regs = init_callee_regs(callee_proto, regs, base + 1, arg_count)
+            # Compiled callees may be vararg functions. Testing `is_vararg`
+            # here keeps the common non-vararg call to one field read.
+            callee_proto =
+              if callee_proto.is_vararg,
+                do: setup_vararg_proto(callee_proto, regs, base + 1, arg_count),
+                else: callee_proto
+
+            frame = {code, pc + 1, regs, upvalues, proto, cont, :discard, ou}
+            call_info = {proto.source, line, name_hint}
+            instruction_count = tick(state, instruction_count, cs, cd)
+            ckdepth(state, cs, cd)
+
+            dispatch(
+              callee_proto.bytecode,
+              1,
+              callee_regs,
+              callee_upvalues,
+              callee_proto,
+              state,
+              [],
+              [frame | frames],
+              instruction_count,
+              [call_info | cs],
+              cd + 1,
+              %{}
+            )
+
+          func_value ->
+            call_zero_bridge(
+              func_value,
+              collect_args(regs, base + 1, arg_count),
+              name_hint,
+              line,
+              code,
+              pc,
+              regs,
+              upvalues,
+              proto,
+              state,
+              cont,
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+        end
+
+      {@op_call_one, base, arg_count, name_hint, line} ->
+        case :erlang.element(base + 1, regs) do
+          {:compiled_closure, callee_proto, callee_upvalues} ->
+            callee_regs = init_callee_regs(callee_proto, regs, base + 1, arg_count)
+
+            callee_proto =
+              if callee_proto.is_vararg,
+                do: setup_vararg_proto(callee_proto, regs, base + 1, arg_count),
+                else: callee_proto
+
+            # Frame is a tuple, not a map: pattern-matching a tuple in
+            # `return_one/7` skips Map.fetch! lookups and lets the BEAM
+            # bind everything in a single `move` per slot.
+            frame = {code, pc + 1, regs, upvalues, proto, cont, base, ou}
+            call_info = {proto.source, line, name_hint}
+            instruction_count = tick(state, instruction_count, cs, cd)
+            ckdepth(state, cs, cd)
+
+            dispatch(
+              callee_proto.bytecode,
+              1,
+              callee_regs,
+              callee_upvalues,
+              callee_proto,
+              state,
+              [],
+              [frame | frames],
+              instruction_count,
+              [call_info | cs],
+              cd + 1,
+              %{}
+            )
+
+          func_value ->
+            call_one_bridge(
+              func_value,
+              collect_args(regs, base + 1, arg_count),
+              base,
+              name_hint,
+              line,
+              code,
+              pc,
+              regs,
+              upvalues,
+              proto,
+              state,
+              cont,
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+        end
+
+      # ── Static-arity calls ──────────────────────────────────────────
+      #
+      # Same semantics as `@op_call_one` / `@op_call_zero`, with the
+      # argument count fixed at encode time. The arguments come out of the
+      # caller's registers at constant offsets and the callee's register
+      # file is one literal tuple: no copy loop, no clamp against the
+      # callee's parameter count, no blank tuple to overwrite. `name_hint`
+      # and `line` ride along unchanged, so tracebacks and native-call
+      # error attribution are identical to the generic forms.
+
+      {@op_call_one_0, base, name_hint, line} ->
+        case :erlang.element(base + 1, regs) do
+          {:compiled_closure, callee_proto, callee_upvalues} ->
+            callee_regs = mkregs0(regs_size(callee_proto))
+
+            callee_proto =
+              if callee_proto.is_vararg,
+                do: %{callee_proto | varargs: []},
+                else: callee_proto
+
+            frame = {code, pc + 1, regs, upvalues, proto, cont, base, ou}
+            call_info = {proto.source, line, name_hint}
+            instruction_count = tick(state, instruction_count, cs, cd)
+            ckdepth(state, cs, cd)
+
+            dispatch(
+              callee_proto.bytecode,
+              1,
+              callee_regs,
+              callee_upvalues,
+              callee_proto,
+              state,
+              [],
+              [frame | frames],
+              instruction_count,
+              [call_info | cs],
+              cd + 1,
+              %{}
+            )
+
+          func_value ->
+            call_one_bridge(
+              func_value,
+              [],
+              base,
+              name_hint,
+              line,
+              code,
+              pc,
+              regs,
+              upvalues,
+              proto,
+              state,
+              cont,
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+        end
+
+      {@op_call_one_1, base, name_hint, line} ->
+        case :erlang.element(base + 1, regs) do
+          {:compiled_closure, callee_proto, callee_upvalues} ->
+            a1 = :erlang.element(base + 2, regs)
+            callee_regs = mkregs1(regs_size(callee_proto), callee_proto.param_count, a1)
+
+            callee_proto =
+              if callee_proto.is_vararg,
+                do: setup_vararg_proto(callee_proto, regs, base + 1, 1),
+                else: callee_proto
+
+            frame = {code, pc + 1, regs, upvalues, proto, cont, base, ou}
+            call_info = {proto.source, line, name_hint}
+            instruction_count = tick(state, instruction_count, cs, cd)
+            ckdepth(state, cs, cd)
+
+            dispatch(
+              callee_proto.bytecode,
+              1,
+              callee_regs,
+              callee_upvalues,
+              callee_proto,
+              state,
+              [],
+              [frame | frames],
+              instruction_count,
+              [call_info | cs],
+              cd + 1,
+              %{}
+            )
+
+          func_value ->
+            call_one_bridge(
+              func_value,
+              [:erlang.element(base + 2, regs)],
+              base,
+              name_hint,
+              line,
+              code,
+              pc,
+              regs,
+              upvalues,
+              proto,
+              state,
+              cont,
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+        end
+
+      {@op_call_one_2, base, name_hint, line} ->
+        case :erlang.element(base + 1, regs) do
+          {:compiled_closure, callee_proto, callee_upvalues} ->
+            a1 = :erlang.element(base + 2, regs)
+            a2 = :erlang.element(base + 3, regs)
+            callee_regs = mkregs2(regs_size(callee_proto), callee_proto.param_count, a1, a2)
+
+            callee_proto =
+              if callee_proto.is_vararg,
+                do: setup_vararg_proto(callee_proto, regs, base + 1, 2),
+                else: callee_proto
+
+            frame = {code, pc + 1, regs, upvalues, proto, cont, base, ou}
+            call_info = {proto.source, line, name_hint}
+            instruction_count = tick(state, instruction_count, cs, cd)
+            ckdepth(state, cs, cd)
+
+            dispatch(
+              callee_proto.bytecode,
+              1,
+              callee_regs,
+              callee_upvalues,
+              callee_proto,
+              state,
+              [],
+              [frame | frames],
+              instruction_count,
+              [call_info | cs],
+              cd + 1,
+              %{}
+            )
+
+          func_value ->
+            call_one_bridge(
+              func_value,
+              [:erlang.element(base + 2, regs), :erlang.element(base + 3, regs)],
+              base,
+              name_hint,
+              line,
+              code,
+              pc,
+              regs,
+              upvalues,
+              proto,
+              state,
+              cont,
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+        end
+
+      {@op_call_zero_0, base, name_hint, line} ->
+        case :erlang.element(base + 1, regs) do
+          {:compiled_closure, callee_proto, callee_upvalues} ->
+            callee_regs = mkregs0(regs_size(callee_proto))
+
+            callee_proto =
+              if callee_proto.is_vararg,
+                do: %{callee_proto | varargs: []},
+                else: callee_proto
+
+            frame = {code, pc + 1, regs, upvalues, proto, cont, :discard, ou}
+            call_info = {proto.source, line, name_hint}
+            instruction_count = tick(state, instruction_count, cs, cd)
+            ckdepth(state, cs, cd)
+
+            dispatch(
+              callee_proto.bytecode,
+              1,
+              callee_regs,
+              callee_upvalues,
+              callee_proto,
+              state,
+              [],
+              [frame | frames],
+              instruction_count,
+              [call_info | cs],
+              cd + 1,
+              %{}
+            )
+
+          func_value ->
+            call_zero_bridge(
+              func_value,
+              [],
+              name_hint,
+              line,
+              code,
+              pc,
+              regs,
+              upvalues,
+              proto,
+              state,
+              cont,
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+        end
+
+      {@op_call_zero_1, base, name_hint, line} ->
+        case :erlang.element(base + 1, regs) do
+          {:compiled_closure, callee_proto, callee_upvalues} ->
+            a1 = :erlang.element(base + 2, regs)
+            callee_regs = mkregs1(regs_size(callee_proto), callee_proto.param_count, a1)
+
+            callee_proto =
+              if callee_proto.is_vararg,
+                do: setup_vararg_proto(callee_proto, regs, base + 1, 1),
+                else: callee_proto
+
+            frame = {code, pc + 1, regs, upvalues, proto, cont, :discard, ou}
+            call_info = {proto.source, line, name_hint}
+            instruction_count = tick(state, instruction_count, cs, cd)
+            ckdepth(state, cs, cd)
+
+            dispatch(
+              callee_proto.bytecode,
+              1,
+              callee_regs,
+              callee_upvalues,
+              callee_proto,
+              state,
+              [],
+              [frame | frames],
+              instruction_count,
+              [call_info | cs],
+              cd + 1,
+              %{}
+            )
+
+          func_value ->
+            call_zero_bridge(
+              func_value,
+              [:erlang.element(base + 2, regs)],
+              name_hint,
+              line,
+              code,
+              pc,
+              regs,
+              upvalues,
+              proto,
+              state,
+              cont,
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+        end
+
+      {@op_call_zero_2, base, name_hint, line} ->
+        case :erlang.element(base + 1, regs) do
+          {:compiled_closure, callee_proto, callee_upvalues} ->
+            a1 = :erlang.element(base + 2, regs)
+            a2 = :erlang.element(base + 3, regs)
+            callee_regs = mkregs2(regs_size(callee_proto), callee_proto.param_count, a1, a2)
+
+            callee_proto =
+              if callee_proto.is_vararg,
+                do: setup_vararg_proto(callee_proto, regs, base + 1, 2),
+                else: callee_proto
+
+            frame = {code, pc + 1, regs, upvalues, proto, cont, :discard, ou}
+            call_info = {proto.source, line, name_hint}
+            instruction_count = tick(state, instruction_count, cs, cd)
+            ckdepth(state, cs, cd)
+
+            dispatch(
+              callee_proto.bytecode,
+              1,
+              callee_regs,
+              callee_upvalues,
+              callee_proto,
+              state,
+              [],
+              [frame | frames],
+              instruction_count,
+              [call_info | cs],
+              cd + 1,
+              %{}
+            )
+
+          func_value ->
+            call_zero_bridge(
+              func_value,
+              [:erlang.element(base + 2, regs), :erlang.element(base + 3, regs)],
+              name_hint,
+              line,
+              code,
+              pc,
+              regs,
+              upvalues,
+              proto,
+              state,
+              cont,
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+        end
+
+      # ── Self-recursive calls ────────────────────────────────────────
+      #
+      # The callee is the prototype this loop is already running, reached
+      # through the `local function` self-reference the compiler proved
+      # can never be rebound (`Lua.Compiler.Peephole`). There is no closure
+      # value to read and no upvalue cell to resolve: the frame keeps the
+      # caller's state, and the loop re-enters `proto.bytecode` with the
+      # same `upvalues` and a fresh register file.
+      #
+      # Everything else about the call is a generic call: a frame is
+      # pushed so tracebacks and `debug.getinfo` see the same stack, the
+      # instruction budget ticks, the depth check runs at the same point
+      # with the same depth, and the callee starts with an empty
+      # open-upvalue map while the caller's rides in the frame.
+
+      # `line` goes in the frame's call info, as for every call opcode, so
+      # `error(msg, level)` can name the line a function was called from.
+      {@op_call_self, base, arg_count, result_count, name_hint, line} ->
+        callee_regs = init_callee_regs(proto, regs, base + 1, arg_count)
+
+        callee_proto =
+          if proto.is_vararg,
+            do: setup_vararg_proto(proto, regs, base + 1, arg_count),
+            else: proto
+
+        dest =
+          case result_count do
+            0 -> :discard
+            1 -> base
+            _ -> {:multi, base, result_count}
+          end
+
+        frame = {code, pc + 1, regs, upvalues, proto, cont, dest, ou}
+        call_info = {proto.source, line, name_hint}
+        instruction_count = tick(state, instruction_count, cs, cd)
+        ckdepth(state, cs, cd)
+
+        dispatch(
+          callee_proto.bytecode,
+          1,
+          callee_regs,
+          upvalues,
+          callee_proto,
+          state,
+          [],
+          [frame | frames],
+          instruction_count,
+          [call_info | cs],
+          cd + 1,
+          %{}
+        )
+
+      # ── Returns ─────────────────────────────────────────────────────
+      #
+      # In-mode `:call_one` returns thread the single value through
+      # `return_one/3` without boxing it as a list — the hot fib path
+      # never sees a list allocation for the result. The interpreter-
+      # boundary `[result]` shape is only built when unwinding past
+      # the last dispatcher frame, where the caller expects the
+      # `call_function/3` contract.
+
+      {@op_return_one, base} ->
+        return_one(:erlang.element(base + 1, regs), state, frames, instruction_count, cs, cd, ou)
+
+      {@op_return_zero} ->
+        return_one(nil, state, frames, instruction_count, cs, cd, ou)
+
+      # ── Table opcodes ───────────────────────────────────────────────
+      #
+      # The fast paths mirror the interpreter clauses in `:get_field` /
+      # `:set_field` / `:length`: tref + integer-or-binary key + no
+      # metatable resolves to a direct map access; anything else bridges
+      # to `Executor.dispatcher_*` so metamethod fidelity matches.
+
+      {@op_new_table, dest} ->
+        {tref, state} = State.alloc_table(state)
+        regs = :erlang.setelement(dest + 1, regs, tref)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_get_table, dest, table_reg, key_reg, name_hint} ->
+        table_val = :erlang.element(table_reg + 1, regs)
+        key = :erlang.element(key_reg + 1, regs)
+
+        case table_val do
+          {:tref, id} when is_integer(key) and key >= 1 ->
+            table = :erlang.map_get(id, state.tables)
+
+            case Table.get(table, key) do
+              nil ->
+                case :erlang.map_get(:metatable, table) do
+                  nil ->
+                    regs = :erlang.setelement(dest + 1, regs, nil)
+                    dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+                  _ ->
+                    {value, state} =
+                      Executor.dispatcher_get_table(table_val, key, sync(state, cs, cd), proto, name_hint)
+
+                    regs = :erlang.setelement(dest + 1, regs, value)
+                    dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+                end
+
+              value ->
+                regs = :erlang.setelement(dest + 1, regs, value)
+                dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+            end
+
+          {:tref, id} when is_integer(key) or is_binary(key) ->
+            table = :erlang.map_get(id, state.tables)
+            data = :erlang.map_get(:data, table)
+
+            case data do
+              %{^key => value} ->
+                regs = :erlang.setelement(dest + 1, regs, value)
+                dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+              _ ->
+                case :erlang.map_get(:metatable, table) do
+                  nil ->
+                    regs = :erlang.setelement(dest + 1, regs, nil)
+                    dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+                  _ ->
+                    {value, state} =
+                      Executor.dispatcher_get_table(table_val, key, sync(state, cs, cd), proto, name_hint)
+
+                    regs = :erlang.setelement(dest + 1, regs, value)
+                    dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+                end
+            end
+
+          _ ->
+            {value, state} =
+              Executor.dispatcher_get_table(table_val, key, sync(state, cs, cd), proto, name_hint)
+
+            regs = :erlang.setelement(dest + 1, regs, value)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      {@op_set_table, table_reg, key_reg, value_reg, name_hint} ->
+        table_val = :erlang.element(table_reg + 1, regs)
+        key = :erlang.element(key_reg + 1, regs)
+        value = :erlang.element(value_reg + 1, regs)
+        state = Executor.dispatcher_set_table(table_val, key, value, sync(state, cs, cd), proto, name_hint)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      # Mirrors `@op_get_field`'s shape: a tref whose table has no metatable
+      # has no `__newindex` to consult, so the write is a direct
+      # `Table.put/3` into `state.tables`. Anything else — a non-tref, or a
+      # table carrying a metatable — bridges so the `__newindex` chain and
+      # the index type errors stay the interpreter's.
+      {@op_set_field, table_reg, name, value_reg, name_hint} ->
+        table_val = :erlang.element(table_reg + 1, regs)
+        value = :erlang.element(value_reg + 1, regs)
+
+        case table_val do
+          {:tref, id} ->
+            table = :erlang.map_get(id, state.tables)
+
+            state =
+              case :erlang.map_get(:metatable, table) do
+                nil ->
+                  %{state | tables: :maps.put(id, Table.put(table, name, value), state.tables)}
+
+                _ ->
+                  Executor.dispatcher_set_field(table_val, name, value, sync(state, cs, cd), proto, name_hint)
+              end
+
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          # Indexing a non-table always raises; the bridge owns the wording.
+          _ ->
+            Executor.dispatcher_set_field(table_val, name, value, sync(state, cs, cd), proto, name_hint)
+        end
+
+      # `:set_list` with a positive integer count is the table-constructor
+      # form. The `count == 0` sentinel was filtered upstream and never
+      # reaches the dispatcher.
+      {@op_set_list, table_reg, start, count, offset} ->
+        {:tref, id} = :erlang.element(table_reg + 1, regs)
+
+        state =
+          State.update_table(state, {:tref, id}, fn table ->
+            set_list_into_table(table, regs, start, count, offset, 0)
+          end)
+
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      # `:set_list` multi-return tail (`{f(), 1}`): fold the static prefix
+      # `init_count` with the trailing values count the last multi-return
+      # call recorded in `state.multi_return_count`. Mirrors the
+      # interpreter's `{:multi, _}` clause exactly.
+      {@op_set_list_multi, table_reg, start, init_count, offset} ->
+        {:tref, id} = :erlang.element(table_reg + 1, regs)
+        total = init_count + state.multi_return_count
+
+        state =
+          State.update_table(state, {:tref, id}, fn table ->
+            set_list_into_table(table, regs, start, total, offset, 0)
+          end)
+
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_length, dest, source} ->
+        value = :erlang.element(source + 1, regs)
+
+        case value do
+          {:tref, id} ->
+            table = :erlang.map_get(id, state.tables)
+
+            case :erlang.map_get(:metatable, table) do
+              nil ->
+                # No __len possible — Lua 5.3 §3.4.7: # on a table
+                # without __len is the border length of the data map.
+                len = Table.length(table)
+                regs = :erlang.setelement(dest + 1, regs, len)
+                dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+              _ ->
+                {len, state} = Executor.dispatcher_length(value, sync(state, cs, cd), proto)
+                regs = :erlang.setelement(dest + 1, regs, len)
+                dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+            end
+
+          v when is_binary(v) ->
+            regs = :erlang.setelement(dest + 1, regs, byte_size(v))
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          _ ->
+            {len, state} = Executor.dispatcher_length(value, sync(state, cs, cd), proto)
+            regs = :erlang.setelement(dest + 1, regs, len)
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      # ── numeric_for ─────────────────────────────────────────────────
+      #
+      # Coerce the three control registers once, write the canonical
+      # numbers back, then test `should_continue`. If the loop runs at
+      # least once, push a `:cps_for` marker onto `cont`; the body-end
+      # handler in `finish_body/6` increments the counter and either
+      # re-enters the body or pops back to `outer_pc`.
+
+      {@op_numeric_for, base, loop_var, body_bc} ->
+        {counter, limit, step} =
+          Executor.dispatcher_coerce_numeric_for_controls(
+            :erlang.element(base + 1, regs),
+            :erlang.element(base + 2, regs),
+            :erlang.element(base + 3, regs),
+            sync(state, cs, cd)
+          )
+
+        regs = :erlang.setelement(base + 1, regs, counter)
+        regs = :erlang.setelement(base + 2, regs, limit)
+        regs = :erlang.setelement(base + 3, regs, step)
+
+        should_continue =
+          if step > 0, do: counter <= limit, else: counter >= limit
+
+        if should_continue do
+          regs = :erlang.setelement(loop_var + 1, regs, counter)
+          ou = close_upv(ou, loop_var)
+          marker = {:cps_for, base, loop_var, body_bc, code, pc + 1}
+          loop_exit = {:loop_exit, code, pc + 1}
+
+          dispatch(
+            body_bc,
+            1,
+            regs,
+            upvalues,
+            proto,
+            state,
+            [marker, loop_exit | cont],
+            frames,
+            instruction_count,
+            cs,
+            cd,
+            ou
+          )
+        else
+          dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+
+      # ── while_loop / repeat_loop / generic_for ─────────────────────
+      #
+      # All three loop forms use a pair of `cont` markers: a CPS marker on
+      # top, then a `:loop_exit` underneath. The CPS marker drives normal
+      # body / condition handoff in `finish_body/6`; the loop_exit anchors
+      # `:break`'s unwind via `find_loop_exit/1`.
+
+      {@op_while_loop, test_reg, cond_bc, body_bc} ->
+        cps = {:cps_while_test, test_reg, cond_bc, body_bc, code, pc + 1}
+        loop_exit = {:loop_exit, code, pc + 1}
+        dispatch(cond_bc, 1, regs, upvalues, proto, state, [cps, loop_exit | cont], frames, instruction_count, cs, cd, ou)
+
+      {@op_repeat_loop, test_reg, body_bc, cond_bc} ->
+        cps = {:cps_repeat_body, test_reg, body_bc, cond_bc, code, pc + 1}
+        loop_exit = {:loop_exit, code, pc + 1}
+        dispatch(body_bc, 1, regs, upvalues, proto, state, [cps, loop_exit | cont], frames, instruction_count, cs, cd, ou)
+
+      {@op_generic_for, base, var_regs, body_bc, line} ->
+        # Iterator call follows the same shape as the executor:
+        # results = iter_func(invariant_state, control). If the first
+        # result is nil the loop terminates; otherwise control gets the
+        # first result, var_regs[i] each get results[i]. `line` is baked in
+        # by the encoder so a native iterator raising mid-step attributes
+        # to the `for` statement rather than leaking `:0:`.
+        iter_func = :erlang.element(base + 1, regs)
+        invariant_state = :erlang.element(base + 2, regs)
+        control = :erlang.element(base + 3, regs)
+
+        state = %{state | call_stack: cs, call_depth: cd, instruction_count: instruction_count}
+
+        {results, state} =
+          Executor.dispatcher_call_value(iter_func, [invariant_state, control], proto, state, line)
+
+        instruction_count = state.instruction_count
+
+        case results do
+          [nil | _] ->
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          [] ->
+            dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+          [first | _] ->
+            regs = :erlang.setelement(base + 3, regs, first)
+            regs = assign_iter_results(regs, var_regs, results, 0)
+            first_var_reg = :erlang.element(1, var_regs)
+            ou = close_upv(ou, first_var_reg)
+            marker = {:cps_generic_for, base, var_regs, body_bc, line, code, pc + 1}
+            loop_exit = {:loop_exit, code, pc + 1}
+
+            dispatch(
+              body_bc,
+              1,
+              regs,
+              upvalues,
+              proto,
+              state,
+              [marker, loop_exit | cont],
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+        end
+
+      # ── break ─────────────────────────────────────────────────────
+      #
+      # `:break` scans `cont` for the nearest `:loop_exit` marker and
+      # dispatches to its post-loop target. Everything above the
+      # loop_exit (CPS markers, `:test` resume points) is dropped.
+
+      {@op_break} ->
+        {exit_code, exit_pc, rest_cont} = find_loop_exit(cont)
+        dispatch(exit_code, exit_pc, regs, upvalues, proto, state, rest_cont, frames, instruction_count, cs, cd, ou)
+
+      # ── label / goto ──────────────────────────────────────────────
+      #
+      # `:label` is a no-op. `:goto` closes upvalue cells at or above the
+      # target's scope `level`, drops `depth` `cont` entries (a `:test`
+      # branch pushed one, a loop body two), and resumes the destination
+      # tuple at `target_pc`. `depth == 0` is a jump within the current
+      # tuple (forward or backward); otherwise the destination tuple is the
+      # enclosing `code` recorded on the unwound markers.
+
+      {@op_label, _name, _level} ->
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_goto, 0, target_pc, level} ->
+        ou = close_upv(ou, level)
+        dispatch(code, target_pc, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_goto, depth, target_pc, level} ->
+        ou = close_upv(ou, level)
+        {dest_code, rest_cont} = unwind_goto(cont, depth)
+        dispatch(dest_code, target_pc, regs, upvalues, proto, state, rest_cont, frames, instruction_count, cs, cd, ou)
+
+      # ── Closure construction ──────────────────────────────────────
+      #
+      # Walks `nested_proto.upvalue_descriptors`, allocating a new cell
+      # for any `:parent_local` capture that doesn't already have one
+      # open on this register, or reusing the existing cell so multiple
+      # closures capturing the same local share a single mutation point.
+      # `:parent_upvalue` descriptors just forward our own cell ref.
+      # The closure tag flips between `:lua_closure` and `:compiled_closure`
+      # based on the child prototype's bytecode availability — the
+      # decision flows through the closure value, not back through the
+      # parent prototype.
+
+      {@op_closure, dest, proto_index} ->
+        nested_proto = Enum.at(proto.prototypes, proto_index)
+        {cells, state, ou} = build_upvalues(nested_proto.upvalue_descriptors, regs, upvalues, state, ou, [])
+        upvalues_tuple = List.to_tuple(:lists.reverse(cells))
+
+        closure =
+          case nested_proto.bytecode do
+            nil -> {:lua_closure, nested_proto, upvalues_tuple}
+            _ -> {:compiled_closure, nested_proto, upvalues_tuple}
+          end
+
+        regs = :erlang.setelement(dest + 1, regs, closure)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      # ── Upvalue access ────────────────────────────────────────────
+      #
+      # `:set_upvalue` writes through a closed cell (the upvalue tuple
+      # entry is the ref itself). `:get_open_upvalue` and
+      # `:set_open_upvalue` operate on locals captured by some other
+      # closure: if a cell exists, it owns the value; if not, the
+      # register itself is the source of truth and a `:set_open_upvalue`
+      # is a no-op (codegen always emits a `:move` first).
+
+      {@op_set_upvalue, index, source} ->
+        cell_ref = :erlang.element(index + 1, upvalues)
+        value = :erlang.element(source + 1, regs)
+        state = %{state | upvalue_cells: Map.put(state.upvalue_cells, cell_ref, value)}
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_get_open_upvalue, dest, reg} ->
+        value =
+          case :maps.get(reg, ou, nil) do
+            nil -> :erlang.element(reg + 1, regs)
+            cell_ref -> :maps.get(cell_ref, state.upvalue_cells, nil)
+          end
+
+        regs = :erlang.setelement(dest + 1, regs, value)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_set_open_upvalue, reg, source} ->
+        state =
+          case :maps.get(reg, ou, nil) do
+            nil ->
+              state
+
+            cell_ref ->
+              value = :erlang.element(source + 1, regs)
+              %{state | upvalue_cells: Map.put(state.upvalue_cells, cell_ref, value)}
+          end
+
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_close_upvalues, threshold} ->
+        ou = close_upv(ou, threshold)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      # ── Vararg ────────────────────────────────────────────────────
+      #
+      # `:vararg` writes the prototype's varargs into a contiguous range.
+      # `count == 0` is the "consume all" form: every vararg lands in
+      # regs[base..] and `state.multi_return_count` is set so the next
+      # multi-return-aware opcode sees the right length. `count > 0`
+      # writes exactly that many slots, padding with nil — no
+      # multi_return_count change.
+
+      {@op_vararg, base, 0} ->
+        varargs = proto.varargs
+        {regs, n} = write_varargs(regs, base, varargs, 0)
+        state = %{state | multi_return_count: n}
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      {@op_vararg, base, count} ->
+        regs = write_varargs_n(regs, base, proto.varargs, count)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      # ── Multi-return returns ──────────────────────────────────────
+
+      {@op_return_proto_varargs} ->
+        return_multi(proto.varargs, state, frames, instruction_count, cs, cd, ou)
+
+      {@op_return_collect, base, fixed} ->
+        total = fixed + state.multi_return_count
+        results = collect_args(regs, base, total)
+        return_multi(results, state, frames, instruction_count, cs, cd, ou)
+
+      {@op_return_multi, base, count} ->
+        results = collect_args(regs, base, count)
+        return_multi(results, state, frames, instruction_count, cs, cd, ou)
+
+      # ── Multi-return calls ────────────────────────────────────────
+      #
+      # `arg_count` may be a fixed integer, a negative integer (mirror
+      # of `:return` count<0), or `{:multi, fixed}`. All three fold in
+      # `state.multi_return_count` exactly as the executor does
+      # (executor.ex:830). `result_count` discriminates how results
+      # come back:
+      #
+      #   -1 → forward to current function's caller (tail-call return).
+      #   -2 → expand into consecutive regs at base, set multi_return_count.
+      #    n>1 → place first n results into regs starting at base.
+
+      {@op_call_multi, base, arg_count, result_count, name_hint, line} ->
+        func_value = :erlang.element(base + 1, regs)
+
+        total_args =
+          case arg_count do
+            {:multi, fixed} -> fixed + state.multi_return_count
+            n when is_integer(n) and n > 0 -> n
+            n when is_integer(n) and n < 0 -> -(n + 1) + state.multi_return_count
+            0 -> 0
+          end
+
+        case func_value do
+          {:compiled_closure, callee_proto, callee_upvalues} ->
+            callee_regs = init_callee_regs(callee_proto, regs, base + 1, total_args)
+
+            callee_proto =
+              if callee_proto.is_vararg,
+                do: setup_vararg_proto(callee_proto, regs, base + 1, total_args),
+                else: callee_proto
+
+            # Reuse the fast-path frame shapes when result_count is 0
+            # (discard) or 1 (single integer base). Only the genuine
+            # multi-return shapes (-1, -2, n > 1) need the tagged
+            # `{:multi, _, _}` dest.
+            dest =
+              case result_count do
+                0 -> :discard
+                1 -> base
+                _ -> {:multi, base, result_count}
+              end
+
+            frame = {code, pc + 1, regs, upvalues, proto, cont, dest, ou}
+            call_info = {proto.source, line, name_hint}
+            instruction_count = tick(state, instruction_count, cs, cd)
+            ckdepth(state, cs, cd)
+
+            dispatch(
+              callee_proto.bytecode,
+              1,
+              callee_regs,
+              callee_upvalues,
+              callee_proto,
+              state,
+              [],
+              [frame | frames],
+              instruction_count,
+              [call_info | cs],
+              cd + 1,
+              %{}
+            )
+
+          {:lua_closure, _, _} = closure ->
+            args = collect_args(regs, base + 1, total_args)
+            call_info = {proto.source, line, name_hint}
+            instruction_count = tick(state, instruction_count, cs, cd)
+            ckdepth(state, cs, cd)
+
+            state = %{
+              state
+              | call_stack: [call_info | cs],
+                call_depth: cd + 1,
+                instruction_count: instruction_count
+            }
+
+            {results, state} = Executor.call_function(closure, args, state)
+            instruction_count = state.instruction_count
+
+            apply_multi_call_result(
+              result_count,
+              base,
+              results,
+              code,
+              pc + 1,
+              regs,
+              upvalues,
+              proto,
+              state,
+              cont,
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+
+          _ ->
+            args = collect_args(regs, base + 1, total_args)
+
+            state = %{state | call_stack: cs, call_depth: cd, instruction_count: instruction_count}
+
+            {results, state} =
+              Executor.dispatcher_call_function(func_value, args, state, proto, name_hint, line)
+
+            instruction_count = state.instruction_count
+
+            apply_multi_call_result(
+              result_count,
+              base,
+              results,
+              code,
+              pc + 1,
+              regs,
+              upvalues,
+              proto,
+              state,
+              cont,
+              frames,
+              instruction_count,
+              cs,
+              cd,
+              ou
+            )
+        end
+
+      # ── self ──────────────────────────────────────────────────────
+      #
+      # `obj:method(args)` lowers to `:self` followed by `:call`. The
+      # `:self` opcode writes the resolved method into regs[base] and
+      # the object into regs[base+1]; the subsequent `:call` reads them
+      # as func+first-arg. Resolution goes through `index_value/6` so
+      # `__index` metamethods (the table-OOP idiom) work.
+
+      {@op_self, base, obj_reg, method_name, name_hint} ->
+        obj = :erlang.element(obj_reg + 1, regs)
+        {func, state} = Executor.dispatcher_index_method_target(obj, method_name, sync(state, cs, cd), proto, name_hint)
+        regs = :erlang.setelement(base + 2, regs, obj)
+        regs = :erlang.setelement(base + 1, regs, func)
+        dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+
+      # ── Concatenation ─────────────────────────────────────────────
+      #
+      # Fast paths inline binary-binary and number/binary mixed forms;
+      # anything else (table with `__concat`, etc.) bridges to the
+      # interpreter for metamethod fidelity.
+
+      {@op_concatenate, dest, a, b} ->
+        left = :erlang.element(a + 1, regs)
+        right = :erlang.element(b + 1, regs)
+
+        if is_binary(left) and is_binary(right) do
+          if byte_size(left) + byte_size(right) > state.max_string_bytes do
+            raise RuntimeError, value: "resulting string too large", state: state
+          end
+
+          regs = :erlang.setelement(dest + 1, regs, left <> right)
+          dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        else
+          {result, state} = Executor.dispatcher_concat(left, right, sync(state, cs, cd), proto)
+          regs = :erlang.setelement(dest + 1, regs, result)
+          dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+        end
+    end
+  end
+
+  # ── End-of-body handling ────────────────────────────────────────────────
+
+  defp finish_body(
+         regs,
+         upvalues,
+         proto,
+         state,
+         [{next_code, next_pc} | rest_cont],
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    dispatch(next_code, next_pc, regs, upvalues, proto, state, rest_cont, frames, instruction_count, cs, cd, ou)
+  end
+
+  # `:numeric_for` body ran to completion. Increment the counter, re-test,
+  # and either restart the body (re-pushing both the cps_for marker and
+  # the loop_exit anchor) or pop both off and dispatch at the post-loop
+  # PC. A `step` of zero infinite-loops here, matching the interpreter's
+  # behaviour at `do_execute([{:numeric_for, …}])`; neither path implements
+  # PUC-Lua's "for step is zero" runtime check. Fixing that is a separate
+  # concern across both executors.
+  defp finish_body(
+         regs,
+         upvalues,
+         proto,
+         state,
+         [{:cps_for, base, loop_var, body_bc, outer_code, outer_pc} = marker, {:loop_exit, _, _} = loop_exit | rest_cont],
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    counter = :erlang.element(base + 1, regs)
+    step = :erlang.element(base + 3, regs)
+    new_counter = counter + step
+    regs = :erlang.setelement(base + 1, regs, new_counter)
+    limit = :erlang.element(base + 2, regs)
+    should_continue = if step > 0, do: new_counter <= limit, else: new_counter >= limit
+
+    if should_continue do
+      instruction_count = tick(state, instruction_count, cs, cd)
+      regs = :erlang.setelement(loop_var + 1, regs, new_counter)
+      ou = close_upv(ou, loop_var)
+
+      dispatch(
+        body_bc,
+        1,
+        regs,
+        upvalues,
+        proto,
+        state,
+        [marker, loop_exit | rest_cont],
+        frames,
+        instruction_count,
+        cs,
+        cd,
+        ou
+      )
+    else
+      dispatch(outer_code, outer_pc, regs, upvalues, proto, state, rest_cont, frames, instruction_count, cs, cd, ou)
+    end
+  end
+
+  # `:while_loop`: cond body just finished. Read test_reg; enter body (push
+  # `:cps_while_body`) or exit.
+  defp finish_body(
+         regs,
+         upvalues,
+         proto,
+         state,
+         [
+           {:cps_while_test, test_reg, cond_bc, body_bc, outer_code, outer_pc},
+           {:loop_exit, _, _} = loop_exit | rest_cont
+         ],
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    case :erlang.element(test_reg + 1, regs) do
+      v when v === nil or v === false ->
+        dispatch(outer_code, outer_pc, regs, upvalues, proto, state, rest_cont, frames, instruction_count, cs, cd, ou)
+
+      _ ->
+        cps = {:cps_while_body, test_reg, cond_bc, body_bc, outer_code, outer_pc}
+
+        dispatch(
+          body_bc,
+          1,
+          regs,
+          upvalues,
+          proto,
+          state,
+          [cps, loop_exit | rest_cont],
+          frames,
+          instruction_count,
+          cs,
+          cd,
+          ou
+        )
+    end
+  end
+
+  # `:while_loop`: body just finished. Restart the condition by pushing
+  # `:cps_while_test` and dispatching into cond_bc.
+  defp finish_body(
+         regs,
+         upvalues,
+         proto,
+         state,
+         [
+           {:cps_while_body, test_reg, cond_bc, body_bc, outer_code, outer_pc},
+           {:loop_exit, _, _} = loop_exit | rest_cont
+         ],
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    instruction_count = tick(state, instruction_count, cs, cd)
+    cps = {:cps_while_test, test_reg, cond_bc, body_bc, outer_code, outer_pc}
+
+    dispatch(
+      cond_bc,
+      1,
+      regs,
+      upvalues,
+      proto,
+      state,
+      [cps, loop_exit | rest_cont],
+      frames,
+      instruction_count,
+      cs,
+      cd,
+      ou
+    )
+  end
+
+  # `:repeat_loop`: body just finished. Run the condition next.
+  defp finish_body(
+         regs,
+         upvalues,
+         proto,
+         state,
+         [
+           {:cps_repeat_body, test_reg, body_bc, cond_bc, outer_code, outer_pc},
+           {:loop_exit, _, _} = loop_exit | rest_cont
+         ],
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    cps = {:cps_repeat_cond, test_reg, body_bc, cond_bc, outer_code, outer_pc}
+
+    dispatch(
+      cond_bc,
+      1,
+      regs,
+      upvalues,
+      proto,
+      state,
+      [cps, loop_exit | rest_cont],
+      frames,
+      instruction_count,
+      cs,
+      cd,
+      ou
+    )
+  end
+
+  # `:repeat_loop`: condition just finished. test_reg truthy = exit (Lua's
+  # `repeat ... until cond` exits when cond is true). Otherwise loop.
+  defp finish_body(
+         regs,
+         upvalues,
+         proto,
+         state,
+         [
+           {:cps_repeat_cond, test_reg, body_bc, cond_bc, outer_code, outer_pc},
+           {:loop_exit, _, _} = loop_exit | rest_cont
+         ],
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    case :erlang.element(test_reg + 1, regs) do
+      v when v === nil or v === false ->
+        instruction_count = tick(state, instruction_count, cs, cd)
+        cps = {:cps_repeat_body, test_reg, body_bc, cond_bc, outer_code, outer_pc}
+
+        dispatch(
+          body_bc,
+          1,
+          regs,
+          upvalues,
+          proto,
+          state,
+          [cps, loop_exit | rest_cont],
+          frames,
+          instruction_count,
+          cs,
+          cd,
+          ou
+        )
+
+      _ ->
+        dispatch(outer_code, outer_pc, regs, upvalues, proto, state, rest_cont, frames, instruction_count, cs, cd, ou)
+    end
+  end
+
+  # `:generic_for`: body finished. Call iterator again, re-check nil.
+  defp finish_body(
+         regs,
+         upvalues,
+         proto,
+         state,
+         [
+           {:cps_generic_for, base, var_regs, body_bc, line, outer_code, outer_pc} = marker,
+           {:loop_exit, _, _} = loop_exit | rest_cont
+         ],
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    iter_func = :erlang.element(base + 1, regs)
+    invariant_state = :erlang.element(base + 2, regs)
+    control = :erlang.element(base + 3, regs)
+
+    state = %{state | call_stack: cs, call_depth: cd, instruction_count: instruction_count}
+
+    {results, state} =
+      Executor.dispatcher_call_value(iter_func, [invariant_state, control], proto, state, line)
+
+    instruction_count = state.instruction_count
+
+    case results do
+      [nil | _] ->
+        dispatch(outer_code, outer_pc, regs, upvalues, proto, state, rest_cont, frames, instruction_count, cs, cd, ou)
+
+      [] ->
+        dispatch(outer_code, outer_pc, regs, upvalues, proto, state, rest_cont, frames, instruction_count, cs, cd, ou)
+
+      [first | _] ->
+        instruction_count = tick(state, instruction_count, cs, cd)
+        regs = :erlang.setelement(base + 3, regs, first)
+        regs = assign_iter_results(regs, var_regs, results, 0)
+        first_var_reg = :erlang.element(1, var_regs)
+        ou = close_upv(ou, first_var_reg)
+
+        dispatch(
+          body_bc,
+          1,
+          regs,
+          upvalues,
+          proto,
+          state,
+          [marker, loop_exit | rest_cont],
+          frames,
+          instruction_count,
+          cs,
+          cd,
+          ou
+        )
+    end
+  end
+
+  # Fell off the end of a loop body normally (no CPS marker fired — the
+  # body ran past its last instruction with the loop_exit still on top).
+  # Drop the loop_exit and let the next iteration of finish_body see the
+  # cont below it.
+  defp finish_body(regs, upvalues, proto, state, [{:loop_exit, _, _} | rest_cont], frames, instruction_count, cs, cd, ou) do
+    finish_body(regs, upvalues, proto, state, rest_cont, frames, instruction_count, cs, cd, ou)
+  end
+
+  # Body exhausted with no continuation: prototype ran off the end. Lua
+  # 5.3 §3.3.4 / the interpreter at executor.ex:506 both return *no*
+  # values when control falls off the end, not a single `nil` — the
+  # caller's `result_count` decides how that's projected (nil for a
+  # single-value site, empty slot for a multi-return one).
+  defp finish_body(_regs, _upvalues, _proto, state, [], frames, instruction_count, cs, cd, ou) do
+    return_multi([], state, frames, instruction_count, cs, cd, ou)
+  end
+
+  # ── Return propagation through frames ───────────────────────────────────
+  #
+  # The bottom-of-stack return shape (`{results_list, state}`) matches
+  # the contract `Executor.call_function/3` expects, so the dispatcher's
+  # top-level `execute/3,4` callers see exactly what they would from
+  # the interpreter. Mid-stack returns from `:return_one` skip the list
+  # wrapping entirely so the fib hot path never allocates a cons.
+  #
+  # The frame's `dest` slot discriminates how the caller wants results:
+  #
+  #   integer N    → single result lands in regs[N]. `:call_one`.
+  #   :discard     → result ignored. `:call_zero`.
+  #   {:multi, B, -1} → forward all results to caller's caller.
+  #   {:multi, B, -2} → expand all into regs[B..], set multi_return_count.
+  #   {:multi, B, n>1} → write n results into regs[B..], pad nil.
+
+  defp return_one(value, state, [], instruction_count, cs, cd, _ou) do
+    # Top of this dispatcher sub-evaluation: stamp the loop-carried control
+    # parameters back into the state so a caller in the other engine
+    # resumes the same budget and the same call stack. A bridge out of the
+    # loop may have left a deeper stack stamped in the struct; `cs`/`cd`
+    # have unwound back to their entry values, so this restores them.
+    {[value], %{state | instruction_count: instruction_count, call_stack: cs, call_depth: cd}}
+  end
+
+  defp return_one(value, state, [frame | rest_frames], instruction_count, cs, cd, _ou) do
+    {code, pc, regs, upvalues, proto, cont, dest, ou} = frame
+    # Every dispatcher frame corresponds to a Lua-level call that pushed a
+    # call_stack entry. Pop it on the way out — the interpreter's
+    # `do_frame_return/6` does the same at executor.ex:1767.
+    cs = tl(cs)
+    cd = cd - 1
+
+    case dest do
+      :discard ->
+        dispatch(code, pc, regs, upvalues, proto, state, cont, rest_frames, instruction_count, cs, cd, ou)
+
+      n when is_integer(n) ->
+        regs = :erlang.setelement(n + 1, regs, value)
+        dispatch(code, pc, regs, upvalues, proto, state, cont, rest_frames, instruction_count, cs, cd, ou)
+
+      {:multi, _, -1} ->
+        return_one(value, state, rest_frames, instruction_count, cs, cd, ou)
+
+      {:multi, base, -2} ->
+        # The expansion dest may sit past the statically reserved register
+        # range (a constructor tail like `{x, f()}` where the body never
+        # named that many locals). Grow first, mirroring the interpreter's
+        # `ensure_regs_capacity/2` at the post-call site.
+        regs = grow_regs(regs, base + 1)
+        regs = :erlang.setelement(base + 1, regs, value)
+        state = %{state | multi_return_count: 1}
+        dispatch(code, pc, regs, upvalues, proto, state, cont, rest_frames, instruction_count, cs, cd, ou)
+
+      {:multi, base, n} when is_integer(n) and n > 1 ->
+        regs = grow_regs(regs, base + n)
+        regs = :erlang.setelement(base + 1, regs, value)
+        regs = pad_nils(regs, base + 1, n - 1)
+        dispatch(code, pc, regs, upvalues, proto, state, cont, rest_frames, instruction_count, cs, cd, ou)
+    end
+  end
+
+  # List-return path for `:return_multi`, `:return_collect`,
+  # `:return_proto_varargs`, and the non-compiled-callee branch of
+  # `:call_multi`. Mirrors `return_one/7`'s frame-variant handling.
+
+  defp return_multi(results, state, [], instruction_count, cs, cd, _ou) do
+    {results, %{state | instruction_count: instruction_count, call_stack: cs, call_depth: cd}}
+  end
+
+  defp return_multi(results, state, [frame | rest_frames], instruction_count, cs, cd, _ou) do
+    {code, pc, regs, upvalues, proto, cont, dest, ou} = frame
+    cs = tl(cs)
+    cd = cd - 1
+
+    case dest do
+      :discard ->
+        dispatch(code, pc, regs, upvalues, proto, state, cont, rest_frames, instruction_count, cs, cd, ou)
+
+      n when is_integer(n) ->
+        v =
+          case results do
+            [head | _] -> head
+            [] -> nil
+          end
+
+        regs = :erlang.setelement(n + 1, regs, v)
+        dispatch(code, pc, regs, upvalues, proto, state, cont, rest_frames, instruction_count, cs, cd, ou)
+
+      {:multi, _, -1} ->
+        return_multi(results, state, rest_frames, instruction_count, cs, cd, ou)
+
+      {:multi, base, -2} ->
+        regs = write_results(regs, base, results)
+        state = %{state | multi_return_count: length(results)}
+        dispatch(code, pc, regs, upvalues, proto, state, cont, rest_frames, instruction_count, cs, cd, ou)
+
+      {:multi, base, n} when is_integer(n) and n > 1 ->
+        regs = write_results_n(regs, base, results, n)
+        dispatch(code, pc, regs, upvalues, proto, state, cont, rest_frames, instruction_count, cs, cd, ou)
+    end
+  end
+
+  # ── Helpers ─────────────────────────────────────────────────────────────
+
+  # Writes the loop-carried control fields back into the struct. Called
+  # wherever execution leaves the dispatch loop — bridges into `Executor`,
+  # native callbacks, the loop's own raise sites — so anything that reads
+  # `state.call_stack` / `state.call_depth` out there sees the live values.
+  #
+  # The first clause makes a repeat crossing free: a loop body that bridges
+  # every iteration without calling anything (a `t[k] = v` write, an
+  # `__index` read) leaves the struct already carrying this frame's stack,
+  # so only the first crossing rebuilds it.
+  @compile {:inline, sync: 3}
+  defp sync(%{call_stack: call_stack, call_depth: call_depth} = state, call_stack, call_depth), do: state
+
+  defp sync(state, call_stack, call_depth) do
+    %{state | call_stack: call_stack, call_depth: call_depth}
+  end
+
+  # Hot-path guards. Each of these fires on every call or loop iteration
+  # only to discover it has nothing to do under the default configuration.
+  # Inlining the guard here keeps the no-op case to a single function-head
+  # match instead of a cross-module call into `Executor`/`State`; the
+  # non-trivial case still routes to the canonical implementation (paying
+  # one `sync/3` on the way) so the behaviour and its error shapes live in
+  # one place.
+  @compile {:inline, close_upv: 2, tick: 4, ckdepth: 3}
+
+  defp close_upv(open_upvalues, _threshold) when map_size(open_upvalues) == 0, do: open_upvalues
+
+  defp close_upv(open_upvalues, threshold) do
+    :maps.filter(fn reg, _cell -> reg < threshold end, open_upvalues)
+  end
+
+  defp tick(%{max_instructions: :infinity}, instruction_count, _call_stack, _call_depth), do: instruction_count
+
+  defp tick(state, instruction_count, call_stack, call_depth) do
+    State.tick!(sync(state, call_stack, call_depth), instruction_count)
+  end
+
+  defp ckdepth(%{max_call_depth: :infinity}, _call_stack, _call_depth), do: :ok
+  defp ckdepth(%{max_call_depth: max}, _call_stack, call_depth) when call_depth < max, do: :ok
+
+  defp ckdepth(state, call_stack, call_depth) do
+    State.check_call_depth!(sync(state, call_stack, call_depth))
+  end
+
+  defp clear_nils(regs, _dest, 0), do: regs
+
+  defp clear_nils(regs, dest, n) do
+    clear_nils(:erlang.setelement(dest + 1, regs, nil), dest + 1, n - 1)
+  end
+
+  # ── Non-dispatcher callees ──────────────────────────────────────────────
+  #
+  # Everything that is not a `:compiled_closure` leaves the dispatch loop:
+  # interpreted Lua closures through `Executor.call_function/3`, natives and
+  # callables through `Executor.dispatcher_call_function/6`. Both grow the
+  # Erlang stack by one frame at the mode boundary. Factored out of the call
+  # handlers so the generic and static-arity opcodes share one copy —
+  # `line` reaches the native bridge for error attribution exactly as it did
+  # when these branches were inline.
+
+  defp call_zero_bridge(
+         {:lua_closure, _, _} = closure,
+         args,
+         name_hint,
+         line,
+         code,
+         pc,
+         regs,
+         upvalues,
+         proto,
+         state,
+         cont,
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    call_info = {proto.source, line, name_hint}
+    instruction_count = tick(state, instruction_count, cs, cd)
+    ckdepth(state, cs, cd)
+
+    state = %{
+      state
+      | call_stack: [call_info | cs],
+        call_depth: cd + 1,
+        instruction_count: instruction_count
+    }
+
+    {_results, state} = Executor.call_function(closure, args, state)
+    instruction_count = state.instruction_count
+    dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+  end
+
+  defp call_zero_bridge(
+         func_value,
+         args,
+         name_hint,
+         line,
+         code,
+         pc,
+         regs,
+         upvalues,
+         proto,
+         state,
+         cont,
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    state = %{state | call_stack: cs, call_depth: cd, instruction_count: instruction_count}
+
+    {_results, state} = Executor.dispatcher_call_function(func_value, args, state, proto, name_hint, line)
+
+    instruction_count = state.instruction_count
+    dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+  end
+
+  defp call_one_bridge(
+         {:lua_closure, _, _} = closure,
+         args,
+         base,
+         name_hint,
+         line,
+         code,
+         pc,
+         regs,
+         upvalues,
+         proto,
+         state,
+         cont,
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    call_info = {proto.source, line, name_hint}
+    instruction_count = tick(state, instruction_count, cs, cd)
+    ckdepth(state, cs, cd)
+
+    state = %{
+      state
+      | call_stack: [call_info | cs],
+        call_depth: cd + 1,
+        instruction_count: instruction_count
+    }
+
+    {results, state} = Executor.call_function(closure, args, state)
+    instruction_count = state.instruction_count
+    regs = :erlang.setelement(base + 1, regs, first_result(results))
+    dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+  end
+
+  defp call_one_bridge(
+         func_value,
+         args,
+         base,
+         name_hint,
+         line,
+         code,
+         pc,
+         regs,
+         upvalues,
+         proto,
+         state,
+         cont,
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    state = %{state | call_stack: cs, call_depth: cd, instruction_count: instruction_count}
+
+    {results, state} = Executor.dispatcher_call_function(func_value, args, state, proto, name_hint, line)
+
+    instruction_count = state.instruction_count
+    regs = :erlang.setelement(base + 1, regs, first_result(results))
+    dispatch(code, pc + 1, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+  end
+
+  defp first_result([v | _]), do: v
+  defp first_result([]), do: nil
+
+  defp init_callee_regs(callee_proto, src_regs, src_off, arg_count) do
+    # Exact-sized like `init_regs/2`; runs on every compiled-closure call,
+    # so sizing to the callee's honest register peak (no slack) is what keeps
+    # deep recursion off a per-frame over-allocation (issue #324).
+    param_count = callee_proto.param_count
+
+    mkregs(
+      max(callee_proto.max_registers, param_count),
+      min(arg_count, param_count),
+      src_regs,
+      src_off
+    )
+  end
+
+  # ── Callee register files ───────────────────────────────────────────────
+  #
+  # Building the callee's register tuple as `Tuple.duplicate/2` plus one
+  # `setelement` per argument allocates it `1 + copied` times over: every
+  # `setelement` copies the whole tuple. The generated clauses below build
+  # the finished tuple in a single literal construction for the small
+  # (size, parameter-count) shapes ordinary Lua functions have. A
+  # parameterless shape allocates nothing at all — an all-`nil` tuple is a
+  # compile-time literal.
+  #
+  # `size` is the callee's register-file width, `params` the number of
+  # arguments actually landing in parameter slots (already clamped to the
+  # callee's `param_count` by the caller), `src`/`off` the caller's register
+  # tuple and the 0-based index of the first argument in it. Shapes past the
+  # generated bounds fall back to duplicate-and-copy; vararg overflow is
+  # separate machinery (`setup_vararg_proto/4`) and unaffected, as is the
+  # `grow_regs/2` growth contract for multi-return and vararg writes.
+  @mkregs_max_size 16
+  @mkregs_max_params 6
+
+  for size <- 1..@mkregs_max_size, params <- 0..min(size, @mkregs_max_params) do
+    src = Macro.var(:src, __MODULE__)
+    off = Macro.var(:off, __MODULE__)
+
+    slots =
+      Enum.map(1..params//1, fn i ->
+        quote(do: :erlang.element(unquote(i) + unquote(off), unquote(src)))
+      end) ++ List.duplicate(nil, size - params)
+
+    head_src = if params == 0, do: quote(do: _src), else: src
+    head_off = if params == 0, do: quote(do: _off), else: off
+
+    defp mkregs(unquote(size), unquote(params), unquote(head_src), unquote(head_off)) do
+      unquote({:{}, [], slots})
+    end
+  end
+
+  defp mkregs(size, params, src, off) do
+    copy_regs(src, off, Tuple.duplicate(nil, size), 0, params)
+  end
+
+  # Static-arity constructors. The arguments arrive already read out of the
+  # caller's registers, so the only run-time inputs are the callee's file
+  # width and its parameter count — the second clause of each size covers
+  # every callee that takes at least that many parameters, which is why no
+  # `min/2` clamp is needed. Surplus arguments (callee declares fewer
+  # parameters than the call site passes) are dropped here exactly as
+  # `copy_regs/5` dropped them.
+  @compile {:inline, regs_size: 1}
+  defp regs_size(%{max_registers: max_registers, param_count: param_count}) do
+    max(max_registers, param_count)
+  end
+
+  for size <- 1..@mkregs_max_size do
+    nils = List.duplicate(nil, size)
+    a1 = Macro.var(:a1, __MODULE__)
+    a2 = Macro.var(:a2, __MODULE__)
+
+    defp mkregs0(unquote(size)), do: unquote({:{}, [], nils})
+
+    defp mkregs1(unquote(size), 0, _a1), do: unquote({:{}, [], nils})
+
+    defp mkregs1(unquote(size), _params, unquote(a1)), do: unquote({:{}, [], [a1 | List.duplicate(nil, size - 1)]})
+
+    defp mkregs2(unquote(size), 0, _a1, _a2), do: unquote({:{}, [], nils})
+
+    defp mkregs2(unquote(size), 1, unquote(a1), _a2), do: unquote({:{}, [], [a1 | List.duplicate(nil, size - 1)]})
+
+    if size >= 2 do
+      defp mkregs2(unquote(size), _params, unquote(a1), unquote(a2)),
+        do: unquote({:{}, [], [a1, a2 | List.duplicate(nil, size - 2)]})
+    end
+  end
+
+  # Wide-register-file fallbacks. `size` is `max(max_registers, param_count)`,
+  # so a callee with `params` parameters always has room for them.
+  defp mkregs0(size), do: Tuple.duplicate(nil, size)
+
+  defp mkregs1(size, params, a1) when params >= 1 do
+    :erlang.setelement(1, Tuple.duplicate(nil, size), a1)
+  end
+
+  defp mkregs1(size, _params, _a1), do: Tuple.duplicate(nil, size)
+
+  defp mkregs2(size, params, a1, a2) when params >= 2 do
+    :erlang.setelement(2, :erlang.setelement(1, Tuple.duplicate(nil, size), a1), a2)
+  end
+
+  defp mkregs2(size, params, a1, _a2) when params >= 1 do
+    :erlang.setelement(1, Tuple.duplicate(nil, size), a1)
+  end
+
+  defp mkregs2(size, _params, _a1, _a2), do: Tuple.duplicate(nil, size)
+
+  defp copy_regs(_src, _src_i, dst, _dst_i, 0), do: dst
+
+  defp copy_regs(src, src_i, dst, dst_i, n) do
+    v = :erlang.element(src_i + 1, src)
+    copy_regs(src, src_i + 1, :erlang.setelement(dst_i + 1, dst, v), dst_i + 1, n - 1)
+  end
+
+  defp collect_args(_regs, _off, 0), do: []
+
+  defp collect_args(regs, off, count) do
+    collect_args_rev(regs, off + count - 1, count, [])
+  end
+
+  defp collect_args_rev(_regs, _off, 0, acc), do: acc
+
+  defp collect_args_rev(regs, off, count, acc) do
+    collect_args_rev(regs, off - 1, count - 1, [:erlang.element(off + 1, regs) | acc])
+  end
+
+  # `:set_list` writes `count` consecutive register values into the table
+  # at keys `[offset + 1, offset + count]`. We collect the `{key, value}`
+  # pairs from the registers in one allocation-light walk and apply them
+  # via a single `Table.put_many/2`, so the `%Table{}` struct is rebuilt
+  # once instead of once per slot.
+  defp set_list_into_table(table, _regs, _start, 0, _offset, _i), do: table
+
+  defp set_list_into_table(table, regs, start, count, offset, i) do
+    Table.put_many(table, set_list_pairs(regs, start, count, offset, i, count - 1, []))
+  end
+
+  # Builds the ordered `{key, value}` list for a `:set_list` run, walking the
+  # registers from the last slot back to the first so the result is in
+  # ascending-key (insertion) order with O(1) prepends. `Table.put_many/2`
+  # then applies the whole run in a single struct rebuild.
+  defp set_list_pairs(_regs, _start, _count, _offset, _i, j, acc) when j < 0, do: acc
+
+  defp set_list_pairs(regs, start, count, offset, i, j, acc) do
+    value = :erlang.element(start + i + j + 1, regs)
+    set_list_pairs(regs, start, count, offset, i, j - 1, [{offset + i + j + 1, value} | acc])
+  end
+
+  # ── B5c-v2 helpers ──────────────────────────────────────────────────────
+
+  # `:break` unwind. Drops everything above the nearest `:loop_exit`
+  # marker and returns its post-loop dispatch target plus whatever
+  # `cont` was below the marker.
+  defp find_loop_exit([{:loop_exit, code, pc} | rest_cont]), do: {code, pc, rest_cont}
+  defp find_loop_exit([_other | rest_cont]), do: find_loop_exit(rest_cont)
+
+  defp find_loop_exit([]), do: raise(InternalError, value: "break outside loop")
+
+  # `:goto` unwind. Drops exactly `depth` `cont` entries (counted to match the
+  # encoder: a `:test` branch is one, a loop body two) and returns the
+  # enclosing `code` tuple recorded on the last entry dropped, into which the
+  # goto's `target_pc` indexes. `depth >= 1` here (`depth == 0` is handled
+  # without unwinding).
+  defp unwind_goto(cont, depth), do: unwind_goto(cont, depth, nil)
+
+  defp unwind_goto(cont, 0, dest_code), do: {dest_code, cont}
+
+  defp unwind_goto([entry | rest], depth, _dest_code) do
+    unwind_goto(rest, depth - 1, cont_entry_code(entry))
+  end
+
+  # The enclosing `code` tuple carried by a `cont` entry: a `:test` resume is
+  # `{code, pc}` (code first); every loop marker (`:loop_exit`, `:cps_*`) is a
+  # tagged tuple carrying `code` as its second-to-last element.
+  defp cont_entry_code(entry) do
+    case :erlang.element(1, entry) do
+      tag when is_atom(tag) -> :erlang.element(tuple_size(entry) - 1, entry)
+      _ -> :erlang.element(1, entry)
+    end
+  end
+
+  # Vararg setup at the call boundary. Mirrors the executor's per-call
+  # behaviour: when calling a vararg function, regs[param_count..total_args)
+  # become the varargs list carried on `%{proto | varargs: ...}`.
+  #
+  # Only reached when the callee is actually vararg — call sites test
+  # `callee_proto.is_vararg` inline so a non-vararg call pays one field
+  # read rather than a call into a function that rebuilds nothing. The
+  # vararg case still copies the whole `%Prototype{}`.
+  defp setup_vararg_proto(callee_proto, src_regs, src_off, total_args) do
+    param_count = callee_proto.param_count
+    vararg_count = max(total_args - param_count, 0)
+    varargs = collect_args(src_regs, src_off + param_count, vararg_count)
+    %{callee_proto | varargs: varargs}
+  end
+
+  # Closure upvalue capture. `:parent_local` allocates (or reuses) an
+  # open-upvalue cell so multiple closures over the same register share
+  # mutation. `:parent_upvalue` forwards our own cell ref to the child.
+  defp build_upvalues([], _regs, _upvalues, state, open_upvalues, acc), do: {acc, state, open_upvalues}
+
+  defp build_upvalues([{:parent_local, reg, _name} | rest], regs, upvalues, state, open_upvalues, acc) do
+    {cell_ref, state, open_upvalues} =
+      case :maps.get(reg, open_upvalues, nil) do
+        nil ->
+          new_ref = make_ref()
+          value = :erlang.element(reg + 1, regs)
+          state = %{state | upvalue_cells: Map.put(state.upvalue_cells, new_ref, value)}
+          {new_ref, state, :maps.put(reg, new_ref, open_upvalues)}
+
+        existing_cell ->
+          {existing_cell, state, open_upvalues}
+      end
+
+    build_upvalues(rest, regs, upvalues, state, open_upvalues, [cell_ref | acc])
+  end
+
+  defp build_upvalues([{:parent_upvalue, index, _name} | rest], regs, upvalues, state, open_upvalues, acc) do
+    cell_ref = :erlang.element(index + 1, upvalues)
+    build_upvalues(rest, regs, upvalues, state, open_upvalues, [cell_ref | acc])
+  end
+
+  # `:vararg` count=0 form: write every vararg into regs[base..]
+  # and return the count for `state.multi_return_count` update.
+  # Grows the regs tuple if base + length exceeds current size — the
+  # codegen sizes `max_registers` for the syntactic call site, but a
+  # vararg expansion can outrun that statically reserved range
+  # (e.g. `f(...)` where the variadic call site has more args than
+  # the caller's other locals require).
+  defp write_varargs(regs, base, varargs, _n) do
+    n = length(varargs)
+    regs = grow_regs(regs, base + n)
+    write_varargs_loop(regs, base, varargs, 0)
+  end
+
+  defp write_varargs_loop(regs, _base, [], n), do: {regs, n}
+
+  defp write_varargs_loop(regs, base, [v | rest], n) do
+    write_varargs_loop(:erlang.setelement(base + n + 1, regs, v), base, rest, n + 1)
+  end
+
+  # `:vararg` count>0 form: write the first `n` varargs, pad with nil.
+  defp write_varargs_n(regs, base, vs, n) do
+    regs = grow_regs(regs, base + n)
+    write_varargs_n_loop(regs, base, vs, n)
+  end
+
+  defp write_varargs_n_loop(regs, _base, _vs, 0), do: regs
+
+  defp write_varargs_n_loop(regs, base, [], n) do
+    write_varargs_n_loop(:erlang.setelement(base + 1, regs, nil), base + 1, [], n - 1)
+  end
+
+  defp write_varargs_n_loop(regs, base, [v | rest], n) do
+    write_varargs_n_loop(:erlang.setelement(base + 1, regs, v), base + 1, rest, n - 1)
+  end
+
+  # `:generic_for` result distribution: each var_reg in the tuple gets
+  # the next value from `results`. Walks `var_regs` by tuple index and
+  # consumes `results` head-by-head so each step is O(1); slots past the
+  # end of `results` receive `nil`.
+  defp assign_iter_results(regs, var_regs, _results, i) when i >= tuple_size(var_regs), do: regs
+
+  defp assign_iter_results(regs, var_regs, [], i) do
+    reg = :erlang.element(i + 1, var_regs)
+    assign_iter_results(:erlang.setelement(reg + 1, regs, nil), var_regs, [], i + 1)
+  end
+
+  defp assign_iter_results(regs, var_regs, [v | rest], i) do
+    reg = :erlang.element(i + 1, var_regs)
+    assign_iter_results(:erlang.setelement(reg + 1, regs, v), var_regs, rest, i + 1)
+  end
+
+  # Multi-return result writers used by `:call_multi` and `return_multi/3`.
+  # Both grow the caller's regs tuple if the result range exceeds the
+  # statically reserved size — mirrors the interpreter's
+  # `ensure_regs_capacity/2` at the post-call site (executor.ex:1873).
+
+  defp write_results(regs, base, results) do
+    regs = grow_regs(regs, base + length(results))
+    write_results_loop(regs, base, results)
+  end
+
+  defp write_results_loop(regs, _base, []), do: regs
+
+  defp write_results_loop(regs, base, [v | rest]) do
+    write_results_loop(:erlang.setelement(base + 1, regs, v), base + 1, rest)
+  end
+
+  # Bounded version: writes at most `n` values, padding missing slots with nil.
+  defp write_results_n(regs, base, list, n) do
+    regs = grow_regs(regs, base + n)
+    write_results_n_loop(regs, base, list, n)
+  end
+
+  defp write_results_n_loop(regs, _base, _list, 0), do: regs
+
+  defp write_results_n_loop(regs, base, [], n) do
+    write_results_n_loop(:erlang.setelement(base + 1, regs, nil), base + 1, [], n - 1)
+  end
+
+  defp write_results_n_loop(regs, base, [v | rest], n) do
+    write_results_n_loop(:erlang.setelement(base + 1, regs, v), base + 1, rest, n - 1)
+  end
+
+  # Pad `n` register slots starting at `start` with nil. Used when a
+  # multi-result frame receives a single value via `return_one/3`.
+  defp pad_nils(regs, start, n) do
+    regs = grow_regs(regs, start + n)
+    pad_nils_loop(regs, start, n)
+  end
+
+  defp pad_nils_loop(regs, _start, 0), do: regs
+
+  defp pad_nils_loop(regs, start, n) do
+    pad_nils_loop(:erlang.setelement(start + 1, regs, nil), start + 1, n - 1)
+  end
+
+  # Place results from a non-compiled-callee multi-call back into the
+  # caller's regs. The compiled-callee path goes through the frame stack
+  # and unwinds via `return_multi/3`; this helper is for the synchronous
+  # post-call shape (native, __call metamethod, lua_closure via
+  # call_function). Mirrors `Executor.continue_after_call/11` shape.
+  defp apply_multi_call_result(
+         0,
+         _base,
+         _results,
+         code,
+         pc,
+         regs,
+         upvalues,
+         proto,
+         state,
+         cont,
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    dispatch(code, pc, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+  end
+
+  defp apply_multi_call_result(
+         1,
+         base,
+         results,
+         code,
+         pc,
+         regs,
+         upvalues,
+         proto,
+         state,
+         cont,
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    first =
+      case results do
+        [v | _] -> v
+        [] -> nil
+      end
+
+    regs = :erlang.setelement(base + 1, regs, first)
+    dispatch(code, pc, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+  end
+
+  defp apply_multi_call_result(
+         -1,
+         _base,
+         results,
+         _code,
+         _pc,
+         _regs,
+         _upvalues,
+         _proto,
+         state,
+         _cont,
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    return_multi(results, state, frames, instruction_count, cs, cd, ou)
+  end
+
+  defp apply_multi_call_result(
+         -2,
+         base,
+         results,
+         code,
+         pc,
+         regs,
+         upvalues,
+         proto,
+         state,
+         cont,
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       ) do
+    regs = write_results(regs, base, results)
+    state = %{state | multi_return_count: length(results)}
+    dispatch(code, pc, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+  end
+
+  defp apply_multi_call_result(
+         n,
+         base,
+         results,
+         code,
+         pc,
+         regs,
+         upvalues,
+         proto,
+         state,
+         cont,
+         frames,
+         instruction_count,
+         cs,
+         cd,
+         ou
+       )
+       when is_integer(n) and n > 1 do
+    regs = write_results_n(regs, base, results, n)
+    dispatch(code, pc, regs, upvalues, proto, state, cont, frames, instruction_count, cs, cd, ou)
+  end
+
+  # Lazy regs-tuple growth. Used at the points where multi-return
+  # expansion or vararg writes can exceed the statically reserved size.
+  # `Tuple.insert_at/3` is O(n) per insert; this is fine because growth
+  # is rare and bounded by the call's actual result count.
+  defp grow_regs(regs, needed) do
+    current = tuple_size(regs)
+
+    if needed > current do
+      grow_tuple(regs, needed - current)
+    else
+      regs
+    end
+  end
+
+  defp grow_tuple(tuple, 0), do: tuple
+
+  defp grow_tuple(tuple, n) do
+    grow_tuple(Tuple.insert_at(tuple, tuple_size(tuple), nil), n - 1)
+  end
+end

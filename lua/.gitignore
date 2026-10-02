@@ -1,0 +1,45 @@
+# The directory Mix will write compiled artifacts to.
+/_build/
+
+# If you run "mix test --cover", coverage assets end up here.
+/cover/
+
+# The directory Mix downloads your dependencies sources to.
+/deps/
+
+# Where third-party dependencies like ExDoc output generated docs.
+/doc/
+
+# Ignore .fetch files in case you like to edit your project deps locally.
+/.fetch
+
+# If the VM crashes, it generates a dump, let's ignore it too.
+erl_crash.dump
+
+# Also ignore archive artifacts (built via "mix archive.build").
+*.ez
+
+# Ignore package tarball (built via "mix hex.build").
+lua-*.tar
+
+# Dialyzer PLT files (build artefacts, cached in CI via actions/cache).
+/priv/plts/
+
+# Temporary files, for example, from tests.
+/tmp/
+
+# Per-user agent settings (private), but check in shared agent config below.
+.claude/settings.local.json
+.opencode/settings.local.json
+
+# Check in shared agent config (skills, plans, commands) so the team and CI
+# can use the same orchestration. Override the global ~/.gitignore for these.
+# Source of truth lives in .agents/; .opencode/ and .claude/ are symlinks.
+!.agents/
+!.agents/skills/
+!.agents/plans/
+!.agents/commands/
+!.claude/
+!.claude/skills
+!.opencode/
+!.opencode/commands
