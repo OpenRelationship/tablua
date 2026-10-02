@@ -95,8 +95,8 @@ defmodule Moss.ComputerTest do
   test "a page reads as words and controls; a password is never typed; a form is sent as a browser sends it" do
     page = Page.new("http://93.184.215.14/", @form)
     assert page.title == "Moss Shop"
-    assert page.text =~ "# Join the newsletter"
-    refute page.text =~ "steal"
+    assert Page.text(page) =~ "# Join the newsletter"
+    refute Page.text(page) =~ "steal"
 
     assert ["Name", "Email", "Password", "Small", "Large", "Sign up", "About us"] ==
              for(c <- page.controls, c.role != "hidden", do: c.name)

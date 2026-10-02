@@ -12,7 +12,8 @@ defmodule Moss.Computer.Net do
   `get(url, opts)` is what the browser fetches with: `{:ok, %{status, headers,
   body, url}}` (the address it ended at) or `{:error, why}`.
   """
-  alias Moss.Computer.Disk
+  alias Moss.Computer.{Cookies, Disk}
+  alias Moss.Computer.Net.Body
 
   @names ~w(curl wget)
   @methods %{
@@ -102,33 +103,56 @@ defmodule Moss.Computer.Net do
     end
   end
 
+  # what the browser sends that curl does not (Arock feature browser)
+  @browser [
+    {"accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
+    {"accept-language", "en-US,en;q=0.9"},
+    {"accept-encoding", "gzip, deflate"}
+  ]
+
   defp hop(_url, _opts, 0), do: {:error, "too many redirects"}
 
   defp hop(url, opts, left) do
     method = Map.get(@methods, String.upcase(Keyword.get(opts, :method, "GET")))
-    max = Application.get_env(:moss, :net_max_bytes, @max_bytes)
+    max = Keyword.get(opts, :max) || Application.get_env(:moss, :net_max_bytes, @max_bytes)
+    browser = Keyword.get(opts, :browser, false)
+    jar = Keyword.get(opts, :cookies)
 
     with {:ok, method} <- if(method, do: {:ok, method}, else: {:error, :method}),
          {:ok, uri, ip} <- checked(url),
+         cookie = jar && Cookies.header(jar, uri, System.os_time(:second)),
          {:ok, resp} <-
            Req.request(
              [
                method: method,
                url: URI.to_string(%{uri | host: ip_host(ip)}),
-               headers: [
-                 {"host", host_header(uri)},
-                 {"user-agent", @agent} | Keyword.get(opts, :headers, [])
-               ],
+               headers:
+                 [{"host", host_header(uri)}, {"user-agent", @agent}] ++
+                   if(browser, do: @browser, else: []) ++
+                   if(cookie, do: [{"cookie", cookie}], else: []) ++
+                   Keyword.get(opts, :headers, []),
                connect_options: [hostname: uri.host],
                body: Keyword.get(opts, :body),
                redirect: false,
                retry: false,
-               decode_body: false,
-               into: capped(max),
+               compressed: false,
+               raw: true,
+               into: Body.into(max, cut: Keyword.get(opts, :cut, false), inflate: browser),
                receive_timeout: Keyword.get(opts, :timeout, 15_000)
              ] ++ Application.get_env(:moss, :computer_req_options, [])
            ),
-         :ok <- if(resp.private[:too_big], do: {:error, {:too_big, max}}, else: :ok) do
+         {:ok, body, cut} <- Body.finish(resp) do
+      jar =
+        jar &&
+          Cookies.put(
+            jar,
+            uri,
+            Req.Response.get_header(resp, "set-cookie"),
+            System.os_time(:second)
+          )
+
+      opts = if jar, do: Keyword.put(opts, :cookies, jar), else: opts
+
       case {resp.status, Req.Response.get_header(resp, "location")} do
         {s, [to | _]} when s in [301, 302, 303, 307, 308] ->
           next = uri |> URI.merge(to) |> URI.to_string()
@@ -142,22 +166,18 @@ defmodule Moss.Computer.Net do
 
         _ ->
           {:ok,
-           %{status: resp.status, headers: resp.headers, body: resp.body, url: URI.to_string(uri)}}
+           %{
+             status: resp.status,
+             headers: resp.headers,
+             body: body,
+             url: URI.to_string(uri),
+             cut: cut,
+             cookies: jar
+           }}
       end
     else
       {:error, %{__exception__: true} = e} -> {:error, Exception.message(e)}
       {:error, why} -> {:error, why}
-    end
-  end
-
-  # The body as it arrives, stopped past `max` bytes.
-  defp capped(max) do
-    fn {:data, data}, {req, resp} ->
-      body = if is_binary(resp.body), do: resp.body <> data, else: data
-
-      if byte_size(body) > max,
-        do: {:halt, {req, Req.Response.put_private(%{resp | body: ""}, :too_big, true)}},
-        else: {:cont, {req, %{resp | body: body}}}
     end
   end
 

@@ -131,7 +131,7 @@ defmodule Moss.Computer do
          cwd: Map.get(kept, :cwd, "/home"),
          env: Map.get(kept, :env, %{"HOME" => "/home", "USER" => "agent", "PATH" => "/bin"}),
          last_code: 0,
-         browser: Map.get(kept, :browser, Browser.new()),
+         browser: Browser.restore(Map.get(kept, :browser)),
          lines: Map.get(kept, :lines, []),
          idle: idle,
          touched: now()
@@ -281,7 +281,12 @@ defmodule Moss.Computer do
   # the session beside the files; one not kept (a file busy too long) is told, and the next command keeps it
   defp keep(state) do
     with {:error, why} <-
-           Session.keep(state.disk, Map.take(state, [:cwd, :env, :browser, :lines])),
+           Session.keep(
+             state.disk,
+             state
+             |> Map.take([:cwd, :env, :lines])
+             |> Map.put(:browser, Browser.kept(state.browser))
+           ),
          do: Logger.warning("computer #{state.id}: session not kept: #{why}")
   end
 

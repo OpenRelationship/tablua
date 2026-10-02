@@ -88,7 +88,7 @@ defmodule MossWeb.ComputerLive do
       tabs: view.browser.tabs,
       front_tab: view.browser.front,
       page: tab && tab.page,
-      page_html: tab && Page.html(tab.page),
+      page_html: tab && tab.page && Page.html(tab.page),
       files: files,
       app?: view.app?,
       clock: Calendar.strftime(DateTime.utc_now(), "%a %H:%M")
@@ -142,7 +142,7 @@ defmodule MossWeb.ComputerLive do
               :for={{t, i} <- Enum.with_index(@tabs)}
               class={"truncate rounded-md px-2 py-0.5 max-w-40 " <> if(i == @front_tab, do: "bg-white shadow-sm", else: "text-stone-500")}
             >
-              {t.page.title}
+              {(t.page && t.page.title) || t.url}
             </span>
           </div>
         </div>

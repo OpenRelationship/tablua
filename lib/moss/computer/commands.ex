@@ -86,9 +86,11 @@ defmodule Moss.Computer.Commands do
   defp builtin("help", ["shroomi" | _], _, state),
     do: {0, Moss.Computer.Script.shroomi_reference() <> Moss.Computer.App.help(), "", state}
 
+  defp builtin("help", ["app" | _], _, state), do: {0, Moss.Computer.App.help(), "", state}
+
   defp builtin("help", [cmd | _], _, state)
-       when cmd in ~w(open page ui click type submit back tabs app),
-       do: {0, Moss.Computer.App.help(), "", state}
+       when cmd in ~w(browser open page read ui click type submit back tabs close data cookies),
+       do: {0, Browser.help(), "", state}
 
   defp builtin("help", _, _, state),
     do:

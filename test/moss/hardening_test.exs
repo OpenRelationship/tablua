@@ -55,15 +55,15 @@ defmodule Moss.HardeningTest do
     assert %{code: 0} = Computer.run("rock-7-#{System.unique_integer([:positive])}", "true")
   end
 
-  test "curl and the browser stop at the size limit" do
+  test "curl stops at the size limit, and the browser reads to it" do
     c = stubbed(fn conn -> Plug.Conn.send_resp(conn, 200, String.duplicate("x", 5000)) end)
 
     with_env(:net_max_bytes, 1000, fn ->
       assert %{code: 63, err: "curl: the answer is over 1000 bytes\n"} =
                sh(c, "curl http://93.184.215.14/big")
 
-      assert %{code: 6, err: err} = sh(c, "open http://93.184.215.14/big")
-      assert err =~ "over 1000 bytes"
+      assert %{code: 0, out: out} = sh(c, "open http://93.184.215.14/big")
+      assert out =~ "read to 1000 bytes"
     end)
 
     assert %{code: 0} = sh(c, "curl -o files/big.txt http://93.184.215.14/big")
@@ -99,7 +99,9 @@ defmodule Moss.HardeningTest do
     with_env(:disk_max_bytes, 400 * 1024, fn ->
       c = id()
       big = String.duplicate("x", 200 * 1024)
-      assert %{code: 0} = sh(c, "lua -e 'fs.write(\"files/a.txt\", string.rep(\"x\", 200 * 1024))'")
+
+      assert %{code: 0} =
+               sh(c, "lua -e 'fs.write(\"files/a.txt\", string.rep(\"x\", 200 * 1024))'")
 
       assert %{code: 1, err: err} =
                sh(c, "lua -e 'assert(fs.write(\"files/b.txt\", string.rep(\"y\", 200 * 1024)))'")
