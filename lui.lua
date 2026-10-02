@@ -67,7 +67,7 @@ local function declared(block)
   return found
 end
 
--- Lua's complaint about the page's Lua as "name:line: why": luos says "Parse Error at line 2, column 13" and
+-- Lua's complaint about the page's Lua as "name:line: why": luex says "Parse Error at line 2, column 13" and
 -- shows the compiled source, which is not what the agent wrote
 local function lua_error(why, name)
   local line = string.match(why, "at line (%d+)")
@@ -128,7 +128,7 @@ function lui.compile(text, name)
     local block = st:lua_block()
     local known = declared(block and block.code or "")
     emit("local req, post, get, page, ui, __el, __raw, __s, __at, __flag = ... ", 1)
-    -- the line running, for a VM whose errors carry none (luos)
+    -- the line running, for a VM whose errors carry none (luex)
     local marked
     local function mark(line)
       if line ~= marked then emit("__at.line = " .. line .. " ", line); marked = line end
