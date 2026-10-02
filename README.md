@@ -9,8 +9,8 @@
 [![CI](https://github.com/tv-labs/lua/actions/workflows/ci.yml/badge.svg)](https://github.com/tv-labs/lua/actions/workflows/ci.yml)
 [![License](https://img.shields.io/hexpm/l/lua.svg)](https://github.com/tv-labs/lua/blob/main/LICENSE)
 
-> **🌙 luex** is our own fork of [tv-labs/lua](https://github.com/tv-labs/lua), maintained by OpenRelationship
-> for Arock's Moss (attached inside Moss at `submodules/luex`). `main` is upstream's plus our fixes; see AGENTS.md.
+> **🌙 moss-lua** is our own fork of [tv-labs/lua](https://github.com/tv-labs/lua), maintained by OpenRelationship
+> for Arock's Moss (attached inside Moss at `submodules/moss-lua`). `main` is upstream's plus our fixes; see AGENTS.md.
 
 <!-- MDOC !-->
 
