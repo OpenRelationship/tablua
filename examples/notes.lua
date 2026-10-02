@@ -5,7 +5,7 @@ local date = require("date")
 local M = { title = "Notes", icon = "notebook-pen",
   blurb = "Markdown notes kept on the computer's disk, with a preview that follows your typing." }
 
-local DIR = "gallery-notes"
+local DIR = "files/notes"
 
 local function seed()
   if fs.isdir(DIR) then return end

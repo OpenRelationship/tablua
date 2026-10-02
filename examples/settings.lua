@@ -4,7 +4,7 @@ local ui = require("shroomi")
 local M = { title = "Settings", icon = "settings",
   blurb = "A form the server validates field by field, with switches, a select and a dialog before anything is lost." }
 
-local FILE = "gallery-settings.json"
+local FILE = "files/settings.json"
 
 local function load()
   local saved = fs.read(FILE)

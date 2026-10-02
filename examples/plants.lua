@@ -7,7 +7,7 @@ local M = { title = "Plants", icon = "sprout",
   blurb = "A watering log in a database: add a plant, water it, see what is due. htmx swaps the list in place." }
 
 local function open()
-  local d = db.open("gallery-plants.db")
+  local d = db.open("data/plants.dbl")
   d:exec([[create table if not exists plant (name text primary key, every int not null, watered text)]])
   if not d:one("select 1 as x from plant") then
     local today = date.now()

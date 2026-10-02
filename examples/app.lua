@@ -41,11 +41,11 @@ local function index()
 end
 
 local function code(name)
-  local src = fs.read("examples/" .. name .. ".lua") or "-- not found"
+  local src = fs.read("code/examples/" .. name .. ".lua") or "-- not found"
   local _, lines = string.gsub(src, "\n", "")
   return shell(examples[name].title .. " · Lua", name, ui.stack{
     ui.row{ class = "justify-between",
-      ui.h1{ class = "text-2xl font-semibold", "examples/" .. name .. ".lua" },
+      ui.h1{ class = "text-2xl font-semibold", "code/examples/" .. name .. ".lua" },
       ui.row{ ui.badge{ variant = "secondary", lines .. " lines" },
         ui.link_button{ href = name .. "/", size = "sm", "Open the app" } } },
     ui.pre{ class = "overflow-x-auto rounded-lg border border-border bg-muted p-4 text-sm leading-relaxed",
