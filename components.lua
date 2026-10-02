@@ -1,18 +1,33 @@
--- The kit: Basecoat's components as Lua, so a page looks finished without a line of CSS. Each takes props (string
--- keys) and children (the list); any prop it does not use goes on its outer element as an attribute, so htmx
--- (post = "plants") and classes work everywhere.
+-- The kit: Basecoat's components, so a page looks finished without a line of CSS. In a .lui page each is a tag;
+-- any attribute it does not use goes on its outer element, so htmx (post="add") and classes work everywhere.
+-- attr={{ e }} passes a table, a number or a boolean. In Lua the same component is ui.card{ title = "Plants", ... }.
 --
---   layout     ui.container{...}  ui.stack{gap = 4, ...}  ui.row{gap = 2, ...}  ui.grid{cols = 3, ...}
---   actions    ui.button{"Add", variant = "primary|secondary|outline|ghost|link|destructive", size = "sm|lg|icon"}
---              ui.link_button{"Open", href = "x"}  ui.dialog{id, title, description, trigger = "Open", footer, ...}
---   content    ui.card{title, description, footer, ...}  ui.alert{title, variant = "destructive", ...}
---              ui.badge{"new", variant = "secondary|outline|destructive"}  ui.empty{title, description, ...}
---              ui.tabs{{"First", panel}, ui.tab{label = "Second", panel}}  ui.data_table{columns = {...}, rows = {{...}}}
---              ui.kbd"K"  ui.progress{value = 40}  ui.skeleton{class = "h-4 w-32"}  ui.markdown(text)
---              ui.icon"sprout" (or {name, size = 16}; ui.icons lists the names: Lucide's, drawn in the text's colour)
---   forms      ui.form{post = "plants", ...}  ui.field{label, hint, error, input}  ui.input{name, label, ...}
---              ui.textarea{name, label}  ui.select{name, label, options = {"a", {"b", "B"}}}
---              ui.checkbox{name, label, checked}  ui.switch{name, label}
+--   layout   <container>...</container>  <stack gap="4">...</stack>  <row gap="2">...</row>  <grid cols="3">...</grid>
+--   actions  <button variant="primary|secondary|outline|ghost|link|destructive" size="sm|lg|icon">Add</button>
+--            <link_button href="list">Open</link_button>
+--            <dialog id="d" title="Delete?" description="..." trigger="Delete">...<slot name="footer">...</slot></dialog>
+--            (a button with data-open="d" opens it, data-close="d" closes it)
+--   content  <card title="Plants" description="...">...<slot name="footer">...</slot></card>
+--            <alert title="Saved" variant="destructive">...</alert>  <badge variant="secondary|outline|destructive">new</badge>
+--            <empty title="No plants yet" description="Add one."/>  <progress value={{ 40 }}/>  <kbd>K</kbd>
+--            <tabs><tab label="All">...</tab><tab label="Due">...</tab></tabs>  <skeleton class="h-4 w-32"/>
+--            <data_table columns={{ { "Name", "Water" } }}>{% for _, p in ipairs(plants) do %}<tr><td>{{ p.name }}</td>
+--              <td>{{ p.every }}</td></tr>{% end %}</data_table>   (or rows={{ rows }}, rows built in the <lua> block)
+--            <markdown text={{ note }}/>  <icon name="sprout" size="16"/>, one of these:
+--              activity archive arrow-down arrow-left arrow-right arrow-up bell bird book-open briefcase bug
+--              calendar calendar-days camera chart-column chart-line chart-pie check chevron-down chevron-left
+--              chevron-right circle circle-alert circle-check circle-plus circle-x clock cloud cloud-rain copy
+--              credit-card download droplet droplets dumbbell ellipsis external-link eye file-text flag flower
+--              folder funnel gift globe hash heart house image inbox info layout-grid leaf link list lock log-out
+--              mail map-pin menu mic minus moon notebook-pen package pause pen pencil phone play plus receipt
+--              refresh-cw rotate-ccw rotate-cw save search send settings shopping-cart sprout square square-check
+--              square-pen square-x star sun tag target thermometer thumbs-down thumbs-up timer trash trending-down
+--              trending-up triangle-alert trophy upload user users utensils wallet x
+--   forms    <form post="add">...</form>  <input name="name" label="Name" hint="..." error={{ err }} type="number"/>
+--            <textarea name="text" label="Note" value={{ text }}/>  <checkbox name="done" label="Done" checked={{ p.done }}/>
+--            <select name="tone" label="Tone" value={{ s.tone }} options={{ { "warm", { "plain", "Plain" } } }}/>
+--            <switch name="sounds" label="Sounds" checked={{ true }}/>  <field label="Name">any control</field>
+--   plain HTML tags work too (<p>, <ul>, <table>, <details>, <a>, <img>), styled with classes
 return function(ui)
   local markdown = require("shroomi.markdown")
   local icons = require("shroomi.icons")
@@ -140,6 +155,9 @@ return function(ui)
   ui.component("data_table", function(p, c)
     local head, body = {}, {}
     for i, col in ipairs(p.columns or {}) do head[i] = el("th", { col }) end
+    if p.rows ~= nil and type(p.rows) ~= "table" then
+      error("data_table: rows is a list of rows, each a list of cells, built before; or write <tr> rows inside it", 3)
+    end
     for i, row in ipairs(p.rows or {}) do
       local cells = {}
       for j, v in ipairs(row) do cells[j] = el("td", { v }) end
@@ -196,7 +214,7 @@ return function(ui)
           opts[i] = el("option", { value = value, selected = tostring(value) == tostring(p.value), text })
         end
         a.value = nil
-        node = el("select", with(a, opts))
+        node = el("select", with(a, { opts, c }))
       elseif tag == "textarea" then
         local text = a.value
         a.value = nil

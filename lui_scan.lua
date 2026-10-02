@@ -109,6 +109,8 @@ function ST:value(line)
   elseif string.sub(s, self.i, self.i + 1) == "{{" then
     return { { expr = self:lua(self.i + 2, "}}", "{{", line) } }
   end
+  local bare = string.match(s, "^[%w%-%.:#%%]+", self.i)
+  if bare then self:to(self.i + #bare); return { { text = bare } } end
   local quote = string.sub(s, self.i, self.i)
   if quote ~= '"' and quote ~= "'" then self:fail(line, "an attribute's value is quoted, or {{ e }}") end
   self:to(self.i + 1)
@@ -117,8 +119,11 @@ function ST:value(line)
     local c = string.sub(s, self.i, self.i)
     if c == "" then self:fail(line, "an attribute's value is never closed with " .. quote) end
     if c == quote then self:to(self.i + 1); break end
-    if string.sub(s, self.i, self.i + 1) == "{{" then
-      if #lit > 0 then segs[#segs + 1] = { text = decode(table.concat(lit)) }; lit = {} end
+    local two = string.sub(s, self.i, self.i + 1)
+    if (two == "{{" or two == "{%") and #lit > 0 then segs[#segs + 1] = { text = decode(table.concat(lit)) }; lit = {} end
+    if two == "{%" then
+      segs[#segs + 1] = { stmt = self:lua(self.i + 2, "%}", "{%", self.line) }
+    elseif two == "{{" then
       if string.sub(s, self.i, self.i + 2) == "{{{" then self:fail(self.line, "{{{ }}} is for text, never an attribute") end
       segs[#segs + 1] = { expr = self:lua(self.i + 2, "}}", "{{", self.line) }
     else
@@ -144,26 +149,67 @@ local function attribute(name, line, segs)
   if not segs then a.code = "true"; return a end
   if #segs == 0 then a.code, a.literal = '""', ""; return a end
   if #segs == 1 and segs[1].expr then a.code = "(" .. segs[1].expr .. ")"; return a end
-  local parts = {}
+  local parts, stmts = {}, false
   for k, seg in ipairs(segs) do
     if seg.expr then
       parts[#parts + 1] = "(" .. seg.expr .. ")"
+    elseif seg.stmt then
+      stmts = true
     else
       parts[#parts + 1] = quote(seg.text)
+      -- a class glued to a value (p-{{ n }}) is checked when the page runs, not here
       local t = seg.text
-      if k > 1 then t = string.gsub(t, "^%S+", "") end
-      if k < #segs then t = string.gsub(t, "%S+$", "") end
+      if segs[k - 1] and segs[k - 1].expr then t = string.gsub(t, "^%S+", "") end
+      if segs[k + 1] and segs[k + 1].expr then t = string.gsub(t, "%S+$", "") end
       for w in string.gmatch(t, "%S+") do a.words[#a.words + 1] = w end
     end
+  end
+  if stmts then
+    -- statements in a value (class="p-2 {% if done then %}line-through{% end %}"): the value built as it runs
+    local body = {}
+    for _, seg in ipairs(segs) do
+      if seg.stmt then body[#body + 1] = seg.stmt
+      else body[#body + 1] = "__v[#__v + 1] = __s(" .. (seg.expr and "(" .. seg.expr .. ")" or quote(seg.text)) .. ")" end
+    end
+    a.code = "(function() local __v = {} " .. table.concat(body, " ") .. " return table.concat(__v) end)()"
+    return a
   end
   if #segs == 1 then a.code, a.literal = parts[1], segs[1].text return a end
   a.code = "__s(" .. table.concat(parts, ", ") .. ")"
   return a
 end
 
+-- one attribute at the cursor: name="value", name={{ e }}, a bare name, or {{ e }} alone (as in
+-- <option {{ on and "selected" }}>, where e names a bare attribute, or nothing)
+function ST:attr(tag, seen)
+  local s, aline = self.s, self.line
+  if string.sub(s, self.i, self.i + 1) == "{%" then
+    self:fail(aline, 'a statement never goes inside a tag; selected={{ x == 1 }} is there when true')
+  end
+  if string.sub(s, self.i, self.i + 1) == "{{" then
+    return { flag = self:lua(self.i + 2, "}}", "{{", aline), line = aline, words = {} }
+  end
+  local name = string.match(s, "^[%a_@:][%w_%-:%.@]*", self.i)
+  if not name then
+    self:fail(aline, "<" .. tag .. "> has something that is no attribute: " .. string.sub(s, self.i, self.i + 10))
+  end
+  if string.match(name, "^on") then self:fail(aline, name .. ": a page's own script never runs; use htmx (post, get)") end
+  if seen[name] then self:fail(aline, "<" .. tag .. "> has " .. name .. " twice") end
+  seen[name] = true
+  self:to(self.i + #name)
+  local segs
+  local eq = string.match(s, "^%s*=%s*()", self.i)
+  if eq then self:to(eq); segs = self:value(aline) end
+  return attribute(name, aline, segs)
+end
+
 function ST:tag(line)
   local s = self.s
   local tag = string.match(s, "^<([%a_][%w_%-]*)", self.i)
+  if string.sub(s, self.i + 1 + #tag, self.i + 1 + #tag) == "." then
+    self:fail(line, "a kit component is a tag by its name: <" .. string.match(s, "^<[%w_%-]*%.([%w_]+)", self.i) ..
+      ">, not <" .. string.match(s, "^<([%w_%-]*%.[%w_]+)", self.i) .. ">")
+  end
   self:to(self.i + 1 + #tag)
   local attrs, seen, closed = {}, {}, false
   while true do
@@ -171,18 +217,7 @@ function ST:tag(line)
     if string.sub(s, self.i, self.i + 1) == "/>" then self:to(self.i + 2); closed = true; break end
     if string.sub(s, self.i, self.i) == ">" then self:to(self.i + 1); break end
     if self.i > #s then self:fail(line, "<" .. tag .. " is never ended with > or />") end
-    local name = string.match(s, "^[%a_@:][%w_%-:%.@]*", self.i)
-    if not name then self:fail(self.line, "<" .. tag .. "> has something that is no attribute: " ..
-      string.sub(s, self.i, self.i + 10)) end
-    local aline = self.line
-    if string.match(name, "^on") then self:fail(aline, name .. ": a page's own script never runs; use htmx (post, get)") end
-    if seen[name] then self:fail(aline, "<" .. tag .. "> has " .. name .. " twice") end
-    seen[name] = true
-    self:to(self.i + #name)
-    local segs
-    local eq = string.match(s, "^%s*=%s*()", self.i)
-    if eq then self:to(eq); segs = self:value(aline) end
-    attrs[#attrs + 1] = attribute(name, aline, segs)
+    attrs[#attrs + 1] = self:attr(tag, seen)
   end
   return { kind = "open", tag = tag, attrs = attrs, closed = closed, line = line }
 end
@@ -198,7 +233,11 @@ function ST:next(keep)
     elseif string.sub(s, i, i + 2) == "{{{" then
       return { kind = "raw", code = self:lua(i + 3, "}}}", "{{{", line), line = line }
     elseif string.sub(s, i, i + 1) == "{{" then
-      return { kind = "expr", code = self:lua(i + 2, "}}", "{{", line), line = line }
+      local code = self:lua(i + 2, "}}", "{{", line)
+      if string.match(code, "^%s*if%s") or string.match(code, "^%s*for%s") or string.match(code, "^%s*local%s") then
+        self:fail(line, "{{ }} holds a value; a statement goes in {% %}: {% if x then %}...{% end %}, or {{ x and \"a\" or \"b\" }}")
+      end
+      return { kind = "expr", code = code, line = line }
     elseif string.sub(s, i, i + 1) == "{%" then
       local code = self:lua(i + 2, "%}", "{%", line)
       teach(self, line, code)

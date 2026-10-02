@@ -101,6 +101,11 @@ spec.test("values: {{ }} alone is the value itself, raw is raw, entities read as
     '<input checked class="input" type="checkbox"><input class="input" id="x" name="x"><pre>  two\n  lines</pre>')
 end)
 
+spec.test("{{ e }} alone in a tag names a bare attribute, or none", function()
+  local src = '<p>{% for _, v in ipairs({ "a", "b" }) do %}<option value="{{ v }}" {{ v == "b" and "selected" }}>{{ v }}</option>{% end %}</p>'
+  spec.eq(body(lui.answer(src, "ui/f.lui", get())), '<p><option value="a">a</option><option selected value="b">b</option></p>')
+end)
+
 spec.test("components the page makes are tags, and ui is at hand", function()
   local src = [[
 <lua>
@@ -125,7 +130,7 @@ spec.test("check names the file, the line and what is wrong", function()
   refused('<button post="water">W</button>', 'ui/x.lui:1: post="water" names no action: define function post.water(req)')
   refused("<div>\n  <ul>\n</div>", "ui/x.lui:3: </div> closes <ul>, opened on line 2")
   refused("<div>\n  <p>x</p>", "ui/x.lui:1: <div> is never closed")
-  refused("<br></br>", "<br> stands alone")
+  spec.eq(body(lui.answer('<p>a<br></br><icon name="leaf">b</p>', "ui/b.lui", get())):gsub("<svg.-</svg>", "svg"), "<p>a<br>svgb</p>")
   refused('<p onclick="x()">x</p>', "ui/x.lui:1: onclick: a page's own script never runs")
   refused("<p>{{ x }</p>", "{{ is never closed with }}")
   refused("<p title={{{ x }}}>x</p>", "{{{ }}} is for text, never an attribute")
@@ -133,6 +138,13 @@ spec.test("check names the file, the line and what is wrong", function()
 end)
 
 spec.test("the habits of other template languages are answered with the Lua they should be", function()
+  refused("<ui.card title=\"x\">y</ui.card>", "a kit component is a tag by its name: <card>, not <ui.card>")
+  refused("<html><body><p>x</p></body></html>", "a page is its body")
+  refused("<select name=\"s\"><option {% if x then %}selected{% end %}>a</option></select>", "a statement never goes inside a tag")
+  refused('<p class="h-[calc(100vh-2rem)] min-h-[80px]">x</p>', "(brackets hold only a length")
+  spec.eq(body(lui.answer('<p class="p-2 {% if 1 > 0 then %}font-medium{% end %}" rows=5>x</p>', "ui/a.lui", get())),
+    '<p class="p-2 font-medium" rows="5">x</p>')
+  refused('<p class="p-2 {% if 1 then %}glow{% end %}">x</p>', 'no class "glow"')
   refused("<ul>{% for p in plants %}<li/>{% endfor %}</ul>", "a Lua loop opens with do")
   refused("<ul>{% for _, p in ipairs(plants) do %}<li/>{% endfor %}</ul>", "{% endfor %} is Jinja's; a Lua block ends with {% end %}")
   refused("{% if x %}<p/>{% end %}", "a Lua if opens with then")

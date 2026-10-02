@@ -19,7 +19,8 @@ local fixed = {
   ["flex-col-reverse"] = { 20, "flex-direction: column-reverse" },
   ["flex-wrap"] = { 20, "flex-wrap: wrap" }, ["flex-nowrap"] = { 20, "flex-wrap: nowrap" },
   ["flex-1"] = { 21, "flex: 1 1 0%" }, ["flex-auto"] = { 21, "flex: 1 1 auto" }, ["flex-none"] = { 21, "flex: none" },
-  grow = { 21, "flex-grow: 1" }, ["grow-0"] = { 21, "flex-grow: 0" },
+  grow = { 21, "flex-grow: 1" }, ["grow-0"] = { 21, "flex-grow: 0" }, ["flex-grow"] = { 21, "flex-grow: 1" },
+  ["flex-shrink-0"] = { 21, "flex-shrink: 0" },
   shrink = { 21, "flex-shrink: 1" }, ["shrink-0"] = { 21, "flex-shrink: 0" },
   ["items-start"] = { 22, "align-items: flex-start" }, ["items-center"] = { 22, "align-items: center" },
   ["items-end"] = { 22, "align-items: flex-end" }, ["items-stretch"] = { 22, "align-items: stretch" },
@@ -78,6 +79,13 @@ local fixed = {
   ["border-dashed"] = { 72, "border-style: dashed" }, ["border-none"] = { 72, "border-style: none" },
   rounded = { 74, "border-radius: var(--radius-sm)" }, ["rounded-none"] = { 74, "border-radius: 0" },
   ["rounded-full"] = { 74, "border-radius: 9999px" },
+  ["rounded-t"] = { 75, "border-top-left-radius: var(--radius-sm)", "border-top-right-radius: var(--radius-sm)" },
+  ["rounded-b"] = { 75, "border-bottom-left-radius: var(--radius-sm)", "border-bottom-right-radius: var(--radius-sm)" },
+  ["rounded-l"] = { 75, "border-top-left-radius: var(--radius-sm)", "border-bottom-left-radius: var(--radius-sm)" },
+  ["rounded-r"] = { 75, "border-top-right-radius: var(--radius-sm)", "border-bottom-right-radius: var(--radius-sm)" },
+  ["scale-95"] = { 84, "scale: 0.95" }, ["scale-100"] = { 84, "scale: 1" }, ["scale-105"] = { 84, "scale: 1.05" },
+  ["scale-110"] = { 84, "scale: 1.1" },
+  ["border-collapse"] = { 72, "border-collapse: collapse" }, ["border-separate"] = { 72, "border-collapse: separate" },
   shadow = { 76, "box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)" },
   ["shadow-none"] = { 76, "box-shadow: 0 0 #0000" },
   ["overflow-hidden"] = { 80, "overflow: hidden" }, ["overflow-auto"] = { 80, "overflow: auto" },
@@ -129,6 +137,14 @@ local function space(v)
   if not (string.match(v, "^%d+$") or string.match(v, "^%d+%.5$")) or n > 96 then return nil end
   if n == 0 then return "0" end
   return "calc(var(--spacing) * " .. v .. ")"
+end
+
+-- a length in brackets (h-[50vh], min-w-[200px]): a number and a unit, nothing else
+local UNITS = { px = true, rem = true, em = true, vh = true, vw = true, ch = true, ["%"] = true }
+local function length(v)
+  local n, unit = string.match(v, "^%[(%d+%.?%d*)([%a%%]+)%]$")
+  if n and UNITS[unit] then return n .. unit end
+  return nil
 end
 
 local function fraction(v)
@@ -198,7 +214,7 @@ function M.declarations(name)
   if not key then return nil end
   local side = SIDES[key]
   if side then
-    local v = space(value) or (side[1] >= 40 and side[1] <= 43 or side[1] == 12) and fraction(value)
+    local v = space(value) or length(value) or (side[1] >= 40 and side[1] <= 43 or side[1] == 12) and fraction(value)
     if not v then return nil end
     if neg == "-" then
       if not string.match(key, "^m") and side[1] ~= 12 then return nil end
@@ -221,8 +237,8 @@ function M.declarations(name)
     local n = tonumber(value)
     if not n or n < 1 or n > 12 or n % 1 ~= 0 then return nil end
     return { (key == "col-span" and "grid-column" or "grid-row") .. ": span " .. n .. " / span " .. n }, 23
-  elseif key == "max-w" and MAX_W[value] then
-    return { "max-width: " .. MAX_W[value] }, 43
+  elseif key == "max-w" and (MAX_W[value] or length(value)) then
+    return { "max-width: " .. (MAX_W[value] or length(value)) }, 43
   elseif key == "text" then
     if TEXT[value] then return { "font-size: " .. TEXT[value][1], "line-height: " .. TEXT[value][2] }, 50 end
     local c = color(value)

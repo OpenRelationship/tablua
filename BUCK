@@ -2,7 +2,7 @@ load("@nomimono//rules/lua:defs.bzl", "lua_library", "lua_test")
 
 lua_library(
     name = "shroomi",
-    srcs = ["init.lua", "components.lua", "css.lua", "utilities.lua", "markdown.lua", "policy.lua", "icons.lua", "page.lua", "lui.lua", "lui_scan.lua"],
+    srcs = ["init.lua", "components.lua", "css.lua", "utilities.lua", "markdown.lua", "policy.lua", "icons.lua", "icons_more.lua", "page.lua", "lui.lua", "lui_scan.lua"],
     prefix = "shroomi",
     visibility = ["PUBLIC"],
 )

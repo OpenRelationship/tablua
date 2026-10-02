@@ -9,7 +9,9 @@
 -- Variants: sm: md: lg: xl: 2xl: (min-width), hover: focus: focus-visible: active: disabled: first: last:
 -- odd: even: group-hover:, dark:. Colours are the theme's (primary, secondary, muted, accent, destructive,
 -- background, foreground, card, popover, border, input, ring, and their -foreground), white and black, with /N
--- for opacity.
+-- for opacity. No palette colours (gray-50, blue-500). Brackets only for a length in sizes and spacing
+-- (h-[50vh], min-w-[200px], p-[3px]).
+-- Shroomi's own error names any class it does not know.
 local u = require("shroomi.utilities")
 
 local css = {}

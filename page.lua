@@ -10,7 +10,7 @@
 --                       nothing      the whole page again
 --                       "#id"        that element alone, when a page is costly (a document whose body is it)
 --                       { redirect = "path" }   go there
---                       any other value         given to render as `result` (a form's errors, say)
+--                       any other value         given to render as `result` (a form's errors, say; {} when none)
 --   page.el(req, post, get, name) -> el(line, tag, attrs, children): an element or component, with an action's
 --     name (post = "water") made its address and marked to be merged, and vals = {table} sent as JSON
 local ui = require("shroomi")
@@ -87,6 +87,7 @@ function page.el(req, post, get, name)
       end
     end
     if type(attrs.vals) == "table" then attrs.vals = vals(attrs.vals, where) end
+    attrs[""] = nil
     for i = 1, #kids do attrs[i] = kids[i] end
     return make(attrs)
   end
@@ -115,7 +116,7 @@ function page.answer(def, req)
     render = def(req, {}, {}, meta)
   end
   local only = type(result) == "string" and string.match(result, "^#([%w_%-:%.]+)$")
-  local nodes = render(not only and result or nil)
+  local nodes = render(not only and result ~= nil and result or {})
   if only then
     local node = find(nodes, only)
     if not node then error("the action " .. name .. " returned #" .. only .. ", and the page has no element with that id", 0) end

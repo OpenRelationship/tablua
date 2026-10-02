@@ -1,6 +1,6 @@
 -- Icons from Lucide 1.49.0 (ISC, assets/lucide-LICENSE), as data: each a list of { tag, attributes }.
 -- ui.icon("sprout") draws one, 24 by 24 in the current colour; ui.icons lists the names.
-return {
+local icons = {
   ["sprout"] = {
     { "path", { ["d"] = "M14 9.536V7a4 4 0 0 1 4-4h1.5a.5.5 0 0 1 .5.5V5a4 4 0 0 1-4 4 4 4 0 0 0-4 4c0 2 1 3 1 5a5 5 0 0 1-1 3" } },
     { "path", { ["d"] = "M4 9a5 5 0 0 1 8 4 5 5 0 0 1-8-4" } },
@@ -230,3 +230,16 @@ return {
     { "path", { ["d"] = "M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z" } },
   },
 }
+
+-- and the more agents reached for
+for name, shape in pairs(require("shroomi.icons_more")) do icons[name] = shape end
+
+-- Lucide's older names, which agents still write, read as the new ones (not listed in ui.icons)
+local OLD = { ["check-circle"] = "circle-check", ["x-circle"] = "circle-x", ["plus-circle"] = "circle-plus",
+  ["alert-circle"] = "circle-alert", ["alert-triangle"] = "triangle-alert", edit = "square-pen", ["edit-2"] = "pen",
+  ["edit-3"] = "pencil", home = "house", filter = "funnel", ["more-horizontal"] = "ellipsis", ["trash-2"] = "trash",
+  ["check-square"] = "square-check", ["bar-chart"] = "chart-column", ["bar-chart-2"] = "chart-column",
+  ["pie-chart"] = "chart-pie", ["line-chart"] = "chart-line", ["x-square"] = "square-x", ["refresh-ccw"] = "rotate-ccw" }
+setmetatable(icons, { __index = function(_, name) return rawget(icons, OLD[name]) end })
+
+return icons

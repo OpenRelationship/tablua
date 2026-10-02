@@ -14,10 +14,15 @@
 --
 --   {{ e }} text, escaped      {{{ e }}} markup as is (still cleaned)      {% lua %} a statement
 --   attr="text {{ e }}"  a string     attr={{ e }}  the value itself (a table, a boolean)     attr  true
---   every tag closed (<x/> or </x>; br, hr, img and input may stand alone); kit components are tags
+--   every tag closed (<x/> or </x>; br, hr, img, input, icon, empty, progress, checkbox and switch are whole
+--   alone); kit components are tags
 --   <slot name="footer">...</slot> inside an element gives it that prop as markup (a card's footer, say)
 --   post="name" or get="name" is the page's action of that name (shroomi.page): the page is rendered again
---   result is what the last action returned; page.title is the page's title
+--   req is { method, path, query = {k = v}, form = {k = v} } (nothing else); page.title is the title;
+--   result is what the last action returned, {} when none (so write (result.errors or {}).email)
+--   a page is its body (Shroomi writes <html>, <head> and <body>); db, fs, http, json, date and csv are there
+--   already. The file is one <lua> block, closed by </lua>, then the markup, and
+--   nothing around them (no <lui>, <html> or <layout>). lui.template(app) is a whole page to start from
 --
 --   lui.compile(text, name) -> Lua source, or nil and "name:line: why" (an unknown tag, class or action,
 --     a tag left open, a Jinja habit)
@@ -28,12 +33,17 @@ local css = require("shroomi.css")
 local policy = require("shroomi.policy")
 local page = require("shroomi.page")
 local scan = require("shroomi.lui_scan")
+local icons = require("shroomi.icons")
 
 local lui = {}
 
 local VOID = { area = true, br = true, col = true, hr = true, img = true, input = true, wbr = true, source = true }
+-- kit components that never hold anything: <icon name="x"> is whole, as <br> is
+local SELF = { icon = true, empty = true, progress = true, skeleton = true, checkbox = true, switch = true }
 local KEEP = { pre = true, textarea = true, code = true }
+local BODY = "a page is its body: Shroomi writes <html>, <head> and <body> (page.title sets the title)"
 local NEVER = { script = "behaviour comes from Shroomi's own scripts, never a page's",
+  html = BODY, head = BODY, body = BODY, title = BODY,
   style = "style with classes; Shroomi writes the CSS", iframe = "a page holds no other page",
   link = "Shroomi loads the only styles", meta = "Shroomi writes the head", base = "Shroomi writes the head" }
 
@@ -65,6 +75,44 @@ local function lua_error(why, name)
   return name .. ":" .. line .. ": " .. (what or "the Lua does not parse")
 end
 
+-- a whole page to start from, as `new page` gives it: a table, a list, an action that adds and one that removes
+function lui.template(app)
+  app = app or "items"
+  return (string.gsub([==[
+<lua>
+  local d = db.open("data/APP.dbl")
+  d:exec("create table if not exists item (id integer primary key, name text not null)")
+  page.title = "<A title>"
+
+  function post.add(req)
+    if (req.form.name or "") ~= "" then d:exec("insert into item (name) values (?)", req.form.name) end
+  end
+
+  function post.remove(req) d:exec("delete from item where id = ?", tonumber(req.form.id)) end
+
+  local items = d:query("select * from item order by name")
+</lua>
+<container>
+  <card title="<A title>" description="<what it is for>">
+    {% if #items == 0 then %}<empty title="Nothing yet" description="Add the first one."/>{% end %}
+    <ul class="space-y-2">
+      {% for _, it in ipairs(items) do %}
+        <li class="flex items-center justify-between">{{ it.name }}
+          <button size="sm" variant="ghost" post="remove" vals={{ { id = it.id } }}><icon name="trash"/></button>
+        </li>
+      {% end %}
+    </ul>
+    <slot name="footer">
+      <form post="add" class="flex gap-2">
+        <input name="name" placeholder="New" required/>
+        <button>Add</button>
+      </form>
+    </slot>
+  </card>
+</container>
+]==], "APP", app):gsub("^\n", ""))
+end
+
 function lui.compile(text, name)
   name = name or "page.lui"
   local ok, src = pcall(function()
@@ -78,7 +126,7 @@ function lui.compile(text, name)
     end
     local block = st:lua_block()
     local known = declared(block and block.code or "")
-    emit("local req, post, get, page, ui, __el, __raw, __s, __at = ... ", 1)
+    emit("local req, post, get, page, ui, __el, __raw, __s, __at, __flag = ... ", 1)
     -- the line running, for a VM whose errors carry none (luos)
     local marked
     local function mark(line)
@@ -95,11 +143,14 @@ function lui.compile(text, name)
         st:fail(line, "<" .. tag .. "> is no element a page may use nor a kit component (ui.kit lists the kit)")
       end
     end
-    local function check_attr(a)
-      if a.name == "class" then
+    local function check_attr(tag, a)
+      if tag == "icon" and a.name == "name" and a.literal and not icons[a.literal] then
+        st:fail(a.line, 'no icon "' .. a.literal .. '": the kit has ' .. table.concat(ui.icons, " "))
+      elseif a.name == "class" then
         for _, word in ipairs(a.words) do
           if not css.known(word) then
-            st:fail(a.line, 'no class "' .. word .. '": Shroomi knows Tailwind\'s utilities and the kit\'s classes')
+            st:fail(a.line, 'no class "' .. word .. '": Shroomi knows Tailwind\'s utilities and the kit\'s classes' ..
+              (string.find(word, "[", 1, true) and " (brackets hold only a length, in sizes and spacing: min-w-[200px])" or ""))
           end
         end
       elseif (a.name == "post" or a.name == "get") and a.literal and string.match(a.literal, "^[%a_][%w_]*$")
@@ -108,12 +159,16 @@ function lui.compile(text, name)
           a.literal .. "(req) in the <lua> block")
       end
     end
-    local function attrs_code(list)
+    local function attrs_code(tag, list)
       local parts = {}
       for _, a in ipairs(list) do
-        check_attr(a)
-        local key = string.match(a.name, "^[%a_][%w_]*$") and a.name or "[" .. q(a.name) .. "]"
-        parts[#parts + 1] = { key .. " = " .. a.code .. ", ", a.line }
+        if a.flag then
+          parts[#parts + 1] = { "[__flag(" .. a.flag .. ")] = true, ", a.line }
+        else
+          check_attr(tag, a)
+          local key = string.match(a.name, "^[%a_][%w_]*$") and a.name or "[" .. q(a.name) .. "]"
+          parts[#parts + 1] = { key .. " = " .. a.code .. ", ", a.line }
+        end
       end
       return parts
     end
@@ -154,19 +209,20 @@ function lui.compile(text, name)
         open[#open + 1] = { tag = "slot", line = tok.line, slot = a.literal }
       elseif tok.kind == "open" then
         check_tag(tok.tag, tok.line)
-        local alone = tok.closed or VOID[tok.tag]
+        local alone = tok.closed or VOID[tok.tag] or SELF[tok.tag]
         emit(alone and "__c[#__c + 1] = __el(" .. tok.line .. ", " .. q(tok.tag) .. ", { "
           or " do local __p, __a, __c = __c, { ", tok.line)
-        for _, p in ipairs(attrs_code(tok.attrs)) do emit(p[1], p[2]) end
+        for _, p in ipairs(attrs_code(tok.tag, tok.attrs)) do emit(p[1], p[2]) end
         if alone then
           emit("}, {}) ", tok.line)
         else
           emit("}, {} ", tok.line)
           open[#open + 1] = { tag = tok.tag, line = tok.line }
         end
+      elseif tok.kind == "close" and (VOID[tok.tag] or SELF[tok.tag]) then
+        -- </br> or </icon> after one that was whole already: nothing to close, as a browser reads it
       elseif tok.kind == "close" then
         local top = open[#open]
-        if VOID[tok.tag] then st:fail(tok.line, "<" .. tok.tag .. "> stands alone: no </" .. tok.tag .. ">") end
         if not top then st:fail(tok.line, "</" .. tok.tag .. "> closes nothing") end
         if top.tag ~= tok.tag then
           st:fail(tok.line, "</" .. tok.tag .. "> closes <" .. top.tag .. ">, opened on line " .. top.line)
@@ -192,6 +248,12 @@ function lui.compile(text, name)
   return src
 end
 
+-- {{ e }} alone in a tag: the bare attribute e names, or none ("" is dropped by page.el)
+local function flag(v)
+  if type(v) == "string" and string.match(v, "^%a[%w%-]*$") then return v end
+  return ""
+end
+
 local function cat(...)
   local out = {}
   for i = 1, select("#", ...) do
@@ -208,7 +270,7 @@ function lui.load(text, name)
   local chunk = load(src, "@" .. name, "t")
   local at = { line = 1 }
   return function(req, post, get, meta)
-    return chunk(req, post, get, meta, ui, page.el(req, post, get, name), ui.raw, cat, at)
+    return chunk(req, post, get, meta, ui, page.el(req, post, get, name), ui.raw, cat, at, flag)
   end, at
 end
 
