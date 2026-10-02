@@ -1,5 +1,5 @@
 defmodule Moss.BrowserTest do
-  # Arock feature browser (context/projects/volvox/features/browser): a light tab, a page read in parts by
+  # Arock feature browser (context/projects/arock/features/browser): a light tab, a page read in parts by
   # landmark, and the data a page carries in its HTML (the accessibility tree is moss-browser's own test).
   use ExUnit.Case, async: false
 
