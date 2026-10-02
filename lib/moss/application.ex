@@ -22,7 +22,7 @@ defmodule Moss.Application do
         Moss.Owners,
         Moss.Mail,
         Moss.Names
-      ] ++ triggers() ++ replication() ++ [MossWeb.Endpoint]
+      ] ++ Moss.Computer.Look.children() ++ triggers() ++ replication() ++ [MossWeb.Endpoint]
 
     Supervisor.start_link(children, strategy: :one_for_one, name: Moss.Supervisor)
   end

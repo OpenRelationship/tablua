@@ -7,5 +7,9 @@ for dir <- [:work_dir, :local_objects, :host_dir],
 
 {:ok, _} = Application.ensure_all_started(:moss)
 # Litestream's end-to-end tests run where its binary is (Moss.Litestream.bin/0)
-exclude = [:service, :agent, :bench, :build] ++ if(Moss.Litestream.bin(), do: [], else: [:litestream])
+exclude =
+  [:service, :agent, :bench, :build] ++ if(Moss.Litestream.bin(), do: [], else: [:litestream])
+
+# the look's tests run where its module is (mix moss.look) and the node started its look node
+exclude = exclude ++ if(Process.whereis(Moonflower.Look.Node), do: [], else: [:look])
 ExUnit.start(exclude: exclude)

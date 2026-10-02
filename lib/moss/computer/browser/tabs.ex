@@ -6,16 +6,21 @@ defmodule Moss.Computer.Browser.Tabs do
 
       %{url: "https://…", page: %Page{} | nil, history: [%{url, page}], ui_at: nil, values: %{}}
 
-  `kept/1` is what the computer's file keeps: each tab's address and typed values, its history's addresses, and
-  the cookie jar; never a page but a form's answer. `restore/1` reads it back with every page unloaded; a tab's
-  page is fetched again the first time it is used (`Browser.Nav.load/2`), its typed values put back.
+  `kept/1` is what the computer's file keeps: each tab's address and typed values, its history's addresses, the
+  cookie jar and the app's screen; never a page but a form's answer. `restore/1` reads it back with every page
+  unloaded; a tab's page is fetched again the first time it is used (`Browser.Nav.load/2`), its typed values put
+  back.
   """
   alias Moonflower.{Cookies, Page}
+  alias Moss.Computer.Look
 
   @tabs 8
   @back 20
 
-  def new, do: %{tabs: [], front: nil, cookies: Cookies.new()}
+  def new, do: %{tabs: [], front: nil, cookies: Cookies.new(), screen: Look.screen()}
+
+  @doc "The width and theme the computer's app is laid out at (`open app --width N --dark`)."
+  def screen(%{browser: b}), do: Map.get(b, :screen) || Look.screen()
 
   def front(%{browser: %{tabs: tabs, front: n}}) when is_integer(n), do: Enum.at(tabs, n)
   def front(_), do: nil
@@ -75,6 +80,7 @@ defmodule Moss.Computer.Browser.Tabs do
     %{
       front: b.front,
       cookies: b.cookies,
+      screen: Map.get(b, :screen),
       tabs:
         for t <- b.tabs do
           page = t.page
@@ -107,7 +113,12 @@ defmodule Moss.Computer.Browser.Tabs do
         }
       end
 
-    %{tabs: tabs, front: Map.get(kept, :front), cookies: Map.get(kept, :cookies) || Cookies.new()}
+    %{
+      tabs: tabs,
+      front: Map.get(kept, :front),
+      cookies: Map.get(kept, :cookies) || Cookies.new(),
+      screen: Map.get(kept, :screen) || Look.screen()
+    }
   end
 
   defp h_page(%{page: %Page{answer: true} = p}), do: p

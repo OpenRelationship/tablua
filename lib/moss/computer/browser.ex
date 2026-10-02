@@ -5,6 +5,7 @@ defmodule Moss.Computer.Browser do
   """
   alias Moonflower.{Cookies, Page}
   alias Moss.Computer.Browser.{Nav, Tabs}
+  alias Moss.Computer.Look
   alias Moonflower.Page.{Data, Parts}
 
   @help """
@@ -20,7 +21,9 @@ defmodule Moss.Computer.Browser do
     data [n [path|find <words>]]   the JSON the page carries (JSON-LD, __NEXT_DATA__ ...), read by path
     cookies [clear [site]]  the sites with cookies, by name (never their values), or forgetting them
   A password field is the person's: the browser never types into one.
-  `open app` opens the computer's own pages (`ui/*.lui` and its apps', at http://app/), as its person sees it.
+  `open app` opens the computer's own pages (`ui/*.lui` and its apps', at http://app/), as its person sees it:
+  laid out with its stylesheet, what it hides not read. `open app --width 390 --dark` is a phone in the dark
+  theme (1280, light, until changed).
   """
 
   @names ~w(open page read ui click type submit back tabs close data cookies)
@@ -32,8 +35,16 @@ defmodule Moss.Computer.Browser do
   def kept(browser), do: Tabs.kept(browser)
   def restore(kept), do: Tabs.restore(kept)
 
-  def run("open", ["app" <> rest | _], _stdin, state),
-    do: Nav.go(state, "http://app/" <> String.trim_leading(rest, "/"), :new_tab)
+  def run("open", ["app" <> rest | flags], _stdin, state) do
+    case Look.flags(flags, Tabs.screen(state)) do
+      {:ok, screen} ->
+        state = %{state | browser: Map.put(state.browser, :screen, screen)}
+        Nav.go(state, "http://app/" <> String.trim_leading(rest, "/"), :new_tab)
+
+      {:error, why} ->
+        {2, "", why <> "\n", state}
+    end
+  end
 
   def run("open", [url | _], _stdin, state), do: Nav.go(state, url, :new_tab)
   def run("open", [], _stdin, state), do: {2, "", "open: needs an address\n", state}

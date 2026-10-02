@@ -6,7 +6,7 @@ defmodule Moss.Computer.Browser.Nav do
   The computer's own app answers `http://app/` from its disk. `load/1` fetches a woken tab's page again.
   """
   alias Moonflower.{Charset, Page}
-  alias Moss.Computer.{Net, Script}
+  alias Moss.Computer.{Look, Net, Script}
   alias Moss.Computer.Browser.Tabs
   alias Moonflower.Page.Parts
 
@@ -20,7 +20,7 @@ defmodule Moss.Computer.Browser.Nav do
 
     case fetch(state, url, opts) do
       {:ok, r, state} ->
-        page = page(r, opts)
+        page = page(r, opts, state)
 
         if page.refresh && refreshes > 0 do
           go(state, resolve(page, page.refresh), where, [], nil, refreshes - 1)
@@ -43,7 +43,7 @@ defmodule Moss.Computer.Browser.Nav do
       %{page: nil} = tab ->
         case fetch(state, tab.url, []) do
           {:ok, r, state} ->
-            page = page(r, [])
+            page = page(r, [], state)
             ids = MapSet.new(page.controls, & &1.id)
 
             values =
@@ -61,14 +61,21 @@ defmodule Moss.Computer.Browser.Nav do
     end
   end
 
-  defp page(r, opts) do
+  defp page(r, opts, state) do
     {html, note} =
       Charset.decode(if(is_binary(r.body), do: r.body, else: ""), content_type(r.headers))
 
     cut = Map.get(r, :cut) && "(read to #{size(max())}; the rest of the page was not read)"
     notes = Enum.filter([note, cut], & &1)
 
-    page = %{Page.new(r.url, html, notes) | base: Map.get(r, :base)}
+    # the computer's own app is laid out as its person sees it (Computer.Look); the web is read as it comes
+    page =
+      case r.url do
+        @app <> _ -> Look.page(r.url, html, notes, Tabs.screen(state))
+        _ -> Page.new(r.url, html, notes)
+      end
+
+    page = %{page | base: Map.get(r, :base)}
     if Keyword.get(opts, :method, "GET") != "GET", do: %{page | answer: true}, else: page
   end
 
@@ -201,7 +208,7 @@ defmodule Moss.Computer.Browser.Nav do
       {:ok, _, state} ->
         case fetch(state, tab.page.url, []) do
           {:ok, r, state} ->
-            page = page(r, [])
+            page = page(r, [], state)
             {0, Parts.summary(page), "", Tabs.put(state, %{tab | page: page, ui_at: nil})}
 
           {:error, why} ->
@@ -224,7 +231,9 @@ defmodule Moss.Computer.Browser.Nav do
   # -- addresses and where a request comes from ----------------------------------------------------
 
   # an app's page is read against the app's root, as its <base> has the person's browser read it
-  def resolve(%{base: base}, href) when is_binary(base), do: base |> URI.merge(href) |> URI.to_string()
+  def resolve(%{base: base}, href) when is_binary(base),
+    do: base |> URI.merge(href) |> URI.to_string()
+
   def resolve(%{url: @app <> _}, href), do: @app |> URI.merge(href) |> URI.to_string()
   def resolve(page, href), do: page.url |> URI.merge(href) |> URI.to_string()
 

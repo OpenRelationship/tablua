@@ -45,6 +45,15 @@ config :moss,
   # much but write four times as often, about the same in all, and pause the computer for each cut four times as often.
   snapshot_ms: 4 * 3_600_000
 
+# moss-browser's look (Arock PROJECT.md §16.3): Blitz in WebAssembly, the module moss-browser's CI built and
+# released, fetched by `mix moss.look` and pinned here by its SHA-384. Without the file, apps are read without a
+# look. A new release is a new version and hash here, in the change that adopts it.
+config :moss, :look,
+  release: "v0.1.1",
+  sha384:
+    "867622badaf55464ed5d66e0583455145a443ab80fdce263b4df644a63100732e256b1bf7edae34f557f8ad6af7e8c56",
+  path: Path.expand("../priv/look.wasm", __DIR__)
+
 # The node's own books (the post) live under host_dir.
 config :moss,
   host_dir: Path.expand("../priv/host", __DIR__)

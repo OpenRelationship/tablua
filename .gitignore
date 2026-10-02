@@ -41,3 +41,6 @@ npm-debug.log
 /priv/runs/
 /tmp/
 /priv/host/
+
+# moss-browser's look module, fetched by `mix moss.look` (never committed)
+/priv/look.wasm
