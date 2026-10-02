@@ -1,0 +1,20 @@
+# A Moss node to measure on (Arock PROJECT.md §15 item 5), deployed from a context stage.sh makes:
+#   deploy/fly/stage.sh ~/volvox /tmp/moss-fly && fly deploy /tmp/moss-fly --config /tmp/moss-fly/fly.toml --remote-only
+# then a bench, through Fly's API (its WireGuard did not reach the machine from the owner's Mac):
+#   fly machine exec <machine> "/arock/submodules/moss/deploy/fly/bench.sh packs.exs load 1000 300" -a arock-moss-lab
+# Benches print as they go; a long one is better started detached (setsid nohup ... > /data/<name>.txt &).
+# No service and no public address: it is reached only over Fly's own network.
+app = "arock-moss-lab"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[[mounts]]
+  source = "moss_data"
+  destination = "/data"
+  initial_size = "10gb"
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
