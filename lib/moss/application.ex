@@ -23,10 +23,11 @@ defmodule Moss.Application do
     Supervisor.start_link(children, strategy: :one_for_one, name: Moss.Supervisor)
   end
 
-  # Each awake computer's log streamed by Litestream and shipped by the node's token (Arock PROJECT.md §15.4)
+  # Each awake computer's file streamed by Litestream, its recent work packed by the node's token (Arock
+  # PROJECT.md §15 item 4)
   defp replication do
     if Moss.Litestream.mode() == :litestream,
-      do: [Moss.Litestream, Moss.Objects.Shipper],
+      do: [Moss.Litestream, Moss.Objects.Packer],
       else: []
   end
 

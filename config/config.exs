@@ -26,11 +26,18 @@ config :moss,
   # an awake computer's file streamed by Litestream and shipped as its log (Moss.Litestream): :litestream, :whole
   # (its whole file at sleep), or :auto (Litestream when its binary is found)
   replication: :auto,
-  # how often an awake computer's log is cut into a segment and shipped (owner's approval, 2026-10-01): each
-  # segment is one R2 write, so 10 s costs a tenth of 1 s (about 5 cents a month for a computer working an hour a
-  # day); a sleep still syncs and ships everything first, so only a crash of the node loses up to 10 s
-  litestream_sync: "10s",
-  ship_ms: 10_000
+  # An awake computer's work leaves the node as packs (Moss.Objects.Packer, Arock PROJECT.md §15 item 4): every
+  # pack_ms the node puts every awake computer's new segments in one object, so it writes one a minute however many
+  # computers work, and none when none do. A sleep keeps the computer whole (one write), so packs matter only when
+  # the node loses its disk, which then costs up to pack_ms plus litestream_sync of work; a BEAM crash costs nothing,
+  # since the files stay on disk.
+  #
+  # litestream_sync is how often Litestream cuts a segment into the node's own replica, now a local write that costs
+  # no request. 5 s: each cut repeats the pages a command touched (alog's tables), so cutting every second would
+  # make packs several times larger for a busy computer and shorten the window a lost disk costs only from 65 s to
+  # 61 s; 10 s would save little more in bytes and add 5 s to the window.
+  litestream_sync: "5s",
+  pack_ms: 60_000
 
 # The node's own books (the post) live under host_dir.
 config :moss,

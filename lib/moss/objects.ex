@@ -7,8 +7,11 @@ defmodule Moss.Objects do
   or the account is on the node) and `Objects.Local` (a directory; the test
   double, and the fallback when the node has no token).
 
-  A computer's log (its file as Litestream streams it, Arock PROJECT.md §15)
-  is kept beside its disk as segments, `log_*`, under the same claim.
+  A sleeping computer is its whole disk. While computers are awake, the node
+  keeps their recent work as packs (`pack_*`, `Moss.Objects.Packer`, Arock
+  PROJECT.md §15 item 4) under its own prefix, the node's name
+  (`node_name/0`). A computer that slept before packs is its log's segments,
+  read only (`log_*`, `Moss.Objects.Legacy`) until its next sleep.
 
   Config `objects:` is `:service`, `:local`, or `:auto`, which uses the service
   when the node has a token and the local directory otherwise, decided once per node.
@@ -18,14 +21,21 @@ defmodule Moss.Objects do
   @callback put(key :: String.t(), body :: binary()) :: :ok | {:error, term()}
   @callback delete(key :: String.t()) :: :ok | {:error, term()}
 
-  # A computer's log as Litestream writes it (`Moss.Objects.Shipper`): segments named `<level>/<min>-<max>.ltx`.
+  # A computer's log from before packs, read only: segments named `<level>/<min>-<max>.ltx`.
   @callback log_list(id :: String.t()) ::
               {:ok, %{String.t() => non_neg_integer()}} | {:error, term()}
   @callback log_get(id :: String.t(), name :: String.t()) ::
               {:ok, binary()} | :not_found | {:error, term()}
-  @callback log_put(id :: String.t(), name :: String.t(), body :: binary()) ::
-              :ok | {:error, term()}
-  @callback log_delete(id :: String.t(), name :: String.t()) :: :ok | {:error, term()}
+
+  # This node's packs (`Moss.Objects.Pack`), named `<16 hex>-<8 hex>.pack`; a range is `{first, last | nil}`.
+  @callback pack_list() :: {:ok, %{String.t() => non_neg_integer()}} | {:error, term()}
+  @callback pack_get(
+              name :: String.t(),
+              range :: nil | {non_neg_integer(), non_neg_integer() | nil}
+            ) ::
+              {:ok, binary()} | :not_found | {:error, term()}
+  @callback pack_put(name :: String.t(), body :: binary()) :: :ok | {:error, term()}
+  @callback pack_delete(name :: String.t()) :: :ok | {:error, term()}
 
   alias Moss.Objects.{Local, Service}
 
@@ -34,8 +44,10 @@ defmodule Moss.Objects do
   def delete(key), do: adapter().delete(key)
   def log_list(id), do: adapter().log_list(id)
   def log_get(id, name), do: adapter().log_get(id, name)
-  def log_put(id, name, body), do: adapter().log_put(id, name, body)
-  def log_delete(id, name), do: adapter().log_delete(id, name)
+  def pack_list, do: adapter().pack_list()
+  def pack_get(name, range \\ nil), do: adapter().pack_get(name, range)
+  def pack_put(name, body), do: adapter().pack_put(name, body)
+  def pack_delete(name), do: adapter().pack_delete(name)
 
   def adapter do
     case Application.fetch_env!(:moss, :objects) do
@@ -59,6 +71,38 @@ defmodule Moss.Objects do
 
   @doc "The key of a computer's disk."
   def computer_key(id), do: "computers/#{id}.sqlite"
+
+  @doc """
+  This node's name, its packs' prefix: MOSS_NODE, else the account of the
+  keychain item `moss-node-token` (`just tool worker node <name>` sets both),
+  else `local`.
+  """
+  def node_name do
+    case System.get_env("MOSS_NODE") do
+      n when is_binary(n) and n != "" -> n
+      _ -> :persistent_term.get({__MODULE__, :node}, nil) || keychain_node()
+    end
+  end
+
+  defp keychain_node do
+    name =
+      case System.cmd("security", ["find-generic-password", "-s", "moss-node-token"],
+             stderr_to_stdout: true
+           ) do
+        {out, 0} ->
+          with [_, n] <- Regex.run(~r/"acct"<blob>="([a-z0-9-]+)"/, out),
+               do: n,
+               else: (_ -> "local")
+
+        _ ->
+          "local"
+      end
+
+    :persistent_term.put({__MODULE__, :node}, name)
+    name
+  rescue
+    ErlangError -> "local"
+  end
 
   @doc "Whether `name` is a log segment's name, `<level>/<16 hex>-<16 hex>.ltx`, as the service checks it."
   def segment?(name),

@@ -38,13 +38,11 @@ defmodule Moss.GuardTest do
       "the post: fixed statements, and `set` names only its known columns"
   }
 
-  # the only terms decoded from bytes: both were encoded by the host itself, into places no agent writes,
-  # and decoded with [:safe], which never makes an atom
+  # the only terms decoded from bytes: encoded by the host itself, into a place no agent writes, and decoded
+  # with [:safe], which never makes an atom
   @decoders %{
     "lib/moss/computer/disk.ex" =>
-      "a computer's kept session, which only the host writes to its file",
-    "lib/moss/objects/shipper.ex" =>
-      "the shipper's own record of what the store holds, a file beside the replica"
+      "a computer's kept session, which only the host writes to its file"
   }
 
   test "the build holds no native library but those allowed, and the C parser is test-only" do

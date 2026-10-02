@@ -8,9 +8,11 @@ defmodule Moss.Objects.Service do
   The token is MOSS_NODE_TOKEN or the keychain item `moss-node-token`; the
   service is MOSS_SERVICE or https://arock.ai. A disk over #{div(64 * 1024 * 1024, 1_048_576)} MB goes up in
   #{div(32 * 1024 * 1024, 1_048_576)} MB parts. The token is never logged, printed, written or put in an error.
-  Only computers' disks (`computers/<id>.sqlite`) are kept here, and their
-  logs: Litestream's segments, at `/moss/logs/<id>/<level>/<file>` under the
-  disk's claim (Arock's `app/worker/src/logs.ts`, PROJECT.md §15).
+  Only computers' disks (`computers/<id>.sqlite`) are kept here; this node's
+  packs, at `/moss/packs/<node>/<name>`, read in part by a Range header
+  (Arock's `app/worker/src/packs.ts`, PROJECT.md §15 item 4); and, read only,
+  the logs computers slept as before packs, at `/moss/logs/<id>/<level>/<file>`
+  under the disk's claim (`logs.ts`).
   """
   @behaviour Moss.Objects
 
@@ -85,18 +87,53 @@ defmodule Moss.Objects.Service do
   end
 
   @impl true
-  def log_put(id, name, body) do
-    with {:ok, path} <- log_path(id, name), do: done(request(:put, path, body))
+  def pack_list do
+    case json(request(:get, "packs/" <> Moss.Objects.node_name(), nil)) do
+      {:ok, 200, %{"packs" => packs}} ->
+        {:ok, Map.new(packs, fn %{"name" => n, "size" => s} -> {n, s} end)}
+
+      other ->
+        failure(other)
+    end
   end
 
   @impl true
-  def log_delete(id, name) do
-    with {:ok, path} <- log_path(id, name) do
+  def pack_get(name, range) do
+    with {:ok, path} <- pack_path(name) do
+      headers =
+        case range do
+          nil -> []
+          {first, nil} -> [{"range", "bytes=#{first}-"}]
+          {first, last} -> [{"range", "bytes=#{first}-#{last}"}]
+        end
+
+      case request(:get, path, nil, headers) do
+        {:ok, s, body} when s in [200, 206] -> {:ok, body}
+        {:ok, 404, _} -> :not_found
+        other -> failure(other)
+      end
+    end
+  end
+
+  @impl true
+  def pack_put(name, body) do
+    with {:ok, path} <- pack_path(name), do: done(request(:put, path, body))
+  end
+
+  @impl true
+  def pack_delete(name) do
+    with {:ok, path} <- pack_path(name) do
       case request(:delete, path, nil) do
         {:ok, s, _} when s in 200..299 or s == 404 -> :ok
         other -> failure(other)
       end
     end
+  end
+
+  defp pack_path(name) do
+    if Moss.Objects.Pack.name?(name),
+      do: {:ok, "packs/#{Moss.Objects.node_name()}/#{name}"},
+      else: {:error, "not a pack: #{inspect(name)}"}
   end
 
   defp log_path(id, name) do
@@ -112,14 +149,14 @@ defmodule Moss.Objects.Service do
   def available?, do: token() != nil
 
   @doc "The request as sent; exposed so tests can check it offline."
-  def build(method, path, body, token) do
+  def build(method, path, body, token, headers \\ []) do
     Req.new(
       [
         method: method,
         url: base() <> "/moss/" <> path,
         body: body,
         auth: {:bearer, token},
-        headers: [{"content-type", "application/octet-stream"}],
+        headers: [{"content-type", "application/octet-stream"} | headers],
         retry: false,
         decode_body: false,
         receive_timeout: 120_000
@@ -150,13 +187,13 @@ defmodule Moss.Objects.Service do
 
   defp path(_), do: {:error, "the service keeps only computers' disks"}
 
-  defp request(method, path, body) do
+  defp request(method, path, body, headers \\ []) do
     case token() do
       nil ->
         {:error, :no_token}
 
       token ->
-        case Req.request(build(method, path, body, token)) do
+        case Req.request(build(method, path, body, token, headers)) do
           {:ok, %{status: status, body: resp}} -> {:ok, status, resp}
           {:error, e} -> {:error, Exception.message(e)}
         end

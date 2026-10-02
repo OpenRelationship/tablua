@@ -4,9 +4,10 @@ defmodule Moss.Litestream do
   beside Moss, run by the host and never reachable by an agent. It streams
   every awake computer's file (`work_dir/computers/<id>.sqlite`, its alog log)
   to a file replica on the node, `work_dir/replica/<id>.sqlite/ltx/<level>/`,
-  as immutable segments; `Moss.Objects.Shipper` ships those through Arock's
-  service with the node's own token. Nothing here holds a key: the node's only
-  credential is that token.
+  as immutable segments; `Moss.Objects.Packer` gathers every computer's new
+  ones into one pack a minute and puts it through Arock's service with the
+  node's own token. Nothing here holds a key: the node's only credential is
+  that token.
 
   Config `replication:` is `:litestream`, `:whole` (a sleeping computer is its
   whole file, uploaded at sleep) or `:auto` (Litestream when its binary is
@@ -57,7 +58,7 @@ defmodule Moss.Litestream do
 
   @doc """
   The config: the directory watcher over the computers' files, each streamed
-  to the file replica every `:litestream_sync` (10 s on a node), and the control socket. alog's
+  to the file replica every `:litestream_sync` (5 s on a node, config.exs says why), and the control socket. alog's
   `litestream.yml` is this file with `${MOSS_WORK_DIR}` for the paths.
   """
   def litestream_config(dir) do
@@ -74,7 +75,7 @@ defmodule Moss.Litestream do
         replica:
           type: file
           path: #{Path.join(dir, "replica")}
-          sync-interval: #{Application.get_env(:moss, :litestream_sync, "10s")}
+          sync-interval: #{Application.get_env(:moss, :litestream_sync, "5s")}
     """
   end
 
@@ -105,6 +106,10 @@ defmodule Moss.Litestream do
   catch
     {:error, _} = e -> e
   end
+
+  @doc "Litestream's sync of a computer's file now, into the replica: `{:ok, txid}` (tests and benches use it)."
+  def sync(path, wait_ms \\ 5_000),
+    do: synced(path, System.monotonic_time(:millisecond) + wait_ms)
 
   defp synced(path, deadline) do
     case cmd(["sync", "-wait", "-timeout", "60", "-socket", @socket, path]) do
@@ -139,6 +144,28 @@ defmodule Moss.Litestream do
   end
 
   defp clip(out), do: String.slice(out, 0, 300)
+
+  @doc """
+  Rebuilds a computer's file at `out` from segments in hand, `%{"<level>/<file>" => bytes}`
+  (a pack's or a log's): laid out as a file replica beside the node's, restored, and removed.
+  """
+  def rebuild(segments, out) do
+    dir = Path.join(replica_root(), ".rebuild-#{System.unique_integer([:positive])}")
+
+    try do
+      for {name, body} <- segments do
+        file = Path.join([dir, "ltx", name])
+        File.mkdir_p!(Path.dirname(file))
+        File.write!(file, body)
+      end
+
+      File.mkdir_p!(Path.dirname(out))
+      for s <- ["", "-wal", "-shm"], do: File.rm(out <> s)
+      restore(dir, out)
+    after
+      File.rm_rf(dir)
+    end
+  end
 
   @doc "Rebuilds a computer's file at `out` from the file replica at `replica`."
   def restore(replica, out) do

@@ -1,23 +1,26 @@
 defmodule Moss.ReplicationTest do
-  # Arock's PROJECT.md §14.7 goal 6, §15.4: an awake computer's file is streamed by Litestream to the node's file
-  # replica, the shipper sends its segments to the store, and a computer whose file is gone wakes from its segments
-  # alone. Runs where the litestream binary is (tag :litestream, test_helper.exs); with --only service, through
+  # Arock's PROJECT.md §15 item 4: an awake computer's file is streamed by Litestream to the node's replica and its
+  # recent work packed once a round; it sleeps as its whole file and wakes from it; a node that lost its disk
+  # rebuilds the computers that were awake from its packs; and a computer that slept as its log before packs wakes
+  # from it. Runs where the litestream binary is (tag :litestream, test_helper.exs); with --only service, through
   # arock.ai with this node's token. Prints what it measured.
   use ExUnit.Case, async: false
 
   alias Moss.{Computer, Litestream, Objects}
-  alias Moss.Objects.Shipper
+  alias Moss.Objects.{Ledger, Packer, Snapshot}
 
   @moduletag :litestream
 
   setup ctx do
     work = Path.join(System.tmp_dir!(), "moss-ls-#{System.unique_integer([:positive])}")
-    keys = [:work_dir, :local_objects, :objects, :replication]
+    keys = [:work_dir, :local_objects, :objects, :replication, :pack_ms]
     before = Map.new(keys, &{&1, Application.get_env(:moss, &1)})
     Application.put_env(:moss, :work_dir, Path.join(work, "work"))
     Application.put_env(:moss, :local_objects, Path.join(work, "objects"))
     Application.put_env(:moss, :objects, if(ctx[:service], do: :service, else: :local))
     Application.put_env(:moss, :replication, :litestream)
+    # a test that packs when it says waits for no round
+    if ctx[:manual], do: Application.put_env(:moss, :pack_ms, 3_600_000)
 
     on_exit(fn ->
       for {k, v} <- before,
@@ -31,12 +34,13 @@ defmodule Moss.ReplicationTest do
     end)
 
     start_supervised!(Litestream)
-    start_supervised!(Shipper)
+    start_supervised!(Packer)
     :ok
   end
 
   defp id(prefix), do: "#{prefix}-#{System.system_time(:millisecond)}"
   defp ms(t0), do: System.monotonic_time(:millisecond) - t0
+  defp path(id), do: Path.join(Litestream.computers_dir(), id <> ".sqlite")
 
   defp sleep!(id) do
     ref = Process.monitor(Computer.whereis(id))
@@ -44,47 +48,62 @@ defmodule Moss.ReplicationTest do
     assert_receive {:DOWN, ^ref, :process, _, :normal}, 30_000
   end
 
-  # how long until the store lists more of the computer's segments than `before`
-  defp shipped_after(id, before, t0) do
-    {:ok, now} = Objects.log_list(id)
+  # everything the computer wrote, in its replica and then in a pack
+  defp packed!(id) do
+    {:ok, _} = Litestream.sync(path(id))
+    assert {:ok, _} = Packer.pack()
+  end
+
+  defp snapshot_gen(id) do
+    {:ok, body} = Objects.get(Objects.computer_key(id))
+    Snapshot.gen_of(body)
+  end
+
+  # how long until a round has packed the computer's newest work: the rounds run every pack_ms on their own
+  defp packed_after(id, before, t0) do
+    now = (Ledger.gen(id) || %{})["packed"] || %{}
 
     cond do
-      map_size(now) > map_size(before) -> {ms(t0), now}
-      ms(t0) > 15_000 -> flunk("nothing shipped in 15 s")
-      true -> Process.sleep(20) && shipped_after(id, before, t0)
+      map_size(now) > map_size(before) -> ms(t0)
+      ms(t0) > 15_000 -> flunk("nothing packed in 15 s")
+      true -> Process.sleep(20) && packed_after(id, before, t0)
     end
+  end
+
+  defp events(id) do
+    {:ok, [%{"n" => n}]} =
+      Moss.Db.exec(
+        :sys.get_state(Computer.whereis(id)).disk.conn,
+        "select count(*) as n from events where keyword = 'Run Command'",
+        []
+      )
+
+    n
   end
 
   defp round_trip(id) do
     # a typical computer: a few notes, a Lua tool and its run, then 200 KB of data written in one file
     Computer.run(id, "mkdir -p notes && echo 'water the fern' > notes/todo.txt")
     Computer.run(id, ~S|echo 'print(#fs.read("notes/todo.txt"))' > count.lua && lua count.lua|)
-    {:ok, before} = Objects.log_list(id)
-    t0 = System.monotonic_time(:millisecond)
     data = Base.encode64(:crypto.strong_rand_bytes(150_000))
     assert :ok = GenServer.call(Computer.whereis(id), {:files, "/home", %{"data.txt" => data}})
-    {first_delay, first} = shipped_after(id, before, t0)
-    [snapshot] = Map.values(Map.drop(first, Map.keys(before)))
 
-    # then the everyday case: a small command, its segment and how long until the store has it
-    small =
-      for n <- 1..5 do
-        {:ok, before} = Objects.log_list(id)
+    # the everyday case: a small command, and how long until a pack holds it (Litestream's sync, then a round)
+    delays =
+      for n <- 1..3 do
+        before = Ledger.gen(id)["packed"]
         t0 = System.monotonic_time(:millisecond)
         Computer.run(id, "echo #{n} >> notes/log.txt")
-        {delay, now} = shipped_after(id, before, t0)
-        {delay, Enum.sum(Map.values(Map.drop(now, Map.keys(before))))}
+        packed_after(id, before, t0)
       end
 
     t1 = System.monotonic_time(:millisecond)
     sleep!(id)
     slept = ms(t1)
-    path = Path.join([Application.get_env(:moss, :work_dir), "computers", id <> ".sqlite"])
-    refute File.exists?(path)
+    refute File.exists?(path(id))
     refute File.exists?(Litestream.replica_dir(id))
-    # no whole file: the computer is its log
-    assert Objects.get(Objects.computer_key(id)) == :not_found
-    {:ok, stored} = Objects.log_list(id)
+    assert snapshot_gen(id) == 1
+    {:ok, snapshot} = Objects.get(Objects.computer_key(id))
 
     t2 = System.monotonic_time(:millisecond)
     assert %{out: "water the fern\n"} = Computer.run(id, "cat notes/todo.txt")
@@ -92,37 +111,127 @@ defmodule Moss.ReplicationTest do
     assert %{out: ^data} = Computer.run(id, "cat data.txt")
     assert %{out: out} = Computer.run(id, "lua count.lua")
     assert out =~ "15"
-
     # the log came back too: the runs before the sleep are events
-    {:ok, rows} =
-      Moss.Db.exec(
-        :sys.get_state(Computer.whereis(id)).disk.conn,
-        "select count(*) as n from events where keyword = 'Run Command'",
-        []
-      )
+    assert events(id) >= 5
 
-    assert [%{"n" => n}] = rows
-    assert n >= 2
-
-    # and it streams on after a wake: a second sleep and wake keeps the newer write
+    # the next wake is the next chain, and keeps the newer write
     Computer.run(id, "echo again >> notes/todo.txt")
     sleep!(id)
+    assert snapshot_gen(id) == 2
     assert %{out: "water the fern\nagain\n"} = Computer.run(id, "cat notes/todo.txt")
     sleep!(id)
-
-    {delays, sizes} = Enum.unzip(small)
+    # every computer in the packs is asleep on a later chain: a round collects them all
+    assert {:ok, _} = Packer.pack()
+    assert Ledger.packs() == %{}
 
     IO.puts(
-      "\n#{id}: 200 KB written, shipped in #{first_delay} ms as a #{snapshot}-byte segment; " <>
-        "a small command shipped in #{inspect(delays)} ms as segments of #{inspect(sizes)} bytes; " <>
-        "sleep #{slept} ms; wake from #{map_size(stored)} segments (#{Enum.sum(Map.values(stored))} bytes) #{woke} ms"
+      "\n#{id}: a small command packed after #{inspect(delays)} ms; sleep #{slept} ms " <>
+        "(a #{byte_size(snapshot)}-byte snapshot, one write); wake #{woke} ms (one read)"
     )
 
     id
   end
 
-  test "a computer whose file is gone wakes from its log's segments alone" do
+  test "a computer sleeps as its whole file and wakes from it, a new chain each wake" do
     round_trip(id("ls"))
+  end
+
+  defp lose_disk!(ids) do
+    for id <- ids,
+        pid = Computer.whereis(id),
+        do: DynamicSupervisor.terminate_child(Moss.Computer.Supervisor, pid)
+
+    stop_supervised!(Packer)
+    stop_supervised!(Litestream)
+    gone!(Application.get_env(:moss, :work_dir), 100)
+  end
+
+  # Litestream may still be writing its last sync as it exits
+  defp gone!(dir, 0), do: File.rm_rf!(dir)
+
+  defp gone!(dir, n) do
+    with {:error, _, _} <- File.rm_rf(dir) do
+      Process.sleep(20)
+      gone!(dir, n - 1)
+    end
+  end
+
+  defp loss(id) do
+    # a sleeping neighbour's packs say nothing it must be rebuilt from
+    other = id <> "-asleep"
+    Computer.run(other, "echo asleep > a.txt")
+    packed!(other)
+    sleep!(other)
+
+    Computer.run(id, "mkdir -p notes && echo 'before the loss' > notes/a.txt")
+    data = Base.encode64(:crypto.strong_rand_bytes(60_000))
+    assert :ok = GenServer.call(Computer.whereis(id), {:files, "/home", %{"data.txt" => data}})
+    for n <- 1..5, do: Computer.run(id, "echo #{n} >> notes/log.txt")
+    packed!(id)
+    runs = events(id)
+    # written after the last pack: a lost disk loses it
+    Computer.run(id, "echo 'after the last pack' > notes/b.txt")
+
+    lose_disk!([id])
+    t0 = System.monotonic_time(:millisecond)
+    start_supervised!(Litestream)
+    start_supervised!(Packer)
+    restored = ms(t0)
+
+    assert Ledger.slept(id) == 1
+    assert %{out: "before the loss\n"} = Computer.run(id, "cat notes/a.txt")
+    assert %{out: ^data} = Computer.run(id, "cat data.txt")
+    assert %{out: "1\n2\n3\n4\n5\n"} = Computer.run(id, "cat notes/log.txt")
+    assert %{code: 1} = Computer.run(id, "cat notes/b.txt")
+    # its runs up to the last pack, and the four just above
+    assert events(id) == runs + 4
+    assert %{out: "asleep\n"} = Computer.run(other, "cat a.txt")
+    sleep!(id)
+    sleep!(other)
+    assert {:ok, %{deleted: n}} = Packer.pack()
+    assert n > 0
+    assert Ledger.packs() == %{}
+
+    IO.puts(
+      "\n#{id}: rebuilt from its packs after a lost disk, the node started in #{restored} ms"
+    )
+
+    id
+  end
+
+  @tag :manual
+  test "a node that lost its disk rebuilds the computers that were awake from its packs" do
+    loss(id("ls-loss"))
+  end
+
+  test "a computer that slept as its log before packs wakes from it, and sleeps whole after" do
+    c = id("ls-old")
+    Computer.run(c, "echo old > old.txt")
+    {:ok, _} = Litestream.sync(path(c))
+    # its segments where the old shipper put them, and nothing else of it anywhere
+    ltx = Path.join(Litestream.replica_dir(c), "ltx")
+
+    for f <- Path.wildcard(Path.join(ltx, "*/*.ltx")) do
+      dest =
+        Path.join([
+          Application.get_env(:moss, :local_objects),
+          "logs",
+          c,
+          Path.relative_to(f, ltx)
+        ])
+
+      File.mkdir_p!(Path.dirname(dest))
+      File.cp!(f, dest)
+    end
+
+    lose_disk!([c])
+    start_supervised!(Litestream)
+    start_supervised!(Packer)
+    assert Objects.get(Objects.computer_key(c)) == :not_found
+    assert %{out: "old\n"} = Computer.run(c, "cat old.txt")
+    sleep!(c)
+    assert snapshot_gen(c) == 1
+    assert %{out: "old\n"} = Computer.run(c, "cat old.txt")
   end
 
   test "a computer kept whole before Litestream wakes from its whole file, then streams" do
@@ -130,18 +239,17 @@ defmodule Moss.ReplicationTest do
     Application.put_env(:moss, :replication, :whole)
     Computer.run(c, "echo old > old.txt")
     sleep!(c)
-    assert {:ok, _} = Objects.get(Objects.computer_key(c))
+    assert snapshot_gen(c) == 0
     Application.put_env(:moss, :replication, :litestream)
     assert %{out: "old\n"} = Computer.run(c, "cat old.txt")
     sleep!(c)
-    assert {:ok, segments} = Objects.log_list(c)
-    assert map_size(segments) > 0
+    assert snapshot_gen(c) == 1
   end
 
   test "one Litestream per work dir: a BEAM that borrows it starts none, and a second node is refused" do
     Application.put_env(:moss, :litestream_run, false)
     assert Litestream.init([]) == :ignore
-    assert Shipper.init([]) == :ignore
+    assert Packer.init([]) == :ignore
     Application.delete_env(:moss, :litestream_run)
 
     # another BEAM's Litestream: its parent is alive and is not this BEAM's
@@ -165,10 +273,16 @@ defmodule Moss.ReplicationTest do
 
   # Through arock.ai with this node's token (keychain moss-node-token): `mix test --only service`.
   @tag :service
-  test "a computer's log round-trips through the service" do
+  test "a computer sleeps and wakes through the service" do
     c = round_trip(id("ls-probe"))
-    {:ok, segments} = Objects.log_list(c)
-    for {name, _} <- segments, do: assert(:ok = Objects.log_delete(c, name))
-    assert {:ok, %{}} = Objects.log_list(c)
+    assert :ok = Objects.delete(Objects.computer_key(c))
+  end
+
+  @tag :service
+  @tag :manual
+  test "a computer is rebuilt from its packs through the service" do
+    c = loss(id("ls-probe-loss"))
+    assert :ok = Objects.delete(Objects.computer_key(c))
+    assert :ok = Objects.delete(Objects.computer_key(c <> "-asleep"))
   end
 end

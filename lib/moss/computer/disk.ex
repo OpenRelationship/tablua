@@ -73,6 +73,25 @@ defmodule Moss.Computer.Disk do
       else: Db.checkpoint_and_close(disk.conn)
   end
 
+  @doc """
+  The disk whole at `out`, while it is open (`vacuum into`, which leaves the WAL and Litestream alone): a sleeping
+  computer's snapshot. It keeps the file's `user_version`, the computer's wake count (`stamp/2`).
+  """
+  def snapshot(disk, out) do
+    File.rm(out)
+    with {:ok, _} <- Db.exec(disk.conn, "vacuum into ?", [out]), do: :ok
+  end
+
+  @doc """
+  Marks the file at `path` (made if missing) as the computer's `gen`th wake, its `user_version`, and leaves it whole:
+  a woken computer's chain of segments is named by it, and its snapshot carries it (Moss.Objects.Snapshot).
+  """
+  def stamp(path, gen) when is_integer(gen) and gen > 0 do
+    with {:ok, conn} <- Db.open(path),
+         {:ok, _} <- Db.exec(conn, "pragma user_version = #{gen}", []),
+         do: Db.checkpoint_and_close(conn)
+  end
+
   # alog's replicated settings (alog.LITESTREAM) when Litestream streams the file: WAL and busy_timeout are
   # Db.open's, synchronous normal is every disk's, and Litestream alone checkpoints
   defp replicated(conn) do

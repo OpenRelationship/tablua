@@ -10,9 +10,10 @@ defmodule Moss.Computer do
       Computer.run("rock-7", "mkdir -p notes && echo hi > notes/a.txt && cat notes/a.txt")
       #=> %{out: "hi\\n", err: "", code: 0, cwd: "/home"}
 
-  Asleep, the computer is its log in the object store: the segments Litestream
-  streamed while it was awake (`Moss.Litestream`, `Moss.Objects.Shipper`), or,
-  kept whole, its file (`computers/<id>.sqlite`); `run` wakes it. It sleeps by itself after `idle_ms` with nothing to do. Every
+  Asleep, the computer is its whole file in the object store
+  (`computers/<id>.sqlite`); awake, Litestream streams it on the node and the
+  node keeps its recent work in packs (`Moss.Litestream`,
+  `Moss.Objects.Snapshot`, `Moss.Objects.Packer`); `run` wakes it. It sleeps by itself after `idle_ms` with nothing to do. Every
   command is broadcast on `computer:<id>` for a person watching
   (`ComputerLive`).
 
@@ -25,7 +26,7 @@ defmodule Moss.Computer do
   use GenServer
   require Logger
   alias Moss.{Litestream, Log, Mail, Objects}
-  alias Moss.Objects.Shipper
+  alias Moss.Objects.Snapshot
   alias Moss.Computer.{Browser, Disk, Script, Shell}
 
   @registry Moss.Computer.Registry
@@ -135,21 +136,13 @@ defmodule Moss.Computer do
     end
   end
 
-  # A computer whose file is not on this node wakes from its log's segments when Litestream streams it, else
-  # (and when it has none, a computer from before) from its whole file.
+  # A computer whose file is not on this node wakes from its snapshot (streamed: as the next chain of its
+  # segments, Moss.Objects.Snapshot), else from its whole file.
   defp pull(id, path) do
     cond do
+      Litestream.mode() == :litestream -> Snapshot.wake(id, path)
       File.exists?(path) -> :ok
-      Litestream.mode() == :litestream -> restore(id, path)
       true -> pull_whole(id, path)
-    end
-  end
-
-  defp restore(id, path) do
-    case Shipper.restore(id, path) do
-      :ok -> :ok
-      :none -> pull_whole(id, path)
-      {:error, reason} -> {:error, {:restore, reason}}
     end
   end
 
@@ -334,25 +327,21 @@ defmodule Moss.Computer do
     state
   end
 
-  # Asleep, a computer is its log in the store: streamed, Litestream's last sync and the shipper's last segments,
-  # and only then its files on this node go; kept whole, its whole file. Its files stay on the node until the
+  # Asleep, a computer is its whole file in the store: streamed, written whole beside the open disk and sent up
+  # before Litestream lets it go; kept whole, its file after a checkpoint. Its files stay on the node until the
   # store holds it, so a failed sleep loses nothing and the next wake opens them.
   defp sleep_now(state) do
     if Litestream.mode() == :litestream, do: sleep_streamed(state), else: sleep_whole(state)
   end
 
   defp sleep_streamed(state) do
-    with :ok <- Disk.close(state.disk),
-         {:ok, _txid} <- Litestream.stop(state.path),
-         {:ok, _} <- Shipper.retire(state.id, fn -> remove(state) end) do
-      :ok
-    end
-  end
+    snap = Snapshot.tmp_path(state.id)
+    File.mkdir_p!(Path.dirname(snap))
 
-  defp remove(state) do
-    for suffix <- ["", "-wal", "-shm"], do: File.rm(state.path <> suffix)
-    File.rm_rf(Litestream.meta_dir(state.id))
-    File.rm_rf(Litestream.replica_dir(state.id))
+    with :ok <- Disk.snapshot(state.disk, snap),
+         :ok <- Disk.close(state.disk) do
+      Snapshot.sleep(state.id, state.path, snap)
+    end
   end
 
   defp sleep_whole(state) do
