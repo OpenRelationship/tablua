@@ -1,4 +1,4 @@
-defmodule Moonflower.HTMLPropertyTest do
+defmodule Moss.HTMLPropertyTest do
   # Moonflower.HTML and the cleaner on input nobody wrote: random bytes and random tag soup built from the shapes
   # mutation XSS is made of (svg and math, their integration points, raw-text elements, comments and CDATA in
   # odd places, every quoting form). Each run draws new input from ExUnit's seed, so a failure names its seed.

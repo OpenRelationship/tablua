@@ -1,7 +1,7 @@
 defmodule Moss.Computer.App do
   @moduledoc """
   The computer's app, as a browser gets it: the `.lui` page at a request's path
-  answers it (`Moonflower.Pages`, `Moss.Computer.Script.serve/2`), and goes
+  answers it (`Moss.Computer.Pages`, `Moss.Computer.Script.serve/2`), and goes
   out as HTML the person's browser draws, with htmx as its only script.
 
   The page is the agent's writing, so nothing in it runs as code. It is held

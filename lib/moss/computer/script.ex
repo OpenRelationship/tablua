@@ -70,16 +70,16 @@ defmodule Moss.Computer.Script do
   end
 
   @doc """
-  One request to the computer's app: its `.lui` page (`Moonflower.Pages`), run in its app's folder (see
+  One request to the computer's app: its `.lui` page (`Moss.Computer.Pages`), run in its app's folder (see
   `__serve` in computer.lua):
   `req` is `%{"method", "path", "query", "form", "headers"}`; the answer is
   `{status, headers, body, err}`, under the same bounds as a command's run.
   """
   def serve(req, state) do
-    {req, cwd, app} = Moonflower.Pages.request(req, state.disk)
+    {req, cwd, app} = Moss.Computer.Pages.request(req, state.disk)
 
     case spawn_run(fn -> eval_serve(req, %{state | cwd: cwd}) end) do
-      {:ok, answer} -> Moonflower.Pages.from_app(answer, app)
+      {:ok, answer} -> Moss.Computer.Pages.from_app(answer, app)
       {:error, _status, err} -> {500, %{}, "the app stopped: " <> err, err}
     end
   end
