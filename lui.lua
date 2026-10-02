@@ -26,9 +26,10 @@
 --
 --   lui.compile(text, name) -> Lua source, or nil and "name:line: why" (an unknown tag, class or action,
 --     a tag left open, a Jinja habit)
---   lui.load(text, name [, src]) -> def for shroomi.page.answer and { line } (the page line running), or nil and
---     why; src is lui.compile's output for this text and name, when the host kept it
---   lui.answer(text, name, req [, src]) -> what shroomi.page.answer gives
+--   lui.load(text, name [, src [, opts]]) -> def for shroomi.page.answer and { line } (the page line running), or
+--     nil and why; src is lui.compile's output for this text and name, when the host kept it; opts.lines puts
+--     each element's line in the page's source on it as data-line, for a host that looks at the page itself
+--   lui.answer(text, name, req [, src [, opts]]) -> what shroomi.page.answer gives
 local ui = require("shroomi")
 local css = require("shroomi.css")
 local policy = require("shroomi.policy")
@@ -264,7 +265,7 @@ local function cat(...)
   return table.concat(out)
 end
 
-function lui.load(text, name, src)
+function lui.load(text, name, src, opts)
   name = name or "page.lui"
   local why
   if not src then src, why = lui.compile(text, name) end
@@ -272,13 +273,14 @@ function lui.load(text, name, src)
   local chunk = load(src, "@" .. name, "t")
   local at = { line = 1 }
   return function(req, post, get, meta)
-    return chunk(req, post, get, meta, ui, page.el(req, post, get, name), ui.raw, cat, at, flag)
+    local el = page.el(req, post, get, name, opts and opts.lines)
+    return chunk(req, post, get, meta, ui, el, ui.raw, cat, at, flag)
   end, at
 end
 
-function lui.answer(text, name, req, src)
+function lui.answer(text, name, req, src, opts)
   name = name or "page.lui"
-  local def, at = lui.load(text, name, src)
+  local def, at = lui.load(text, name, src, opts)
   if not def then error(at, 0) end
   local ok, res = pcall(page.answer, def, req)
   if ok then return res end

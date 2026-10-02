@@ -70,10 +70,12 @@ end
 
 local VERBS = { post = true, get = true }
 
-function page.el(req, post, get, name)
+function page.el(req, post, get, name, lines)
   local actions = { post = post, get = get }
   return function(line, tag, attrs, kids)
     local where = (name or "page") .. ":" .. line .. ": "
+    -- the host's own look asked where each element is written (lui.load's lines); a person's page never has it
+    if lines then attrs["data-line"] = tostring(line) end
     local make = ui[tag]
     if not make then error(where .. "<" .. tag .. "> is no element or component (ui.kit lists the kit)", 0) end
     for verb in pairs(VERBS) do

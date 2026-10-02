@@ -161,6 +161,15 @@ spec.test("Lua's own errors carry the page's lines, at compile time and when it 
   spec.ok(not ok and string.find(why, "ui/x.lui", 1, true) == nil and string.find(why, "ui/r.lui:3: <y>", 1, true), why)
 end)
 
+spec.test("a host that asks for lines gets each element's line in the page's source, and a person's page has none", function()
+  STORE = {}
+  local html = lui.answer(PLANTS, "ui/index.lui", get(), nil, { lines = true })
+  spec.ok(string.find(html, '<ul id="plants" data-line="7">', 1, true) or
+    string.find(html, '<ul data-line="7" id="plants">', 1, true), "the list, on line 7")
+  spec.ok(string.find(html, 'data-line="10"', 1, true), "the buttons, on line 10")
+  spec.ok(not string.find(lui.answer(PLANTS, "ui/index.lui", get()), "data-line", 1, true), "none unasked")
+end)
+
 spec.test("a page in Lua uses the same runtime", function()
   local def = function(_, actions)
     function actions.add() STORE.added = true end
