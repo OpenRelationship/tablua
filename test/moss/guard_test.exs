@@ -18,7 +18,7 @@ defmodule Moss.GuardTest do
     "lazy_html" =>
       "test-only (Phoenix.LiveViewTest needs it; cleaner tests use it as an independent check)",
     "wasmex" =>
-      "moonflower's look only (Arock PROJECT.md §16.3): one pinned module, run in a node of its own " <>
+      "moss-browser's look only (Arock PROJECT.md §16.3): one pinned module, run in a node of its own " <>
         "(Moonflower.Look.Node over :peer), never in this one, and no Moss source calls it"
   }
 
@@ -28,19 +28,19 @@ defmodule Moss.GuardTest do
     "lib/moss/computer/disk.ex" => "a computer's file: fixed statements, its bytes bound",
     "lib/moss/computer/session.ex" =>
       "the computer's kept session: two fixed statements, the term bound",
-    "lib/moss/log.ex" => "alog's hot path: fixed statements, an event's arguments bound",
+    "lib/moss/log.ex" => "arock-log's hot path: fixed statements, an event's arguments bound",
     "lib/moss/log/recall.ex" =>
-      "alog's recall index on the hot path: fixed statements (two literal subqueries for the document), " <>
+      "arock-log's recall index on the hot path: fixed statements (two literal subqueries for the document), " <>
         "every token and path bound",
     "lib/moss/log/search.ex" => "recall search: fixed statements, the query's tokens bound",
     "lib/moss/lua/ports.ex" =>
-      "alog's own Lua (Moss.Log), in a state no agent script gets; alog's SQL is fixed",
+      "arock-log's own Lua (Moss.Log), in a state no agent script gets; arock-log's SQL is fixed",
     "lib/moss/sql/store.ex" =>
       "an agent database's rows, by fixed statements; its SQL runs in Moss.Sql",
     "lib/moss/computer.ex" => "the post's delivery query, fixed",
     "lib/moss/owners.ex" => "who owns which computer, fixed statements",
     "lib/moss/names.ex" =>
-      "the node's org: names: fixed statements, every address and name bound (a manifest is read by alog's Lua)",
+      "the node's org: names: fixed statements, every address and name bound (a manifest is read by arock-log's Lua)",
     "lib/moss/mail/store.ex" =>
       "the post: fixed statements, and `set` names only its known columns"
   }
@@ -68,7 +68,7 @@ defmodule Moss.GuardTest do
     lazy = Enum.find(Mix.Project.config()[:deps], &(elem(&1, 0) == :lazy_html))
     assert lazy && Keyword.get(elem(lazy, tuple_size(lazy) - 1), :only) == :test
     assert sources_with(~r/\bLazyHTML\b/) == [], "LazyHTML is used outside tests"
-    assert sources_with(~r/\bWasmex\b/) == [], "Moss calls wasmex itself: only moonflower's look node may"
+    assert sources_with(~r/\bWasmex\b/) == [], "Moss calls wasmex itself: only moss-browser's look node may"
   end
 
   test "only the host's own storage reaches SQLite" do
@@ -138,7 +138,7 @@ defmodule Moss.GuardTest do
     shroomi =
       Path.expand("../../submodules/shroomi", Path.expand("..", @lib) |> Path.join("../.."))
 
-    rockmail = Path.join(Path.dirname(shroomi), "rockmail")
+    rockmail = Path.join(Path.dirname(shroomi), "arock-mail")
 
     files =
       Path.wildcard(Path.join(@lib, "**/*.ex")) ++
@@ -155,7 +155,7 @@ defmodule Moss.GuardTest do
           "shroomi_reference",
           "tasks.new",
           "tasks.parse",
-          # rockmail's JSON task subject marker, quoted as the code wrote it
+          # arock-mail's JSON task subject marker, quoted as the code wrote it
           ~s("task: ")
         ],
         do: refute(File.read!(f) =~ old, "#{Path.basename(f)} still says #{old}")

@@ -1,6 +1,6 @@
 defmodule Moss.Computer.Manifest do
   @moduledoc """
-  What a computer's manifests declare (Arock's feature `manifest`), read by alog's own Lua: `/home/manifest.org`
+  What a computer's manifests declare (Arock's feature `manifest`), read by arock-log's own Lua: `/home/manifest.org`
   lists the apps and the computer's tools, and each listed app's `apps/<app>/manifest.org` its own tools, named
   `<app>:<tool>`. An app folder not listed is not served and its tools do not run.
 
@@ -114,7 +114,7 @@ defmodule Moss.Computer.Manifest do
     }
   end
 
-  # alog's JSON writes an empty list as {}
+  # arock-log's JSON writes an empty list as {}
   defp list(l) when is_list(l), do: l
   defp list(_), do: []
 end

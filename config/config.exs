@@ -10,8 +10,8 @@ import Config
 config :moss,
   generators: [timestamp_type: :utc_datetime]
 
-# Moss is attached to the Arock repository at submodules/moss; Arock Core's Lua
-# modules load from that repository's library/ and submodules/alog (AROCK_ROOT
+# Moss is attached to the Arock repository at submodules/terrarium; Arock Core's Lua
+# modules load from that repository's library/ and submodules/arock-log (AROCK_ROOT
 # names another checkout). A computer's SQLite disk lives under work_dir while it is
 # awake; asleep, it is kept by Arock's service with this node's own token
 # (MOSS_NODE_TOKEN or the keychain item moss-node-token), or under local_objects
@@ -33,7 +33,7 @@ config :moss,
   # since the files stay on disk.
   #
   # litestream_sync is how often Litestream cuts a segment into the node's own replica, now a local write that costs
-  # no request. 5 s: each cut repeats the pages a command touched (alog's tables), so cutting every second would
+  # no request. 5 s: each cut repeats the pages a command touched (arock-log's tables), so cutting every second would
   # make packs several times larger for a busy computer and shorten the window a lost disk costs only from 65 s to
   # 61 s; 10 s would save little more in bytes and add 5 s to the window.
   litestream_sync: "5s",

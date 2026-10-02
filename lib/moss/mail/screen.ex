@@ -1,7 +1,7 @@
 defmodule Moss.Mail.Screen do
   @moduledoc """
-  Jev reading the post (PROJECT.md §14.5), by rockmail's rules
-  (`rockmail.screen`, PROJECT.md §18). `ask(letters, conn)` puts a batch in
+  Jev reading the post (PROJECT.md §14.5), by arock-mail's rules
+  (`arock-mail.screen`, PROJECT.md §18). `ask(letters, conn)` puts a batch in
   one call: one state that shows every letter with what its sender sent before
   it, and one question per letter (deliver, hold for a person, refuse).
   `apply(conn, [{letter, answer}])` acts on the answers:

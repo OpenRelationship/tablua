@@ -1,29 +1,29 @@
 defmodule Moss.Log do
   @moduledoc """
-  A computer's log (Arock's PROJECT.md §15): alog, in the computer's own
+  A computer's log (Arock's PROJECT.md §15): arock-log, in the computer's own
   SQLite file. Its file writes, runs, app requests and mail are events
   (`Write File`, `Run Command`, `Serve Request`, `Send Mail`, ...), and its
   disk is the files folded from them.
 
-  alog is the single source of its tables and rules. `open/1` runs alog's own
+  arock-log is the single source of its tables and rules. `open/1` runs arock-log's own
   Lua (`arock.log` in `priv/lua/host.lua`) whenever the file's state is not at
-  alog's version, so alog makes the tables and folds the log itself. `alog/3`
-  calls any of alog's methods the same way (`rebuild`, `recall`, `events`).
+  arock-log's version, so arock-log makes the tables and folds the log itself. `alog/3`
+  calls any of arock-log's methods the same way (`rebuild`, `recall`, `events`).
 
   `append/6` is the hot path, the cost of every command and file write. It is
-  an insert into the view `moss_append_3`, whose trigger writes what alog's
+  an insert into the view `moss_append_3`, whose trigger writes what arock-log's
   `append` writes (`init.lua`'s `record`, `blobs.lua`'s content kept once by
   id, `fold.lua`'s folds for the four disk keywords), each argument its own
   bound value, then the event's recall postings (`Moss.Log.Recall`), all in one
-  savepoint. Recall is tokenized here (`Moss.Log.Tokens`, held to alog's
+  savepoint. Recall is tokenized here (`Moss.Log.Tokens`, held to arock-log's
   `tokens_vectors.lua`), so SQLite stores and compares an agent's bytes and
   never parses them (Arock's PROJECT.md §14.7 item 9); a Move File's new paths
   are made here too. A fresh tv-labs state per event costs about 0.4 ms, and
-  alog's dozen statements a dozen trips through Exqlite's dirty schedulers,
-  hence the trigger. The tests hold all of it to alog's own `append`,
+  arock-log's dozen statements a dozen trips through Exqlite's dirty schedulers,
+  hence the trigger. The tests hold all of it to arock-log's own `append`,
   `rebuild` and index of the whole log, dump for dump.
 
-  Content is kept once by its SHA-256, as alog does with a host's digest; an
+  Content is kept once by its SHA-256, as arock-log does with a host's digest; an
   id that names other bytes (a SHA-256 collision) stops the event rather than
   reuse them.
   """
@@ -33,10 +33,10 @@ defmodule Moss.Log do
   @recall 65_536
   @tokens elem(Tokens.limits(), 1)
 
-  @doc "alog's declared keywords with their arguments, read from alog's `kinds.lua`."
-  def kinds, do: cached(:kinds, fn -> read_alog("require('alog.kinds').args") end)
+  @doc "arock-log's declared keywords with their arguments, read from arock-log's `kinds.lua`."
+  def kinds, do: cached(:kinds, fn -> read_alog("require('arock-log.kinds').args") end)
 
-  defp version, do: cached(:version, fn -> read_alog("require('alog.schema').version") end)
+  defp version, do: cached(:version, fn -> read_alog("require('arock-log.schema').version") end)
 
   defp read_alog(code) do
     {[v], lua} = Lua.eval!(Moss.Lua.base(), "return " <> code)
@@ -96,7 +96,7 @@ defmodule Moss.Log do
     delete from recall_paths where new.keyword = 'Move File' and path = new.a2;
   end;
   """
-  @doc "Makes the log's tables, or folds its state again, through alog when the file is not at alog's version."
+  @doc "Makes the log's tables, or folds its state again, through arock-log when the file is not at arock-log's version."
   def open(conn) do
     current =
       case Db.exec(conn, "select version from alog_state", []) do
@@ -116,12 +116,12 @@ defmodule Moss.Log do
     end
   end
 
-  @doc "Calls alog's `method` with `args` on this disk's log, through alog's own Lua."
+  @doc "Calls arock-log's `method` with `args` on this disk's log, through arock-log's own Lua."
   def alog(%{conn: conn}, method, args), do: alog(conn, method, args)
   def alog(conn, method, args), do: Moss.Lua.call(:log, [method | args], db: conn)
 
   @doc """
-  Logs one event and folds it, atomically, as alog's `append`: `:ok`, or
+  Logs one event and folds it, atomically, as arock-log's `append`: `:ok`, or
   `{:error, why}` with nothing written (a full disk is `"database or disk is
   full"`). `at` is the event's time, now by default. Inside a transaction the
   caller holds, it is part of that one.

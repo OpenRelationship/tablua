@@ -1,8 +1,8 @@
 defmodule Moss.LogRecallTest do
   # Arock's PROJECT.md §14.7 item 9: SQLite may store and compare an agent's bytes as bound values; it never
-  # parses them. Moss's hot path writes alog's recall index from Elixir, so it is held here to alog's own Lua:
-  # the tokenizer to alog's vectors, what append writes to alog's append and to alog's index of the whole log,
-  # and Moss's search to alog's ranking, score for score.
+  # parses them. Moss's hot path writes arock-log's recall index from Elixir, so it is held here to arock-log's own Lua:
+  # the tokenizer to arock-log's vectors, what append writes to arock-log's append and to arock-log's index of the whole log,
+  # and Moss's search to arock-log's ranking, score for score.
   use ExUnit.Case, async: true
 
   alias Moss.{Db, Log}
@@ -36,19 +36,19 @@ defmodule Moss.LogRecallTest do
     d
   end
 
-  test "the tokenizer gives every one of alog's vectors, and alog's limits" do
-    vectors = lua("return require('alog.tokens_vectors')")
+  test "the tokenizer gives every one of arock-log's vectors, and arock-log's limits" do
+    vectors = lua("return require('arock-log.tokens_vectors')")
     assert length(vectors) > 20
 
     for [text, want] <- vectors do
       assert Tokens.tokens(text) == want, "tokens of #{inspect(text, limit: 40)}"
     end
 
-    assert {lua("return require('alog').TOKEN_BYTES"), lua("return require('alog').TOKENS")} ==
+    assert {lua("return require('arock-log').TOKEN_BYTES"), lua("return require('arock-log').TOKENS")} ==
              Tokens.limits()
   end
 
-  test "the tokenizer agrees with alog's on random bytes" do
+  test "the tokenizer agrees with arock-log's on random bytes" do
     alphabet = ~c"aZ09 -_/.\t\n" ++ [0, 127, 128, 195, 169, 226, 255]
 
     for _ <- 1..200 do
@@ -57,7 +57,7 @@ defmodule Moss.LogRecallTest do
 
       want =
         lua(
-          "return require('alog.tokens').tokens(...)"
+          "return require('arock-log.tokens').tokens(...)"
           |> String.replace("...", inspect_lua(text))
         )
 
@@ -111,7 +111,7 @@ defmodule Moss.LogRecallTest do
     "moss stones x"
   ]
 
-  test "append writes what alog's append writes, and what alog indexes from the log", %{
+  test "append writes what arock-log's append writes, and what alog indexes from the log", %{
     tmp_dir: dir
   } do
     moss = db(dir, "moss")
@@ -133,7 +133,7 @@ defmodule Moss.LogRecallTest do
     assert dump(moss) == want
     assert_search(moss, ref)
 
-    # alog's rebuild, and alog's index of the whole log at a new version
+    # arock-log's rebuild, and arock-log's index of the whole log at a new version
     {:ok, _} = Log.alog(moss, "rebuild", [])
     assert dump(moss) == want
     {:ok, _} = Db.exec(moss, "update alog_state set version = 0", [])
@@ -170,7 +170,7 @@ defmodule Moss.LogRecallTest do
   # Moss's search against recall.lua's own, scores included
   defp assert_search(moss, ref) do
     for q <- @queries, {fun, key} <- [events: "seq", files: "path"] do
-      code = "return require('alog.recall').#{fun}(arock.host().db, #{inspect_lua(q)}, 10)"
+      code = "return require('arock-log.recall').#{fun}(arock.host().db, #{inspect_lua(q)}, 10)"
       want = for h <- lua(code, db: ref), do: {h[key], h["score"]}
       got = apply(Search, fun, [moss, q, 10])
 

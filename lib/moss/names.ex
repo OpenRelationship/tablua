@@ -13,7 +13,7 @@ defmodule Moss.Names do
       org:fern/mail/7             a letter fern sent or was sent, by its number in the post
 
   `org:` is a scheme, never a domain: `https://fern.org/` is someone's website and is never resolved here.
-  A manifest is read by alog's own Lua (`arock.names`), so its rules are written once. One process per node
+  A manifest is read by arock-log's own Lua (`arock.names`), so its rules are written once. One process per node
   holds the names in the node's `names.sqlite`.
   """
   use GenServer

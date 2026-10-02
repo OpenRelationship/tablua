@@ -144,7 +144,7 @@ local function find(text)
   end
 end
 
--- a Robot cell, escaped as alog.robot escapes one
+-- a Robot cell, escaped as arock-log.robot escapes one
 local function cell(v)
   v = tostring(v)
   if v == "" then return "\\" end

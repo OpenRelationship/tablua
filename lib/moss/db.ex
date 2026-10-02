@@ -1,6 +1,6 @@
 defmodule Moss.Db do
   @moduledoc """
-  alog's db port over Exqlite, as alog's `ffi.lua` is on LuaJIT:
+  arock-log's db port over Exqlite, as arock-log's `ffi.lua` is on LuaJIT:
   `exec(conn, sql, params)` runs `sql` and returns the rows of its last
   statement as maps with NULL columns left out. Params bind to one statement;
   SQL without params that returns no rows may hold several statements (the
@@ -57,7 +57,7 @@ defmodule Moss.Db do
     for {c, v} <- Enum.zip(cols, values), v != nil, into: %{}, do: {c, v}
   end
 
-  # As alog's ffi.lua binds: false is NULL, a whole float is an integer.
+  # As arock-log's ffi.lua binds: false is NULL, a whole float is an integer.
   defp param(false), do: nil
   defp param(true), do: 1
 

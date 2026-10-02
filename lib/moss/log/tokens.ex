@@ -1,7 +1,7 @@
 defmodule Moss.Log.Tokens do
   @moduledoc """
-  alog's tokenizer (`tokens.lua`), again in Elixir for the hot path: the
-  words recall indexes a text by and searches a query by. It is held to alog's
+  arock-log's tokenizer (`tokens.lua`), again in Elixir for the hot path: the
+  words recall indexes a text by and searches a query by. It is held to arock-log's
   `tokens_vectors.lua`, read by the test at run time.
 
     1. The text is bytes. A word byte is 0-9, A-Z, a-z or any byte from 0x80
@@ -17,7 +17,7 @@ defmodule Moss.Log.Tokens do
 
   defguardp word?(c) when c in ?0..?9 or c in ?a..?z or c in ?A..?Z or c >= 0x80
 
-  @doc "alog's TOKEN_BYTES and TOKENS: a token's most bytes, a text's most tokens."
+  @doc "arock-log's TOKEN_BYTES and TOKENS: a token's most bytes, a text's most tokens."
   def limits, do: {@token_bytes, @max}
 
   @doc "The tokens of `text`, in order."

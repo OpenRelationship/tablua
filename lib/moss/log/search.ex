@@ -1,6 +1,6 @@
 defmodule Moss.Log.Search do
   @moduledoc """
-  Recall over a computer's log, in Elixir: alog's `recall.lua` search (events,
+  Recall over a computer's log, in Elixir: arock-log's `recall.lua` search (events,
   files, bm25 with its K1 and B), which takes about 100 ms at 1,000 events in
   tv-labs lua. The query is tokenized here (`Moss.Log.Tokens`), so no query
   text is syntax, and SQLite only compares the terms as bound values.

@@ -95,7 +95,7 @@ defmodule Moss.HardeningTest do
   end
 
   test "a computer's disk has a quota" do
-    # the quota holds the log too: alog's tables (about 124 KB empty) beside a file's bytes
+    # the quota holds the log too: arock-log's tables (about 124 KB empty) beside a file's bytes
     with_env(:disk_max_bytes, 400 * 1024, fn ->
       c = id()
       big = String.duplicate("x", 200 * 1024)

@@ -1,9 +1,9 @@
 defmodule Moss.Computer.Disk do
   @moduledoc """
   An agent's computer's filesystem, on the computer's log (`Moss.Log`, Arock's
-  PROJECT.md §15): every change is an alog event (`Make Folder`, `Write File`,
+  PROJECT.md §15): every change is an arock-log event (`Make Folder`, `Write File`,
   `Delete File`, `Move File`) in the computer's own SQLite file, and `nodes`
-  is a view over the files alog folds from them, so what the computer did to
+  is a view over the files arock-log folds from them, so what the computer did to
   its files is history, not overwritten rows. The file is the whole disk, so
   it sleeps to the object store and wakes as the computer does.
 
@@ -93,7 +93,7 @@ defmodule Moss.Computer.Disk do
          do: Db.checkpoint_and_close(conn)
   end
 
-  # alog's replicated settings (alog.LITESTREAM) when Litestream streams the file: WAL and busy_timeout are
+  # arock-log's replicated settings (alog.LITESTREAM) when Litestream streams the file: WAL and busy_timeout are
   # Db.open's, synchronous normal is every disk's, and Litestream alone checkpoints
   defp replicated(conn) do
     if Moss.Litestream.mode() == :litestream,

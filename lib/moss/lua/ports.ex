@@ -3,13 +3,13 @@ defmodule Moss.Lua.Ports do
   The host's ports as Lua functions under `__host` (see `priv/lua/host.lua`).
 
     * `db_exec(sql, params) -> rows` on the connection given as `db:`, the
-      alog's db port: rows are tables with NULL columns absent; params bind
+      arock-log's db port: rows are tables with NULL columns absent; params bind
       false as NULL.
     * `clock() -> "2026-09-28T00:00:00Z"`, `now() -> seconds`, `sleep(seconds)`.
     * `fetch{ method, url, headers, body, timeout } -> { status, body }` over
       Req; a transport failure raises. The ports.call record the core logs
       never holds the headers, so never the key.
-    * `sha256(bytes) -> hex`: alog's content ids, from `:crypto` (tv-labs Lua's own hash is
+    * `sha256(bytes) -> hex`: arock-log's content ids, from `:crypto` (tv-labs Lua's own hash is
       about 10 ms at 16 KB).
     * `key(name) -> string | nil`: a model key from the environment or the
       keychain (`Moss.Keys`).

@@ -1,6 +1,6 @@
-[submodule "submodules/luex"]
-	path = submodules/luex
-	url = https://github.com/OpenRelationship/luex.git
-[submodule "submodules/moonflower"]
-	path = submodules/moonflower
-	url = https://github.com/OpenRelationship/moonflower.git
+[submodule "submodules/moss-lua"]
+	path = submodules/moss-lua
+	url = https://github.com/OpenRelationship/moss-lua.git
+[submodule "submodules/moss-browser"]
+	path = submodules/moss-browser
+	url = https://github.com/OpenRelationship/moss-browser.git

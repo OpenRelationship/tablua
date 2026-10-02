@@ -1,5 +1,5 @@
 defmodule Moss.LogTest do
-  # Arock's PROJECT.md §14.7 goal 6 and §15: a computer's file writes, runs, app requests and mail are alog
+  # Arock's PROJECT.md §14.7 goal 6 and §15: a computer's file writes, runs, app requests and mail are arock-log
   # events on its own SQLite file, its `nodes` the fold of that log, so what a computer did is its history.
   use ExUnit.Case, async: false
 
@@ -10,7 +10,7 @@ defmodule Moss.LogTest do
   defp sh(c, line), do: Computer.run(c, line)
   defp disk(c), do: :sys.get_state(Computer.wake!(c)).disk
 
-  # alog's own reading of the log, through its Lua: {keyword, actor, args} with content as its bytes
+  # arock-log's own reading of the log, through its Lua: {keyword, actor, args} with content as its bytes
   defp events(c, keywords \\ nil) do
     d = disk(c)
     {:ok, [list]} = Log.alog(d, "events", [])

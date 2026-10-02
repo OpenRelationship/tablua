@@ -5,7 +5,7 @@
 set -eu
 ulimit -n 1048576
 export HOME=/root
-cd /arock/submodules/moss
+cd /arock/submodules/terrarium
 bench=$1
 shift
 case "$bench" in

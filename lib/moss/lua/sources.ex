@@ -1,15 +1,15 @@
 defmodule Moss.Lua.Sources do
   @moduledoc """
   Arock Core's Lua modules as `name => source`, read from the Arock repository:
-  its `library/` (`library/ports/jev.lua` is `ports.jev`) and alog, the log, at
-  `submodules/alog` (`init.lua` is `alog`, `robot.lua` is `alog.robot`),
+  its `library/` (`library/ports/jev.lua` is `ports.jev`) and arock-log, the log, at
+  `submodules/arock-log` (`init.lua` is `arock-log`, `robot.lua` is `arock-log.robot`),
   Shroomi at `submodules/shroomi` (`shroomi`, `shroomi.css`, ...), and
-  rockmail, the post's checks and Jev's reading (PROJECT.md §18), at
-  `submodules/rockmail` (`checks.lua` is `rockmail.checks`), and connectory's
+  arock-mail, the post's checks and Jev's reading (PROJECT.md §18), at
+  `submodules/arock-mail` (`checks.lua` is `arock-mail.checks`), and connectory's
   port at `submodules/connectory/lua` (`connectory.lua.port_http`, which
   `ports.connect` requires). Unit
   tests (`*_test.lua`) and LuaJIT host code (any file that requires `ffi`, such
-  as `alog.ffi` and `ports.curl`) are left out; this host supplies those ports
+  as `arock-log.ffi` and `ports.curl`) are left out; this host supplies those ports
   itself.
   """
 
@@ -21,9 +21,9 @@ defmodule Moss.Lua.Sources do
   def roots,
     do: [
       {library(), ""},
-      {Path.join(core(), "submodules/alog"), "alog"},
+      {Path.join(core(), "submodules/arock-log"), "arock-log"},
       {Path.join(core(), "submodules/shroomi"), "shroomi"},
-      {Path.join(core(), "submodules/rockmail"), "rockmail"},
+      {Path.join(core(), "submodules/arock-mail"), "arock-mail"},
       {Path.join(core(), "submodules/connectory/lua"), "connectory.lua"}
     ]
 

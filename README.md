@@ -7,8 +7,8 @@ the web under its rules, JSON, mail). Everything is Elixir and Lua: no WebAssemb
 reach. Each Lua run is a process of its own, bounded in instructions, memory, output and time. A person watches
 a computer and the post on pages behind a sign-in.
 
-Moss is attached to the Arock repository at `submodules/moss`, and reads Arock Core's Lua (the Jev port, and alog, the log) from that repository's `library/` and
-`submodules/alog`; `AROCK_ROOT` names another checkout.
+Moss is attached to the Arock repository at `submodules/terrarium`, and reads Arock Core's Lua (the Jev port, and arock-log, the log) from that repository's `library/` and
+`submodules/arock-log`; `AROCK_ROOT` names another checkout.
 
 ```
 mix setup
@@ -23,7 +23,7 @@ MOSS_PAGE_TOKENS=me:<a long secret> mix phx.server   # then /computers/<id> and 
   store); `script.ex` and `priv/lua/computer.lua` are `lua` and its library; `shell.ex` and `commands.ex` are the shell;
   `page.ex`, `browser.ex` and `net.ex` are the browser and the web rules; `mailbox.ex` is `mail`.
 - `lib/moss/mail.ex`, `mail/`: the post: routes, free checks, Jev's batched reading, letters held for a person.
-  The rules are rockmail's (Arock's `submodules/rockmail`, Lua run through `arock.mail`); Moss keeps the letters.
+  The rules are arock-mail's (Arock's `submodules/arock-mail`, Lua run through `arock.mail`); Moss keeps the letters.
 - `lib/moss/lua.ex`, `lua/`, `priv/lua/`: Arock Core in tv-labs `lua`, its ports bound per call (`arock.*`).
 - `lib/moss/objects*`: where sleeping computers live: Arock's service, by this node's own token, or a directory.
   Asleep, a computer is its whole file (`objects/snapshot.ex`); awake, Litestream streams it to the node's replica

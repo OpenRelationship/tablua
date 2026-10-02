@@ -2,7 +2,7 @@ defmodule Moss.Litestream do
   @moduledoc """
   The node's Litestream (Arock PROJECT.md §15.4): a pinned upstream binary
   beside Moss, run by the host and never reachable by an agent. It streams
-  every awake computer's file (`work_dir/computers/<id>.sqlite`, its alog log)
+  every awake computer's file (`work_dir/computers/<id>.sqlite`, its arock-log log)
   to a file replica on the node, `work_dir/replica/<id>.sqlite/ltx/<level>/`,
   as immutable segments; `Moss.Objects.Packer` gathers every computer's new
   ones into one pack a minute and puts it through Arock's service with the
@@ -58,12 +58,12 @@ defmodule Moss.Litestream do
 
   @doc """
   The config: the directory watcher over the computers' files, each streamed
-  to the file replica every `:litestream_sync` (5 s on a node, config.exs says why), and the control socket. alog's
+  to the file replica every `:litestream_sync` (5 s on a node, config.exs says why), and the control socket. arock-log's
   `litestream.yml` is this file with `${MOSS_WORK_DIR}` for the paths.
   """
   def litestream_config(dir) do
     """
-    # Written by Moss.Litestream; alog's litestream.yml describes it. No key: the replica is a folder on this node.
+    # Written by Moss.Litestream; arock-log's litestream.yml describes it. No key: the replica is a folder on this node.
     socket:
       enabled: true
       path: #{@socket}

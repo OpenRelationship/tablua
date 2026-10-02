@@ -15,7 +15,7 @@ defmodule Moss.Mail do
   `audit` route the letter is delivered first and read after; on a `screen`
   route, or from a sender Jev has refused, it waits for Jev. Delivery is
   broadcast on `mail:<recipient>`, every change on `mail`. The checks and
-  what to do on Jev's answers are rockmail's (`Mail.Rockmail`, PROJECT.md
+  what to do on Jev's answers are arock-mail's (`Mail.Rockmail`, PROJECT.md
   §18); this process keeps the letters, asks Jev and delivers.
   """
 

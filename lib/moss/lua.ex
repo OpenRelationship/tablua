@@ -16,7 +16,7 @@ defmodule Moss.Lua do
   @key {__MODULE__, :base}
 
   # Loaded into the base state so a step pays for none of them.
-  @core ~w(alog alog.schema alog.robot ports.json ports.call ports.jev ports.mercury rockmail.checks rockmail.screen)
+  @core ~w(arock-log arock-log.schema arock-log.robot ports.json ports.call ports.jev ports.mercury arock-mail.checks arock-mail.screen)
 
   @doc "The base state, built on first use."
   def base do

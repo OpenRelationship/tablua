@@ -1,6 +1,6 @@
 defmodule Moss.RockmailTest do
-  # Arock's PROJECT.md §18: the post's rules are rockmail's Lua, run in the core's state; Moss gathers the facts,
-  # stores and delivers. These tests hold that the Elixir path really asks rockmail, and that rockmail's secret
+  # Arock's PROJECT.md §18: the post's rules are arock-mail's Lua, run in the core's state; Moss gathers the facts,
+  # stores and delivers. These tests hold that the Elixir path really asks arock-mail, and that arock-mail's secret
   # patterns find exactly what the regular expressions Moss used before it found.
   use ExUnit.Case, async: false
 
@@ -18,7 +18,7 @@ defmodule Moss.RockmailTest do
     %{a: "rock-a#{n}", b: "rock-b#{n}"}
   end
 
-  test "posting a letter asks rockmail's checks, with the facts from the store", %{a: a, b: b} do
+  test "posting a letter asks arock-mail's checks, with the facts from the store", %{a: a, b: b} do
     :ok = Mail.route(a, b, "audit")
     {:delivered, _} = Mail.post(a, b, "one", "first")
 
@@ -26,7 +26,7 @@ defmodule Moss.RockmailTest do
       :moss,
       :mail_lua,
       Moss.Lua.build(%{
-        "rockmail.checks" => ~S"""
+        "arock-mail.checks" => ~S"""
         return { letter = function(l, f, o)
           return "refused", ("rockmail saw %s to %s, %s, %d sent, rate %d"):format(l.sender, l.recipient, f.mode,
             f.sent_last_minute, o.rate)
@@ -39,7 +39,7 @@ defmodule Moss.RockmailTest do
              {:refused, "rockmail saw #{a} to #{b}, audit, 1 sent, rate 20"}
   end
 
-  test "Jev's batch and what follows from its answers are rockmail's", %{a: a, b: b} do
+  test "Jev's batch and what follows from its answers are arock-mail's", %{a: a, b: b} do
     :ok = Mail.route(a, b, "screen")
     {:screening, id} = Mail.post(a, b, "plan", "lunch at noon")
 
@@ -47,9 +47,9 @@ defmodule Moss.RockmailTest do
       :moss,
       :mail_lua,
       Moss.Lua.build(%{
-        "rockmail.screen" => ~S"""
+        "arock-mail.screen" => ~S"""
         return {
-          state = function(letters) return "rockmail's state" end,
+          state = function(letters) return "arock-mail's state" end,
           questions = function(letters)
             local q = {}
             for _, l in ipairs(letters) do q["l" .. l.id] = { kind = "choice", text = "?", options = {} } end
@@ -69,7 +69,7 @@ defmodule Moss.RockmailTest do
              Enum.find(Mail.sent(a), &(&1["id"] == id))
   end
 
-  # the regular expressions Moss's checks used before rockmail, kept here as the reference
+  # the regular expressions Moss's checks used before arock-mail, kept here as the reference
   @secrets [
     {~r/\bsk-[A-Za-z0-9_-]{20,}/, "an API key"},
     {~r/\b(ghp|gho|ghs|ghu|github_pat)_[A-Za-z0-9_]{20,}/, "a GitHub token"},
@@ -98,7 +98,7 @@ defmodule Moss.RockmailTest do
       "a"
     ] ++
       ["_", "x", "AKIA", "AAAAAAAA", "0", "é", "-----", "eyJaaaaaaaaaa"],
-    # long runs of near misses, past the budget after which rockmail scans instead of trying each
+    # long runs of near misses, past the budget after which arock-mail scans instead of trying each
     [
       "sk-a ",
       "-eyJaaaaaaaaaa",
@@ -114,7 +114,7 @@ defmodule Moss.RockmailTest do
       ["-----BEGIN A ", "PRIVATE KEY-----", "-", " ", "\t", "AAAAAAAAAAAAAAAA", "a"]
   ]
 
-  test "rockmail's secret patterns agree with the regular expressions they replaced" do
+  test "arock-mail's secret patterns agree with the regular expressions they replaced" do
     :rand.seed(:exsss, {18, 10, 1})
 
     texts =
@@ -126,7 +126,7 @@ defmodule Moss.RockmailTest do
 
     {[found], _} =
       Lua.eval!(lua, ~S"""
-      local checks, out = require("rockmail.checks"), {}
+      local checks, out = require("arock-mail.checks"), {}
       for i, t in ipairs(__texts) do out[i] = checks.secret(t) or "-" end
       return table.concat(out, "\n")
       """)

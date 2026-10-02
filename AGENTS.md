@@ -2,7 +2,7 @@ This is Moss, the agent's own computer for Arock (see README.md), a Phoenix web 
 
 ## Moss rules
 
-- Moss lives in the Arock repository at `submodules/moss`. Arock Core (`library/` there) is read, never edited
+- Moss lives in the Arock repository at `submodules/terrarium`. Arock Core (`library/` there) is read, never edited
   from here; a change the core needs is made in the Arock repository.
 - The core runs in tv-labs `lua` from the base state in `Moss.Lua`; every call starts from that state and
   drops it (the VM has no garbage collector).

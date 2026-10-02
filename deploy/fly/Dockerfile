@@ -1,6 +1,6 @@
 # A Moss node to measure on (Arock PROJECT.md §15 item 5): Moss built from source with the Litestream release it
 # runs on the Mac, its benches run over `fly ssh console`. The build context is made by stage.sh, since Moss reads
-# Arock Core (library/), alog, Shroomi, rockmail and connectory's port from the Arock checkout (AROCK_ROOT); luex is inside Moss.
+# Arock Core (library/), arock-log, Shroomi, arock-mail and connectory's port from the Arock checkout (AROCK_ROOT); moss-lua is inside Moss.
 # No key or token is in the image or the machine: the benches play the service in memory.
 FROM hexpm/elixir:1.20.3-erlang-29.0.5-debian-bookworm-20260824
 
@@ -23,13 +23,13 @@ ENV HOME=/root MIX_HOME=/root/.mix HEX_HOME=/root/.hex AROCK_ROOT=/arock MIX_ENV
 ENV ERL_FLAGS="+SDio 1024"
 WORKDIR /arock
 COPY library library
-COPY submodules/alog submodules/alog
+COPY submodules/arock-log submodules/arock-log
 COPY submodules/shroomi submodules/shroomi
-COPY submodules/rockmail submodules/rockmail
+COPY submodules/arock-mail submodules/arock-mail
 COPY submodules/connectory/lua submodules/connectory/lua
-COPY submodules/moss submodules/moss
+COPY submodules/terrarium submodules/terrarium
 
-WORKDIR /arock/submodules/moss
+WORKDIR /arock/submodules/terrarium
 RUN mix local.hex --force && mix local.rebar --force && mix deps.get && mix compile
 
 # the work dir and the benches' scratch live on the volume (fly.toml mounts it at /data); benches run through

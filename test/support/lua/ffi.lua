@@ -1,7 +1,7 @@
--- alog.ffi on the test host: Arock Core's unit tests open databases with
--- require("alog.ffi").open(path); here that is an Exqlite connection behind
+-- arock-log.ffi on the test host: Arock Core's unit tests open databases with
+-- require("arock-log.ffi").open(path); here that is an Exqlite connection behind
 -- the same db:exec(sql, params) port the runs use.
--- A connection waits BUSY_MS for another's write lock, as alog.ffi's does.
+-- A connection waits BUSY_MS for another's write lock, as arock-log.ffi's does.
 local BUSY_MS = 5000
 
 return {

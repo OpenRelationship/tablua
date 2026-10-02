@@ -6,7 +6,7 @@ defmodule Moss.Mail.Letter do
   task it answers in `TASK`, its keyword the task's new state.
 
   The post checks a letter against the whole node: each `org:` link must name something here (`Moss.Names`), and
-  a reply must answer a task its recipient sent its sender. alog reads the org and rockmail judges it
+  a reply must answer a task its recipient sent its sender. arock-log reads the org and arock-mail judges it
   (`arock.mail` in `priv/lua/host.lua`).
   """
 
@@ -69,7 +69,7 @@ defmodule Moss.Mail.Letter do
     out
   end
 
-  # alog's JSON writes an empty list as {}
+  # arock-log's JSON writes an empty list as {}
   defp list(l) when is_list(l), do: l
   defp list(_), do: []
 end

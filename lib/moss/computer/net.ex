@@ -1,11 +1,11 @@
 defmodule Moss.Computer.Net do
   @moduledoc """
-  The computer's way to the web: `curl` (and `wget`, which saves to a file), over moonflower's fetch
+  The computer's way to the web: `curl` (and `wget`, which saves to a file), over moss-browser's fetch
   (`Moonflower.Fetch`: http and https to public addresses only, every redirect checked again, the checked address
   dialled). An answer stops at #{div(32 * 1024 * 1024, 1_048_576)} MB (config `net_max_bytes`); the methods are
   #{Enum.join(~w(GET POST PUT PATCH DELETE HEAD OPTIONS), ", ")}.
 
-  `get(url, opts)` is what the browser fetches with: moonflower's, with this node's settings (config
+  `get(url, opts)` is what the browser fetches with: moss-browser's, with this node's settings (config
   `net_max_bytes`, `user_agent`, `resolver`, `computer_req_options`) given as options.
   """
   alias Moss.Computer.Disk

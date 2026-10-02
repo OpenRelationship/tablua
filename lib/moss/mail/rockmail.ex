@@ -1,8 +1,8 @@
 defmodule Moss.Mail.Rockmail do
   @moduledoc """
-  The post's rules from rockmail (Arock's `submodules/rockmail`, PROJECT.md
+  The post's rules from arock-mail (Arock's `submodules/arock-mail`, PROJECT.md
   §18), run in the core's Lua state (`arock.mail` in `priv/lua/host.lua`).
-  rockmail is pure: this host gathers the facts from `Mail.Store`, rockmail
+  arock-mail is pure: this host gathers the facts from `Mail.Store`, arock-mail
   decides, and `Moss.Mail` stores and delivers.
 
     * `check(letter, facts, opts)`: `{:ok, mode}` or `{:refused, reason}`;
@@ -16,7 +16,7 @@ defmodule Moss.Mail.Rockmail do
   """
   alias Moss.Lua
 
-  # what rockmail reads of a letter
+  # what arock-mail reads of a letter
   @fields ~w(id sender recipient subject body state mode read)
 
   def check(letter, facts, opts) do

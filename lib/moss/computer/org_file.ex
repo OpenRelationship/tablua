@@ -1,7 +1,7 @@
 defmodule Moss.Computer.OrgFile do
   @moduledoc """
   Org files on the log (Arock's feature file-kinds): a write of `org/**.org` (the computer's, or an app's) is
-  checked whole against the file's history by alog (`alog.org_log`: unique IDs, links that resolve, allowed
+  checked whole against the file's history by arock-log (`arock-log.org_log`: unique IDs, links that resolve, allowed
   states, `CLOSED` stamped by the host, append-only history, nothing that runs) and kept as events (Add Entry,
   Set State, ...). The file on the disk is what the log reads back, IDs and stamps included; a refused write
   keeps nothing and names each line.

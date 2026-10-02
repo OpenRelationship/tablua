@@ -69,11 +69,11 @@ defmodule Moss.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
-      # luex (submodules/luex): our own tv-labs lua, maintained by us (owner, 2026-10-01; renamed from luos and
+      # moss-lua (submodules/moss-lua): our own tv-labs lua, maintained by us (owner, 2026-10-01; renamed from luos and
       # attached inside Moss, 2026-10-02)
-      {:lua, path: "submodules/luex"},
-      # moonflower (submodules/moonflower): the browser engine, its own repository (owner, 2026-10-02)
-      {:moonflower, path: "submodules/moonflower"},
+      {:lua, path: "submodules/moss-lua"},
+      # moss-browser (submodules/moss-browser): the browser engine, its own repository (owner, 2026-10-02)
+      {:moonflower, path: "submodules/moss-browser"},
       {:exqlite, "~> 0.41"},
       {:req, "~> 0.5"}
     ]

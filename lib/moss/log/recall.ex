@@ -1,13 +1,13 @@
 defmodule Moss.Log.Recall do
   @moduledoc """
-  What `Moss.Log.append/6` writes to alog's recall index (`recall.lua`), from
+  What `Moss.Log.append/6` writes to arock-log's recall index (`recall.lua`), from
   Elixir, every agent byte a bound value: SQLite stores and compares the
   tokens and never reads the text they came from (Arock's PROJECT.md §14.7,
   item 9).
 
   An event is document kind 0, its doc its seq; a text blob is kind 1, its doc
   its `recall_blobs` id. Their postings go to `recall_pending` (kind, doc,
-  term, tf, len); alog's `FLUSH_SQL` packs them into `recall_blocks` once
+  term, tf, len); arock-log's `FLUSH_SQL` packs them into `recall_blocks` once
   `FLUSH` rows wait. A text file's path is a `recall_paths` row.
   """
   alias Moss.Db
@@ -16,12 +16,12 @@ defmodule Moss.Log.Recall do
   # (term, tf) rows a statement: two values each, well under SQLite's 32,766
   @rows 4_000
 
-  @doc "alog's recall constants, read once from `recall.lua`: K1, B, QUERY_TERMS, FLUSH and FLUSH_SQL."
+  @doc "arock-log's recall constants, read once from `recall.lua`: K1, B, QUERY_TERMS, FLUSH and FLUSH_SQL."
   def alog do
     case :persistent_term.get({__MODULE__, :alog}, nil) do
       nil ->
         code =
-          "local r = require('alog.recall') return r.K1, r.B, r.QUERY_TERMS, r.FLUSH, r.FLUSH_SQL"
+          "local r = require('arock-log.recall') return r.K1, r.B, r.QUERY_TERMS, r.FLUSH, r.FLUSH_SQL"
 
         {[k1, b, terms, flush, sql], _} = Lua.eval!(Moss.Lua.base(), code)
         v = %{k1: k1, b: b, query_terms: terms, flush: flush, flush_sql: sql}
@@ -77,7 +77,7 @@ defmodule Moss.Log.Recall do
     end)
   end
 
-  @doc "Packs the pending postings into blocks once `pending` reaches alog's FLUSH."
+  @doc "Packs the pending postings into blocks once `pending` reaches arock-log's FLUSH."
   def settle(conn, pending) do
     %{flush: flush, flush_sql: sql} = alog()
 

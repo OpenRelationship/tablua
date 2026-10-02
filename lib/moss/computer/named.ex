@@ -1,7 +1,7 @@
 defmodule Moss.Computer.Named do
   @moduledoc """
   A computer's manifests on the node's names (`Moss.Names`, Arock's feature manifest): a manifest.org an agent
-  writes is checked first, as alog checks it (a bad line, or a GRANTED only the host writes, refuses the write);
+  writes is checked first, as arock-log checks it (a bad line, or a GRANTED only the host writes, refuses the write);
   written, removed or moved, it re-registers what it names and its triggers, and a request it no longer makes
   takes its grant back. The person's own requests and a disk with no computer name nothing.
   """

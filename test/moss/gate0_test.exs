@@ -2,7 +2,7 @@ defmodule Moss.Gate0Test do
   @moduledoc """
   Gate 0: every Arock Core unit test file runs unchanged in tv-labs lua on this
   host, each from a fresh copy of the base state, and every case passes
-  (alog's, Shroomi's and rockmail's too).
+  (arock-log's, Shroomi's and arock-mail's too).
   """
   use ExUnit.Case, async: true
 
@@ -10,7 +10,7 @@ defmodule Moss.Gate0Test do
 
   @core Application.compile_env!(:moss, :core)
   @files for(
-           dir <- ["library", "submodules/alog", "submodules/shroomi", "submodules/rockmail"],
+           dir <- ["library", "submodules/arock-log", "submodules/shroomi", "submodules/arock-mail"],
            do: Path.wildcard(Path.join([@core, dir, "**/*_test.lua"]))
          )
          |> List.flatten()
