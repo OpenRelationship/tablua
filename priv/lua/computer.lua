@@ -153,9 +153,9 @@ function require(name)
   error("module '" .. name .. "' not found (looked in the working folder, the app's code/ and /home/code/)", 2)
 end
 
--- date and csv at hand, as db and json are: loaded the first time a script names them (require works too)
+-- date, csv and test at hand, as db and json are: loaded the first time a script names them (require works too)
 setmetatable(_G, { __index = function(g, name)
-  if name == "date" or name == "csv" then
+  if name == "date" or name == "csv" or name == "test" then
     local m = require(name)
     rawset(g, name, m)
     return m
@@ -206,6 +206,15 @@ local function page(req)
   local ok, res = xpcall(function() return require("shroomi.lui").answer(sys.read(req.page), name, req) end, tostring)
   if not ok then return 500, {}, "The page failed: " .. say(res) end
   return reply(res)
+end
+
+-- The loop (Arock feature file-kinds): `test` and `check` run here (sdk/loop.lua), each result handed to the host
+-- by sys.report, which nothing an agent writes can reach.
+function __loop(what, scope, paths) -- paths as JSON
+  local function report(t) sys.report(json.encode(t)) end
+  local ok, why = xpcall(function() require("loop")[what](scope, json.decode(paths), report) end, tostring)
+  if not ok then sys.ewrite("lua: " .. why .. "\n") return 1 end
+  return 0
 end
 
 function __serve(req)

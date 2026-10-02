@@ -103,6 +103,11 @@ function names.check(text)
   return require("ports.json").encode(out)
 end
 
+-- arock.names("template", kind, computer, today) -> what `new task|note|letter|manifest` writes (alog.org_kinds)
+function names.template(kind, computer, today)
+  return require("alog.org_kinds").template(kind, { computer = computer, today = today, from = computer })
+end
+
 function arock.names(what, ...)
   return names[what](...)
 end

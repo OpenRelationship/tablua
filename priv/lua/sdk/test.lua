@@ -11,7 +11,9 @@
 -- if the step has one. Scenario Outlines run once per Examples row, <name> filled in.
 --
 -- The run is printed as Robot Framework rows: one test per scenario, one row per step, its result in the row
--- (PASS, FAIL and why, or NOT RUN). The last line counts what passed.
+-- (PASS, FAIL and why, or NOT RUN). A step no pattern matches fails, and the run prints the Lua stub to paste
+-- into code/steps/ (test.stub). The last line counts what passed. test.run also returns what failed:
+-- { failing = { { scenario, step, why } }, undefined = { text } }.
 local test = {}
 
 local defined = {}
@@ -156,7 +158,28 @@ local function cell(v)
   return v
 end
 
-local function run_steps(steps, world, rows, failed)
+-- the step to paste for text no step matches: quoted words become {string}, numbers {int} or {number}
+function test.stub(text)
+  local out, args, i = {}, {}, 1
+  while i <= #text do
+    local c = string.sub(text, i, i)
+    local close = c == '"' and string.find(text, '"', i + 1, true)
+    local num = not close and (i == 1 or not string.find(string.sub(text, i - 1, i - 1), "[%w_]"))
+      and (string.match(text, "^%-?%d+%.%d+", i) or string.match(text, "^%-?%d+", i))
+    if close then
+      out[#out + 1], args[#args + 1], i = "{string}", "s" .. (#args + 1), close + 1
+    elseif num then
+      out[#out + 1] = string.find(num, ".", 1, true) and "{number}" or "{int}"
+      args[#args + 1], i = "n" .. (#args + 1), i + #num
+    else
+      out[#out + 1], i = c, i + 1
+    end
+  end
+  local params = #args > 0 and "w, " .. table.concat(args, ", ") or "w"
+  return string.format('test.step(%q, function(%s)\n  error("not written yet")\nend)', table.concat(out), params)
+end
+
+local function run_steps(steps, world, rows, failed, report)
   for _, s in ipairs(steps) do
     local text = s.word .. " " .. s.text
     if failed then
@@ -166,6 +189,7 @@ local function run_steps(steps, world, rows, failed)
       if not d then
         failed = "no step matches: " .. s.text
         rows[#rows + 1] = { text, "FAIL", failed }
+        report.undefined[#report.undefined + 1] = s.text
       else
         if s.extra ~= nil then args[#args + 1] = s.extra end
         local ok, why = pcall(d.fn, world, table.unpack(args))
@@ -174,6 +198,7 @@ local function run_steps(steps, world, rows, failed)
         else
           failed = tostring(why)
           rows[#rows + 1] = { text, "FAIL", failed }
+          report.failing[#report.failing + 1] = { step = text, why = failed }
         end
       end
     end
@@ -184,10 +209,13 @@ end
 function test.run(text, name)
   local feature, background, scenarios = parse(text)
   local lines, passed = { "*** Test Cases ***" }, 0
+  local report = { failing = {}, undefined = {} }
   for _, sc in ipairs(scenarios) do
     local rows, world = {}, {}
-    local failed = run_steps(background, world, rows, nil)
-    failed = run_steps(sc.steps, world, rows, failed)
+    local before = #report.failing
+    local failed = run_steps(background, world, rows, nil, report)
+    failed = run_steps(sc.steps, world, rows, failed, report)
+    for k = before + 1, #report.failing do report.failing[k].scenario = sc.name end
     if not failed then passed = passed + 1 end
     lines[#lines + 1] = cell(sc.name)
     for _, r in ipairs(rows) do
@@ -197,8 +225,16 @@ function test.run(text, name)
     end
   end
   print(table.concat(lines, "\n"))
+  local seen = {}
+  for _, text in ipairs(report.undefined) do
+    local stub = test.stub(text)
+    if not seen[stub] then
+      seen[stub] = true
+      print("# no step matches \"" .. text .. "\"; paste this into code/steps/ and write it:\n" .. stub)
+    end
+  end
   print(string.format("# %s: %d of %d scenarios passed", feature or name or "feature", passed, #scenarios))
-  return passed == #scenarios, passed, #scenarios
+  return passed == #scenarios, passed, #scenarios, report
 end
 
 function test.run_file(path)

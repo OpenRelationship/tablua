@@ -2,9 +2,9 @@ defmodule Moss.Computer.Person do
   @moduledoc """
   What only the person says on a computer (Arock's feature `manifest`): a yes to one request a tool's manifest
   makes (`Grant Reach`), taking it back (`Revoke Reach`), and the answer to a tool marked ASK (`Outcome`, then
-  the tool runs). Each is an event on the log by `user`; no command an agent types reaches here.
+  the tool runs), agreeing to a feature (`Agree Feature`) and saying yes to a publish. Each is an event on the log by `user`; no command an agent types reaches here.
   """
-  alias Moss.Computer.{Manifest, Tools}
+  alias Moss.Computer.{Board, Loop, Manifest, Tools}
   alias Moss.Log
 
   @doc "Grants `tool` the request `{reach, value}` it asks for: `:ok` or `{:error, why}`."
@@ -20,7 +20,7 @@ defmodule Moss.Computer.Person do
   def answer(state, line, yes?) do
     [name | args] = String.split(line, " ", trim: true)
 
-    case Tools.find(state, name) do
+    case if(name == "publish", do: :publish, else: Tools.find(state, name)) do
       nil ->
         {:error, "no tool #{name} on this computer"}
 
@@ -37,12 +37,33 @@ defmodule Moss.Computer.Person do
           )
 
         if yes? do
-          {code, out, err, _} = Tools.run(tool, args, "", state, asked: true)
+          {code, out, err, _} =
+            if tool == :publish,
+              do: Loop.publish(Loop.scope(args, state), state, asked: true),
+              else: Tools.run(tool, args, "", state, asked: true)
+
           {:ok, %{code: code, out: out, err: err}}
         else
           {:ok, nil}
         end
     end
+  end
+
+  @doc "The person agrees to a feature's scenarios as they stand (`Agree Feature`): `:ok` or `{:error, why}`."
+  def agree(state, path) do
+    path = Moss.Computer.Disk.norm(path, "/home")
+
+    if String.ends_with?(path, ".feature") and
+         match?({:ok, _}, Moss.Computer.Disk.read(state.disk, path)),
+       do:
+         Log.append(
+           state.disk.conn,
+           state.id,
+           "Agree Feature",
+           [path, Board.text_digest(state.disk, path)],
+           "user"
+         ),
+       else: {:error, "no feature #{path}"}
   end
 
   defp said(state, keyword, name, reach, value) do

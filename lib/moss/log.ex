@@ -240,17 +240,22 @@ defmodule Moss.Log do
   Grant Reach and Revoke Reach on the log.
   """
   def reach(conn) do
+    for {_, keyword, [tool, reach, value]} <- events(conn, ["Grant Reach", "Revoke Reach"]),
+        do: {keyword, {tool, reach, value}}
+  end
+
+  @doc "The events of `keywords`, in order: `{seq, keyword, [arg, ...]}`, a content argument as its blob id."
+  def events(conn, keywords) do
     {:ok, rows} =
       Db.exec(
         conn,
-        "select e.keyword, a1.value as tool, a2.value as reach, a3.value as value from events e " <>
-          "join args a1 on a1.seq = e.seq and a1.pos = 1 join args a2 on a2.seq = e.seq and a2.pos = 2 " <>
-          "join args a3 on a3.seq = e.seq and a3.pos = 3 " <>
-          "where e.keyword in ('Grant Reach', 'Revoke Reach') order by e.seq",
-        []
+        "select e.seq, e.keyword, (select json_group_array(value) from " <>
+          "(select value from args where seq = e.seq order by pos)) as args from events e " <>
+          "where e.keyword in (select value from json_each(?)) order by e.seq",
+        [Jason.encode!(keywords)]
       )
 
-    for r <- rows, do: {r["keyword"], {r["tool"], r["reach"], r["value"]}}
+    for r <- rows, do: {r["seq"], r["keyword"], Jason.decode!(r["args"])}
   end
 
   def clock, do: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()

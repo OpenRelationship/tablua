@@ -77,7 +77,10 @@ defmodule Moss.Computer do
   def revoke(id, tool, reach, value),
     do: GenServer.call(wake!(id), {:person, :revoke, [tool, reach, value]})
 
-  @doc "The person's answer to a tool marked ASK; a yes runs it."
+  @doc "The person agrees to a feature as it stands (`Moss.Computer.Person.agree/2`)."
+  def agree(id, path), do: GenServer.call(wake!(id), {:person, :agree, [path]})
+
+  @doc "The person's answer to a tool marked ASK, or to a publish; a yes runs it."
   def answer(id, line, yes?),
     do: GenServer.call(wake!(id), {:person, :answer, [line, yes?]}, :infinity)
 

@@ -46,6 +46,30 @@ defmodule Moss.Computer.Script do
   end
 
   @doc """
+  The build loop's `what` ("test" or "pages", `priv/lua/sdk/loop.lua`) over `paths` of `scope`, run in the
+  scope's folder: `{status, out, err, reports}`, each report as loop handed it to the host (decoded JSON).
+  """
+  def loop(what, scope, paths, state) do
+    ref = make_ref()
+    state = Map.merge(state, %{cwd: scope, report: {self(), ref}})
+    result = spawn_run(fn -> call(:__loop, [what, scope, Jason.encode!(paths)], [], "", state) end)
+    reports = reports(ref, [])
+
+    case result do
+      {:ok, {status, out, err}} -> {status, out, err, reports}
+      {:error, status, err} -> {status, "", err, reports}
+    end
+  end
+
+  defp reports(ref, acc) do
+    receive do
+      {^ref, :report, json} -> reports(ref, [Jason.decode!(json) | acc])
+    after
+      0 -> Enum.reverse(acc)
+    end
+  end
+
+  @doc """
   One request to the computer's app: its `.lui` page (`Moss.Computer.Pages`), run in its app's folder, or
   `/home/app.lua` while the gallery moves to apps (see `__serve` in computer.lua):
   `req` is `%{"method", "path", "query", "form", "headers"}`; the answer is
@@ -112,12 +136,14 @@ defmodule Moss.Computer.Script do
 
   # In the run's own process: the code under __main (computer.lua), which prints an error and turns os.exit(n)
   # into a status.
-  defp eval(code, name, args, stdin, state) do
+  defp eval(code, name, args, stdin, state), do: call(:__main, [code, name], args, stdin, state)
+
+  defp call(fun, params, args, stdin, state) do
     lua = vm(args, stdin, state)
 
     status =
       try do
-        case Lua.call_function(lua, [:__main], [code, name]) do
+        case Lua.call_function(lua, [fun], params) do
           {:ok, [n | _], _} when is_number(n) -> trunc(n)
           {:ok, _, _} -> 0
           {:error, e, _} -> fail("lua: #{Exception.message(e)}\n")
@@ -206,6 +232,10 @@ defmodule Moss.Computer.Script do
     |> mail_fun(state)
     |> db_funs(disk, path)
     |> fun(:module, fn [n | _] -> [builtin(to_string(n))] end)
+    |> fun(:report, fn [json | _] ->
+      with {pid, ref} <- state[:report], do: send(pid, {ref, :report, json})
+      [true]
+    end)
   end
 
   defp fun(lua, name, f), do: Lua.set!(lua, [:__sys, name], f)
@@ -229,7 +259,6 @@ defmodule Moss.Computer.Script do
       end
     end)
   end
-
 
   defp json_funs(lua) do
     lua

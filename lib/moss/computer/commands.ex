@@ -6,7 +6,7 @@ defmodule Moss.Computer.Commands do
   `Computer.Browser`, `lua` the computer's language (`Computer.Script`), and the tools its manifests declare
   (`Computer.Tools`).
   """
-  alias Moss.Computer.{Browser, Disk, Mailbox, Net, Script, Text, Tools}
+  alias Moss.Computer.{Browser, Disk, Loop, Mailbox, Net, New, Script, Text, Tools}
 
   @builtin ~w(cd pwd echo env export unset true false which help date sleep ls cat mkdir rm rmdir mv cp touch find tree)
 
@@ -14,7 +14,10 @@ defmodule Moss.Computer.Commands do
     do:
       Enum.sort(
         @builtin ++
-          Text.names() ++ Net.names() ++ Browser.names() ++ ["mail", "tools"] ++ Script.names()
+          Text.names() ++
+          Net.names() ++
+          Browser.names() ++
+          ["mail", "tools", "new"] ++ Loop.names() ++ Script.names()
       )
 
   def run([name | args], stdin, state) do
@@ -39,6 +42,12 @@ defmodule Moss.Computer.Commands do
 
       name == "tools" ->
         ok(Tools.list(state), state)
+
+      name == "new" ->
+        New.run(args, state)
+
+      name in Loop.names() ->
+        Loop.run(name, args, state)
 
       tool = Tools.find(state, name) ->
         Tools.run(tool, args, stdin, state)
@@ -95,6 +104,9 @@ defmodule Moss.Computer.Commands do
 
   defp builtin("help", ["app" | _], _, state), do: {0, Moss.Computer.App.help(), "", state}
 
+  defp builtin("help", [m | _], _, state) when m in ~w(loop new test check status publish),
+    do: {0, Loop.help(), "", state}
+
   defp builtin("help", [m | _], _, state) when m in ~w(manifest tools),
     do: {0, Tools.help(), "", state}
 
@@ -107,7 +119,7 @@ defmodule Moss.Computer.Commands do
       {0,
        "commands: " <>
          Enum.join(names(), " ") <>
-         "\n(help lua: the Lua library; help shroomi: pages and apps; help manifest: tools and reach; help open: the browser)\n",
+         "\n(help lua: the Lua library; help shroomi: pages and apps; help loop: features, test and publish; help manifest: tools and reach; help open: the browser)\n",
        "", state}
 
   defp builtin("date", _, _, state),

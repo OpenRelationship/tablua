@@ -196,6 +196,10 @@ defmodule Moss.SdkTest do
                  Given the note    PASS
                  Then nothing matches this    FAIL    no step matches: nothing matches this
                  And the sum is 1    NOT RUN
+             # no step matches "nothing matches this"; paste this into code/steps/ and write it:
+             test.step("nothing matches this", function(w)
+               error("not written yet")
+             end)
              # Sums: 2 of 4 scenarios passed
              """
   end
