@@ -21,6 +21,7 @@ MOSS_PAGE_TOKENS=me:<a long secret> mix phx.server   # then /computers/<id> and 
   store); `script.ex` and `priv/lua/computer.lua` are `lua` and its library; `shell.ex` and `commands.ex` are the shell;
   `page.ex`, `browser.ex` and `net.ex` are the browser and the web rules; `mailbox.ex` is `mail`.
 - `lib/moss/mail.ex`, `mail/`: the post: routes, free checks, Jev's batched reading, letters held for a person.
+  The rules are rockmail's (Arock's `submodules/rockmail`, Lua run through `arock.mail`); Moss keeps the letters.
 - `lib/moss/lua.ex`, `lua/`, `priv/lua/`: Arock Core in tv-labs `lua`, its ports bound per call (`arock.*`).
 - `lib/moss/objects*`: where sleeping computers live: Arock's service, by this node's own token, or a directory.
 - `lib/moss_web/`: sign-in (`auth.ex`), the computer page and the post's page.

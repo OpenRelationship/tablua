@@ -39,6 +39,29 @@ function arock.decide(state, questions)
   return answers, { cost = record.cost }
 end
 
+-- The post's rules, from rockmail (PROJECT.md §18): pure Lua over facts the host gathered from its store.
+--   arock.mail("check", letter, facts, opts) -> "ok", mode | "refused", reason
+--   arock.mail("ask", letters, history)      -> the state and the questions Jev reads
+--   arock.mail("verdicts", { { letter, answer }, ... }, sure) -> { verdict, ... }, one per letter
+local mail = {}
+
+function mail.check(letter, facts, opts) return require("rockmail.checks").letter(letter, facts, opts) end
+
+function mail.ask(letters, history)
+  local screen = require("rockmail.screen")
+  return screen.state(letters, history), screen.questions(letters)
+end
+
+function mail.verdicts(items, sure)
+  local screen, out = require("rockmail.screen"), {}
+  for i, item in ipairs(items) do out[i] = screen.verdict(item.letter, item.answer, sure) end
+  return out
+end
+
+function arock.mail(what, ...)
+  return mail[what](...)
+end
+
 -- The host calls every arock.* function through this, so an error object
 -- (ports.call raises tables with __tostring) reaches the host as its text.
 function arock.call(name, ...)

@@ -14,7 +14,9 @@ defmodule Moss.Mail do
   it (`Mail.Screen`), in batches of up to #{32} or whatever #{2} s gathered: on an
   `audit` route the letter is delivered first and read after; on a `screen`
   route, or from a sender Jev has refused, it waits for Jev. Delivery is
-  broadcast on `mail:<recipient>`, every change on `mail`.
+  broadcast on `mail:<recipient>`, every change on `mail`. The checks and
+  what to do on Jev's answers are rockmail's (`Mail.Rockmail`, PROJECT.md
+  §18); this process keeps the letters, asks Jev and delivers.
   """
 
   # a letter's state as the caller sees it; fixed words, never made into atoms from text
@@ -220,10 +222,15 @@ defmodule Moss.Mail do
 
   defp settle(conn, letters, answers) do
     # read again: a person, or another batch, may have settled a letter while Jev was reading it
-    for %{"id" => id} <- letters, l = Store.get(conn, id), l["audited"] == 0 do
-      now = Screen.apply(conn, l, answers["l#{id}"])
-      if l["state"] != "delivered" and now == "delivered", do: delivered(l["recipient"], id)
-    end
+    pairs =
+      for %{"id" => id} <- letters,
+          l = Store.get(conn, id),
+          l["audited"] == 0,
+          do: {l, answers["l#{id}"]}
+
+    for {{l, _}, now} <- Enum.zip(pairs, Screen.apply(conn, pairs)),
+        l["state"] != "delivered" and now == "delivered",
+        do: delivered(l["recipient"], l["id"])
 
     changed()
   end
