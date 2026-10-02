@@ -23,12 +23,21 @@ defmodule Moss.Mail do
   @states %{"refused" => :refused, "delivered" => :delivered, "screening" => :screening}
   use GenServer
   require Logger
-  alias Moss.Mail.{Checks, Screen, Store}
+  alias Moss.Mail.{Checks, Letter, Screen, Store}
 
   @batch 32
 
-  def post(sender, recipient, subject, body),
-    do: GenServer.call(__MODULE__, {:post, sender, recipient, subject, body})
+  @doc """
+  Posts a letter: read as org first (`Mail.Letter`, outside the post's process, since a link may name a letter),
+  then checked, screened and delivered. `{:delivered | :screening, id}` or `{:refused, why}`.
+  """
+  def post(sender, recipient, subject, body) do
+    letter = Letter.read(sender, recipient, subject, body)
+    GenServer.call(__MODULE__, {:post, sender, recipient, subject, body, letter})
+  end
+
+  @doc "`mail board`: every task `agent` sent or was sent, its state now, as org."
+  def board(agent), do: Letter.board(sent(agent) ++ inbox(agent), agent)
 
   def inbox(agent), do: GenServer.call(__MODULE__, {:inbox, agent})
 
@@ -79,39 +88,33 @@ defmodule Moss.Mail do
   end
 
   @impl true
-  def handle_call({:post, sender, recipient, subject, body}, _from, s) do
-    case Checks.letter(s.conn, sender, recipient, subject, body) do
-      {:refused, reason} ->
+  def handle_call({:post, sender, recipient, subject, body, {:refused, reason}}, _from, s),
+    do: {:reply, refused(s.conn, sender, recipient, subject, body, reason), s}
+
+  def handle_call({:post, sender, recipient, _subject, _body, {:ok, letter}}, _from, s) do
+    {subject, body} = {letter["subject"], letter["text"]}
+    named = with n when is_integer(n) <- Letter.task_number(letter), do: Store.get(s.conn, n)
+
+    with {:ok, mode} <- Checks.letter(s.conn, sender, recipient, subject, body),
+         :ok <- Letter.reply(letter, sender, recipient, named) do
+      state = if mode == "audit", do: "delivered", else: "screening"
+
+      id =
         Store.put(s.conn, %{
           sender: sender,
           recipient: recipient,
           subject: subject,
           body: body,
-          state: "refused",
-          mode: "checks",
-          audited: 1,
-          reason: reason
+          state: state,
+          mode: mode,
+          audited: 0
         })
 
-        changed()
-        {:reply, {:refused, reason}, s}
-
-      {:ok, mode} ->
-        state = if mode == "audit", do: "delivered", else: "screening"
-
-        id =
-          Store.put(s.conn, %{
-            sender: sender,
-            recipient: recipient,
-            subject: subject,
-            body: body,
-            state: state,
-            mode: mode,
-            audited: 0
-          })
-
-        if state == "delivered", do: delivered(recipient, id), else: changed()
-        {:reply, {Map.fetch!(@states, state), id}, soon(s)}
+      :ok = Store.set(s.conn, id, body: Letter.stamp(body, sender, id))
+      if state == "delivered", do: delivered(recipient, id), else: changed()
+      {:reply, {Map.fetch!(@states, state), id}, soon(s)}
+    else
+      {:refused, reason} -> {:reply, refused(s.conn, sender, recipient, subject, body, reason), s}
     end
   end
 
@@ -130,7 +133,9 @@ defmodule Moss.Mail do
   def handle_call(:flagged, _from, s), do: {:reply, Store.flagged(s.conn), s}
 
   def handle_call({:party, agent, id}, _from, s) do
-    {:reply, match?(%{"sender" => ^agent}, Store.get(s.conn, id)) or match?(%{"recipient" => ^agent}, Store.get(s.conn, id)), s}
+    {:reply,
+     match?(%{"sender" => ^agent}, Store.get(s.conn, id)) or
+       match?(%{"recipient" => ^agent}, Store.get(s.conn, id)), s}
   end
 
   def handle_call({:read, agent, id}, _from, s) do
@@ -202,6 +207,23 @@ defmodule Moss.Mail do
         Logger.warning("mail: Jev did not answer (#{why}); asking again in #{div(wait, 1000)} s")
         {:noreply, %{s | wait: wait, timer: Process.send_after(self(), :screen, wait)}}
     end
+  end
+
+  # a letter refused before the post took it, kept for the person to see
+  defp refused(conn, sender, recipient, subject, body, reason) do
+    Store.put(conn, %{
+      sender: sender,
+      recipient: recipient,
+      subject: subject,
+      body: body,
+      state: "refused",
+      mode: "checks",
+      audited: 1,
+      reason: reason
+    })
+
+    changed()
+    {:refused, reason}
   end
 
   # the next batch in the window, unless one is already coming or being read

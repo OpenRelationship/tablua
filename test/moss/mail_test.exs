@@ -115,8 +115,12 @@ defmodule Moss.MailTest do
     assert line =~ "#{a}  watering"
     [%{"id" => id}] = Mail.inbox(b)
 
-    assert %{out: "from: #{a}\nsubject: watering\n\nthe moss is dry\n"} ==
-             Map.take(Computer.run(b, "mail read #{id}"), [:out])
+    # a letter is one org entry: the post stamped who sent it, to whom, and its own address
+    assert %{
+             out:
+               "* watering\n:PROPERTIES:\n:FROM: org:#{a}\n:TO: org:#{b}\n:ID: org:#{a}/mail/#{id}\n:END:\n" <>
+                 "the moss is dry\n"
+           } == Map.take(Computer.run(b, "mail read #{id}"), [:out])
 
     assert %{code: 1, err: "mail: refused: no route" <> _} =
              Computer.run(b, "mail send #{a} reply -m thanks")

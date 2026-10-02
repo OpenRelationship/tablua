@@ -58,6 +58,68 @@ function mail.verdicts(items, sure)
   return out
 end
 
+-- Letters in org (feature file-kinds): a letter is one org entry, read by alog and judged by rockmail.tasks.
+--   arock.mail("letter", sender, recipient, subject, body) -> JSON { text, subject, kind, task, links } | { why }
+--   arock.mail("stamp", text, id)                           -> the letter with its :ID: (its own address)
+--   arock.mail("reply", task, sender, recipient, named)     -> nil | why (named: { sender, recipient, body })
+--   arock.mail("board", letters, me)                        -> the board as org ({ id, sender, recipient, body })
+local function top(text)
+  local doc = require("alog.org").parse(text)
+  local tops = {}
+  for _, e in ipairs(doc.entries) do if e.level == 1 then tops[#tops + 1] = e end end
+  return doc, tops[1], #tops
+end
+
+local function set(e, key, value)
+  if e.props[key] == nil then e.order[#e.order + 1] = key end
+  e.props[key] = value
+end
+
+-- a body with no headline is the message under one made of the subject; FROM and TO are the post's to say
+function mail.letter(sender, recipient, subject, body)
+  local json, org = require("ports.json"), require("alog.org")
+  local text = string.match(body, "^%s*%*+ ") and body or ("* " .. subject .. "\n" .. body)
+  local doc, e, n = top(text)
+  if n ~= 1 then return json.encode({ why = "a letter is one org entry: one top headline, its subject" }) end
+  for i = #e.order, 1, -1 do
+    if e.order[i] == "ID" then table.remove(e.order, i) end
+  end
+  e.props.ID = nil
+  set(e, "FROM", "org:" .. sender)
+  set(e, "TO", "org:" .. recipient)
+  text = org.render(doc)
+  local _, errs = require("alog.org_kinds").check("letter", text)
+  if #errs > 0 then return json.encode({ why = "line " .. errs[1].line .. ": " .. errs[1].msg }) end
+  local links = {}
+  for _, entry in ipairs(doc.entries) do
+    for _, l in ipairs(entry.links) do
+      if string.sub(l.target, 1, 4) == "org:" then links[#links + 1] = l.target end
+    end
+  end
+  local t = require("rockmail.tasks").read(e)
+  return json.encode({ text = text, subject = e.title, kind = t.kind, task = t.task, links = links })
+end
+
+function mail.stamp(text, id)
+  local doc, e = top(text)
+  set(e, "ID", id)
+  return require("alog.org").render(doc)
+end
+
+function mail.reply(task, sender, recipient, named)
+  local entry = named and select(2, top(named.body))
+  local n = named and { sender = named.sender, recipient = named.recipient, entry = entry }
+  return require("rockmail.tasks").check_reply({ task = task }, sender, recipient, n)
+end
+
+function mail.board(letters, me)
+  local tasks, list = require("rockmail.tasks"), {}
+  for i, l in ipairs(letters) do
+    list[i] = { id = l.id, sender = l.sender, recipient = l.recipient, entry = select(2, top(l.body)) }
+  end
+  return tasks.agenda(tasks.board(list, me))
+end
+
 function arock.mail(what, ...)
   return mail[what](...)
 end

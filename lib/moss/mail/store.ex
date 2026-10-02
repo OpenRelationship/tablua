@@ -46,8 +46,9 @@ defmodule Moss.Mail.Store do
 
   def get(conn, id), do: one(conn, "select * from letters where id = ?", [id])
 
-  # the columns a letter's later changes may touch; a name is written into the statement, so only these
-  @settable ~w(state reason audited read verdict)a
+  # the columns a letter's later changes may touch (its body once, when the post stamps its ID); a name is
+  # written into the statement, so only these
+  @settable ~w(state reason audited read verdict body)a
 
   def set(conn, id, fields) do
     {cols, vals} = Enum.unzip(fields)

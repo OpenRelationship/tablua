@@ -83,7 +83,12 @@ defmodule Moss.LogTest do
 
   test "rebuild folds the log back into the same nodes, from the start or a snapshot" do
     c = id()
-    sh(c, "mkdir -p files/a/b && cd files && echo one > a/b/1.txt && echo two > a/2.txt && mv a z && rm z/2.txt")
+
+    sh(
+      c,
+      "mkdir -p files/a/b && cd files && echo one > a/b/1.txt && echo two > a/2.txt && mv a z && rm z/2.txt"
+    )
+
     sh(c, "echo three > z/b/1.txt && touch empty && mkdir keep")
     d = disk(c)
     before = nodes(d)
@@ -138,7 +143,8 @@ defmodule Moss.LogTest do
     assert {200, _, "<p>hi fern</p>", _} = Computer.serve(c, req)
 
     assert [{"Write File", "user", ["/home/files/seen.txt", "fern"]}] =
-             events(c, ["Write File"]) |> Enum.filter(&(elem(&1, 2) |> hd() == "/home/files/seen.txt"))
+             events(c, ["Write File"])
+             |> Enum.filter(&(elem(&1, 2) |> hd() == "/home/files/seen.txt"))
 
     assert [
              {"Serve Request", "user",
@@ -177,15 +183,19 @@ defmodule Moss.LogTest do
              "Run Command" | _
            ] = events(a, ["Send Mail", "Run Command"]) |> Enum.map(&elem(&1, 0))
 
-    # b was awake: the letter is logged as it arrives
-    assert [{"Receive Mail", "host", [^a, "fern", "water it", ^s1]}] =
-             events(b, ["Receive Mail"])
+    # b was awake: the letter is logged as it arrives, as the post keeps it (an org entry)
+    letter = fn subject, to, id, text ->
+      "* #{subject}\n:PROPERTIES:\n:FROM: org:#{a}\n:TO: org:#{to}\n:ID: org:#{a}/mail/#{id}\n:END:\n#{text}\n"
+    end
+
+    fern = letter.("fern", b, s1, "water it")
+    assert [{"Receive Mail", "host", [^a, "fern", ^fern, ^s1]}] = events(b, ["Receive Mail"])
 
     # z was asleep: on its wake, once
     refute Computer.whereis(z)
 
-    assert [{"Receive Mail", "host", [^a, "moss", "keep it damp", ^s2]}] =
-             events(z, ["Receive Mail"])
+    moss = letter.("moss", z, s2, "keep it damp")
+    assert [{"Receive Mail", "host", [^a, "moss", ^moss, ^s2]}] = events(z, ["Receive Mail"])
 
     :ok = Computer.sleep(z)
     assert [_] = events(z, ["Receive Mail"])

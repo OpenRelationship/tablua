@@ -5,8 +5,13 @@ defmodule Moss.Computer.Mailbox do
 
       mail                          the inbox: number, sender, subject; * marks unread
       mail read <n>                 one letter, marked read
-      mail send <to> <subject...>   sends what comes on stdin (or after -m) as the body
+      mail send <to> [subject...]   sends what comes on stdin (or after -m): an org entry, or a message for one
       mail sent                     what this computer sent, and where each letter is now
+      mail board                    every task sent or received, its state now, as org
+
+  A letter is one org entry (feature file-kinds): its headline the subject, `TODO` for a task, and a reply's
+  `TASK` the address of the task it answers (`org:fern/mail/7`), its keyword the task's new state. The post
+  stamps `FROM`, `TO` and `ID`.
 
   `run(args, stdin, state)` gives back `{code, out, err}`.
   """
@@ -23,7 +28,7 @@ defmodule Moss.Computer.Mailbox do
     with {id, ""} <- Integer.parse(n),
          {:ok, l} <- Mail.read(state.id, id) do
       body = if String.ends_with?(l["body"], "\n"), do: l["body"], else: l["body"] <> "\n"
-      {0, "from: #{l["sender"]}\nsubject: #{l["subject"]}\n\n" <> body, ""}
+      {0, body, ""}
     else
       _ -> {1, "", "mail: no letter #{n} in this inbox\n"}
     end
@@ -37,11 +42,11 @@ defmodule Moss.Computer.Mailbox do
       end
 
     cond do
-      subject == "" ->
-        {2, "", "mail: send <to> <subject...> (the body on stdin, or after -m)\n"}
-
       String.trim(body) == "" ->
         {2, "", "mail: the letter has no body (pipe it in, or give it after -m)\n"}
+
+      subject == "" and not String.starts_with?(String.trim_leading(body), "* ") ->
+        {2, "", "mail: send <to> <subject...>, or a body that is an org entry (* its subject)\n"}
 
       true ->
         case Moss.Computer.mail(state.id, to, subject, body) do
@@ -65,8 +70,10 @@ defmodule Moss.Computer.Mailbox do
     end
   end
 
+  def run(["board" | _], _stdin, state), do: {0, Mail.board(state.id), ""}
+
   def run(_, _stdin, _state),
-    do: {2, "", "mail: mail | mail read <n> | mail send <to> <subject...> | mail sent\n"}
+    do: {2, "", "mail: mail | mail read <n> | mail send <to> [subject...] | mail sent | mail board\n"}
 
   defp line(l),
     do:
