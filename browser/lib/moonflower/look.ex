@@ -67,11 +67,27 @@ defmodule Moonflower.Look do
           [n, "v"] -> %{look | invisible: MapSet.put(look.invisible, n)}
           [n, "+"] -> %{look | shown: Map.put(look.shown, n, nil)}
           [n, x, y, w, h] -> %{look | shown: Map.put(look.shown, n, box(x, y, w, h))}
+          [n, x, y, w, h | more] -> %{look | shown: Map.put(look.shown, n, box(x, y, w, h, more))}
         end
     end)
   end
 
   defp box(x, y, w, h), do: %{x: int(x), y: int(y), w: int(w), h: int(h)}
+
+  # a module from v0.2.0 on says more of each box: how it is placed and painted (Moonflower.Look.Faults reads it)
+  defp box(x, y, w, h, [position, z, color, background, overflow]) do
+    Map.merge(box(x, y, w, h), %{
+      position: position,
+      z: if(z == "a", do: nil, else: int(z)),
+      color: rgba(color),
+      background: rgba(background),
+      clips: overflow == "c"
+    })
+  end
+
+  defp rgba(hex),
+    do: hex |> Base.decode16!(case: :lower) |> :binary.bin_to_list() |> List.to_tuple()
+
   defp int(s), do: String.to_integer(s)
 
   @doc "Whether the first element of this tag (holding these words, when given) is shown."

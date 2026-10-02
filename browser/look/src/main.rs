@@ -4,8 +4,11 @@
 //! each element it parsed with `data-mf="<n>"`.
 //! Out, on stdout: a line for each marked element: `<n> -` when it is not rendered (display: none, or inside
 //! something that is not), `<n> v` when it is rendered but invisible (visibility: hidden; its children may show
-//! themselves), `<n> +` when it is shown with no box of its own (display: contents), or `<n> <x> <y> <w> <h>` (its
-//! border box, CSS pixels, rounded); then
+//! themselves), `<n> +` when it is shown with no box of its own (display: contents), or
+//! `<n> <x> <y> <w> <h> <position> <z> <color> <background> <overflow>`: its border box (CSS pixels, rounded); its
+//! position (`s`tatic, `r`elative, `a`bsolute, `f`ixed, stic`k`y) and z-index (`a` for auto); its text colour and
+//! its own background colour, sRGB as eight hex digits (RRGGBBAA); and `v` when its content may overflow it (overflow
+//! visible) or `c` when it clips or scrolls what overflows; then
 //! `= <elements> <unmarked> <parse ms> <resolve ms>`, where unmarked counts elements this parser built that the
 //! host's did not.
 //!
@@ -15,8 +18,9 @@ use blitz_html::HtmlDocument;
 use blitz_traits::shell::{ColorScheme, Viewport};
 use std::io::{Read, Write};
 use std::time::Instant;
+use style::color::{AbsoluteColor, ColorSpace};
 use style::computed_values::visibility::T as Visibility;
-use style::values::computed::Display;
+use style::values::computed::{Display, Overflow, PositionProperty, ZIndex};
 
 static FONT: &[u8] = include_bytes!("../fonts/Inter.ttf");
 
@@ -65,15 +69,37 @@ fn main() {
             (false, _, _) => writeln!(out, "{} -", mark.value),
             (true, false, _) => writeln!(out, "{} v", mark.value),
             (true, true, None) => writeln!(out, "{} +", mark.value),
-            (true, true, Some(r)) => writeln!(
-                out,
-                "{} {} {} {} {}",
-                mark.value,
-                r.x.round() as i64,
-                r.y.round() as i64,
-                r.width.round() as i64,
-                r.height.round() as i64
-            ),
+            (true, true, Some(r)) => {
+                let s = node.primary_styles().unwrap();
+                let position = match s.get_box().position {
+                    PositionProperty::Static => 's',
+                    PositionProperty::Relative => 'r',
+                    PositionProperty::Absolute => 'a',
+                    PositionProperty::Fixed => 'f',
+                    PositionProperty::Sticky => 'k',
+                };
+                let z = match s.get_position().z_index {
+                    ZIndex::Integer(z) => z.to_string(),
+                    ZIndex::Auto => "a".to_string(),
+                };
+                let fg = hex(s.get_inherited_text().clone_color());
+                let bg = hex(s.resolve_color(&s.get_background().background_color));
+                let overflow = if s.get_box().overflow_x == Overflow::Visible { 'v' } else { 'c' };
+                writeln!(
+                    out,
+                    "{} {} {} {} {} {} {} {} {} {}",
+                    mark.value,
+                    r.x.round() as i64,
+                    r.y.round() as i64,
+                    r.width.round() as i64,
+                    r.height.round() as i64,
+                    position,
+                    z,
+                    fg,
+                    bg,
+                    overflow
+                )
+            }
         }
         .expect("stdout");
     }
@@ -86,4 +112,12 @@ fn main() {
         (t2 - t1).as_millis()
     )
     .expect("stdout");
+}
+
+// a colour as eight hex digits, sRGB with its alpha
+fn hex(c: AbsoluteColor) -> String {
+    let c = c.to_color_space(ColorSpace::Srgb);
+    let [r, g, b, a] = *c.raw_components();
+    let byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+    format!("{:02x}{:02x}{:02x}{:02x}", byte(r), byte(g), byte(b), byte(a))
 }
