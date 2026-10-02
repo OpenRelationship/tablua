@@ -11,7 +11,7 @@
 --   mail.send(to, subject, body)
 --   db.open(name) -> d; d:exec(sql, ...) -> changes; d:query(sql, ...) -> rows; d:one(sql, ...) -> row;
 --     d:close(); d:save() (a no-op: each statement is kept as it ends, a transaction at COMMIT). A database is
---     named like a file ("plants.db"), shows in ls, cat sums it up, rm removes it; no file is ever opened as
+--     named in data/ as .dbl ("data/plants.dbl"), shows in ls, cat sums it up, rm removes it; no file is ever opened as
 --     one. Its SQL is SQLite's: create table/index, alter table add column, drop; insert (or ignore/replace,
 --     on conflict do update/nothing, returning); select with joins, group by, subqueries, union; update;
 --     delete; begin/commit/rollback; ?, ?N and :name bind the arguments after it. Views, triggers, WITH,
@@ -21,7 +21,7 @@
 --     here. Build its pages with Shroomi (require("shroomi"), `help shroomi`); links, forms and hx- paths are
 --     relative (write "add", not "/add"), and no script of the page's own runs.
 --   require("name"): the SDK's own modules (csv, date, test, shroomi), then name.lua or
---     name/init.lua in the working folder, then /home/lib
+--     name/init.lua in the working folder, then the app's code/, then /home/code/
 -- A failure returns nil and why, as Lua's own io does.
 
 -- (Moss.Computer.Script binds __sys, the host's functions; everything here is plain Lua over them.)
@@ -120,7 +120,8 @@ db = {
   end,
 }
 
--- require, from the disk: the working folder first, then /home/lib
+-- require, from the disk: the working folder first, then the app's code/ (when the run is in an app), then
+-- /home/code/ (Arock's feature file-kinds: code lives in code/)
 local loaded = {}
 function require(name)
   if loaded[name] ~= nil then return loaded[name] end
@@ -131,7 +132,16 @@ function require(name)
     return v
   end
   local rel = string.gsub(name, "%.", "/")
-  for _, p in ipairs({ rel .. ".lua", rel .. "/init.lua", "/home/lib/" .. rel .. ".lua", "/home/lib/" .. rel .. "/init.lua" }) do
+  local roots = { "" }
+  local app = string.match(sys.cwd() or "", "^(/home/apps/[%w%-]+)")
+  if app then roots[#roots + 1] = app .. "/code/" end
+  roots[#roots + 1] = "/home/code/"
+  local tries = {}
+  for _, root in ipairs(roots) do
+    tries[#tries + 1] = root .. rel .. ".lua"
+    tries[#tries + 1] = root .. rel .. "/init.lua"
+  end
+  for _, p in ipairs(tries) do
     local src = sys.read(p)
     if src then
       local chunk, why = load(src, "@" .. p)
@@ -142,7 +152,7 @@ function require(name)
       return v
     end
   end
-  error("module '" .. name .. "' not found (looked in the working folder and /home/lib)", 2)
+  error("module '" .. name .. "' not found (looked in the working folder, the app's code/ and /home/code/)", 2)
 end
 
 -- The run: the code under xpcall; an error is written to stderr and is status 1, os.exit(n) is status n.

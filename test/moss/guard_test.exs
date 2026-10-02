@@ -110,7 +110,7 @@ defmodule Moss.GuardTest do
         local t = json.decode('{"k_#{w}": {"#{w}": [1, "#{w}"]}}')
         local u = { ["#{w}"] = t, #{w} = true }
         pcall(require, "mod_#{w}")
-        local d = db.open("#{w}.db")
+        local d = db.open("data/#{w}.dbl")
         d:exec("create table t_#{w} (c_#{w} text, n_#{w} integer)")
         d:exec("insert into t_#{w} values (?, ?)", "#{w}", 1)
         d:query("select c_#{w} as a_#{w} from t_#{w} where n_#{w} = 1")

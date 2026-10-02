@@ -16,7 +16,7 @@ defmodule MossWeb.GalleryTest do
     files =
       for f <- Path.wildcard(@examples <> "/*.lua"),
           into: %{"app.lua" => File.read!(@examples <> "/app.lua")},
-          do: {"examples/" <> Path.basename(f), File.read!(f)}
+          do: {"code/examples/" <> Path.basename(f), File.read!(f)}
 
     %{"code" => 0} = Computer.exec(id, %{"cwd" => "/home", "cmd" => "true", "files" => files})
     :ok = Moss.Owners.claim(id, "tester")

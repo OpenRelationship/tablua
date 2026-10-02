@@ -11,7 +11,7 @@ defmodule MossWeb.FrameTest do
   @app ~S"""
   local ui = require("shroomi")
   return function(req)
-    local d = db.open("plants.db")
+    local d = db.open("data/plants.dbl")
     d:exec("create table if not exists plant (name text primary key)")
     if req.method == "POST" and req.path == "/plants" then
       d:exec("insert or ignore into plant values (?)", req.form.name)

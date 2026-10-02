@@ -21,48 +21,53 @@ defmodule Moss.Sql.ComputerDbTest do
     assert %{code: 0} =
              lua(
                c,
-               ~S|local d = db.open("p.db") d:exec("create table t (a)") d:exec("insert into t values (1), (2)")|
+               ~S|local d = db.open("data/p.dbl") d:exec("create table t (a)") d:exec("insert into t values (1), (2)")|
              )
 
-    assert %{out: "p.db\n"} = sh(c, "ls")
-    assert %{out: "- " <> _} = sh(c, "ls -l")
-    assert %{out: "true\tfalse\n"} = lua(c, ~S|print(fs.exists("p.db"), fs.isdir("p.db"))|)
+    assert %{out: "data/\n"} = sh(c, "ls")
+    assert %{out: "p.dbl\n"} = sh(c, "ls data")
+    assert %{out: "- " <> _} = sh(c, "ls -l data")
+    assert %{out: "true\tfalse\n"} = lua(c, ~S|print(fs.exists("data/p.dbl"), fs.isdir("data/p.dbl"))|)
 
-    assert %{out: "p.db: a database (SQL; open it in Lua with db.open), 1 table\n  t: 2 rows\n"} =
-             sh(c, "cat p.db")
+    assert %{out: "p.dbl: a database (SQL; open it in Lua with db.open), 1 table\n  t: 2 rows\n"} =
+             sh(c, "cat data/p.dbl")
 
+    # data/ holds databases only, so a file's bytes are refused there before they meet one
+    in_data = "a database goes in data/ as .dbl, opened with db.open; a file's bytes never become one"
     database = "is a database (change it with SQL through db.open in Lua; rm removes it)"
-    assert %{out: out} = lua(c, ~S|print(fs.write("p.db", "x"))|)
-    assert out == "nil\t#{database}\n"
-    assert %{code: 1, err: "cp: /home/p.db: " <> _} = sh(c, "cp p.db q.db")
-    put(c, "/home/f.txt", "hello")
-    assert %{code: 1, err: "cp: /home/f.txt: " <> ^database <> "\n"} = sh(c, "cp f.txt p.db")
-    assert %{code: 1, err: "mv: /home/f.txt: " <> ^database <> "\n"} = sh(c, "mv f.txt p.db")
-    assert %{code: 1, err: "mv: /home/p.db: " <> ^database <> "\n"} = sh(c, "mv p.db r.db")
-    assert %{code: 1} = sh(c, "mkdir p.db")
-    assert %{out: "2\n"} = lua(c, ~S|print(db.open("p.db"):one("select count(*) as n from t").n)|)
+    assert %{out: out} = lua(c, ~S|print(fs.write("data/p.dbl", "x"))|)
+    assert out == "nil\t#{in_data}\n"
+    assert %{code: 1, err: "cp: /home/data/p.dbl: " <> _} = sh(c, "cp data/p.dbl data/q.dbl")
+    put(c, "/home/files/f.txt", "hello")
+    assert %{code: 1, err: err} = sh(c, "cp files/f.txt data/p.dbl")
+    assert err =~ in_data
+    assert %{code: 1, err: "mv: /home/files/f.txt: " <> ^database <> "\n"} = sh(c, "mv files/f.txt data/p.dbl")
+    assert %{code: 1, err: "mv: /home/data/p.dbl: " <> ^database <> "\n"} = sh(c, "mv data/p.dbl data/r.dbl")
+    assert %{code: 1} = sh(c, "mkdir data/p.dbl")
+    assert %{out: "2\n"} = lua(c, ~S|print(db.open("data/p.dbl"):one("select count(*) as n from t").n)|)
 
-    assert %{code: 0} = sh(c, "rm p.db")
-    assert %{out: "f.txt\n"} = sh(c, "ls")
+    assert %{code: 0} = sh(c, "rm data/p.dbl")
+    assert %{out: ""} = sh(c, "ls data")
+    assert %{out: "f.txt\n"} = sh(c, "ls files")
 
     assert %{out: "nil\tno such table: t\n"} =
-             lua(c, ~S|print(db.open("p.db"):query("select * from t"))|)
+             lua(c, ~S|print(db.open("data/p.dbl"):query("select * from t"))|)
   end
 
   test "databases sit in folders by path, and a database's folder is made as a file's would be" do
     c = id()
-    assert %{code: 0} = lua(c, ~S|db.open("/data/x/a.db"):exec("create table t (a)")|)
-    assert %{code: 0} = lua(c, ~S|db.open("/data/b.db"):exec("create table t (a)")|)
-    assert %{out: "b.db\nx/\n"} = sh(c, "ls /data")
-    assert %{out: "a.db\n"} = sh(c, "ls /data/x")
-    assert %{out: "/data/x/a.db\n"} = sh(c, "find /data -name a.db")
+    assert %{code: 0} = lua(c, ~S|db.open("/home/data/x/a.dbl"):exec("create table t (a)")|)
+    assert %{code: 0} = lua(c, ~S|db.open("/home/data/b.dbl"):exec("create table t (a)")|)
+    assert %{out: "b.dbl\nx/\n"} = sh(c, "ls /home/data")
+    assert %{out: "a.dbl\n"} = sh(c, "ls /home/data/x")
+    assert %{out: "/home/data/x/a.dbl\n"} = sh(c, "find /home/data -name a.dbl")
   end
 
   test "values keep their types between runs; ALTER, AUTOINCREMENT and indexes survive; ROLLBACK leaves nothing" do
     c = id()
 
-    put(c, "/home/w.lua", ~S"""
-    local d = db.open("v.db")
+    put(c, "/home/code/w.lua", ~S"""
+    local d = db.open("data/v.dbl")
     d:exec([[create table t (id integer primary key autoincrement, i int, r real, s text, b blob, n)]])
     d:exec("create index t_s on t (s)")
     d:exec("insert into t (i, r, s, b, n) values (?, ?, ?, x'0001ff', ?)", 7, 1.5, "seven", nil)
@@ -75,24 +80,24 @@ defmodule Moss.Sql.ComputerDbTest do
     d:exec("begin; insert into t (i) values (100); commit")
     """)
 
-    assert %{code: 0, err: ""} = sh(c, "lua w.lua")
+    assert %{code: 0, err: ""} = sh(c, "lua code/w.lua")
 
     assert %{out: out} =
              lua(
                c,
-               ~S|local d = db.open("v.db") for _, r in ipairs(d:query("select id, typeof(i) ti, typeof(r) tr, typeof(s) ts, typeof(b) tb, typeof(n) tn, extra, length(b) lb from t order by id")) do print(r.id, r.ti, r.tr, r.ts, r.tb, r.tn, r.extra, r.lb) end print(d:one("select max(id) m from t").m)|
+               ~S|local d = db.open("data/v.dbl") for _, r in ipairs(d:query("select id, typeof(i) ti, typeof(r) tr, typeof(s) ts, typeof(b) tb, typeof(n) tn, extra, length(b) lb from t order by id")) do print(r.id, r.ti, r.tr, r.ts, r.tb, r.tn, r.extra, r.lb) end print(d:one("select max(id) m from t").m)|
              )
 
     assert out ==
              "1\tinteger\treal\ttext\tblob\tnull\tx\t3\n3\tinteger\tnull\tnull\tnull\tnull\tx\tnil\n3\n"
 
     assert %{out: "1\n"} =
-             lua(c, ~S|print(#db.open("v.db"):query("select * from t where s = ?", "seven"))|)
+             lua(c, ~S|print(#db.open("data/v.dbl"):query("select * from t where s = ?", "seven"))|)
 
     assert %{out: "4\n"} =
              lua(
                c,
-               ~S|local d = db.open("v.db") d:exec("insert into t (i) values (1)") print(d:one("select max(id) m from t").m)|
+               ~S|local d = db.open("data/v.dbl") d:exec("insert into t (i) values (1)") print(d:one("select max(id) m from t").m)|
              )
   end
 
@@ -105,7 +110,7 @@ defmodule Moss.Sql.ComputerDbTest do
       assert %{code: 0} =
                lua(
                  c,
-                 ~S|local d = db.open("big.db") d:exec("create table t (a)") local v = {} for i = 1, 400 do v[#v + 1] = "(" .. i .. ")" end d:exec("insert into t values " .. table.concat(v, ","))|
+                 ~S|local d = db.open("data/big.dbl") d:exec("create table t (a)") local v = {} for i = 1, 400 do v[#v + 1] = "(" .. i .. ")" end d:exec("insert into t values " .. table.concat(v, ","))|
                )
 
       # a join that keeps nothing costs only time, and the budget ends it
@@ -113,7 +118,7 @@ defmodule Moss.Sql.ComputerDbTest do
         :timer.tc(fn ->
           lua(
             c,
-            ~S|print(db.open("big.db"):query("select count(*) n from t a, t b, t c where a.a + b.a + c.a < 0"))|
+            ~S|print(db.open("data/big.dbl"):query("select count(*) n from t a, t b, t c where a.a + b.a + c.a < 0"))|
           )
         end)
 
@@ -124,11 +129,11 @@ defmodule Moss.Sql.ComputerDbTest do
       assert %{code: 137, err: "lua: out of memory" <> _} =
                lua(
                  c,
-                 ~S|print(db.open("big.db"):query("select a.a, b.a, c.a from t a, t b, t c"))|
+                 ~S|print(db.open("data/big.dbl"):query("select a.a, b.a, c.a from t a, t b, t c"))|
                )
 
       assert %{out: "400\n"} =
-               lua(c, ~S|print(db.open("big.db"):one("select count(*) n from t").n)|)
+               lua(c, ~S|print(db.open("data/big.dbl"):one("select count(*) n from t").n)|)
     after
       if prev,
         do: Application.put_env(:moss, :script_instructions, prev),
@@ -142,7 +147,7 @@ defmodule Moss.Sql.ComputerDbTest do
     assert %{out: out} =
              lua(
                c,
-               ~S|for i = 1, 9 do local d, why = db.open("d" .. i .. ".db") if not d then print(i, why) end end|
+               ~S|for i = 1, 9 do local d, why = db.open("data/d" .. i .. ".dbl") if not d then print(i, why) end end|
              )
 
     assert out == "9\ttoo many open databases (8)\n"
@@ -150,13 +155,13 @@ defmodule Moss.Sql.ComputerDbTest do
     assert %{out: "nil\tstring or blob too big: a statement is at most 1024 KB\n"} =
              lua(
                c,
-               ~S|print(db.open("a.db"):query("select " .. string.rep("1+", 600000) .. "1"))|
+               ~S|print(db.open("data/a.dbl"):query("select " .. string.rep("1+", 600000) .. "1"))|
              )
 
     assert %{out: "nil\tExpression tree is too large (maximum depth 1000)\n"} =
              lua(
                c,
-               ~S|print(db.open("a.db"):query("select " .. "1" .. string.rep("+1", 1000)))|
+               ~S|print(db.open("data/a.dbl"):query("select " .. "1" .. string.rep("+1", 1000)))|
              )
   end
 
@@ -166,7 +171,7 @@ defmodule Moss.Sql.ComputerDbTest do
     Computer.wake!(c)
 
     script = """
-    local d = db.open("m.db")
+    local d = db.open("data/m.dbl")
     d:exec("create table #{marker} (k text primary key, v)")
     d:exec("create index #{marker}_v on #{marker} (v)")
     d:exec("insert into #{marker} values ('#{marker}', 1), ('b', 2) on conflict do nothing")
@@ -175,12 +180,12 @@ defmodule Moss.Sql.ComputerDbTest do
     d:exec("begin; delete from #{marker} where k = 'b'; commit")
     """
 
-    put(c, "/home/m.lua", script)
+    put(c, "/home/code/m.lua", script)
     :erlang.trace_pattern({Exqlite.Sqlite3NIF, :_, :_}, true, [:local])
     :erlang.trace(:all, true, [:call])
 
     try do
-      assert %{code: 0, out: "2\n"} = sh(c, "lua m.lua")
+      assert %{code: 0, out: "2\n"} = sh(c, "lua code/m.lua")
     after
       :erlang.trace(:all, false, [:call])
       :erlang.trace_pattern({Exqlite.Sqlite3NIF, :_, :_}, false, [:local])

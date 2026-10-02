@@ -54,17 +54,18 @@ defmodule Moss.LogTest do
     assert %{code: 0} =
              sh(
                c,
-               "mkdir -p notes/old && echo fern > notes/a.txt && mv notes/a.txt notes/b.txt && " <>
-                 "rm notes/b.txt && rmdir notes/old"
+               "mkdir -p files/notes/old && echo fern > files/notes/a.txt && mv files/notes/a.txt files/notes/b.txt && " <>
+                 "rm files/notes/b.txt && rmdir files/notes/old"
              )
 
     assert [
-             {"Make Folder", "agent", ["/home/notes"]},
-             {"Make Folder", "agent", ["/home/notes/old"]},
-             {"Write File", "agent", ["/home/notes/a.txt", "fern\n"]},
-             {"Move File", "agent", ["/home/notes/a.txt", "/home/notes/b.txt"]},
-             {"Delete File", "agent", ["/home/notes/b.txt"]},
-             {"Delete File", "agent", ["/home/notes/old"]}
+             {"Make Folder", "agent", ["/home/files"]},
+             {"Make Folder", "agent", ["/home/files/notes"]},
+             {"Make Folder", "agent", ["/home/files/notes/old"]},
+             {"Write File", "agent", ["/home/files/notes/a.txt", "fern\n"]},
+             {"Move File", "agent", ["/home/files/notes/a.txt", "/home/files/notes/b.txt"]},
+             {"Delete File", "agent", ["/home/files/notes/b.txt"]},
+             {"Delete File", "agent", ["/home/files/notes/old"]}
            ] =
              events(c, ["Make Folder", "Write File", "Move File", "Delete File"]) |> Enum.drop(3)
 
@@ -76,20 +77,20 @@ defmodule Moss.LogTest do
            ] = events(c)
 
     # the exec port's files go through the same writes
-    Computer.exec(c, %{"files" => %{"x/y.txt" => "why"}, "cmd" => "true"})
-    assert {"Write File", "agent", ["/home/x/y.txt", "why"]} in events(c)
+    Computer.exec(c, %{"files" => %{"files/x/y.txt" => "why"}, "cmd" => "true"})
+    assert {"Write File", "agent", ["/home/files/x/y.txt", "why"]} in events(c)
   end
 
   test "rebuild folds the log back into the same nodes, from the start or a snapshot" do
     c = id()
-    sh(c, "mkdir -p a/b && echo one > a/b/1.txt && echo two > a/2.txt && mv a z && rm z/2.txt")
+    sh(c, "mkdir -p files/a/b && cd files && echo one > a/b/1.txt && echo two > a/2.txt && mv a z && rm z/2.txt")
     sh(c, "echo three > z/b/1.txt && touch empty && mkdir keep")
     d = disk(c)
     before = nodes(d)
     {:ok, [dump]} = Log.alog(d, "dump", [])
 
     assert Enum.map(before, & &1["path"]) ==
-             ~w(/ /home /home/empty /home/keep /home/z /home/z/b /home/z/b/1.txt /tmp)
+             ~w(/ /home /home/files /home/files/empty /home/files/keep /home/files/z /home/files/z/b /home/files/z/b/1.txt /tmp)
 
     {:ok, _} = Log.alog(d, "rebuild", [])
     assert nodes(d) == before
@@ -100,7 +101,7 @@ defmodule Moss.LogTest do
     after_snap = nodes(d)
     {:ok, _} = Log.alog(d, "rebuild", [])
     assert nodes(d) == after_snap
-    assert {:ok, "four\n"} = Disk.read(d, "/home/z/4.txt")
+    assert {:ok, "four\n"} = Disk.read(d, "/home/files/z/4.txt")
   end
 
   test "a run is an event: its line, the folder it began in, its status, time, output and errors" do
@@ -130,14 +131,14 @@ defmodule Moss.LogTest do
 
     :ok =
       Disk.write(disk(c), "/home/app.lua", """
-      return function(req) fs.write("seen.txt", req.form.name or "") return "<p>hi " .. (req.form.name or "") .. "</p>" end
+      return function(req) fs.write("files/seen.txt", req.form.name or "") return "<p>hi " .. (req.form.name or "") .. "</p>" end
       """)
 
     req = App.request("post", "/add", %{"q" => "1"}, %{"name" => "fern"}, [])
     assert {200, _, "<p>hi fern</p>", _} = Computer.serve(c, req)
 
-    assert [{"Write File", "user", ["/home/seen.txt", "fern"]}] =
-             events(c, ["Write File"]) |> Enum.filter(&(elem(&1, 2) |> hd() == "/home/seen.txt"))
+    assert [{"Write File", "user", ["/home/files/seen.txt", "fern"]}] =
+             events(c, ["Write File"]) |> Enum.filter(&(elem(&1, 2) |> hd() == "/home/files/seen.txt"))
 
     assert [
              {"Serve Request", "user",
@@ -192,10 +193,10 @@ defmodule Moss.LogTest do
 
   test "recall finds a file by its text, and the event that wrote it" do
     c = id()
-    sh(c, "echo 'the quokka sleeps under the fern' > notes.txt")
+    sh(c, "mkdir -p files && echo 'the quokka sleeps under the fern' > files/notes.txt")
     {:ok, [found]} = Log.alog(disk(c), "recall", ["quokka"])
     found = plain(found)
-    assert [%{"path" => "/home/notes.txt"}] = found["files"]
+    assert [%{"path" => "/home/files/notes.txt"}] = found["files"]
     assert Enum.any?(found["events"], &(&1["keyword"] == "Write File"))
   end
 

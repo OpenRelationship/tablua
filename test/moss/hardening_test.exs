@@ -66,7 +66,7 @@ defmodule Moss.HardeningTest do
       assert err =~ "over 1000 bytes"
     end)
 
-    assert %{code: 0} = sh(c, "curl -o big.txt http://93.184.215.14/big")
+    assert %{code: 0} = sh(c, "curl -o files/big.txt http://93.184.215.14/big")
   end
 
   test "a name is resolved once, and the request goes to the address that was checked" do
@@ -99,13 +99,13 @@ defmodule Moss.HardeningTest do
     with_env(:disk_max_bytes, 400 * 1024, fn ->
       c = id()
       big = String.duplicate("x", 200 * 1024)
-      assert %{code: 0} = sh(c, "lua -e 'fs.write(\"a.txt\", string.rep(\"x\", 200 * 1024))'")
+      assert %{code: 0} = sh(c, "lua -e 'fs.write(\"files/a.txt\", string.rep(\"x\", 200 * 1024))'")
 
       assert %{code: 1, err: err} =
-               sh(c, "lua -e 'assert(fs.write(\"b.txt\", string.rep(\"y\", 200 * 1024)))'")
+               sh(c, "lua -e 'assert(fs.write(\"files/b.txt\", string.rep(\"y\", 200 * 1024)))'")
 
       assert err =~ "full"
-      assert {:ok, ^big} = Disk.read(:sys.get_state(Computer.wake!(c)).disk, "/home/a.txt")
+      assert {:ok, ^big} = Disk.read(:sys.get_state(Computer.wake!(c)).disk, "/home/files/a.txt")
     end)
   end
 end

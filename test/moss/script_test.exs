@@ -15,29 +15,29 @@ defmodule Moss.ScriptTest do
   test "a script reads its args and stdin, writes the computer's files, and exits with its own status" do
     c = id()
 
-    put(c, "/home/count.lua", ~S"""
+    put(c, "/home/code/count.lua", ~S"""
     local n = 0
     for line in io.lines() do n = n + 1 end
-    fs.write("notes/count.txt", arg[1] .. " " .. n)
-    print(fs.read("notes/count.txt"), fs.exists("notes"), fs.isdir("notes"), #fs.list("notes"))
+    fs.write("files/notes/count.txt", arg[1] .. " " .. n)
+    print(fs.read("files/notes/count.txt"), fs.exists("files/notes"), fs.isdir("files/notes"), #fs.list("files/notes"))
     os.exit(tonumber(arg[2]))
     """)
 
     assert %{code: 4, out: "lines 2\ttrue\ttrue\t1\n"} =
-             sh(c, "echo 'a\nb' | lua count.lua lines 4")
+             sh(c, "echo 'a\nb' | lua code/count.lua lines 4")
 
-    assert %{code: 0, out: "lines 2"} = sh(c, "cat notes/count.txt")
+    assert %{code: 0, out: "lines 2"} = sh(c, "cat files/notes/count.txt")
   end
 
-  test "require loads modules from the working folder, then /home/lib" do
+  test "require loads modules from the working folder, then the app's code/, then /home/code/" do
     c = id()
-    put(c, "/home/lib/plants.lua", "return { water = function(p) return p .. ' watered' end }")
-    put(c, "/home/app/util/text.lua", "return { shout = string.upper }")
+    put(c, "/home/code/plants.lua", "return { water = function(p) return p .. ' watered' end }")
+    put(c, "/home/apps/garden/code/util/text.lua", "return { shout = string.upper }")
 
     assert %{code: 0, out: "FERN watered\n"} =
              sh(
                c,
-               ~s|cd app && lua -e 'print(require("plants").water(require("util.text").shout("fern")))'|
+               ~s|mkdir -p apps/garden/files && cd apps/garden/files && lua -e 'print(require("plants").water(require("util.text").shout("fern")))'|
              )
 
     assert %{code: 1, err: "lua: " <> err} = sh(c, ~s|lua -e 'require("nope")'|)
@@ -115,7 +115,7 @@ defmodule Moss.ScriptTest do
     c = id()
     Req.Test.allow(Net, self(), Computer.wake!(c))
 
-    put(c, "/home/f.lua", ~S"""
+    put(c, "/home/code/f.lua", ~S"""
     local r = http.post("http://93.184.215.14/echo", json.encode({ n = 1 }), { ["x-a"] = "1" })
     print(r.status, r.headers["x-plant"], json.decode(r.body).n)
     print(http.get("http://93.184.215.14/away"))
@@ -123,7 +123,7 @@ defmodule Moss.ScriptTest do
     print(http.request({ method = "TRACE", url = "http://93.184.215.14/echo" }))
     """)
 
-    assert %{code: 0, out: out} = sh(c, "lua f.lua")
+    assert %{code: 0, out: out} = sh(c, "lua code/f.lua")
 
     assert [
              "201\tfern\t2",

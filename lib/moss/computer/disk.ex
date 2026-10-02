@@ -23,6 +23,7 @@ defmodule Moss.Computer.Disk do
   Paths are normalised (`.`, `..`, repeated slashes) and never leave `/`.
   """
   alias Moss.{Db, Log}
+  alias Moss.Computer.{Kinds, Named}
   alias Moss.Sql.Store
 
   defstruct [:conn, :task, actor: "agent"]
@@ -241,10 +242,11 @@ defmodule Moss.Computer.Disk do
   def write(disk, path, data) do
     path = norm(path)
 
-    with :ok <- mkdir_p(disk, Path.dirname(path)),
+    with :ok <- kind(disk, path, &Kinds.file/1),
+         :ok <- mkdir_p(disk, Path.dirname(path)),
          {:ok, %{dir: false} = st} <- file_or_none(disk, path),
          false <- Map.get(st, :db, false) do
-      with :ok <- log(disk, "Write File", [path, data]), do: named(disk, path, data)
+      with :ok <- log(disk, "Write File", [path, data]), do: Named.written(disk, path, data)
     else
       true -> {:error, @database}
       {:ok, %{dir: true}} -> {:error, :eisdir}
@@ -265,7 +267,9 @@ defmodule Moss.Computer.Disk do
     case {stat(disk, Path.dirname(path)), stat(disk, path)} do
       {{:ok, %{dir: true}}, {:ok, %{dir: true}}} -> :ok
       {{:ok, %{dir: true}}, {:ok, _}} -> {:error, :eexist}
-      {{:ok, %{dir: true}}, {:error, :enoent}} -> log(disk, "Make Folder", [path])
+      {{:ok, %{dir: true}}, {:error, :enoent}} ->
+        with :ok <- kind(disk, path, &Kinds.folder/1), do: log(disk, "Make Folder", [path])
+
       {{:ok, _}, _} -> {:error, :enotdir}
       {error, _} -> error
     end
@@ -340,10 +344,10 @@ defmodule Moss.Computer.Disk do
 
         if kids != [] and not all,
           do: {:error, :enotempty},
-          else: with(:ok <- log(disk, "Delete File", [path]), do: unnamed(disk, path))
+          else: with(:ok <- log(disk, "Delete File", [path]), do: Named.removed(disk, path))
 
       {_, {:ok, _}} ->
-        with :ok <- log(disk, "Delete File", [path]), do: unnamed(disk, path)
+        with :ok <- log(disk, "Delete File", [path]), do: Named.removed(disk, path)
 
       {_, error} ->
         error
@@ -355,10 +359,11 @@ defmodule Moss.Computer.Disk do
     {from, to} = {norm(from), norm(to)}
 
     with false <- database?(disk, from) or database?(disk, to),
-         {:ok, _} <- stat(disk, from),
+         {:ok, st} <- stat(disk, from),
          {:ok, %{dir: true}} <- stat(disk, Path.dirname(to)),
-         :ok <- if(String.starts_with?(to <> "/", from <> "/"), do: {:error, :einval}, else: :ok) do
-      with :ok <- log(disk, "Move File", [from, to]), do: renamed(disk, from, to)
+         :ok <- if(String.starts_with?(to <> "/", from <> "/"), do: {:error, :einval}, else: :ok),
+         :ok <- movable(disk, from, to, st) do
+      with :ok <- log(disk, "Move File", [from, to]), do: Named.moved(disk, from, to)
     else
       true -> {:error, @database}
       {:ok, _} -> {:error, :enotdir}
@@ -366,31 +371,26 @@ defmodule Moss.Computer.Disk do
     end
   end
 
-  # A manifest written, removed or moved re-registers what it names on the node (`Moss.Names`); the user's
-  # requests and a disk with no computer name nothing.
-  defp named(%{task: id} = disk, path, data) when is_binary(id) do
-    if disk.actor != "user" and String.ends_with?(path, "/manifest.org") and Process.whereis(Moss.Names),
-      do: Moss.Names.manifest(id, path, data)
+  # the six kinds (Kinds) hold for the agent and the person; the host writes where it must
+  defp kind(%{actor: "host"}, _path, _check), do: :ok
+  defp kind(_disk, path, check), do: check.(path)
 
-    :ok
-  end
+  # a folder moves only where every file under it may go
+  defp movable(disk, _from, to, %{dir: false}), do: kind(disk, to, &Kinds.file/1)
 
-  defp named(_, _, _), do: :ok
+  defp movable(disk, from, to, %{dir: true}) do
+    {:ok, rows} =
+      Db.exec(disk.conn, "select path, dir from nodes where path >= ?1 || '/' and path < ?1 || '0'", [from])
 
-  defp unnamed(%{task: id}, path) when is_binary(id) do
-    if Process.whereis(Moss.Names), do: Moss.Names.gone(id, path)
-    :ok
-  end
+    Enum.reduce_while([%{"path" => from, "dir" => 1} | rows], :ok, fn r, :ok ->
+      dest = to <> binary_part(r["path"], byte_size(from), byte_size(r["path"]) - byte_size(from))
+      check = if r["dir"] == 1, do: &Kinds.folder/1, else: &Kinds.file/1
 
-  defp unnamed(_, _), do: :ok
-
-  defp renamed(disk, from, to) do
-    unnamed(disk, from)
-
-    for p <- [to, to <> "/manifest.org"], String.ends_with?(p, "/manifest.org"), {:ok, data} <- [read(disk, p)],
-        do: named(disk, p, data)
-
-    :ok
+      case kind(disk, dest, check) do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
   end
 
   @doc "Tells the app's window that `paths` changed (a database's write, by `Moss.Computer.Script.Sql`)."

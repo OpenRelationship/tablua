@@ -83,17 +83,17 @@ defmodule Moss.ReplicationTest do
 
   defp round_trip(id) do
     # a typical computer: a few notes, a Lua tool and its run, then 200 KB of data written in one file
-    Computer.run(id, "mkdir -p notes && echo 'water the fern' > notes/todo.txt")
-    Computer.run(id, ~S|echo 'print(#fs.read("notes/todo.txt"))' > count.lua && lua count.lua|)
+    Computer.run(id, "mkdir -p files/notes && echo 'water the fern' > files/notes/todo.txt")
+    Computer.run(id, ~S|mkdir -p code && echo 'print(#fs.read("files/notes/todo.txt"))' > code/count.lua && lua code/count.lua|)
     data = Base.encode64(:crypto.strong_rand_bytes(150_000))
-    assert :ok = GenServer.call(Computer.whereis(id), {:files, "/home", %{"data.txt" => data}})
+    assert :ok = GenServer.call(Computer.whereis(id), {:files, "/home", %{"files/data.txt" => data}})
 
     # the everyday case: a small command, and how long until a pack holds it (Litestream's sync, then a round)
     delays =
       for n <- 1..3 do
         before = Ledger.gen(id)["packed"]
         t0 = System.monotonic_time(:millisecond)
-        Computer.run(id, "echo #{n} >> notes/log.txt")
+        Computer.run(id, "echo #{n} >> files/notes/log.txt")
         packed_after(id, before, t0)
       end
 
@@ -106,19 +106,19 @@ defmodule Moss.ReplicationTest do
     {:ok, snapshot} = Objects.get(Objects.computer_key(id))
 
     t2 = System.monotonic_time(:millisecond)
-    assert %{out: "water the fern\n"} = Computer.run(id, "cat notes/todo.txt")
+    assert %{out: "water the fern\n"} = Computer.run(id, "cat files/notes/todo.txt")
     woke = ms(t2)
-    assert %{out: ^data} = Computer.run(id, "cat data.txt")
-    assert %{out: out} = Computer.run(id, "lua count.lua")
+    assert %{out: ^data} = Computer.run(id, "cat files/data.txt")
+    assert %{out: out} = Computer.run(id, "lua code/count.lua")
     assert out =~ "15"
     # the log came back too: the runs before the sleep are events
     assert events(id) >= 5
 
     # the next wake is the next chain, and keeps the newer write
-    Computer.run(id, "echo again >> notes/todo.txt")
+    Computer.run(id, "echo again >> files/notes/todo.txt")
     sleep!(id)
     assert snapshot_gen(id) == 2
-    assert %{out: "water the fern\nagain\n"} = Computer.run(id, "cat notes/todo.txt")
+    assert %{out: "water the fern\nagain\n"} = Computer.run(id, "cat files/notes/todo.txt")
     sleep!(id)
     # every computer in the packs is asleep on a later chain: a round collects them all
     assert {:ok, _} = Packer.pack()
@@ -159,18 +159,18 @@ defmodule Moss.ReplicationTest do
   defp loss(id) do
     # a sleeping neighbour's packs say nothing it must be rebuilt from
     other = id <> "-asleep"
-    Computer.run(other, "echo asleep > a.txt")
+    Computer.run(other, "mkdir -p files && echo asleep > files/a.txt")
     packed!(other)
     sleep!(other)
 
-    Computer.run(id, "mkdir -p notes && echo 'before the loss' > notes/a.txt")
+    Computer.run(id, "mkdir -p files/notes && echo 'before the loss' > files/notes/a.txt")
     data = Base.encode64(:crypto.strong_rand_bytes(60_000))
-    assert :ok = GenServer.call(Computer.whereis(id), {:files, "/home", %{"data.txt" => data}})
-    for n <- 1..5, do: Computer.run(id, "echo #{n} >> notes/log.txt")
+    assert :ok = GenServer.call(Computer.whereis(id), {:files, "/home", %{"files/data.txt" => data}})
+    for n <- 1..5, do: Computer.run(id, "echo #{n} >> files/notes/log.txt")
     packed!(id)
     runs = events(id)
     # written after the last pack: a lost disk loses it
-    Computer.run(id, "echo 'after the last pack' > notes/b.txt")
+    Computer.run(id, "echo 'after the last pack' > files/notes/b.txt")
 
     lose_disk!([id])
     t0 = System.monotonic_time(:millisecond)
@@ -179,13 +179,13 @@ defmodule Moss.ReplicationTest do
     restored = ms(t0)
 
     assert Ledger.slept(id) == 1
-    assert %{out: "before the loss\n"} = Computer.run(id, "cat notes/a.txt")
-    assert %{out: ^data} = Computer.run(id, "cat data.txt")
-    assert %{out: "1\n2\n3\n4\n5\n"} = Computer.run(id, "cat notes/log.txt")
-    assert %{code: 1} = Computer.run(id, "cat notes/b.txt")
+    assert %{out: "before the loss\n"} = Computer.run(id, "cat files/notes/a.txt")
+    assert %{out: ^data} = Computer.run(id, "cat files/data.txt")
+    assert %{out: "1\n2\n3\n4\n5\n"} = Computer.run(id, "cat files/notes/log.txt")
+    assert %{code: 1} = Computer.run(id, "cat files/notes/b.txt")
     # its runs up to the last pack, and the four just above
     assert events(id) == runs + 4
-    assert %{out: "asleep\n"} = Computer.run(other, "cat a.txt")
+    assert %{out: "asleep\n"} = Computer.run(other, "cat files/a.txt")
     sleep!(id)
     sleep!(other)
     assert {:ok, %{deleted: n}} = Packer.pack()
@@ -210,8 +210,8 @@ defmodule Moss.ReplicationTest do
   @tag :manual
   test "a computer awake a long time is snapshotted, so its old packs are deleted" do
     id = id("ls-awake")
-    Computer.run(id, "mkdir -p notes && echo 'before the snapshot' > notes/a.txt")
-    for n <- 1..3, do: Computer.run(id, "echo #{n} >> notes/log.txt")
+    Computer.run(id, "mkdir -p files/notes && echo 'before the snapshot' > files/notes/a.txt")
+    for n <- 1..3, do: Computer.run(id, "echo #{n} >> files/notes/log.txt")
     packed!(id)
     assert [_ | _] = Map.keys(Ledger.packs())
 
@@ -223,7 +223,7 @@ defmodule Moss.ReplicationTest do
     assert File.exists?(path(id))
 
     # still awake, still streamed: its next work is packed as the next chain, and the old chain's packs are gone
-    Computer.run(id, "echo 'after the snapshot' > notes/b.txt")
+    Computer.run(id, "echo 'after the snapshot' > files/notes/b.txt")
     packed!(id)
     chains = for {_, es} <- Ledger.packs(), c <- Ledger.chains(es), uniq: true, do: c
     assert chains == [{id, 2}]
@@ -231,9 +231,9 @@ defmodule Moss.ReplicationTest do
     lose_disk!([id])
     start_supervised!(Litestream)
     start_supervised!(Packer)
-    assert %{out: "before the snapshot\n"} = Computer.run(id, "cat notes/a.txt")
-    assert %{out: "1\n2\n3\n"} = Computer.run(id, "cat notes/log.txt")
-    assert %{out: "after the snapshot\n"} = Computer.run(id, "cat notes/b.txt")
+    assert %{out: "before the snapshot\n"} = Computer.run(id, "cat files/notes/a.txt")
+    assert %{out: "1\n2\n3\n"} = Computer.run(id, "cat files/notes/log.txt")
+    assert %{out: "after the snapshot\n"} = Computer.run(id, "cat files/notes/b.txt")
     sleep!(id)
     assert {:ok, _} = Packer.pack()
     assert Ledger.packs() == %{}
@@ -245,7 +245,7 @@ defmodule Moss.ReplicationTest do
 
   test "a computer that slept as its log before packs wakes from it, and sleeps whole after" do
     c = id("ls-old")
-    Computer.run(c, "echo old > old.txt")
+    Computer.run(c, "mkdir -p files && echo old > files/old.txt")
     {:ok, _} = Litestream.sync(path(c))
     # its segments where the old shipper put them, and nothing else of it anywhere
     ltx = Path.join(Litestream.replica_dir(c), "ltx")
@@ -267,20 +267,20 @@ defmodule Moss.ReplicationTest do
     start_supervised!(Litestream)
     start_supervised!(Packer)
     assert Objects.get(Objects.computer_key(c)) == :not_found
-    assert %{out: "old\n"} = Computer.run(c, "cat old.txt")
+    assert %{out: "old\n"} = Computer.run(c, "cat files/old.txt")
     sleep!(c)
     assert snapshot_gen(c) == 1
-    assert %{out: "old\n"} = Computer.run(c, "cat old.txt")
+    assert %{out: "old\n"} = Computer.run(c, "cat files/old.txt")
   end
 
   test "a computer kept whole before Litestream wakes from its whole file, then streams" do
     c = id("ls-whole")
     Application.put_env(:moss, :replication, :whole)
-    Computer.run(c, "echo old > old.txt")
+    Computer.run(c, "mkdir -p files && echo old > files/old.txt")
     sleep!(c)
     assert snapshot_gen(c) == 0
     Application.put_env(:moss, :replication, :litestream)
-    assert %{out: "old\n"} = Computer.run(c, "cat old.txt")
+    assert %{out: "old\n"} = Computer.run(c, "cat files/old.txt")
     sleep!(c)
     assert snapshot_gen(c) == 1
   end

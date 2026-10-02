@@ -24,37 +24,37 @@ defmodule Moss.ComputerTest do
     assert %{code: 0} =
              sh(
                c,
-               "mkdir -p notes/old && echo 'buy moss' > notes/todo.txt && echo 'water fern' >> notes/todo.txt"
+               "mkdir -p files/notes/old && echo 'buy moss' > files/notes/todo.txt && echo 'water fern' >> files/notes/todo.txt"
              )
 
-    assert %{out: "1:buy moss\n"} = sh(c, "cat notes/todo.txt | grep -n moss")
-    assert %{out: "water fern\n"} = sh(c, "sort -r notes/todo.txt | head -1")
+    assert %{out: "1:buy moss\n"} = sh(c, "cat files/notes/todo.txt | grep -n moss")
+    assert %{out: "water fern\n"} = sh(c, "sort -r files/notes/todo.txt | head -1")
     assert %{out: "hi pebbles $NAME\n"} = sh(c, "export NAME=pebbles; echo \"hi $NAME\" '$NAME'")
-    assert %{out: "todo.txt\n", cwd: "/home/notes"} = sh(c, "cd notes && ls *.txt")
+    assert %{out: "todo.txt\n", cwd: "/home/files/notes"} = sh(c, "cd files/notes && ls *.txt")
     assert %{code: 0} = sh(c, "mv todo.txt old/ && cp -r old copy")
     assert %{out: "./copy/todo.txt\n./old/todo.txt\n"} = sh(c, "find . -name '*.txt'")
     assert %{out: "127\n"} = sh(c, "nosuch; echo $?")
-    assert %{code: 1, err: "rm: /home/notes/old: is a folder (rm -r)\n"} = sh(c, "rm old")
+    assert %{code: 1, err: "rm: /home/files/notes/old: is a folder (rm -r)\n"} = sh(c, "rm old")
   end
 
   test "one computer never sees another's files" do
     {a, b} = {id(), id()}
-    sh(a, "echo secret > mine.txt")
-    assert %{code: 1} = sh(b, "cat mine.txt")
-    assert %{code: 1} = sh(b, "cat /home/../../home/mine.txt")
+    sh(a, "echo secret > files/mine.txt")
+    assert %{code: 1} = sh(b, "cat files/mine.txt")
+    assert %{code: 1} = sh(b, "cat /home/../../home/files/mine.txt")
     assert %{out: ""} = sh(b, "ls")
-    assert %{out: "secret\n"} = sh(a, "cat mine.txt")
+    assert %{out: "secret\n"} = sh(a, "cat files/mine.txt")
   end
 
   test "it sleeps to the object store and wakes with its files, folder and tabs" do
     c = id()
-    sh(c, "mkdir work && cd work && echo kept > a.txt")
+    sh(c, "mkdir -p files/work && cd files/work && echo kept > a.txt")
     ref = Process.monitor(Computer.whereis(c))
     assert :ok = Computer.sleep(c)
     assert_receive {:DOWN, ^ref, :process, _, :normal}, 2_000
     assert {:ok, _} = Objects.get(Objects.computer_key(c))
     {us, r} = :timer.tc(fn -> sh(c, "cat a.txt") end)
-    assert %{out: "kept\n", cwd: "/home/work"} = r
+    assert %{out: "kept\n", cwd: "/home/files/work"} = r
     assert us < 500_000
   end
 
@@ -154,10 +154,10 @@ defmodule Moss.ComputerTest do
 
     {[r], _lua} =
       Lua.eval!(lua, ~S"""
-      return __host.exec{ cmd = "cat b.txt && echo made > a.txt && pwd", cwd = "/home/work", files = { ["b.txt"] = "given\n" } }
+      return __host.exec{ cmd = "cat b.txt && echo made > a.txt && pwd", cwd = "/home/files/work", files = { ["b.txt"] = "given\n" } }
       """)
 
-    assert %{"code" => 0, "stdout" => "given\n/home/work\n"} = Map.new(r)
-    assert %{out: "made\n"} = sh(c, "cat /home/work/a.txt")
+    assert %{"code" => 0, "stdout" => "given\n/home/files/work\n"} = Map.new(r)
+    assert %{out: "made\n"} = sh(c, "cat /home/files/work/a.txt")
   end
 end

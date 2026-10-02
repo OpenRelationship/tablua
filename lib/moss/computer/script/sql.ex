@@ -1,6 +1,6 @@
 defmodule Moss.Computer.Script.Sql do
   @moduledoc """
-  A script's databases (`db.open("plants.db")` in Lua). A database is named
+  A script's databases (`db.open("data/plants.dbl")` in Lua). A database is named
   by a path on the computer (relative to the working folder, as a file's
   is), shows in `ls`, prints a summary under `cat` and goes with `rm`; it is
   never a file's bytes, and no file is ever opened as one.
@@ -26,6 +26,9 @@ defmodule Moss.Computer.Script.Sql do
     cond do
       map_size(dbs) >= @max_open ->
         {:error, "too many open databases (#{@max_open})"}
+
+      disk.actor != "host" and Moss.Computer.Kinds.database(path) != :ok ->
+        Moss.Computer.Kinds.database(path)
 
       true ->
         with {:ok, db} <- load(disk, path) do

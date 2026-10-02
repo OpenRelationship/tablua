@@ -72,7 +72,7 @@ defmodule MossWeb.ComputerLiveTest do
     Phoenix.PubSub.subscribe(Moss.PubSub, "home:" <> id)
 
     write_db =
-      ~S|return function(req) local d = db.open("x.db"); d:exec("create table if not exists t (a)"); return "ok" end|
+      ~S|return function(req) local d = db.open("data/x.dbl"); d:exec("create table if not exists t (a)"); return "ok" end|
 
     %{"code" => 0} = Computer.exec(id, %{"cmd" => "true", "files" => %{"app.lua" => write_db}})
     assert_receive {:home_changed, ^id}

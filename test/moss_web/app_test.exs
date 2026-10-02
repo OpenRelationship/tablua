@@ -24,7 +24,7 @@ defmodule MossWeb.AppTest do
       <script>alert(1)</script><img src="x" onerror="alert(2)"><a href="javascript:alert(3)">x</a>]], { rows = rows })) }
   end
   return function(req)
-    local d = db.open("plants.db")
+    local d = db.open("data/plants.dbl")
     d:exec("create table if not exists plant (name text primary key)")
     if req.method == "POST" and req.path == "/plants" then
       d:exec("insert or ignore into plant values (?)", req.form.name)
@@ -145,7 +145,7 @@ defmodule MossWeb.AppTest do
     put_file(c, "/home/app.lua", ~S"""
     local ui = require("shroomi")
     return function(req)
-      local d = db.open("notes.db")
+      local d = db.open("data/notes.dbl")
       d:exec("create table if not exists note (text text)")
       if req.method == "POST" and req.path == "/add" then
         d:exec("insert into note values (?)", req.form.text)
