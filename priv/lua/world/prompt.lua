@@ -16,16 +16,19 @@ M.mercury_chars = 60000   -- the work so far as Mercury reads it; older steps' r
 M.close_note = 0.6        -- below this, Mercury is told which other move Jev weighed
 
 M.tool = { type = "function", ["function"] = { name = "computer", strict = true,
-  description = "Runs one command line on your computer and returns its status, stdout and stderr. The files are"
-    .. " written first, each whole, so a call can write a file and run what checks it.",
+  description = "Runs one command line in /home on your computer and returns its status, stdout and stderr. The"
+    .. " files are written first, each whole, so a call can write a file and run what checks it.",
   parameters = { type = "object", required = { "cmd" }, properties = {
     cmd = { type = "string", description = "One command line, as help lists them: test, check, open app, mail send"
       .. " rock-1 -m '...', cat code/plants.lua. To write files and only check them, check." },
-    cwd = { type = "string", description = "The folder the command runs in; /home when left out." },
     files = { type = "object", additionalProperties = { type = "string" },
-      description = "Files to write before the command runs: path (relative to cwd) to the whole new text." } } } } }
+      description = "Files to write before the command runs: path (relative to /home) to the whole new text." } } } } }
 
 M.examples = [[
+Where the app lives. Right: everything in /home: features/plants.feature, code/plants.lua, code/steps/plants.lua,
+ui/index.lui (served at /, opened with open app), data/plants.dbl. Wrong: apps/plants/... or a manifest.org: the
+home is the app and needs neither, and the computer refuses files under apps/.
+
 Writing a file. Right: {"cmd": "test", "files": {"code/steps/plants.lua": "<the whole file>"}}, the file whole,
 and the command that checks it in the same call. Wrong: {"cmd": "echo 'end)' >> code/steps/plants.lua"}, a file
 built a line at a time.
@@ -59,9 +62,9 @@ stops with why. Wrong: d:exec(...) alone: a bad statement returns nil and why, a
 A scenario starts clean. Right: its first Given clears what it reads, d:exec("delete from plant"), so it passes on
 its own steps. Wrong: a scenario that passes on rows an earlier run left behind.
 
-Looking at the app. Right: the command the current state gives for the page (Page /house-plants/ (open
-app/house-plants) answers 200), then type the add field, submit, and read the page for what was added. Wrong: open
-app when the app lives in apps/<name>/ (nothing is served at /), or open app house-plants (the path joins with /).
+Looking at the app. Right: the command the current state gives for the page (Page / (open app) answers 200), then
+type the add field, submit, and read the page for what was added. Wrong: open app house-plants (a second page is
+open app/<path>, the path joined with /).
 Each move does only its own part: the DONE letter is answer_task's, publish is publish's, the feature is
 write_feature's; the computer refuses them in any other move.
 

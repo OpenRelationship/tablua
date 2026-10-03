@@ -76,8 +76,18 @@ M.only = {
   { what = "a feature", move = "write_feature", file = "features/[^/]*%.feature$", cmd = "^%s*new%s+feature" },
 }
 
+-- where an app's files may go: /home's own folders, never another app's or outside /home
+local function misplaced(path)
+  return string.find(path, "^apps/") or string.find(path, "^/home/apps/")
+    or (string.find(path, "^/") and not string.find(path, "^/home/"))
+end
+
 -- why a call may not run in this move, or nil
 function M.refused(verb, c)
+  if string.find(c.cmd or "", "^%s*new%s+app") then return "the app is /home itself: new app makes another" end
+  for path in pairs(c.files or {}) do
+    if misplaced(path) then return ("%s is outside the app: it lives in /home (features/, code/, ui/, data/)"):format(path) end
+  end
   for _, r in ipairs(M.only) do
     if verb ~= r.move then
       if string.find(c.cmd or "", r.cmd) then return ("%s belongs to the %s move"):format(r.what, r.move) end
@@ -313,8 +323,8 @@ function M.new(host, run)
     local kept = M.changes[verb] and undo.keep(host, calls) or nil
     local failed = 0
     for _, c in ipairs(calls) do
-      -- a relative folder is the model's guess at one (home is /home/home); the computer's own is /home
-      if c.cwd and not string.find(c.cwd, "^/") then c.cwd = nil end
+      -- every command runs in /home: a folder of the model's own was a guess (home became /home/home)
+      c.cwd = nil
       local no = M.refused(verb, c)
       local r = no and { code = 1, stdout = "", stderr = "not run: " .. no .. "\n" } or host.exec(c)
       if r.code ~= 0 then failed = failed + 1 end

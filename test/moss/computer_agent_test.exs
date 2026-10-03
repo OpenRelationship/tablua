@@ -238,6 +238,8 @@ defmodule Moss.ComputerAgentTest do
     assert eval.(~s|return require("moss.world").refused("answer_task", { cmd = "mail send rock-1 -m x" })|) == []
     assert eval.(~s|return require("moss.world").refused("fix_failure", { cmd = "test", files = { ["features/a.feature"] = "" } })|) ==
              ["writing features/a.feature belongs to the write_feature move"]
+    assert [why] = eval.(~s|return require("moss.world").refused("write_page", { cmd = "check", files = { ["apps/p/ui/index.lui"] = "" } })|)
+    assert why =~ "outside the app: it lives in /home"
     assert eval.(~s|return require("moss.world").open("/house-plants/")|) == ["open app/house-plants"]
     assert eval.(~s|return require("moss.world").open("/")|) == ["open app"]
   end
