@@ -286,9 +286,14 @@ defmodule Moss.ComputerAgentTest do
     keeps = "function post.add(req) d:exec(\"insert into p values (?)\", req.form.name) end"
     assert look(id <> "a", "function post.add(req) end", ["open app", ~s(type "Plant name" "Pothos"), "submit Add"]) == "broken"
     assert look(id <> "b", keeps, ["open app; type Plant Pothos; click Add; page"]) == "complete"
+
+    # and still there when the page is opened again: rows kept in a module's table, not its database, are not
+    memory = "local mem = require(\"mem\")\nfunction post.add(req) table.insert(mem.items, req.form.name) end"
+    page = "{% for _, n in ipairs(mem.items) do %}<p>{{ n }}</p>{% end %}"
+    assert look(id <> "c", memory, ["open app; type 1 Pothos; submit 1"], page) == "broken"
   end
 
-  defp look(id, action, cmds) do
+  defp look(id, action, cmds, list \\ nil) do
     Computer.run(id, "help")
     disk = :sys.get_state(Computer.wake!(id)).disk
     :ok = Moss.Computer.Disk.write(disk, "/home/features/hello.feature",
@@ -302,8 +307,9 @@ defmodule Moss.ComputerAgentTest do
     #{action}
     </lua>
     <form post="add"><input name="name" placeholder="Plant name"/><button>Add</button></form>
-    {% for _, r in ipairs(d:query("select * from p")) do %}<p>{{ r.name }}</p>{% end %}
+    #{list || ~s|{% for _, r in ipairs(d:query("select * from p")) do %}<p>{{ r.name }}</p>{% end %}|}
     """)
+    :ok = Moss.Computer.Disk.write(disk, "/home/code/mem.lua", "local M = { items = {} }\nreturn M\n")
     :ok = Computer.agree(id, "/home/features/hello.feature")
     Computer.run(id, "test")
 
