@@ -1,4 +1,4 @@
-defmodule Moonflower.Page.Attrs do
+defmodule MossBrowser.Page.Attrs do
   @moduledoc """
   What the page's readers share about an element: an attribute, whether it is hidden from a reader (aria-hidden,
   `hidden`, an inline `display:none` or `visibility:hidden`), the landmark it opens, and its words as a person

@@ -1,13 +1,13 @@
-defmodule Moonflower.HTML do
+defmodule MossBrowser.HTML do
   @moduledoc """
   HTML read and written in Elixir alone, so no page an agent writes or its browser fetches reaches native code
   (Arock PROJECT.md §14.7 item 9: the BEAM is the microVM and Lua the boundary).
 
-      [{"html", attrs, [head, body]}] = Moonflower.HTML.parse(page)
-      Moonflower.HTML.to_html(nodes)
+      [{"html", attrs, [head, body]}] = MossBrowser.HTML.parse(page)
+      MossBrowser.HTML.to_html(nodes)
 
-  `parse/1` follows the HTML standard's tokenizer (`Moonflower.HTML.Tokenizer`) and enough of its tree construction
-  (`Moonflower.HTML.Tree`, `Moonflower.HTML.Body`) to read real pages. A node is `{name, attrs, children}`, a text a binary,
+  `parse/1` follows the HTML standard's tokenizer (`MossBrowser.HTML.Tokenizer`) and enough of its tree construction
+  (`MossBrowser.HTML.Tree`, `MossBrowser.HTML.Body`) to read real pages. A node is `{name, attrs, children}`, a text a binary,
   a comment `{:comment, text}`; names are lower case, attributes `{name, value}` in the order written.
 
   `to_html/1` writes a tree back so that every `<` in what it writes begins a tag it means, however a browser
@@ -16,7 +16,7 @@ defmodule Moonflower.HTML do
   have come from a tag unwrapped or left out.
   """
 
-  alias Moonflower.HTML.{Tokenizer, Tree}
+  alias MossBrowser.HTML.{Tokenizer, Tree}
 
   @void ~w(area base basefont bgsound br col embed frame hr img input keygen link meta param source track wbr)
   @raw ~w(style script xmp iframe noembed noframes noscript plaintext)

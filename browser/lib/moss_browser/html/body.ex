@@ -1,4 +1,4 @@
-defmodule Moonflower.HTML.Body do
+defmodule MossBrowser.HTML.Body do
   @moduledoc """
   The rules for the body (HTML standard §13.2.6.4.7) and its tables (§13.2.6.4.9-15): the end tags a start tag
   implies (a `<p>` closed by a block, an `<li>` by the next, cells, rows and row groups by each other), rows and
@@ -6,7 +6,7 @@ defmodule Moonflower.HTML.Body do
   that match nothing ignored.
   """
 
-  alias Moonflower.HTML.{Stack, Tree}
+  alias MossBrowser.HTML.{Stack, Tree}
 
   @closes_p ~w(address article aside blockquote center details dialog dir div dl fieldset figcaption figure footer
                header hgroup main menu nav ol p search section summary ul)

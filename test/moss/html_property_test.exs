@@ -1,13 +1,13 @@
 defmodule Moss.HTMLPropertyTest do
-  # Moonflower.HTML and the cleaner on input nobody wrote: random bytes and random tag soup built from the shapes
+  # MossBrowser.HTML and the cleaner on input nobody wrote: random bytes and random tag soup built from the shapes
   # mutation XSS is made of (svg and math, their integration points, raw-text elements, comments and CDATA in
   # odd places, every quoting form). Each run draws new input from ExUnit's seed, so a failure names its seed.
   # For every input: the parser never raises, cleaning twice changes nothing, what the cleaner writes, read again
-  # by Moonflower.HTML and by lexbor (the test's own parser, not Moss's), holds only what Shroomi's policy names, and
+  # by MossBrowser.HTML and by lexbor (the test's own parser, not Moss's), holds only what Shroomi's policy names, and
   # the browser's page for a watcher holds no script.
   use ExUnit.Case, async: true
 
-  alias Moonflower.Page
+  alias MossBrowser.Page
   alias Moss.Computer.Clean
 
   @runs 1500
@@ -113,9 +113,9 @@ defmodule Moss.HTMLPropertyTest do
       raw = input()
 
       for page <- [raw, "<!doctype html><html><head>" <> raw <> "</head><body>" <> raw] do
-        assert [{"html", _, [{"head", _, _}, {"body", _, _}]}] = Moonflower.HTML.parse(page)
+        assert [{"html", _, [{"head", _, _}, {"body", _, _}]}] = MossBrowser.HTML.parse(page)
 
-        # the browser's page for a watcher: written by Moonflower.HTML, read by lexbor, no script and no handler in it
+        # the browser's page for a watcher: written by MossBrowser.HTML, read by lexbor, no script and no handler in it
         watched = "http://example.com/" |> Page.new(page) |> Page.html()
 
         for {tag, k, _v, _} <-
@@ -132,7 +132,7 @@ defmodule Moss.HTMLPropertyTest do
         assert again == out,
                "not a fixed point:\n#{inspect(page)}\n#{inspect(out)}\n#{inspect(again)}"
 
-        for tree <- [Moonflower.HTML.parse(out), out |> LazyHTML.from_document() |> LazyHTML.to_tree()],
+        for tree <- [MossBrowser.HTML.parse(out), out |> LazyHTML.from_document() |> LazyHTML.to_tree()],
             {tag, k, v, in_head?} <- walk(tree, false) do
           assert MapSet.member?(p.tags, tag) or tag in shell,
                  "<#{tag}> from #{inspect(page)}\n#{out}"

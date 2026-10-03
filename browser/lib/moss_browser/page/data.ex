@@ -1,4 +1,4 @@
-defmodule Moonflower.Page.Data do
+defmodule MossBrowser.Page.Data do
   @moduledoc """
   What a page carries for machines, read without running a script: its meta description and OpenGraph, its
   JSON-LD (schema.org) summed up as `Product "Fern" · price 12.00 USD`, and every JSON it holds (JSON-LD,
@@ -9,7 +9,7 @@ defmodule Moonflower.Page.Data do
       data 2 props.pageProps   a value (an index for a list: items.0.name)
       data 2 find fern         the paths whose keys or values hold the words
   """
-  import Moonflower.Page.Attrs, only: [attr: 2]
+  import MossBrowser.Page.Attrs, only: [attr: 2]
 
   @assign ~r/(?:window\.|self\.|var\s+|let\s+|const\s+)?(__[A-Za-z0-9_]+__|ytInitialData|ytInitialPlayerResponse)\s*=\s*(?=[\[{])/
   @max_blobs 8 * 1024 * 1024

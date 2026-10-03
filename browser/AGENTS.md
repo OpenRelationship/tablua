@@ -12,5 +12,5 @@ moss-browser is the browser engine of VMOSS (Arock's Moss), a folder of the VMOS
 - **The web is hostile.** Only http and https to public addresses; caps counted on inflated bytes; nothing from
   a page runs. A failure of the look falls back to reading without it.
 - **Files stay under 400 lines**, split by responsibility. No placeholder modules.
-- **Tested or it does not exist.** Every module has a test under `test/moonflower`; write the failing case first.
+- **Tested or it does not exist.** Every module has a test under `test/moss_browser`; write the failing case first.
 - **Keys and tokens are never logged, printed or written to files.** Cookie values are never listed.

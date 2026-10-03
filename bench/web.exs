@@ -13,7 +13,7 @@
 #
 # It calls only `Browser.run/4`, so it runs on a Moss from before the feature too: check out an older commit and
 # run it there to compare (the numbers in feature.md's table came that way). Nothing here runs a page's script.
-alias Moonflower.Page
+alias MossBrowser.Page
 alias Moss.Computer.Browser
 
 {:ok, _} = Application.ensure_all_started(:req)

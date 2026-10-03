@@ -1,4 +1,4 @@
-defmodule Moonflower.Fetch do
+defmodule MossBrowser.Fetch do
   @moduledoc """
   The way to the web: only http and https to public addresses. A name that resolves to this machine, a private or
   link-local network (the cloud's metadata service among them) is refused, and every redirect is checked again
@@ -10,15 +10,15 @@ defmodule Moonflower.Fetch do
 
     * `:method`, `:headers`, `:body`, `:timeout` (ms, 15 s);
     * `:browser`: send what a browser sends (accept, language, gzip) and inflate the answer;
-    * `:cookies`: a `Moonflower.Cookies` jar, sent where it applies and kept up to date through redirects;
+    * `:cookies`: a `MossBrowser.Cookies` jar, sent where it applies and kept up to date through redirects;
     * `:max` (bytes, 32 MB) and `:cut` (read to the cap and say so, instead of refusing);
     * `:allow`: a function of each address that answers `:ok` or `{:error, why}`;
     * `:agent`: the user-agent (`agent/0` when not given);
     * `:resolver`: a function of a host name to its addresses, standing in for DNS;
     * `:req_options`: given to Req last (a test's plug).
   """
-  alias Moonflower.Cookies
-  alias Moonflower.Fetch.Body
+  alias MossBrowser.Cookies
+  alias MossBrowser.Fetch.Body
 
   @methods %{
     "GET" => :get,

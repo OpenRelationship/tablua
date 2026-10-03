@@ -1,4 +1,4 @@
-defmodule Moonflower.Fetch.Body do
+defmodule MossBrowser.Fetch.Body do
   @moduledoc """
   An answer's body as it streams in (Req's `into:`), held to `max` bytes. When the browser asked for gzip or
   deflate, the body is inflated as it comes, a little at a time (`:zlib.safeInflate`), and the cap counts the

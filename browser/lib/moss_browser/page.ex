@@ -1,6 +1,6 @@
-defmodule Moonflower.Page do
+defmodule MossBrowser.Page do
   @moduledoc """
-  A web page as the computer's browser keeps it: parsed once (`Moonflower.HTML`, in Elixir, since the page may be
+  A web page as the computer's browser keeps it: parsed once (`MossBrowser.HTML`, in Elixir, since the page may be
   anyone's), read, and the tree let go. What stays is small (Arock feature browser):
 
     * `blocks`: its words, as lines `{region, section, text}` (`lines/1`, `Page.Read`), headings as
@@ -14,7 +14,7 @@ defmodule Moonflower.Page do
       page = Page.new(url, html)
       Page.text(page); page.controls   # [%Control{id: "3", role: "field", name: "Email", ...}]
   """
-  alias Moonflower.Page.{Controls, Data, Read, Watch}
+  alias MossBrowser.Page.{Controls, Data, Read, Watch}
 
   defstruct [
     :url,
@@ -32,18 +32,18 @@ defmodule Moonflower.Page do
     answer: false
   ]
 
-  def new(url, html, notes \\ []), do: from_tree(url, Moonflower.HTML.parse(html), notes)
+  def new(url, html, notes \\ []), do: from_tree(url, MossBrowser.HTML.parse(html), notes)
 
   @doc """
-  The page as a look laid it out (`Moonflower.Look`): what the person would not see is not read, and the note says
+  The page as a look laid it out (`MossBrowser.Look`): what the person would not see is not read, and the note says
   the width and theme it was laid out at.
   """
-  def looked(url, %Moonflower.Look{} = look, notes \\ []) do
+  def looked(url, %MossBrowser.Look{} = look, notes \\ []) do
     theme = if look.dark, do: ", dark", else: ""
 
     from_tree(
       url,
-      Moonflower.Look.visible(look),
+      MossBrowser.Look.visible(look),
       notes ++ ["(laid out at #{look.width} px#{theme})"]
     )
   end
@@ -73,7 +73,7 @@ defmodule Moonflower.Page do
     shown = count(read)
 
     if shown < 150 do
-      revealed = Moonflower.Page.Attrs.reveal(tree)
+      revealed = MossBrowser.Page.Attrs.reveal(tree)
       again = Read.lines(revealed)
 
       if count(again) >= max(100, 3 * shown),
@@ -172,13 +172,13 @@ defmodule Moonflower.Page do
       {"meta", a, _} ->
         with "refresh" <-
                a
-               |> Moonflower.Page.Attrs.attr("http-equiv")
+               |> MossBrowser.Page.Attrs.attr("http-equiv")
                |> to_string()
                |> String.downcase(),
              [_, secs, url] <-
                Regex.run(
                  ~r/^\s*(\d+)\s*[;,]\s*url\s*=\s*['"]?([^'"]+)/i,
-                 Moonflower.Page.Attrs.attr(a, "content") || ""
+                 MossBrowser.Page.Attrs.attr(a, "content") || ""
                ),
              {s, _} when s <= 5 <- Integer.parse(secs),
              do: String.trim(url),

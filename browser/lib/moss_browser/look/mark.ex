@@ -1,10 +1,10 @@
-defmodule Moonflower.Look.Mark do
+defmodule MossBrowser.Look.Mark do
   @moduledoc """
   The page as moss-browser's parser reads it, each element marked `data-mf="<n>"` in document order, so what the look
   says of an element comes back to the element moss-browser has. An element the look's parser built and ours did not
   comes back unmarked: the two parsers read the page differently there.
   """
-  alias Moonflower.HTML
+  alias MossBrowser.HTML
 
   @doc "`{marked_html, tree}`: the HTML to look at, and the marked tree to read its answer against."
   def mark(html) do

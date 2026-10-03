@@ -71,15 +71,15 @@ defmodule Moss.Computer.Clean do
   defp once(page) do
     p = policy()
     doc? = Regex.match?(~r/^\s*(<!doctype|<html)/i, page)
-    [{"html", hattrs, [{"head", _, head}, {"body", battrs, bkids}]}] = Moonflower.HTML.parse(page)
+    [{"html", hattrs, [{"head", _, head}, {"body", battrs, bkids}]}] = MossBrowser.HTML.parse(page)
     body = {"body", attrs("body", battrs, p), nodes(bkids, p)}
 
     if doc? do
       head = {"head", [], Enum.flat_map(head, &shell(&1, p))}
-      "<!doctype html>\n" <> Moonflower.HTML.to_html([{"html", attrs("html", hattrs, p), [head, body]}])
+      "<!doctype html>\n" <> MossBrowser.HTML.to_html([{"html", attrs("html", hattrs, p), [head, body]}])
     else
       {"body", _, inner} = body
-      Moonflower.HTML.to_html(inner)
+      MossBrowser.HTML.to_html(inner)
     end
   end
 

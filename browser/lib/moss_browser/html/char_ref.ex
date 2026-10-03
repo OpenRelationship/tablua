@@ -1,4 +1,4 @@
-defmodule Moonflower.HTML.CharRef do
+defmodule MossBrowser.HTML.CharRef do
   @moduledoc """
   Character references as the HTML standard's tokenizer reads them (§13.2.5.72 on): `&name;`, the legacy names
   that need no semicolon, `&#123;` and `&#x7b;`. `decode/2` takes the text after an `&` and gives back

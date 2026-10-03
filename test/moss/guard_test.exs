@@ -19,7 +19,7 @@ defmodule Moss.GuardTest do
       "test-only (Phoenix.LiveViewTest needs it; cleaner tests use it as an independent check)",
     "wasmex" =>
       "moss-browser's look only (Arock PROJECT.md §16.3): one pinned module, run in a node of its own " <>
-        "(Moonflower.Look.Node over :peer), never in this one, and no Moss source calls it"
+        "(MossBrowser.Look.Node over :peer), never in this one, and no Moss source calls it"
   }
 
   # the only files that may call SQLite, each running statements written here, never an agent's
@@ -129,8 +129,8 @@ defmodule Moss.GuardTest do
       ~s(<x-#{w} a-#{w}="1" on#{w}="x" data-#{w}="2"><#{w}>t</#{w}><svg><#{w}-g k#{w}="v"/></svg></x-#{w}>)
 
     Moss.Computer.Clean.html("<!doctype html><html><body>" <> html <> "</body></html>")
-    Moonflower.HTML.parse(html)
-    Moonflower.Page.new("http://example.test/#{w}", html)
+    MossBrowser.HTML.parse(html)
+    MossBrowser.Page.new("http://example.test/#{w}", html)
   end
 
   # Arock's feature file-kinds, goal 10: what the kinds replaced is gone, from the code and the help alike

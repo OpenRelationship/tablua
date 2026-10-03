@@ -1,7 +1,7 @@
 defmodule Moss.Computer.Net do
   @moduledoc """
   The computer's way to the web: `curl` (and `wget`, which saves to a file), over moss-browser's fetch
-  (`Moonflower.Fetch`: http and https to public addresses only, every redirect checked again, the checked address
+  (`MossBrowser.Fetch`: http and https to public addresses only, every redirect checked again, the checked address
   dialled). An answer stops at #{div(32 * 1024 * 1024, 1_048_576)} MB (config `net_max_bytes`); the methods are
   #{Enum.join(~w(GET POST PUT PATCH DELETE HEAD OPTIONS), ", ")}.
 
@@ -40,7 +40,7 @@ defmodule Moss.Computer.Net do
         method = o.method || if(body, do: "POST", else: "GET")
 
         case if method in @methods,
-               do: Moonflower.Fetch.request(o.url, opts(method: method, headers: o.headers, body: body)),
+               do: MossBrowser.Fetch.request(o.url, opts(method: method, headers: o.headers, body: body)),
                else: {:error, :method} do
           {:ok, r} ->
             head =
@@ -80,13 +80,13 @@ defmodule Moss.Computer.Net do
     end
   end
 
-  def get(url, opts \\ []), do: Moonflower.Fetch.get(url, opts(opts))
+  def get(url, opts \\ []), do: MossBrowser.Fetch.get(url, opts(opts))
 
   @doc "The address, if it is http or https to a public host."
-  def public(url), do: Moonflower.Fetch.public(url, opts([]))
+  def public(url), do: MossBrowser.Fetch.public(url, opts([]))
 
   @doc "The user-agent every request carries: Arock's, or config `user_agent`."
-  def agent, do: Application.get_env(:moss, :user_agent, Moonflower.Fetch.agent())
+  def agent, do: Application.get_env(:moss, :user_agent, MossBrowser.Fetch.agent())
 
   # this node's settings, under what the caller gave
   defp opts(given) do

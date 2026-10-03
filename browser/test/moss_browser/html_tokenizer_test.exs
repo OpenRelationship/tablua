@@ -1,11 +1,11 @@
-defmodule Moonflower.HTMLTokenizerTest do
-  # Moonflower.HTML's tokenizer against html5lib-tests (tokenizer/*.test at 0b8d24c, 2023, MIT, licence in
+defmodule MossBrowser.HTMLTokenizerTest do
+  # MossBrowser.HTML's tokenizer against html5lib-tests (tokenizer/*.test at 0b8d24c, 2023, MIT, licence in
   # test/fixtures/html5lib). Parse errors are not compared, and a doctype is compared by its name only: the
   # tokenizer keeps no public or system identifier, since nothing in moss-browser reads them. Cases that start in the
   # CDATA section state, or whose input holds a lone surrogate (not UTF-8, so never a page moss-browser reads), are left out.
   use ExUnit.Case, async: true
 
-  alias Moonflower.HTML.Tokenizer
+  alias MossBrowser.HTML.Tokenizer
 
   @dir "test/fixtures/html5lib"
   @states %{

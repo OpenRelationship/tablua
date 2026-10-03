@@ -1,26 +1,26 @@
-defmodule Moonflower.Page.Watch do
+defmodule MossBrowser.Page.Watch do
   @moduledoc """
   The page as a person watching sees it: kept as one gzipped binary (off the computer's heap) of the page with
   its scripts, frames and `on*` handlers taken out, each control marked `data-moss` by `Page.Controls`. Drawn
   only when watched: unzipped, read again, the fields given what the agent typed, links read against the page.
   A page kept without its copy (an answer kept in history) is drawn from its words.
   """
-  import Moonflower.Page.Attrs, only: [attr: 2]
+  import MossBrowser.Page.Attrs, only: [attr: 2]
 
-  def copy(tree), do: tree |> strip() |> Moonflower.HTML.to_html() |> :zlib.gzip()
+  def copy(tree), do: tree |> strip() |> MossBrowser.HTML.to_html() |> :zlib.gzip()
 
   def html(%{watch: nil} = page) do
-    words = page |> Moonflower.Page.text() |> Moonflower.HTML.escape()
+    words = page |> MossBrowser.Page.text() |> MossBrowser.HTML.escape()
     head(page.url, "<html><head></head><body><pre>" <> words <> "</pre></body></html>")
   end
 
   def html(page) do
-    tree = page.watch |> :zlib.gunzip() |> Moonflower.HTML.parse() |> fill(page.values)
-    head(page.url, Moonflower.HTML.to_html(tree))
+    tree = page.watch |> :zlib.gunzip() |> MossBrowser.HTML.parse() |> fill(page.values)
+    head(page.url, MossBrowser.HTML.to_html(tree))
   end
 
   defp head(url, html) do
-    base = ~s(<base href="#{Moonflower.HTML.escape_attr(url)}" target="_blank">)
+    base = ~s(<base href="#{MossBrowser.HTML.escape_attr(url)}" target="_blank">)
     String.replace(html, "<head>", "<head>" <> base, global: false)
   end
 

@@ -1,4 +1,4 @@
-defmodule Moonflower.Charset do
+defmodule MossBrowser.Charset do
   @moduledoc """
   A page's bytes as UTF-8. The set is the answer's `Content-Type` charset, else a `<meta charset>` (or its
   http-equiv form) in the first 1,024 bytes, else UTF-8 if the bytes are, else windows-1252, as browsers do.
@@ -41,7 +41,7 @@ defmodule Moonflower.Charset do
     0x9F => 0x0178
   }
 
-  @doc "`{utf8, note}`: the note is nil, or says the page's set was not one moonflower decodes."
+  @doc "`{utf8, note}`: the note is nil, or says the page's set was not one moss-browser decodes."
   def decode(body, content_type) do
     label = from_header(content_type) || from_meta(body)
     set = label && String.downcase(label)

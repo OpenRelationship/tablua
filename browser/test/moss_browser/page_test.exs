@@ -1,9 +1,9 @@
-defmodule Moonflower.PageTest do
+defmodule MossBrowser.PageTest do
   # A page read as an accessibility tree (Arock feature browser): roles, states, names as a screen reader gives
   # them, what is hidden, and a table cell with its header.
   use ExUnit.Case, async: true
 
-  alias Moonflower.Page
+  alias MossBrowser.Page
 
   describe "the accessibility tree" do
     defp ui(html), do: Page.outline(Page.new("https://example.com/", html))

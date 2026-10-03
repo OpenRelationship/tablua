@@ -1,11 +1,11 @@
-defmodule Moonflower.HTML.Stack do
+defmodule MossBrowser.HTML.Stack do
   @moduledoc """
   The tree builder's stack of open elements (HTML standard §13.2.4.3) and the tree it builds. Each open element
   holds its children, newest first; an element joins its parent when it is popped, so a node set aside by foster
   parenting (§13.2.6.1) lands before its table, which is not yet in its own parent.
 
   A finished node is `{name, attrs, children}`, a text is a binary and a comment `{:comment, text}`, the shape
-  `Moonflower.HTML.parse/1` returns.
+  `MossBrowser.HTML.parse/1` returns.
   """
 
   @special_html ~w(address applet area article aside base basefont bgsound blockquote body br button caption center
@@ -35,7 +35,7 @@ defmodule Moonflower.HTML.Stack do
 
   def html_point?(%{ns: :math, n: "annotation-xml", a: a}) do
     case List.keyfind(a, "encoding", 0) do
-      {_, enc} -> Moonflower.HTML.Tokenizer.lower(enc) in ["text/html", "application/xhtml+xml"]
+      {_, enc} -> MossBrowser.HTML.Tokenizer.lower(enc) in ["text/html", "application/xhtml+xml"]
       nil -> false
     end
   end

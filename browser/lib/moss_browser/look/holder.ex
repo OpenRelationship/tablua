@@ -1,9 +1,9 @@
-defmodule Moonflower.Look.Holder do
+defmodule MossBrowser.Look.Holder do
   @moduledoc """
   What runs inside the look node: the module loaded once and kept, and each look run against it. Called over
-  `:peer` by `Moonflower.Look.Node`; nothing here runs in the node that asked.
+  `:peer` by `MossBrowser.Look.Node`; nothing here runs in the node that asked.
   """
-  alias Moonflower.Look.{Module, Run}
+  alias MossBrowser.Look.{Module, Run}
 
   @key {__MODULE__, :module}
 
@@ -15,6 +15,6 @@ defmodule Moonflower.Look.Holder do
     end
   end
 
-  @doc "One look against the kept module (`Moonflower.Look.Run.run/4`)."
+  @doc "One look against the kept module (`MossBrowser.Look.Run.run/4`)."
   def look(input, fuel, timeout), do: Run.run(:persistent_term.get(@key), input, fuel, timeout)
 end

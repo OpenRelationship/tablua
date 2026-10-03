@@ -1,9 +1,9 @@
-defmodule Moonflower.CookiesTest do
+defmodule MossBrowser.CookiesTest do
   # A cookie goes only where it may: its domain, its path, https when secure, until it expires; never to a public
   # suffix; listed by name, never by value.
   use ExUnit.Case, async: true
 
-  alias Moonflower.Cookies
+  alias MossBrowser.Cookies
 
   @now 1_790_000_000
   defp u(s), do: URI.parse(s)

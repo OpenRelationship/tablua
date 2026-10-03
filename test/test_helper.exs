@@ -4,5 +4,5 @@ File.rm_rf!(Application.fetch_env!(:moss, :work_dir))
 {:ok, _} = Application.ensure_all_started(:moss)
 
 # the look's tests run where its module is (mix moss.look) and the node started its look node
-exclude = [:service, :agent, :bench, :build] ++ if(Process.whereis(Moonflower.Look.Node), do: [], else: [:look])
+exclude = [:service, :agent, :bench, :build] ++ if(Process.whereis(MossBrowser.Look.Node), do: [], else: [:look])
 ExUnit.start(exclude: exclude)

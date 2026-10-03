@@ -1,4 +1,4 @@
-defmodule Moonflower.Page.Parts do
+defmodule MossBrowser.Page.Parts do
   @moduledoc """
   A page read in parts, so an agent pays for what it asks for. `open` shows the map (`summary/1`): the title and
   address, what was not read, the regions and their links, the page's own description and JSON-LD, the headings
@@ -10,7 +10,7 @@ defmodule Moonflower.Page.Parts do
       read <n|words>          one section, under its heading
       ui [more|<region>|<words>]   the controls, main content first, fifty at a time; a link repeated once
   """
-  alias Moonflower.Page
+  alias MossBrowser.Page
 
   @part 2_000
   @screen 1_500

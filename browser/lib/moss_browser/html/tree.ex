@@ -1,16 +1,16 @@
-defmodule Moonflower.HTML.Tree do
+defmodule MossBrowser.HTML.Tree do
   @moduledoc """
   The HTML standard's tree construction (§13.2.6), as much of it as reading and cleaning pages needs: the
   document's html, head and body made whether written or not, head content kept in the head, foreign content
   (svg and math, with their integration points and the HTML tags that break out of them), and the body's rules
-  in `Moonflower.HTML.Body`.
+  in `MossBrowser.HTML.Body`.
 
   Left out on purpose: quirks mode, the adoption agency's re-parenting of misnested formatting elements, and the
   rebuilding of formatting elements after a block closes them. Pages read the same; a tree may nest a little
   differently from a browser's, and the cleaner's safety never rests on the two agreeing.
   """
 
-  alias Moonflower.HTML.{Body, Stack, Tokenizer}
+  alias MossBrowser.HTML.{Body, Stack, Tokenizer}
 
   @head_void ~w(base basefont bgsound link meta)
   @head_raw ~w(title noscript noframes style script template)

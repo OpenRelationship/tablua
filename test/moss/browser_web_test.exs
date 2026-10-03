@@ -4,7 +4,7 @@ defmodule Moss.BrowserWebTest do
   use ExUnit.Case, async: false
 
   alias Moss.Computer
-  alias Moonflower.{Cookies, Page}
+  alias MossBrowser.{Cookies, Page}
   alias Moss.Computer.Net
 
   setup do

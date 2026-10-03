@@ -1,12 +1,12 @@
-defmodule Moonflower.Page.Read do
+defmodule MossBrowser.Page.Read do
   @moduledoc """
   A page's words as lines (kept as blocks, `blocks/1`), each with its region (the landmark it is in: `:main`, `:nav`, `:banner`, `:footer`,
   `:aside`, `:search`, or `:body` outside them all) and its section (how many headings came before it), and the
   headings as `{section, level, text}`. Hidden things are not read; a list item is a line, an image its alt
   text, and a table row a line whose cells carry their column's header (`Plan: Pro · Price: $12`).
   """
-  import Moonflower.Page.Attrs, only: [attr: 2, hidden?: 1, words: 1]
-  alias Moonflower.Page.Attrs
+  import MossBrowser.Page.Attrs, only: [attr: 2, hidden?: 1, words: 1]
+  alias MossBrowser.Page.Attrs
 
   @block ~w(p div section article header footer main nav aside li ul ol dl tr h1 h2 h3 h4 h5 h6 pre blockquote
             form label dt dd figure figcaption fieldset details summary address hr br table)

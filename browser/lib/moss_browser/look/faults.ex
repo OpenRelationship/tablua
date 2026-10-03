@@ -1,4 +1,4 @@
-defmodule Moonflower.Look.Faults do
+defmodule MossBrowser.Look.Faults do
   @moduledoc """
   What a look shows that a person could not use (Arock feature look), read from a look made by a module that
   says how each box is placed and painted (v0.2.0 on):
@@ -13,13 +13,13 @@ defmodule Moonflower.Look.Faults do
   `box:` the box, or `color:`, `background:` and `ratio:`. `id` is the element's mark in the look's tree; its
   attributes are the page's own, the mark kept off.
   """
-  alias Moonflower.Page.Attrs
+  alias MossBrowser.Page.Attrs
 
   @controls ~w(a button input select textarea summary)
   @table_parts ~w(caption thead tbody tfoot tr th td col colgroup)
   @min 4.5
 
-  def faults(%Moonflower.Look{} = look) do
+  def faults(%MossBrowser.Look{} = look) do
     els = look.tree |> elements(look, [], []) |> Enum.reverse()
     unseen(els) ++ covered(els) ++ off_screen(els, look.width) ++ faint(els, look.dark)
   end

@@ -1,15 +1,15 @@
 defmodule Moss.Computer.Look do
   @moduledoc """
   The computer's own app read as its person's browser lays it out (Arock feature look): moss-browser's look
-  (`Moonflower.Look`, Blitz in WebAssembly, in a node of its own) is given the page and Shroomi's pinned stylesheet,
+  (`MossBrowser.Look`, Blitz in WebAssembly, in a node of its own) is given the page and Shroomi's pinned stylesheet,
   at the browser's screen (`open app --width N --dark`), and only what it shows is read.
 
   The module is moss-browser's release, fetched by `mix moss.look` and checked by its SHA-384 (config `:look`);
-  the node runs `Moonflower.Look.Node` only when the file is there and matches. Without it, or when a look fails,
+  the node runs `MossBrowser.Look.Node` only when the file is there and matches. Without it, or when a look fails,
   the page is read as it would be without one, and a page too costly to lay out says so.
   """
   require Logger
-  alias Moonflower.Page
+  alias MossBrowser.Page
 
   @screen %{width: 1280, dark: false}
   def screen, do: @screen
@@ -19,7 +19,7 @@ defmodule Moss.Computer.Look do
     with %{path: path, sha384: sha} <- Map.new(Application.get_env(:moss, :look, [])),
          {:ok, bytes} <- File.read(path) do
       if hash(bytes) == sha do
-        [{Moonflower.Look.Node, path: path, sha384: sha}]
+        [{MossBrowser.Look.Node, path: path, sha384: sha}]
       else
         Logger.warning("look: #{path} is not the pinned module; apps are read without a look")
         []
@@ -45,10 +45,10 @@ defmodule Moss.Computer.Look do
     end
   end
 
-  @doc "The look at an app's page: `{:ok, %Moonflower.Look{}}`, or `{:error, :no_look}` when this node has none."
+  @doc "The look at an app's page: `{:ok, %MossBrowser.Look{}}`, or `{:error, :no_look}` when this node has none."
   def look(url, html, screen) do
-    if Process.whereis(Moonflower.Look.Node) do
-      Moonflower.Look.look(Moonflower.Look.Node, themed(html, screen.dark),
+    if Process.whereis(MossBrowser.Look.Node) do
+      MossBrowser.Look.look(MossBrowser.Look.Node, themed(html, screen.dark),
         width: screen.width,
         dark: screen.dark,
         base: url,

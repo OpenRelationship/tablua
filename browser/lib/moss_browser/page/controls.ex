@@ -1,4 +1,4 @@
-defmodule Moonflower.Page.Controls do
+defmodule MossBrowser.Page.Controls do
   @moduledoc """
   A page's controls as an accessibility tree gives them: links, buttons, fields, boxes, and any element whose
   `role` makes it one (button, link, checkbox, radio, switch, tab, menuitem, option, textbox, searchbox,
@@ -10,8 +10,8 @@ defmodule Moonflower.Page.Controls do
   `collect/1` returns the controls and the tree with each control's element marked `data-moss="<id>"`, so the
   watcher's copy can show what the agent typed in the right field.
   """
-  import Moonflower.Page.Attrs, only: [attr: 2, hidden?: 1, words: 1]
-  alias Moonflower.Page.{Attrs, Control}
+  import MossBrowser.Page.Attrs, only: [attr: 2, hidden?: 1, words: 1]
+  alias MossBrowser.Page.{Attrs, Control}
 
   @roles %{
     "button" => "button",

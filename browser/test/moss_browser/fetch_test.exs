@@ -1,9 +1,9 @@
-defmodule Moonflower.FetchTest do
+defmodule MossBrowser.FetchTest do
   # The way to the web: public addresses only, checked again on every redirect; a browser's headers and an honest
   # user-agent; compressed answers inflated under the cap; a cookie jar kept through redirects.
   use ExUnit.Case, async: true
 
-  alias Moonflower.{Cookies, Fetch}
+  alias MossBrowser.{Cookies, Fetch}
 
   def public(_host), do: [{93, 184, 215, 14}]
 

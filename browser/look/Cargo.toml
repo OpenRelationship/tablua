@@ -1,7 +1,7 @@
 # The look: Blitz (html5ever, Stylo, Taffy, Parley) built to WebAssembly (wasm32-wasip1), no painting, shell or
 # network. Built by CI only (AGENTS.md); the module is a release asset, pinned by SHA-384 where it is used.
 [package]
-name = "moonflower-look"
+name = "moss-browser-look"
 version = "0.1.0"
 edition = "2024"
 publish = false

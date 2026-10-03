@@ -1,19 +1,19 @@
-defmodule Moonflower.Look do
+defmodule MossBrowser.Look do
   @moduledoc """
   A page laid out as a person's browser would lay it out (Arock feature look): Blitz in WebAssembly, in the look
-  node (`Moonflower.Look.Node`). `look/3` marks the page's elements (`Moonflower.Look.Mark`), lays it out at a
+  node (`MossBrowser.Look.Node`). `look/3` marks the page's elements (`MossBrowser.Look.Mark`), lays it out at a
   width and a theme, and answers which elements are shown and where.
 
-      {:ok, look} = Moonflower.Look.look(node, html, width: 390, base: url)
-      Moonflower.Look.shown?(look, "button", "Menu")
+      {:ok, look} = MossBrowser.Look.look(node, html, width: 390, base: url)
+      MossBrowser.Look.shown?(look, "button", "Menu")
 
   Options: `:width` (1280), `:dark` (false), `:base` (the page's address, for what it links), `:css` (a stylesheet
   laid out with the page, as a `<link>` of it would be, and left out of its tree), `:fuel`
   (#{10_000_000_000}; Wikipedia's longest article needs under 5e9), `:timeout` (ms, 10 s). An error is
   `:too_costly`, `:failed` or `:down`; the caller reads the page without a look then.
   """
-  alias Moonflower.Look.{Mark, Node}
-  alias Moonflower.Page.Attrs
+  alias MossBrowser.Look.{Mark, Node}
+  alias MossBrowser.Page.Attrs
 
   defstruct [
     :width,
@@ -63,7 +63,7 @@ defmodule Moonflower.Look do
   end
 
   defp call(peer, args, timeout) do
-    :peer.call(peer, Moonflower.Look.Holder, :look, args, timeout + 5_000)
+    :peer.call(peer, MossBrowser.Look.Holder, :look, args, timeout + 5_000)
   catch
     :exit, _ -> {:error, :down}
   end
@@ -89,7 +89,7 @@ defmodule Moonflower.Look do
 
   defp box(x, y, w, h), do: %{x: int(x), y: int(y), w: int(w), h: int(h)}
 
-  # a module from v0.2.0 on says more of each box: how it is placed and painted (Moonflower.Look.Faults reads it)
+  # a module from v0.2.0 on says more of each box: how it is placed and painted (MossBrowser.Look.Faults reads it)
   defp box(x, y, w, h, [position, z, color, background, overflow]) do
     Map.merge(box(x, y, w, h), %{
       position: position,

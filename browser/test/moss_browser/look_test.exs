@@ -1,9 +1,9 @@
-defmodule Moonflower.LookTest do
+defmodule MossBrowser.LookTest do
   # The look (Arock feature look): a page laid out by Blitz in WebAssembly, in a node of its own, each look a fresh
   # instance under fuel and memory limits, the module checked by its hash. Needs priv/look.wasm (CI builds it).
   use ExUnit.Case, async: false
 
-  alias Moonflower.Look
+  alias MossBrowser.Look
 
   @moduletag :look
   @wasm Path.expand("../../priv/look.wasm", __DIR__)
@@ -95,14 +95,14 @@ defmodule Moonflower.LookTest do
 
   test "a page read through its look reads only what is shown", %{node: node} do
     {:ok, look} = Look.look(node, @page, width: 390, base: "https://example.com/")
-    page = Moonflower.Page.looked("https://example.com/", look)
-    text = Moonflower.Page.text(page)
+    page = MossBrowser.Page.looked("https://example.com/", look)
+    text = MossBrowser.Page.text(page)
 
     refute text =~ "hidden by the stylesheet"
     refute text =~ "Plants"
     assert text =~ "wide"
-    refute Moonflower.Page.outline(page) =~ ~s(field "d")
-    assert Moonflower.Page.outline(page) =~ ~s(button "Menu")
+    refute MossBrowser.Page.outline(page) =~ ~s(field "d")
+    assert MossBrowser.Page.outline(page) =~ ~s(button "Menu")
     assert Enum.any?(page.notes, &(&1 =~ "390"))
   end
 
@@ -114,7 +114,7 @@ defmodule Moonflower.LookTest do
     """
 
     {:ok, look} = Look.look(node, html, base: "https://example.com/")
-    text = Moonflower.Page.text(Moonflower.Page.looked("https://example.com/", look))
+    text = MossBrowser.Page.text(MossBrowser.Page.looked("https://example.com/", look))
     refute text =~ "unseen"
     assert text =~ "seen again"
     assert text =~ "inside contents"
@@ -131,7 +131,7 @@ defmodule Moonflower.LookTest do
 
     refute Look.shown?(look, "p", "gone")
     assert Look.shown?(look, "p", "kept")
-    refute Moonflower.HTML.to_html(look.tree) =~ "display: none"
+    refute MossBrowser.HTML.to_html(look.tree) =~ "display: none"
   end
 
   test "a crash of the look node stops nothing, and the next look starts a new one", %{node: node} do

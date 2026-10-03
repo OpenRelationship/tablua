@@ -11,7 +11,7 @@ defmodule Moss.Computer.Browser.Tabs do
   unloaded; a tab's page is fetched again the first time it is used (`Browser.Nav.load/2`), its typed values put
   back.
   """
-  alias Moonflower.{Cookies, Page}
+  alias MossBrowser.{Cookies, Page}
   alias Moss.Computer.Look
 
   @tabs 8

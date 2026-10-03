@@ -3,10 +3,10 @@ defmodule Moss.Computer.Browser do
   The computer's browser, headless: pages fetched by `Browser.Nav`, kept light in bounded tabs (`Browser.Tabs`),
   read in parts (`Page.Parts`), and drawn only when a person watches. The shell drives it; `help open` prints:
   """
-  alias Moonflower.{Cookies, Page}
+  alias MossBrowser.{Cookies, Page}
   alias Moss.Computer.Browser.{Nav, Tabs}
   alias Moss.Computer.Look
-  alias Moonflower.Page.{Data, Parts}
+  alias MossBrowser.Page.{Data, Parts}
 
   @help """
   The browser (no page scripts run; a page drawn only by its scripts reads as nearly empty, but `data` may

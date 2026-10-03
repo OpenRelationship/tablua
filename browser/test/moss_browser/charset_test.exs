@@ -1,8 +1,8 @@
-defmodule Moonflower.CharsetTest do
+defmodule MossBrowser.CharsetTest do
   # A page's bytes as UTF-8: by its header, then its meta; windows-1252 decoded; a set not decoded is said.
   use ExUnit.Case, async: true
 
-  alias Moonflower.Charset
+  alias MossBrowser.Charset
 
   test "UTF-8 passes, and windows-1252 is decoded by header or meta" do
     assert {"café", nil} = Charset.decode("café", "text/html; charset=utf-8")

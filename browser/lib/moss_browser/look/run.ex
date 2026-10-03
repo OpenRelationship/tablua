@@ -1,7 +1,7 @@
-defmodule Moonflower.Look.Run do
+defmodule MossBrowser.Look.Run do
   @moduledoc """
   One look: a fresh instance of the loaded module, given the page on stdin and read from stdout, under fuel and a
-  memory cap, with no directory, environment or arguments. Runs in the look node (`Moonflower.Look.Node`).
+  memory cap, with no directory, environment or arguments. Runs in the look node (`MossBrowser.Look.Node`).
   """
   alias Wasmex.{Pipe, Store, StoreLimits, StoreOrCaller}
   alias Wasmex.Wasi.WasiOptions
@@ -12,7 +12,7 @@ defmodule Moonflower.Look.Run do
   def wasi_options, do: %WasiOptions{args: [], env: %{}, preopen: []}
 
   @doc "`{:ok, stdout}`, `{:error, :too_costly}` (out of fuel or memory) or `{:error, :failed}`."
-  def run(%{engine: engine, precompiled: precompiled}, input, fuel, timeout) do
+  def run(%{engine: engine, module: module}, input, fuel, timeout) do
     {:ok, stdin} = Pipe.new()
     {:ok, stdout} = Pipe.new()
     {:ok, stderr} = Pipe.new()
@@ -22,7 +22,6 @@ defmodule Moonflower.Look.Run do
     wasi = %{wasi_options() | stdin: stdin, stdout: stdout, stderr: stderr}
     {:ok, store} = Store.new_wasi(wasi, %StoreLimits{memory_size: @memory}, engine)
     :ok = StoreOrCaller.set_fuel(store, fuel)
-    {:ok, module} = Wasmex.Module.unsafe_deserialize(precompiled, engine)
     # instantiating runs the module's start functions too, so fuel can run out before _start
     result =
       case GenServer.start(Wasmex, %{store: store, module: module, imports: %{}, links: []}) do

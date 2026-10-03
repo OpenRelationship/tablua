@@ -1,4 +1,4 @@
-defmodule Moonflower.Cookies do
+defmodule MossBrowser.Cookies do
   @moduledoc """
   A browser's cookie jar (Moss keeps one per computer, in its session). `put/4` takes an answer's
   `Set-Cookie` values for the address that sent them; `header/3` is the `Cookie` an address gets: a cookie goes

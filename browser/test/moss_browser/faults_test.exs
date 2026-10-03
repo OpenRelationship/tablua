@@ -1,10 +1,10 @@
-defmodule Moonflower.FaultsTest do
+defmodule MossBrowser.FaultsTest do
   # Layout faults (Arock feature look): what a look shows that a person could not use. Needs priv/look.wasm, v0.2.0
   # or later (it says how each box is placed and painted).
   use ExUnit.Case, async: false
 
-  alias Moonflower.Look
-  alias Moonflower.Look.Faults
+  alias MossBrowser.Look
+  alias MossBrowser.Look.Faults
 
   @moduletag :look
   @wasm Path.expand("../../priv/look.wasm", __DIR__)
@@ -21,7 +21,7 @@ defmodule Moonflower.FaultsTest do
   end
 
   defp kinds(faults), do: for(f <- faults, do: {f.kind, words(f.element)})
-  defp words({_, _, kids}), do: Moonflower.Page.Attrs.words(kids) |> String.trim()
+  defp words({_, _, kids}), do: MossBrowser.Page.Attrs.words(kids) |> String.trim()
 
   test "a page a person can use has no faults", %{node: node} do
     html = ~s(<h1>Plants</h1><p>A list.</p><button>Add</button><a href="/about">About</a>)

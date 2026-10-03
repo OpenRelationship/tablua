@@ -1,4 +1,4 @@
-defmodule Moonflower.Look.Node do
+defmodule MossBrowser.Look.Node do
   @moduledoc """
   The look node: a BEAM node of its own (`:peer`, over its standard input and output, no distribution), so wasmex
   and the module never run in the node that asks, and a fault there stops nothing here. Started with the module's
@@ -55,7 +55,7 @@ defmodule Moonflower.Look.Node do
     {:ok, peer, _} = :peer.start(%{connection: :standard_io, args: paths})
     Process.monitor(peer)
 
-    case :peer.call(peer, Moonflower.Look.Holder, :load, [state.path, state.sha384], 60_000) do
+    case :peer.call(peer, MossBrowser.Look.Holder, :load, [state.path, state.sha384], 60_000) do
       :ok ->
         {:ok, %{state | peer: peer}}
 

@@ -1,4 +1,4 @@
-defmodule Moonflower.HTML.Tokenizer do
+defmodule MossBrowser.HTML.Tokenizer do
   @moduledoc """
   The HTML standard's tokenizer (§13.2.5), in Elixir, for what a page holds: text with its character references,
   start and end tags with attributes in every quoting form, comments and bogus comments, doctypes, CDATA in
@@ -14,7 +14,7 @@ defmodule Moonflower.HTML.Tokenizer do
   prepared once by `prepare/1`: valid UTF-8, newlines as `\\n`.
   """
 
-  alias Moonflower.HTML.CharRef
+  alias MossBrowser.HTML.CharRef
 
   @ws [?\s, ?\t, ?\n, ?\f]
 

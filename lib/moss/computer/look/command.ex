@@ -6,8 +6,8 @@ defmodule Moss.Computer.Look.Command do
   to read. The width and theme are the browser's (`open app --width N --dark`) unless given here. Exit 1 when there
   are faults, so a check can run it.
   """
-  alias Moonflower.Look.Faults
-  alias Moonflower.Page.Attrs
+  alias MossBrowser.Look.Faults
+  alias MossBrowser.Page.Attrs
   alias Moss.Computer.{Look, Pages}
   alias Moss.Computer.Browser.{Nav, Tabs}
 
