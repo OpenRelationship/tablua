@@ -180,4 +180,11 @@ spec.test("a page in Lua uses the same runtime", function()
   spec.ok(STORE.added)
 end)
 
+spec.test("each {{ e }} that comes out nil is named with its line, once, for the host", function()
+  local html, nils = lui.answer('<lua>\nlocal rows = { { days = 5 }, { days = 7 } }\n</lua>\n' ..
+    '{% for _, r in ipairs(rows) do %}\n<p>{{ r.days_left }} days, {{ r.days }}</p>\n{% end %}', "ui/x.lui", get())
+  spec.ok(string.find(body(html), "<p> days, 5</p>", 1, true), body(html))
+  spec.eq(table.concat(nils, "; "), "ui/x.lui:5: {{ r.days_left }}")
+end)
+
 spec.run()

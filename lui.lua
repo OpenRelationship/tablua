@@ -29,7 +29,7 @@
 --   lui.load(text, name [, src [, opts]]) -> def for shroomi.page.answer and { line } (the page line running), or
 --     nil and why; src is lui.compile's output for this text and name, when the host kept it; opts.lines puts
 --     each element's line in the page's source on it as data-line, for a host that looks at the page itself
---   lui.answer(text, name, req [, src [, opts]]) -> what shroomi.page.answer gives
+--   lui.answer(text, name, req [, src [, opts]]) -> what shroomi.page.answer gives, and each {{ e }} that was nil
 local ui = require("shroomi")
 local css = require("shroomi.css")
 local policy = require("shroomi.policy")
@@ -197,7 +197,7 @@ function lui.compile(text, name)
       elseif tok.kind == "text" then
         emit("__c[#__c + 1] = " .. q(tok.text) .. " ", tok.line)
       elseif tok.kind == "expr" then
-        emit("__c[#__c + 1] = (" .. tok.code .. ") ", tok.line)
+        emit("__c[#__c + 1] = __at.text((" .. tok.code .. "), " .. tok.line .. ", " .. q(tok.code) .. ") ", tok.line)
       elseif tok.kind == "raw" then
         emit("__c[#__c + 1] = __raw(" .. tok.code .. ") ", tok.line)
       elseif tok.kind == "stmt" then
@@ -274,8 +274,19 @@ function lui.load(text, name, src, opts)
   if not src then src, why = lui.compile(text, name) end
   if not src then return nil, why end
   local chunk = load(src, "@" .. name, "t")
-  local at = { line = 1 }
+  -- at.nils: each {{ e }} that came out nil, once per line, for the host to show beside the page (a name the code
+  -- never sets, e.days_left where it set days, shows as nothing and says nothing)
+  local at = { line = 1, nils = {} }
+  local seen = {}
+  function at.text(v, line, code)
+    if v == nil and not seen[line] then
+      seen[line] = true
+      at.nils[#at.nils + 1] = name .. ":" .. line .. ": {{ " .. string.gsub(code, "^%s*(.-)%s*$", "%1") .. " }}"
+    end
+    return v
+  end
   return function(req, post, get, meta)
+    at.nils, seen = {}, {}
     local el = page.el(req, post, get, name, opts and opts.lines)
     return chunk(req, post, get, meta, ui, el, ui.raw, cat, at, flag)
   end, at
@@ -286,7 +297,7 @@ function lui.answer(text, name, req, src, opts)
   local def, at = lui.load(text, name, src, opts)
   if not def then error(at, 0) end
   local ok, res = pcall(page.answer, def, req)
-  if ok then return res end
+  if ok then return res, at.nils end
   res = tostring(res)
   if string.sub(res, 1, #name + 1) == name .. ":" then error(res, 0) end
   error(name .. ":" .. at.line .. ": " .. res, 0)
