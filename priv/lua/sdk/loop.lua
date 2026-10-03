@@ -10,7 +10,7 @@ local lui = require("shroomi.lui")
 local browse = require("browse")
 
 -- held before any step file runs, so a step file that changes the test table changes no verdict
-local run, clear, locate = test.run, test.clear, test.locate
+local run, clear, locate, own = test.run, test.clear, test.locate, test.own
 local clear_data = db.clear_scratch
 
 local loop = {}
@@ -35,6 +35,7 @@ local function load_steps(scope)
   clear()
   -- the page's own steps come first, so a step file cannot answer for the page (sdk/browse.lua)
   browse.install(test, scope)
+  own("the page's, sdk/browse.lua")
   local broken = {}
   for _, p in ipairs(lua_files(scope .. "/code/steps")) do
     local text = fs.read(p) or ""
@@ -46,7 +47,7 @@ local function load_steps(scope)
         err = tostring(err)
         broken[#broken + 1] = string.find(err, p, 1, true) and err or (p .. ": " .. err)
       end
-      locate(p, text)
+      for _, shadow in ipairs(locate(p, text)) do broken[#broken + 1] = shadow end
     else
       broken[#broken + 1] = why
     end

@@ -131,7 +131,9 @@ A feature, in the page's own steps. Right:
     Then I see "Fern"
 the computer knows these steps itself, and they use the page as the person does: I open the page (or I open the
 "list" page), I type "x" into "<a field's label or placeholder>", I press "<a button's words>", I press "Water"
-for "Fern" (the button on Fern's row), I see "x", I do not see "x", I see "a" before "b", I open the page again.
+for "Fern" (the button on Fern's row), I see "x", I see "watered" for "Fern" (in Fern's row), I do not see "x",
+I see "a" before "b", I open the page again. They are the computer's: never write them in code/steps (test names
+any file that does), and a scenario that needs a plant first adds it through the page (I type, I press "Add").
 A day is "today", "today+7" or "today-1". Every press is followed by the page opened afresh, so a page shows only
 what it kept. The page's labels and button words are the feature's words exactly. Wrong: Given the list holds 3
 plants, with a step of your own calling plants.add: it passes while the page is broken. Write code/steps only for

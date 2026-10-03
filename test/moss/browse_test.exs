@@ -70,6 +70,35 @@ defmodule Moss.BrowseTest do
     assert out =~ ~s|the page does not show "Fern dry"|
   end
 
+  test "Scenario: a row shows what was done to it, and no other row does", %{c: c} do
+    write(c, "/home/apps/plants/ui/index.lui", @page)
+
+    write(c, "/home/apps/plants/features/plants.feature", """
+    Feature: plants
+      Scenario: watered
+        When I type "Fern" into "Plant name"
+        And I press "Add"
+        And I type "Aloe" into "Plant name"
+        And I press "Add"
+        And I press "Water" for "Fern"
+        Then I see "watered" for "Fern"
+        And I see "watered" for "Aloe"
+    """)
+
+    assert %{code: 1, out: out} = Computer.run(c, "test")
+    assert out =~ ~s|I see "watered" for "Fern"    PASS|
+    assert out =~ ~s|the row of "Aloe" does not show "watered"; it shows: Aloe dry Water|
+  end
+
+  test "Scenario: a step file that defines the page's own step is named", %{c: c} do
+    write(c, "/home/apps/plants/ui/index.lui", @page)
+    write(c, "/home/apps/plants/code/steps/page.lua", ~s|\ntest.step("I see {string}", function(w, s) end)\n|)
+    assert %{code: 1, out: out} = Computer.run(c, "test")
+
+    assert out =~
+             ~s|apps/plants/code/steps/page.lua:2: "I see {string}" is the computer's own step (the page's, sdk/browse.lua)|
+  end
+
   test "Scenario: a button the page lacks names the buttons it has", %{c: c} do
     write(c, "/home/apps/plants/ui/index.lui", @page)
 

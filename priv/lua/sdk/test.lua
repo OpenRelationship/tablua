@@ -51,14 +51,30 @@ function test.clear() defined = {} end
 
 -- Where the steps a file just defined live (its loader calls this with the file's text): each pattern's line, found by
 -- its text, so a near miss can say where the step it nearly matched is.
+-- Each step it defines that the computer already has (test.own) is named, file:line first: the computer's runs, so
+-- the file's would never run and would only mislead whoever reads it.
 function test.locate(path, text)
+  local own, shadows = {}, {}
+  for _, d in ipairs(defined) do if d.own then own[d.lua] = d end end
   for _, d in ipairs(defined) do
     if not d.at then
       local s = string.find(text, d.text, 1, true)
       local line = 1
       if s then for _ in string.gmatch(string.sub(text, 1, s), "\n") do line = line + 1 end end
       d.at = string.gsub(path, "^/home/", "") .. (s and (":" .. line) or "")
+      if own[d.lua] then
+        shadows[#shadows + 1] = ('%s: "%s" is the computer\'s own step (%s), which uses the page itself: take it out'
+          .. " of this file"):format(d.at, d.text, own[d.lua].at)
+      end
     end
+  end
+  return shadows
+end
+
+-- The steps defined so far are the computer's own, from `where` (sdk/browse.lua installs them so)
+function test.own(where)
+  for _, d in ipairs(defined) do
+    if not d.at then d.at, d.own = where, true end
   end
 end
 

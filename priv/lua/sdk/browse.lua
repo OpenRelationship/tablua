@@ -9,6 +9,7 @@
 --   When I press "Add"                   a button: a form's sends the form; a row's sends its row
 --   When I press "Water" for "Fern"      the row's button whose row is Fern's
 --   Then I see "Fern"                    I do not see "Fern"      I see "Ivy" before "Fern"
+--   Then I see "watered" for "Fern"      the row that shows Fern (its tr, li, p or card) shows watered
 -- A value "today", "today+7" or "today-1" is that day (2026-10-10).
 local M = {}
 
@@ -194,6 +195,24 @@ function M.install(test, at)
     if not string.find(seen(w), value(s), 1, true) then
       error(('the page does not show "%s"; it shows: %s'):format(value(s), shows(w)), 0)
     end
+  end)
+  -- the row (a table row, list item, paragraph or card) that shows `row` also shows `s`
+  test.step("I see {string} for {string}", function(w, s, row)
+    if not w.html then open(w) end
+    local html, want = w.html, value(s)
+    for _, tag in ipairs({ "tr", "li", "p", "article", "section", "div" }) do
+      -- each innermost block of the tag: one with another of its kind inside is left to that one
+      for i in string.gmatch(html, "()<" .. tag .. "[%s>]") do
+        local _, j = string.find(html, "</" .. tag .. ">", i, true)
+        local block = string.sub(html, i, j or #html)
+        local t = M.text(block)
+        if string.find(t, row, 1, true) and not string.find(block, "<" .. tag .. "[%s>]", 2) then
+          if string.find(t, want, 1, true) then return end
+          error(('the row of "%s" does not show "%s"; it shows: %s'):format(row, want, (string.gsub(t, "^%s+", ""))), 0)
+        end
+      end
+    end
+    error(('no row shows "%s"; the page shows: %s'):format(row, shows(w)), 0)
   end)
   test.step("I do not see {string}", function(w, s)
     if string.find(seen(w), value(s), 1, true) then error(('the page still shows "%s"'):format(value(s)), 0) end
