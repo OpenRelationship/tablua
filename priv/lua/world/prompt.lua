@@ -42,7 +42,8 @@ an empty step passes and checks nothing; the computer counts them, and the app c
 A step's holes match the feature's words as written: {string} only "quoted" text, {word} one bare word, {int} a
 number. For the line `Given there is a plant named Fern`, right: test.step("there is a plant named {word}", ...).
 Wrong: test.step("there is a plant named {string}", ...): Fern has no quotes, so the step never matches and test
-keeps saying no step matches.
+keeps saying no step matches. And the other way: When I water "Fern" takes test.step("I water {string}", ...),
+never {word}, which takes no quotes.
 
 The app's data. Right: code/plants.lua opens the computer's own database and both the steps and the page
 require it:

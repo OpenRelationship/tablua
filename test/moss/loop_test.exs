@@ -61,6 +61,20 @@ defmodule Moss.LoopTest do
                ~s|apps/plants/code/steps/given.lua:2: {string} takes "quoted" text and the line has Fern: use {word} for one bare word)|
   end
 
+  # and the other way: {word} never takes "quoted" text (it took "Rice" with its quotes, and the step looked up a
+  # name no row had)
+  test "Scenario: {word} does not take quoted text, and says to use {string}", %{c: c} do
+    write(c, "/home/apps/plants/features/plants.feature", """
+    Feature: plants
+      Scenario: one plant
+        Given 3 plants called "Fern"
+    """)
+
+    write(c, "/home/apps/plants/code/steps/given.lua", ~S|test.step("{int} plants called {word}", function(w, n, name) end)|)
+    assert %{code: 1, out: out} = sh(c, "test")
+    assert out =~ ~s|{word} takes one bare word and the line has "Fern": use {string} for "quoted" text|
+  end
+
   test "Scenario: an undefined step prints its stub", %{c: c} do
     assert %{code: 1, out: out} = sh(c, "test")
     assert out =~ ~s|# no step matches "the list holds 3 plants"; paste this into code/steps/|

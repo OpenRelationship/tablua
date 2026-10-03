@@ -22,7 +22,9 @@ local HOLES = {
   ["{int}"] = { "(%-?%d+)", tonumber },
   ["{number}"] = { "(%-?%d+%.?%d*)", tonumber },
   ["{string}"] = { "\"([^\"]*)\"", nil },
-  ["{word}"] = { "([^%s]+)", nil },
+  -- a bare word, never "quoted" text: {word} took "Rice" with its quotes, the step looked up a name no row had, and
+  -- a pantry run spent 98 steps on a failure no line showed
+  ["{word}"] = { "([^%s\"]+)", nil },
   ["{}"] = { "(.-)", nil },
 }
 
@@ -96,6 +98,8 @@ function test.nearest(text)
     if fits and not fits(tw[k]) then
       if pw[k] == "{string}" then
         why[#why + 1] = ('{string} takes "quoted" text and the line has %s: use {word} for one bare word'):format(tw[k])
+      elseif pw[k] == "{word}" then
+        why[#why + 1] = ('{word} takes one bare word and the line has %s: use {string} for "quoted" text'):format(tw[k])
       else
         why[#why + 1] = ("%s does not take %s"):format(pw[k], tw[k])
       end
