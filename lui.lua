@@ -214,6 +214,20 @@ function lui.compile(text, name)
         open[#open + 1] = { tag = "slot", line = tok.line, slot = a.literal }
       elseif tok.kind == "open" then
         check_tag(tok.tag, tok.line)
+        -- a field in a form sends its value under its name: without one the form sends nothing of it (a notes
+        -- page's fields had id= and no name=, and its form added nothing)
+        local in_form = false
+        for _, o in ipairs(open) do in_form = in_form or o.tag == "form" end
+        if in_form and (tok.tag == "input" or tok.tag == "textarea" or tok.tag == "select") then
+          local named, kind = false, nil
+          for _, a in ipairs(tok.attrs) do
+            if a.name == "name" then named = true end
+            if a.name == "type" then kind = a.literal end
+          end
+          if not named and kind ~= "submit" and kind ~= "button" and kind ~= "reset" then
+            st:fail(tok.line, "<" .. tok.tag .. "> has no name=: a form sends a field's value as req.form.<name>")
+          end
+        end
         local alone = tok.closed or VOID[tok.tag] or SELF[tok.tag]
         emit(alone and "__c[#__c + 1] = __el(" .. tok.line .. ", " .. q(tok.tag) .. ", { "
           or " do local __p, __a, __c = __c, { ", tok.line)
