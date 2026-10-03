@@ -15,9 +15,9 @@ config :moss,
 # fetched by mix moss.look. A new release is a new version and hash here, in the change that adopts it.
 config :moss, :look,
   repo: "OpenRelationship/vmoss",
-  release: "v0.2.0",
+  release: "v0.2.1",
   sha384:
-    "0deb35705424acc1b0e4f6e325978cef5b8de84b253704090fe70fededf12aae61f2344026fdd94264e5012a7b86b7b7",
+    "9e02809e965487be0bd34d547ff5af30ef519373cba44193dd1eab8610b6862283b8836369a9fb40f3be95d2eb3aaaaa",
   path: Path.expand("../priv/look.wasm", __DIR__)
 
 config :logger, :default_formatter, format: "$time $metadata[$level] $message\n"
