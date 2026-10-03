@@ -22,7 +22,18 @@ defmodule Moss.Fetch do
         decode_body: false
       ] ++ Application.get_env(:moss, :req_options, [])
 
-    task = Task.async(fn -> Req.request(opts) end)
+    # whatever the request raises stays in its task: a 504 that Finch could not match crashed the linked task and
+    # with it a whole agent run
+    task =
+      Task.async(fn ->
+        try do
+          Req.request(opts)
+        rescue
+          e -> {:error, e}
+        catch
+          kind, why -> {:error, RuntimeError.exception(Exception.format_banner(kind, why))}
+        end
+      end)
 
     case Task.yield(task, opts[:receive_timeout] + 5_000) || Task.shutdown(task, :brutal_kill) do
       {:ok, {:ok, %Req.Response{status: status, body: body}}} -> {:ok, status, body}

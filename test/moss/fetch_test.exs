@@ -61,4 +61,9 @@ defmodule Moss.FetchTest do
     assert message =~ "jev unreachable"
     refute message =~ "test-key"
   end
+  test "whatever the request raises is an error, never a crash of the caller" do
+    Req.Test.stub(Moss.Fetch, fn _conn -> raise CaseClauseError, term: {:status, make_ref(), 504} end)
+    assert {:error, message} = Moss.Fetch.request(%{"url" => "https://openrouter.ai/api/v1/x"})
+    assert message =~ "fetch: "
+  end
 end
