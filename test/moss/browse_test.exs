@@ -104,6 +104,20 @@ defmodule Moss.BrowseTest do
     assert %{code: 0} = Computer.run(c, "test")
   end
 
+  test "Scenario: a step file that calls browse is told its steps", %{c: c} do
+    write(c, "/home/apps/plants/ui/index.lui", @page)
+    write(c, "/home/apps/plants/code/steps/page.lua", ~s|local browse = require("browse")\ntest.step("I go home", function(w) browse.navigate("/") end)\n|)
+
+    write(c, "/home/apps/plants/features/plants.feature", """
+    Feature: plants
+      Scenario: home
+        When I go home
+    """)
+
+    assert %{code: 1, out: out} = Computer.run(c, "test")
+    assert out =~ ~s|browse has no navigate: the page is used through the computer's own steps|
+  end
+
   test "Scenario: a button the page lacks names the buttons it has", %{c: c} do
     write(c, "/home/apps/plants/ui/index.lui", @page)
 

@@ -133,7 +133,9 @@ the computer knows these steps itself, and they use the page as the person does:
 "list" page), I type "x" into "<a field's label or placeholder>", I press "<a button's words>", I press "Water"
 for "Fern" (the button on Fern's row), I see "x", I see "watered" for "Fern" (in Fern's row), I do not see "x",
 I see "a" before "b", I open the page again. They are the computer's: never write them in code/steps (test names
-any file that does), and a scenario that needs a plant first adds it through the page (I type, I press "Add").
+any file that does, and never require("browse")), and a scenario that needs a plant first adds it through the page
+(I type, I press "Add"). A Then is only ever I see "x" or I see "x" for "row", with the words the page shows: right,
+Then I see "Yes" for "Yoga"; wrong, Then I see "Yoga" is complete for today, a step no page has.
 A day is "today", "today+7" or "today-1". Every press is followed by the page opened afresh, so a page shows only
 what it kept. The page's labels and button words are the feature's words exactly. Wrong: Given the list holds 3
 plants, with a step of your own calling plants.add: it passes while the page is broken. Write code/steps only for

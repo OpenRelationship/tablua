@@ -234,4 +234,11 @@ function M.install(test, at)
   end)
 end
 
-return M
+-- browse is used through its steps, never called: code that asks it for anything else is told the steps (an agent
+-- wrote browse.navigate("/") in a step file of its own and spent 20 steps on it)
+local STEPS = 'I open the page, I type "x" into "field", I press "button", I press "button" for "row", I see "x", '
+  .. 'I see "x" for "row", I do not see "x", I see "a" before "b", I open the page again'
+return setmetatable(M, { __index = function(_, k)
+  error(("browse has no %s: the page is used through the computer's own steps, written in the feature (%s); a step "
+    .. "file never requires browse"):format(tostring(k), STEPS), 2)
+end })
