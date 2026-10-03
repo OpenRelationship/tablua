@@ -200,7 +200,7 @@ local function page(req)
   -- the computer's own look asks where each element is written (Moss.Computer.Look); the page never sees it
   local lines = req.lines == true
   req.lines = nil
-  local ok, res = xpcall(function()
+  local ok, res, nils = xpcall(function()
     local lui, text = require("shroomi.lui"), sys.read(req.page)
     local src = sys.compiled(name, text)
     if not src then
@@ -210,7 +210,10 @@ local function page(req)
     return lui.answer(text, name, req, src, { lines = lines })
   end, tostring)
   if not ok then return 500, {}, "The page failed: " .. say(res) end
-  return reply(res)
+  local status, headers, body = reply(res)
+  -- each {{ e }} that showed nothing, for the agent's facts and browser (never shown to the person)
+  if nils and #nils > 0 then headers["x-moss-nil"] = table.concat(nils, " | ") end
+  return status, headers, body
 end
 
 -- The loop (Arock feature file-kinds): `test` and `check` run here (sdk/loop.lua), each result handed to the host

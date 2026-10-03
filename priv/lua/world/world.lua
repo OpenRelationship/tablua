@@ -244,6 +244,9 @@ function M.facts_text(f, s)
   for _, p in ipairs(f.pages) do
     out[#out + 1] = ("Page %s (%s) answers %d%s"):format(p.path, M.open(p.path), p.status,
       p.error and (": " .. clip(p.error, 300)) or ".")
+    if p.nils then
+      out[#out + 1] = "  it shows nothing for " .. clip(p.nils, 300) .. " (nil: a name the code does not set?)"
+    end
   end
   if (repeats or 0) >= M.dead_end then
     out[#out + 1] = ("The last %d changes left the same failure, thinking between them: fixing it piece by piece"

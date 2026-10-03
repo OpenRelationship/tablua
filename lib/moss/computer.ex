@@ -228,7 +228,9 @@ defmodule Moss.Computer do
     log(state, "Serve Request", [method, path, to_string(status), ms(ms), form, body], "user")
 
     Disk.rest(state.disk)
-    {:reply, answer, %{state | touched: now()}, :hibernate}
+    # what the page showed nothing for is the agent's to read, never the person's
+    {s, headers, b, e} = answer
+    {:reply, {s, Map.delete(headers, "x-moss-nil"), b, e}, %{state | touched: now()}, :hibernate}
   end
 
   def handle_call({:person, what, args}, _from, state) do

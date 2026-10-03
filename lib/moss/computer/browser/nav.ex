@@ -29,6 +29,8 @@ defmodule Moss.Computer.Browser.Nav do
             if where == :new_tab, do: Tabs.open(state, page), else: {Tabs.go(state, page), ""}
 
           err = if r.status >= 400, do: "the page answered #{r.status}#{why(r)}\n", else: ""
+          # an app's page names each {{ e }} that showed nothing (Shroomi), for the agent that wrote it
+          note = if n = nils(r), do: note <> "\n(shows nothing for #{n})\n", else: note
           {if(r.status >= 400, do: 22, else: 0), Parts.summary(page) <> note, err, state}
         end
 
@@ -155,6 +157,9 @@ defmodule Moss.Computer.Browser.Nav do
   end
 
   defp why(_), do: ""
+
+  defp nils(%{headers: %{"x-moss-nil" => n}}), do: n
+  defp nils(_), do: nil
 
   # -- forms -------------------------------------------------------------------------------------
 

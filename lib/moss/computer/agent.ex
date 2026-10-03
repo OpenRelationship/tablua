@@ -171,14 +171,16 @@ defmodule Moss.Computer.Agent do
         not String.contains?(page, "/_") do
       path = url(page)
 
-      {status, _, body, _} =
+      {status, headers, body, _} =
         Script.serve(%{"method" => "GET", "path" => path}, %{
           state
           | disk: %{state.disk | actor: "user"}
         })
 
-      # a page that does not answer says why (its file, line and error), for both minds to read
+      # a page that does not answer says why (its file, line and error), for both minds to read; one that does
+      # names each {{ e }} that showed nothing
       page = %{"path" => path, "status" => status}
+      page = if n = headers["x-moss-nil"], do: Map.put(page, "nils", n), else: page
       if status == 200, do: page, else: Map.put(page, "error", body |> IO.iodata_to_binary() |> String.slice(0, 400))
     end
   end

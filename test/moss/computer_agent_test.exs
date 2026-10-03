@@ -198,6 +198,12 @@ defmodule Moss.ComputerAgentTest do
     :ok = Moss.Computer.Disk.write(disk, "/home/ui/index.lui", "<lua>\n  local d = nil\n</lua>\n<p>{{ d.name }}</p>\n")
     assert [%{"path" => "/", "status" => 500, "error" => error}] = Computer.agent(id, :facts, ["org:x"])["pages"]
     assert error =~ "index.lui"
+
+    # and one that answers names each {{ e }} that showed nothing, for the agent alone
+    :ok = Moss.Computer.Disk.write(disk, "/home/ui/index.lui", "<lua>\n  local d = { days = 5 }\n</lua>\n<p>{{ d.days_left }}</p>\n")
+    assert [%{"status" => 200, "nils" => "ui/index.lui:4: {{ d.days_left }}"}] = Computer.agent(id, :facts, ["org:x"])["pages"]
+    assert {200, headers, _, _} = Computer.serve(id, %{"method" => "GET", "path" => "/"})
+    refute Map.has_key?(headers, "x-moss-nil")
   end
 
   # a change that breaks scenarios that passed can be put back: Jev is offered undo, and the files return as they were
