@@ -33,16 +33,10 @@ defmodule Moss.Computer.Look do
 
   @doc "The page at `url`, laid out at `screen` when the look node runs."
   def page(url, html, notes, screen) do
-    with pid when is_pid(pid) <- Process.whereis(Moonflower.Look.Node),
-         {:ok, look} <-
-           Moonflower.Look.look(Moonflower.Look.Node, html,
-             width: screen.width,
-             dark: screen.dark,
-             base: url,
-             css: css()
-           ) do
-      Page.looked(url, look, notes)
-    else
+    case look(url, html, screen) do
+      {:ok, look} ->
+        Page.looked(url, look, notes)
+
       {:error, :too_costly} ->
         Page.new(url, html, notes ++ ["(too costly to lay out; read without a look)"])
 
@@ -50,6 +44,27 @@ defmodule Moss.Computer.Look do
         Page.new(url, html, notes)
     end
   end
+
+  @doc "The look at an app's page: `{:ok, %Moonflower.Look{}}`, or `{:error, :no_look}` when this node has none."
+  def look(url, html, screen) do
+    if Process.whereis(Moonflower.Look.Node) do
+      Moonflower.Look.look(Moonflower.Look.Node, themed(html, screen.dark),
+        width: screen.width,
+        dark: screen.dark,
+        base: url,
+        css: css()
+      )
+    else
+      {:error, :no_look}
+    end
+  end
+
+  # A page in the person's theme (data-theme="auto") is dark when their system is: Shroomi's script puts Basecoat's
+  # .dark on <html> then. The look runs no script, so it is put on here; a page that fixes its theme keeps it.
+  defp themed(html, true),
+    do: String.replace(html, ~s(<html lang="en" data-theme="auto">), ~s(<html lang="en" class="dark" data-theme="auto">), global: false)
+
+  defp themed(html, false), do: html
 
   # Shroomi's stylesheet, the one an app's page links (Clean.policy's css), read once from its pinned asset
   defp css do
@@ -74,10 +89,10 @@ defmodule Moss.Computer.Look do
   def flags(["--width", n | rest], s) do
     case Integer.parse(n) do
       {w, ""} when w in 320..3840 -> flags(rest, %{s | width: w})
-      _ -> {:error, "open: --width #{n}: a width from 320 to 3840"}
+      _ -> {:error, "--width #{n}: a width from 320 to 3840"}
     end
   end
 
   def flags([other | _], _s),
-    do: {:error, "open: #{other}: --width N (320 to 3840), --dark or --light"}
+    do: {:error, "#{other}: --width N (320 to 3840), --dark or --light"}
 end

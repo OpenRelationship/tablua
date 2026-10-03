@@ -128,13 +128,16 @@ defmodule Moss.Computer.Browser.Nav do
         headers
       )
 
+    # `look` asks for each element's line in the page's source (Computer.Look); no person's request can
+    req = if opts[:lines], do: Map.put(req, "lines", true), else: req
+
     {status, headers, body, _err} = Script.serve(req, state)
     html? = headers |> Map.get("content-type", "text/html") |> String.starts_with?("text/html")
     body = if html?, do: Moss.Computer.Clean.html(body), else: body
 
     case headers do
       %{"location" => to} when status in 301..308 and hops > 0 ->
-        fetch_app(state, URI.to_string(URI.merge(@app, to)), [], hops - 1)
+        fetch_app(state, URI.to_string(URI.merge(@app, to)), Keyword.take(opts, [:lines]), hops - 1)
 
       _ ->
         # an app's page reads its addresses against the app's root, as its <base> has the person's browser do

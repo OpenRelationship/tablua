@@ -196,6 +196,9 @@ end
 -- a page is compiled once for its name and text, and the node keeps what it compiled to (sys.compiled)
 local function page(req)
   local name = string.gsub(req.page, "^/home/", "")
+  -- the computer's own look asks where each element is written (Moss.Computer.Look); the page never sees it
+  local lines = req.lines == true
+  req.lines = nil
   local ok, res = xpcall(function()
     local lui, text = require("shroomi.lui"), sys.read(req.page)
     local src = sys.compiled(name, text)
@@ -203,7 +206,7 @@ local function page(req)
       src = lui.compile(text, name)
       if src then sys.compiled(name, text, src) end
     end
-    return lui.answer(text, name, req, src)
+    return lui.answer(text, name, req, src, { lines = lines })
   end, tostring)
   if not ok then return 500, {}, "The page failed: " .. say(res) end
   return reply(res)

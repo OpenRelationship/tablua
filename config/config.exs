@@ -11,11 +11,13 @@ config :moss,
   # host's config says why 4 hours.
   snapshot_ms: 4 * 3_600_000
 
-# moss-browser's look (Arock feature look): its v0.1.1 module, pinned by SHA-384 and fetched by mix moss.look
+# The look (Arock feature look): the module VMOSS's CI built from browser/look and released, pinned by SHA-384 and
+# fetched by mix moss.look. A new release is a new version and hash here, in the change that adopts it.
 config :moss, :look,
-  release: "v0.1.1",
+  repo: "OpenRelationship/vmoss",
+  release: "v0.2.0",
   sha384:
-    "867622badaf55464ed5d66e0583455145a443ab80fdce263b4df644a63100732e256b1bf7edae34f557f8ad6af7e8c56",
+    "0deb35705424acc1b0e4f6e325978cef5b8de84b253704090fe70fededf12aae61f2344026fdd94264e5012a7b86b7b7",
   path: Path.expand("../priv/look.wasm", __DIR__)
 
 config :logger, :default_formatter, format: "$time $metadata[$level] $message\n"

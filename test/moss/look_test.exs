@@ -92,4 +92,45 @@ defmodule Moss.LookTest do
     assert out =~ "Sort by name"
     refute out =~ "chosen"
   end
+  test "layout faults are named, each with its element and its line in the page's source" do
+    c = cid()
+
+    put_page(c, ~S"""
+    <h1>Plants</h1>
+    <button class="w-0 h-0 p-0 border-0 overflow-hidden">Save</button>
+    <input name="email" class="block w-48"/>
+    <div class="absolute top-0 left-0 w-80 h-40 bg-background">Banner</div>
+    <table class="w-[900px]"><tbody><tr><td>wide</td></tr></tbody></table>
+    """)
+
+    assert %{code: 1, out: out} = Computer.run(c, "look --width 390")
+    assert out =~ "ui/index.lui at 390 px: 3 faults"
+    assert out =~ ~s(ui/index.lui:2  button "Save" cannot be seen: it is 0 by 0 px)
+    assert out =~ ~s[ui/index.lui:3  field "email" cannot be clicked: <div> "Banner" (line 4) is over it]
+    assert out =~ ~s(ui/index.lui:5  <table> "wide" runs off the screen: 900 px wide)
+  end
+
+  test "text too faint to read in the dark theme is named, with its colours" do
+    c = cid()
+    put_page(c, ~S"""
+    <p class="text-muted">sown in spring</p>
+    """)
+
+    assert %{code: 1, out: out} = Computer.run(c, "look --dark")
+    # Basecoat's dark background, put on by the theme the look sets in place of Shroomi's script
+    assert out =~ ", dark: "
+    assert [_, ratio] = Regex.run(~r/<p> "sown in spring" is too faint: #[0-9a-f]{6} on #0a0a0a, ([\d.]+) to 1/, out)
+    assert String.to_float(ratio) < 4.5
+  end
+
+  test "a page a person can use has no faults" do
+    c = cid()
+    put_page(c, ~S"""
+    <h1>Plants</h1>
+    <button>Water</button>
+    """)
+
+    assert %{code: 0, out: out} = Computer.run(c, "look")
+    assert out =~ "nothing a person could not use"
+  end
 end

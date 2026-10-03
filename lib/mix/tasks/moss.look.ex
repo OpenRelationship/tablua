@@ -1,33 +1,30 @@
 defmodule Mix.Tasks.Moss.Look do
-  @shortdoc "Fetches moss-browser's look module, the release pinned in config"
+  @shortdoc "Fetches the look module, the release pinned in config"
   @moduledoc """
-  Fetches `look.wasm` from moss-browser's GitHub release named in config `:look` (`release`), checks it against the
-  pinned SHA-384 and writes it to `path`. A file already there with that hash is kept. moss-browser is private, so
+  Fetches `look.wasm` from the GitHub release named in config `:look` (`repo`, `release`), checks it against the
+  pinned SHA-384 and writes it to `path`. A file already there with that hash is kept. The repository is private, so
   the request carries GITHUB_TOKEN when it is set; the token is sent to GitHub only, never printed or written.
 
       GITHUB_TOKEN=... mix moss.look
   """
   use Mix.Task
 
-  # the pinned release is moss-browser's (v0.1.1, kept by GitHub with that repository); a release cut after VMOSS took
-  # the browser in (browser/) is VMOSS's, OpenRelationship/vmoss
-  @repo "OpenRelationship/moss-browser"
   @asset "look.wasm"
 
   @impl true
   def run(_argv) do
     Mix.Task.run("app.config")
     Application.ensure_all_started(:req)
-    %{release: tag, sha384: sha, path: path} = Map.new(Application.fetch_env!(:moss, :look))
+    %{repo: repo, release: tag, sha384: sha, path: path} = Map.new(Application.fetch_env!(:moss, :look))
 
     if File.exists?(path) and hash(File.read!(path)) == sha do
       Mix.shell().info("look: #{path} is #{tag}")
     else
-      bytes = fetch(tag)
+      bytes = fetch(repo, tag)
       got = hash(bytes)
 
       if got != sha,
-        do: Mix.raise("look: #{@repo} #{tag}'s #{@asset} is #{got}, not the pinned #{sha}")
+        do: Mix.raise("look: #{repo} #{tag}'s #{@asset} is #{got}, not the pinned #{sha}")
 
       File.mkdir_p!(Path.dirname(path))
       File.write!(path, bytes)
@@ -35,8 +32,8 @@ defmodule Mix.Tasks.Moss.Look do
     end
   end
 
-  defp fetch(tag) do
-    api = "https://api.github.com/repos/#{@repo}"
+  defp fetch(repo, tag) do
+    api = "https://api.github.com/repos/#{repo}"
 
     with {:ok, %{status: 200, body: %{"assets" => assets}}} <-
            Req.get(api <> "/releases/tags/#{tag}",
@@ -49,13 +46,13 @@ defmodule Mix.Tasks.Moss.Look do
     else
       # only the status: an error from Req may carry the request, and with it the token
       {:ok, %{status: status}} ->
-        Mix.raise("look: GitHub answered #{status} for #{@repo} #{tag}" <> hint(status))
+        Mix.raise("look: GitHub answered #{status} for #{repo} #{tag}" <> hint(status))
 
       nil ->
-        Mix.raise("look: #{@repo} #{tag} has no #{@asset}")
+        Mix.raise("look: #{repo} #{tag} has no #{@asset}")
 
       {:error, %{__exception__: true} = e} ->
-        Mix.raise("look: #{e.__struct__} fetching #{@repo} #{tag}")
+        Mix.raise("look: #{e.__struct__} fetching #{repo} #{tag}")
     end
   end
 
