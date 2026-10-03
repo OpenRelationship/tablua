@@ -523,6 +523,24 @@ defmodule Lua.Parser.CommentTest do
 
   defp contains_comment_tuple?({:comment, _, _, _}), do: true
 
+  describe "comments inside an expression" do
+    test "between an operand and the operator that continues it, and before then" do
+      code = """
+      local x = 1
+      if x == 1
+        -- the first part
+        and x < 2 -- the second
+        or false
+      then
+        y = 1
+      end
+      """
+
+      assert {:ok, _} = Parser.parse(code)
+      assert {[1], _} = Lua.eval!(Lua.new(), code <> "return y")
+    end
+  end
+
   defp contains_comment_tuple?(%_{} = struct) do
     struct
     |> Map.from_struct()

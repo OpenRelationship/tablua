@@ -17,7 +17,8 @@ local M = {}
 -- Each move as Jev reads it: a name in words and what it is for.
 M.moves = {
   write_feature = "Write the feature: the person's ask, in their words, as Gherkin scenarios (new feature <name>,"
-    .. " then edit it), or change it before the person has agreed.",
+    .. " then edit it), or change it before the person has agreed; once agreed, change it only when it cannot pass"
+    .. " as written, and the person agrees to it again.",
   wait_for_agreement = "The feature is written and the person has not agreed to it yet: wait for them. Nothing is"
     .. " built before they agree.",
   write_steps = "Write the Lua steps in code/steps/ that make each scenario check the app's real behaviour, from the"
@@ -60,7 +61,7 @@ M.causes = {
 M.allowed = {
   no_feature = { "write_feature", "read_help", "think", "blocked" },
   awaiting_agreement = { "wait_for_agreement", "write_feature", "think", "blocked" },
-  building = { "undo", "write_steps", "write_code", "write_page", "run_test", "run_check", "fix_failure", "rewrite",
+  building = { "undo", "write_feature", "write_steps", "write_code", "write_page", "run_test", "run_check", "fix_failure", "rewrite",
     "look_at_app", "read_help", "think", "plan", "next_part", "blocked" },
   ready = { "publish", "undo", "look_at_app", "fix_failure", "rewrite", "write_page", "run_test", "think", "blocked" },
   awaiting_yes = { "wait_for_yes" },
@@ -263,9 +264,12 @@ function M.new(host, run)
       -- and thinking twice running changes nothing
       -- and once shipped, the task is answered: thinking or stopping is for after an answer that failed (a budget
       -- run, shipped, thought and then blocked twice saying it still waited on the person's yes)
+      -- and an agreed feature is changed only once fixing the code has stopped helping (a countdown run blocked
+      -- with no move that could change the feature it blamed)
       if not (stuck and name == "fix_failure") and not (name == "publish" and not req.looked)
         and not (name == "think" and last and last.verb == "think") and not (name == "undo" and not req.undo)
-        and not (req.stage == "shipped" and name ~= "answer_task" and not M.answer_failed(req)) then
+        and not (req.stage == "shipped" and name ~= "answer_task" and not M.answer_failed(req))
+        and not (name == "write_feature" and req.stage == "building" and not stuck) then
         options[name] = M.moves[name] or require("agent.parts").verbs[name]
       end
     end

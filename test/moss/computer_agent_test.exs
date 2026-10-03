@@ -145,8 +145,11 @@ defmodule Moss.ComputerAgentTest do
     assert jev == [{true, "fix_failure"}, {true, "fix_failure"}, {false, "think"}, {true, "fix_failure"}]
 
     # and straight after thinking, thinking again is not offered
-    [_, _, {:jev, third, _}, {:jev, fourth, _}] = Agent.get(calls, & &1)
+    [{:jev, first, _}, _, {:jev, third, _}, {:jev, fourth, _}] = Agent.get(calls, & &1)
     assert "think" in third and "think" not in fourth
+
+    # and the agreed feature is offered for changing only once fixing has stopped helping
+    assert "write_feature" not in first and "write_feature" in third
 
     # each fix's note says it left the same failure, and its outcome is that it did nothing
     rows = Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Outcome"])

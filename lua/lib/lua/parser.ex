@@ -833,6 +833,18 @@ defmodule Lua.Parser do
   end
 
   # Parse infix expressions (binary operators and postfix)
+  defp parse_infix(left, [{:comment, _, _, _} | _] = tokens, min_prec) do
+    # a comment between an operand and the operator that continues the expression (a condition split over lines,
+    # a comment on each) is skipped; one before anything else stays, for the statement it belongs to
+    rest = skip_comments(tokens)
+
+    case peek(rest) do
+      {:keyword, op, _} when op in [:and, :or] -> parse_infix(left, rest, min_prec)
+      {:operator, op, _} -> if Pratt.is_binary_op?(op), do: parse_infix(left, rest, min_prec), else: {:ok, left, tokens}
+      _ -> {:ok, left, tokens}
+    end
+  end
+
   defp parse_infix(left, tokens, min_prec) do
     case peek(tokens) do
       {:keyword, op, pos} when op in [:and, :or] ->
@@ -1392,6 +1404,9 @@ defmodule Lua.Parser do
 
   # Expect a specific token type
   defp expect(tokens, expected_type) do
+    # a comment before the token expected (`if a -- why` then `then` on the next line) is no token of the grammar
+    tokens = skip_comments(tokens)
+
     case peek(tokens) do
       {^expected_type, _, _} = token ->
         {_, rest} = consume(tokens)
@@ -1411,6 +1426,8 @@ defmodule Lua.Parser do
 
   # Expect a specific token type and value
   defp expect(tokens, expected_type, expected_value) do
+    tokens = skip_comments(tokens)
+
     case peek(tokens) do
       {^expected_type, ^expected_value, _} = token ->
         {_, rest} = consume(tokens)
