@@ -148,6 +148,9 @@ function lui.compile(text, name)
     local function check_attr(tag, a)
       if tag == "icon" and a.name == "name" and a.literal and not icons[a.literal] then
         st:fail(a.line, 'no icon "' .. a.literal .. '": the kit has ' .. table.concat(ui.icons, " "))
+      elseif tag == "form" and (a.name == "action" or a.name == "method") then
+        st:fail(a.line, a.name .. '= sends the browser away from the page: a form posts to its page with post="add"' ..
+          ' and function post.add(req) in the <lua> block')
       elseif a.name == "class" then
         for _, word in ipairs(a.words) do
           if not css.known(word) then
