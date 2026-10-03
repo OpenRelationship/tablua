@@ -78,26 +78,29 @@ function arock.decide(state, questions)
   return answers, { cost = record.cost }
 end
 
--- The post's rules, from arock-mail (PROJECT.md §18): pure Lua over facts the host gathered from its store.
+-- The post's rules, from uspx (once arock-mail; PROJECT.md §18): pure Lua over facts the host gathered from its store.
 --   arock.mail("check", letter, facts, opts) -> "ok", mode | "refused", reason
+--   arock.mail("route", route, facts)        -> "ok" | "refused", reason
 --   arock.mail("ask", letters, history)      -> the state and the questions Jev reads
 --   arock.mail("verdicts", { { letter, answer }, ... }, sure) -> { verdict, ... }, one per letter
 local mail = {}
 
-function mail.check(letter, facts, opts) return require("arock-mail.checks").letter(letter, facts, opts) end
+function mail.check(letter, facts, opts) return require("uspx.checks").letter(letter, facts, opts) end
+
+function mail.route(route, facts) return require("uspx.checks").route(route, facts) end
 
 function mail.ask(letters, history)
-  local screen = require("arock-mail.screen")
+  local screen = require("uspx.screen")
   return screen.state(letters, history), screen.questions(letters)
 end
 
 function mail.verdicts(items, sure)
-  local screen, out = require("arock-mail.screen"), {}
+  local screen, out = require("uspx.screen"), {}
   for i, item in ipairs(items) do out[i] = screen.verdict(item.letter, item.answer, sure) end
   return out
 end
 
--- Letters in org (feature file-kinds): a letter is one org entry, read by arock-log and judged by arock-mail.tasks.
+-- Letters in org (feature file-kinds): a letter is one org entry, read by arock-log and judged by uspx.tasks.
 --   arock.mail("letter", sender, recipient, subject, body) -> JSON { text, subject, kind, task, links } | { why }
 --   arock.mail("stamp", text, id)                           -> the letter with its :ID: (its own address)
 --   arock.mail("reply", task, sender, recipient, named)     -> nil | why (named: { sender, recipient, body })
@@ -135,7 +138,7 @@ function mail.letter(sender, recipient, subject, body)
       if string.sub(l.target, 1, 4) == "org:" then links[#links + 1] = l.target end
     end
   end
-  local t = require("arock-mail.tasks").read(e)
+  local t = require("uspx.tasks").read(e)
   return json.encode({ text = text, subject = e.title, kind = t.kind, task = t.task, links = links })
 end
 
@@ -148,11 +151,11 @@ end
 function mail.reply(task, sender, recipient, named)
   local entry = named and select(2, top(named.body))
   local n = named and { sender = named.sender, recipient = named.recipient, entry = entry }
-  return require("arock-mail.tasks").check_reply({ task = task }, sender, recipient, n)
+  return require("uspx.tasks").check_reply({ task = task }, sender, recipient, n)
 end
 
 function mail.board(letters, me)
-  local tasks, list = require("arock-mail.tasks"), {}
+  local tasks, list = require("uspx.tasks"), {}
   for i, l in ipairs(letters) do
     list[i] = { id = l.id, sender = l.sender, recipient = l.recipient, entry = select(2, top(l.body)) }
   end

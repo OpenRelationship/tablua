@@ -1,6 +1,6 @@
 import Config
 
-# Arock Core's Lua (library/, arock-log, arock-mail, Shroomi, connectory's port) from the Arock checkout this moss is
+# Arock Core's Lua (library/, arock-log, uspx, Shroomi, connectory's port) from the Arock checkout this moss is
 # attached to (submodules/vmoss), or AROCK_ROOT. A host (arock-server) sets these for its node in its own config.
 arock = System.get_env("AROCK_ROOT") || Path.expand("../../..", __DIR__)
 

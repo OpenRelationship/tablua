@@ -138,7 +138,7 @@ defmodule Moss.GuardTest do
     shroomi =
       Path.expand("../../submodules/shroomi", Path.expand("..", @lib) |> Path.join("../.."))
 
-    rockmail = Path.join([Path.dirname(shroomi), "..", "library", "arock-mail"])
+    rockmail = Path.join(Path.dirname(shroomi), "uspx")
 
     files =
       Path.wildcard(Path.join(@lib, "**/*.ex")) ++
@@ -155,7 +155,7 @@ defmodule Moss.GuardTest do
           "shroomi_reference",
           "tasks.new",
           "tasks.parse",
-          # arock-mail's JSON task subject marker, quoted as the code wrote it
+          # arock-mail's (now uspx's) JSON task subject marker, quoted as the code wrote it
           ~s("task: ")
         ],
         do: refute(File.read!(f) =~ old, "#{Path.basename(f)} still says #{old}")
