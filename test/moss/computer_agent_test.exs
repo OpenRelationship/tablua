@@ -361,6 +361,8 @@ defmodule Moss.ComputerAgentTest do
     assert troubled.("{ #{unfilled}, #{unfilled} }") == [true]
     assert eval.(~s|return require("moss.world").tidy("publish", { cmd = "publish expense_tracker", cwd = "x" }).cmd|) ==
              ["publish"]
+    assert eval.(~s|return require("moss.world").tidy("write_code", { cmd = "test", files = '{"code/a.lua": "x"}' }).files["code/a.lua"]|) == ["x"]
+    assert eval.(~s|return require("moss.world").tidy("write_code", { cmd = "test", files = "not json" }).files|) == [nil]
   end
 
   test "once shipped the task is answered: thinking or stopping only after an answer that failed" do

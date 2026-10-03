@@ -204,6 +204,14 @@ end
 -- that is not there, four times, then blocked)
 function M.tidy(verb, c)
   c.cwd = nil
+  -- files as the tool defines them, an object of path to text: Mercury once sent it as JSON in a string, and the
+  -- run stopped on pairs over a string
+  if type(c.files) == "string" then
+    local ok, v = pcall(require("ports.json").decode, c.files)
+    c.files = ok and type(v) == "table" and v or nil
+  elseif c.files ~= nil and type(c.files) ~= "table" then
+    c.files = nil
+  end
   if verb == "publish" and c.cmd then c.cmd = c.cmd:gsub("^(%s*publish)%s+[%w_%-]+%s*$", "%1") end
   return c
 end
@@ -383,11 +391,10 @@ function M.new(host, run)
     local calls, err = prompt.fill(a, req, verb, M.moves[verb], run, M.causes)
     if not calls then step.note, step.outcome = "Filling the move failed: " .. tostring(err), "broken" return end
     if #calls == 0 then step.note, step.outcome = "Mercury made no call for this move.", "no_effect" return end
+    for _, c in ipairs(calls) do M.tidy(verb, c) end
     local kept = M.changes[verb] and undo.keep(host, calls) or nil
     local failed, seen = 0, look.new()
     for _, c in ipairs(calls) do
-      -- every command runs in /home: a folder of the model's own was a guess (home became /home/home)
-      M.tidy(verb, c)
       local no = M.refused(verb, c)
       local r = no and { code = 1, stdout = "", stderr = "not run: " .. no .. "\n" } or host.exec(c)
       if r.code ~= 0 then failed = failed + 1 end

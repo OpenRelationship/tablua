@@ -43,12 +43,14 @@ defmodule Moss.PersonCheck do
     {status, IO.iodata_to_binary(body)}
   end
 
-  # the first form that posts, with its fields: {name, type, value}
+  # the first form that posts and has a field a person types in, with its fields: {name, type, value} (a row's
+  # delete form, a hidden name and a button, came first on a plants page and is not where a person adds)
   defp form(page) do
     Regex.scan(~r/<form\b([^>]*)>(.*?)<\/form>/s, page)
     |> Enum.find_value(fn [_, attrs, inner] ->
       with [_, action] <- Regex.run(~r/hx-post="([^"]*)"/, attrs),
            fields when fields != [] <- fields(inner),
+           true <- Enum.any?(fields, fn {_, t, _} -> t not in ~w(hidden submit checkbox radio) end),
            do: {action, fields},
            else: (_ -> nil)
     end)

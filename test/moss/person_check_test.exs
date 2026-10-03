@@ -54,4 +54,9 @@ defmodule Moss.PersonCheckTest do
     assert %{code: 22, err: err} = Computer.run(id, "submit 1")
     assert err =~ "answered 500: The page failed: ui/index.lui:"
   end
+  test "the form a person adds with is used, not a row's delete form before it" do
+    page = String.replace(@works, ~s(<form post="add">), ~s(<form post="add2"><input type="hidden" name="name" value="x"/><button>Delete</button></form>\n<form post="add">))
+    page = String.replace(page, "function post.add(req)", "function post.add2(req) end\nfunction post.add(req)")
+    assert %{status: 200, added: true} = Moss.PersonCheck.uses(computer(page), "/")
+  end
 end
