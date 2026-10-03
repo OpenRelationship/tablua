@@ -346,10 +346,13 @@ function M.new(host, run)
       local no = M.refused(verb, c)
       local r = no and { code = 1, stdout = "", stderr = "not run: " .. no .. "\n" } or host.exec(c)
       if r.code ~= 0 then failed = failed + 1 end
-      local word = (c.cmd or ""):match("^%s*(%a+)")
-      if r.code == 0 and (word == "submit" or word == "click") then used = true end
-      -- what was typed, its last word (type "Plant name" "Pothos": Pothos), and what the page said once used
-      if word == "type" then typed[#typed + 1] = (c.cmd:match("([%w%-]+)[\"']?%s*$")) end
+      -- each command of a line (open app; type Name cereal; click Add; page): a submit or click is using the app,
+      -- and what was typed is its last word (type "Plant name" "Pothos": Pothos); once used, what the page said
+      for part in (c.cmd or ""):gmatch("[^;&|]+") do
+        local word = part:match("^%s*(%a+)")
+        if r.code == 0 and (word == "submit" or word == "click") then used = true end
+        if word == "type" then typed[#typed + 1] = part:match("([%w%-]+)[\"']?%s*$") end
+      end
       if used then shown = shown .. (r.stdout or "") end
       local files = {}
       for path in pairs(c.files or {}) do files[#files + 1] = path end

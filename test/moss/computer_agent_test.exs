@@ -265,16 +265,30 @@ defmodule Moss.ComputerAgentTest do
     assert ["no_effect"] = for(%{"args" => [at, o | _]} <- rows, String.contains?(at, "/step/"), do: o)
   end
 
-  # and using it shows what was typed: a form whose action keeps nothing makes the look broken
-  test "a look whose typed name never shows on the page is broken", %{id: id} do
+  # and using it shows what was typed: a form whose action keeps nothing makes the look broken; one line of commands
+  # (open app; type ...; click Add) is read command by command
+  test "a look is complete only when what it typed shows on the page after it submits", %{id: id} do
+    keeps = "function post.add(req) d:exec(\"insert into p values (?)\", req.form.name) end"
+    assert look(id <> "a", "function post.add(req) end", ["open app", ~s(type "Plant name" "Pothos"), "submit Add"]) == "broken"
+    assert look(id <> "b", keeps, ["open app; type Plant Pothos; click Add; page"]) == "complete"
+  end
+
+  defp look(id, action, cmds) do
     Computer.run(id, "help")
     disk = :sys.get_state(Computer.wake!(id)).disk
     :ok = Moss.Computer.Disk.write(disk, "/home/features/hello.feature",
       "Feature: Hello\n  Scenario: Hi\n    Given the page says hello\n")
     :ok = Moss.Computer.Disk.write(disk, "/home/code/steps/hello.lua",
       ~s|test.step("the page says hello", function(w) test.ok(true) end)\n|)
-    :ok = Moss.Computer.Disk.write(disk, "/home/ui/index.lui",
-      "<lua>\nfunction post.add(req) end\n</lua>\n<form post=\"add\"><input name=\"name\" placeholder=\"Plant name\"/><button>Add</button></form>\n")
+    :ok = Moss.Computer.Disk.write(disk, "/home/ui/index.lui", """
+    <lua>
+    local d = db.open("data/p.dbl")
+    d:exec("create table if not exists p (name text)")
+    #{action}
+    </lua>
+    <form post="add"><input name="name" placeholder="Plant name"/><button>Add</button></form>
+    {% for _, r in ipairs(d:query("select * from p")) do %}<p>{{ r.name }}</p>{% end %}
+    """)
     :ok = Computer.agree(id, "/home/features/hello.feature")
     Computer.run(id, "test")
 
@@ -290,7 +304,7 @@ defmodule Moss.ComputerAgentTest do
 
         "/v1/chat/completions" ->
           calls =
-            for {cmd, n} <- Enum.with_index(["open app", ~s(type "Plant name" "Pothos"), "submit Add"]) do
+            for {cmd, n} <- Enum.with_index(cmds) do
               %{"id" => "c#{n}", "type" => "function",
                 "function" => %{"name" => "computer", "arguments" => Jason.encode!(%{"cmd" => cmd})}}
             end
@@ -301,7 +315,8 @@ defmodule Moss.ComputerAgentTest do
 
     Moss.Computer.Agent.run(id, "Make me a hello page.", max_steps: 1)
     rows = Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Outcome"])
-    assert ["broken"] = for(%{"args" => [at, o | _]} <- rows, String.contains?(at, "/step/"), do: o)
+    [outcome] = for(%{"args" => [at, o | _]} <- rows, String.contains?(at, "/step/"), do: o)
+    outcome
   end
 
   # code owns the workflow: what belongs to one move is refused in another, and a page names the command that opens it
