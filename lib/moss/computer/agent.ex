@@ -128,6 +128,7 @@ defmodule Moss.Computer.Agent do
       "empty_steps" => empty_steps(state.disk, scopes),
       "pages" => pages(state, scopes),
       "asked" => asked?(log),
+      "publishes" => length(Log.events(state.disk.conn, ["Publish Artifact"])),
       "shipped" => board != [] and Enum.all?(board, &(&1.stage == "shipped")),
       "answered" =>
         Moss.Host.board(state.id) =~ ~r/\*\* DONE .*\n:PROPERTIES:\n:ID: #{Regex.escape(at)}\n/

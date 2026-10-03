@@ -352,12 +352,12 @@ defmodule Moss.ComputerAgentTest do
   end
 
   test "once shipped the task is answered: thinking or stopping only after an answer that failed" do
-    options = fn steps ->
+    options = fn steps, since ->
       Lua.eval!(Moss.Lua.base(), """
       local world = require("moss.world")
       local host = { facts = function() return { features = { { path = "features/a.feature", stage = "shipped" } },
-        pages = {}, shipped = true } end }
-      local q = world.new(host, {}).question({ req = { steps = #{steps} } })
+        pages = {}, shipped = true, publishes = 1 } end }
+      local q = world.new(host, {}).question({ req = { steps = #{steps}, publishes0 = #{since} } })
       local out = {}
       for name in pairs(q.options) do out[#out + 1] = name end
       table.sort(out)
@@ -367,8 +367,11 @@ defmodule Moss.ComputerAgentTest do
       |> hd()
     end
 
-    assert options.("{ { verb = 'publish', outcome = 'complete' } }") == "answer_task"
-    assert options.("{ { verb = 'answer_task', outcome = 'broken' } }") == "answer_task blocked think"
+    assert options.("{ { verb = 'publish', outcome = 'complete' } }", 0) == "answer_task"
+    assert options.("{ { verb = 'answer_task', outcome = 'broken' } }", 0) == "answer_task blocked think"
+
+    # and a task that began with the app already shipped changes it: the change moves, not the answer
+    assert options.("{}", 1) == "read_help think write_code write_feature write_page write_steps"
   end
 
   test "there is no agent without both minds", %{id: id} do

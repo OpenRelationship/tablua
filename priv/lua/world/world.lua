@@ -65,6 +65,8 @@ M.allowed = {
     "look_at_app", "read_help", "think", "plan", "next_part", "blocked" },
   ready = { "publish", "undo", "look_at_app", "fix_failure", "rewrite", "write_page", "run_test", "think", "blocked" },
   awaiting_yes = { "wait_for_yes" },
+  -- a task that asks to change an app that already shipped: the change moves, then the build's stages again
+  changing = { "write_feature", "write_page", "write_code", "write_steps", "read_help", "think", "blocked" },
   shipped = { "answer_task", "think", "blocked" },
   answered = { "answer" },
 }
@@ -113,8 +115,13 @@ M.waits = { wait_for_agreement = "the person's agreement to the feature", wait_f
 -- The stage from the facts, and why: code's judgement, never a model's.
 --   facts = { features = { { path, stage } }, tests = { passed, total, failing = {}, undefined = {} } | nil,
 --             empty_steps = n, pages = { { path, status } }, asked = bool, shipped = bool, answered = bool }
-function M.stage(f)
+-- since: how many publishes the computer had when this task began; an app that shipped before it is one the task
+-- changes, not one it has shipped
+function M.stage(f, since)
   if f.answered then return "answered", "the task is answered DONE" end
+  if f.shipped and (f.publishes or 0) <= (since or -1) then
+    return "changing", "the app shipped before this task: change it as the task asks"
+  end
   if f.shipped then return "shipped", "the app has shipped; the task is not answered yet" end
   if f.asked then return "awaiting_yes", "publishing waits for the person's yes" end
   if #f.features == 0 then return "no_feature", "there is no feature yet" end
@@ -229,6 +236,9 @@ function M.facts_text(f, s)
   end
   if stage == "shipped" then
     out[#out + 1] = "The person said yes and the app is published: nothing waits on them any more; answer the task."
+  elseif stage == "changing" then
+    out[#out + 1] = "This task asks to change the app as it shipped. Change the feature first when the task changes"
+      .. " what the app does (the person agrees to it again), then its steps, code and page; it ships again by publish."
   end
   if stage == "ready" and not s.looked then
     out[#out + 1] = "Nobody has used the app as the person will since it last changed: publishing waits on"
@@ -270,7 +280,8 @@ function M.new(host, run)
   -- the facts are read again before every decision, so what the person did between steps is seen
   local function facts(req)
     req.facts = host.facts()
-    req.stage, req.why = M.stage(req.facts)
+    if req.publishes0 == nil then req.publishes0 = req.facts.publishes or 0 end
+    req.stage, req.why = M.stage(req.facts, req.publishes0)
     return req.facts
   end
 
