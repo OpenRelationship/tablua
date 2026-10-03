@@ -229,6 +229,39 @@ defmodule Moss.ComputerAgentTest do
     assert note =~ "Test after: 1 of 1 pass (before: 0 of 1)."
   end
 
+  # looking is using: a look that only opened the page did nothing, and publishing still waits on a real one
+  test "a look that never submits the form is no look", %{id: id} do
+    Computer.run(id, "help")
+    disk = :sys.get_state(Computer.wake!(id)).disk
+    :ok = Moss.Computer.Disk.write(disk, "/home/features/hello.feature",
+      "Feature: Hello\n  Scenario: Hi\n    Given the page says hello\n")
+    :ok = Moss.Computer.Disk.write(disk, "/home/code/steps/hello.lua",
+      ~s|test.step("the page says hello", function(w) test.ok(true) end)\n|)
+    :ok = Moss.Computer.Disk.write(disk, "/home/ui/index.lui", "<p>hello</p>\n")
+    :ok = Computer.agree(id, "/home/features/hello.feature")
+    Computer.run(id, "test")
+
+    Req.Test.stub(Moss.Fetch, fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      sent = Jason.decode!(body)
+
+      case conn.request_path do
+        "/api/alpha/decisions" ->
+          answers = %{"next" => %{"choice" => "look_at_app", "probabilities" => %{"look_at_app" => 0.9}}}
+          answers = if sent["questions"]["cause"], do: Map.put(answers, "cause", %{"choice" => "unclear"}), else: answers
+          Req.Test.json(conn, %{"answers" => answers})
+
+        "/v1/chat/completions" ->
+          Req.Test.json(conn, %{"usage" => %{}, "choices" => [%{"message" => %{"tool_calls" => [%{"id" => "c",
+            "type" => "function", "function" => %{"name" => "computer", "arguments" => ~s({"cmd": "open app"})}}]}}]})
+      end
+    end)
+
+    Moss.Computer.Agent.run(id, "Make me a hello page.", max_steps: 1)
+    rows = Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Outcome"])
+    assert ["no_effect"] = for(%{"args" => [at, o | _]} <- rows, String.contains?(at, "/step/"), do: o)
+  end
+
   # code owns the workflow: what belongs to one move is refused in another, and a page names the command that opens it
   test "a move's calls that belong to another move are not run" do
     lua = Moss.Lua.base()

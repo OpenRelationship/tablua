@@ -335,13 +335,15 @@ function M.new(host, run)
     if not calls then step.note, step.outcome = "Filling the move failed: " .. tostring(err), "broken" return end
     if #calls == 0 then step.note, step.outcome = "Mercury made no call for this move.", "no_effect" return end
     local kept = M.changes[verb] and undo.keep(host, calls) or nil
-    local failed = 0
+    local failed, used = 0, false
     for _, c in ipairs(calls) do
       -- every command runs in /home: a folder of the model's own was a guess (home became /home/home)
       c.cwd = nil
       local no = M.refused(verb, c)
       local r = no and { code = 1, stdout = "", stderr = "not run: " .. no .. "\n" } or host.exec(c)
       if r.code ~= 0 then failed = failed + 1 end
+      local word = (c.cmd or ""):match("^%s*(%a+)")
+      if r.code == 0 and (word == "submit" or word == "click") then used = true end
       local files = {}
       for path in pairs(c.files or {}) do files[#files + 1] = path end
       table.sort(files)
@@ -350,6 +352,13 @@ function M.new(host, run)
         clip(r.stdout or "", 3000), (r.stderr or "") ~= "" and ("\nstderr: " .. clip(r.stderr, 1500)) or "")
     end
     step.outcome = failed == 0 and "complete" or "broken"
+    -- looking is using: a look that only opened the page saw nothing of its form (a habits page whose form
+    -- went nowhere shipped on a look that never submitted it)
+    if verb == "look_at_app" and step.outcome == "complete" and not used then
+      step.outcome = "no_effect"
+      step.lines[#step.lines + 1] = "Only opened: using the app is typing in its form and submitting it (or clicking"
+        .. " its button), then reading the page for what was added."
+    end
     if verb == "look_at_app" then req.looked = step.outcome == "complete" end
     if req.facts then
       local repeats, now = req.repeats or 0, host.facts()
