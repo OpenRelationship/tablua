@@ -90,6 +90,10 @@ then queries it. Wrong: a query of a table nothing made: the page answers 500 an
 A form that adds. Right: <form post="add"> and function post.add(req) that inserts req.form's fields. Wrong: an
 empty function get.add(req) end written to quiet check's "names no action": the form then keeps nothing.
 
+A change to an app that shipped. Right: the change asks for a grand total, so the page keeps its totals for each
+category and adds a line for the grand total; the code keeps its queries and adds one. Wrong: a page rewritten
+around the new part, its totals per category gone, or its list no longer newest first.
+
 A page's colours. Right: the theme's, class="btn" or "bg-primary text-primary-foreground", "text-muted-foreground",
 "border-border". Wrong: palette colours such as bg-blue-500 or text-gray-600: Shroomi knows none of them and
 check names each one.

@@ -254,6 +254,7 @@ function M.facts_text(f, s)
   elseif stage == "changing" then
     out[#out + 1] = "This task asks to change the app as it shipped. Change the feature first when the task changes"
       .. " what the app does (the person agrees to it again), then its steps, code and page; it ships again by publish."
+      .. " The change adds to the app: everything the page showed before (its lists, totals and their order) stays."
   end
   if stage == "ready" and not s.looked then
     out[#out + 1] = "Nobody has used the app as the person will since it last changed: publishing waits on"
