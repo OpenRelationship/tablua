@@ -58,20 +58,19 @@ function M.step(saved_json, ctx)
   local saved = saved_json and json.decode(saved_json) or { counts = { jev = 0, mercury = 0, tabpfn = 0 } }
   local counts = saved.counts
   local mem = memory.new(store, { today = function() return host.clock():sub(1, 10) end })
-  local tabpfn_key = host.key("tabpfn")
-  local jev_key = assert(host.key("jev"), "no Jev key")
+  -- the models: through Arock's service on a node, the providers with the host's keys elsewhere (host.lua)
+  local models = arock.models(host)
   -- the filler: Mercury, or for a comparison an OpenRouter model in its place, counted as the filler all the same
   -- (a thinking model on OpenRouter may refuse tool_choice "required": Qwen 3.8 does, so it is asked for "auto")
-  local filler = ctx.filler and require("ports.chat").new(host, { key = jev_key, model = ctx.filler, tool_choice = "auto" })
-    or require("ports.mercury").new(host, { key = assert(host.key("mercury"), "no Mercury key") })
+  local filler = ctx.filler and models.chat(ctx.filler, { tool_choice = "auto" })
+    or assert(models.mercury, "no Mercury key")
   local env = {
     name = "the agent",
-    jev = counted(require("ports.jev").new(host, { key = jev_key }), "jev", counts),
+    jev = counted(assert(models.jev, "no Jev key"), "jev", counts),
     mercury = counted(filler, "mercury", counts),
     memory = mem,
   }
-  env.learn = learn.new({ memory = mem, tabpfn = tabpfn_key
-    and counted(require("ports.tabpfn").new(host, { key = tabpfn_key }), "tabpfn", counts) })
+  env.learn = learn.new({ memory = mem, tabpfn = models.tabpfn and counted(models.tabpfn, "tabpfn", counts) })
   local function at(n) return ctx.at .. "/step/" .. n end
   local decided
   env.decided = function(req, verb, answer, how)

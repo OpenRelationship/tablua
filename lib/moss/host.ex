@@ -1,7 +1,7 @@
 defmodule Moss.Host do
   @moduledoc """
   What a computer needs from wherever it runs (Arock PROJECT.md §14, names): its file kept while it sleeps, the
-  post, the node's names and the model keys. MOSS is the computer; the host is the server that runs it, Arock's
+  post, the node's names, and the model keys or Arock's service in their place. MOSS is the computer; the host is the server that runs it, Arock's
   arock-server on a node (`config :moss, host: ArockServer.Host`), or `Moss.Host.Local` for a moss on its own.
 
   A host implements every callback; the computer calls them through this module, so it never names the server.
@@ -44,6 +44,13 @@ defmodule Moss.Host do
   @doc "A model key by name (\"jev\", \"mercury\"), or nil; given to the caller only, never logged."
   @callback key(name :: String.t()) :: String.t() | nil
 
+  @doc """
+  Arock's service for computer `id`'s model calls, or nil to use `key/1`: `%{"base" => url, "key" => token,
+  "person" => account | nil}`. A node gives its own token and the person the computer is theirs, so it holds no
+  provider key (Arock PROJECT.md §19); nil `id`, or no person, is the host's own work (the post's reading).
+  """
+  @callback service(id :: String.t() | nil) :: map() | nil
+
   @doc "The host this node's computers run on."
   def impl, do: Application.get_env(:moss, :host, Moss.Host.Local)
 
@@ -62,4 +69,5 @@ defmodule Moss.Host do
   def manifest(id, path, text), do: impl().manifest(id, path, text)
   def gone(id, path), do: impl().gone(id, path)
   def key(name), do: impl().key(name)
+  def service(id), do: impl().service(id)
 end

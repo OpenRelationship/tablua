@@ -9,7 +9,7 @@ function arock.host()
   local h = __host
   return {
     db = { exec = function(_, sql, params) return h.db_exec(sql, params) end },
-    clock = h.clock, now = h.now, sleep = h.sleep, fetch = h.fetch, key = h.key,
+    clock = h.clock, now = h.now, sleep = h.sleep, fetch = h.fetch, key = h.key, service = h.service,
     -- a computer of its own (PROJECT.md §14), when the host gave one
     exec = h.exec,
   }
@@ -44,13 +44,37 @@ function arock.org(path, text, actor, task)
   return nil, lines
 end
 
+-- The models a call uses (PROJECT.md §19 item 6). On a node, Arock's service with the node's token and the
+-- computer's person, so the node holds no provider key: one port that decides as Jev, fills and chats as Mercury,
+-- and prices and fits as TabPFN, the service picking each model. Elsewhere (a Mac, a test), the providers' own
+-- ports with the host's keys, each nil when its key is missing. chat(model, opts) is a filler of the caller's
+-- choosing for a comparison; through the service it is the service's own.
+function arock.models(host)
+  local svc = host.service and host.service()
+  if svc then
+    local p = require("ports.arock").new(host, { key = svc.key, base = svc.base, person = svc.person })
+    return { jev = p, mercury = p, tabpfn = p:tabpfn(), chat = function() return p end }
+  end
+  local jev, mercury, tabpfn = host.key("jev"), host.key("mercury"), host.key("tabpfn")
+  return {
+    jev = jev and require("ports.jev").new(host, { key = jev }),
+    mercury = mercury and require("ports.mercury").new(host, { key = mercury }),
+    tabpfn = tabpfn and require("ports.tabpfn").new(host, { key = tabpfn }),
+    chat = function(model, opts)
+      local o = { key = assert(jev, "no Jev key (OPENROUTER_API_KEY)"), model = model }
+      for k, v in pairs(opts or {}) do o[k] = v end
+      return require("ports.chat").new(host, o)
+    end,
+  }
+end
+
 -- Jev's decisions for the host's own use (the post reading letters, PROJECT.md §14.5): the core's port, so the
 -- host asks Jev as the core does. Gives the answers and what the call cost.
 function arock.decide(state, questions)
   local host = arock.host()
-  local key = host.key("jev")
-  if not key then error("no Jev key (OPENROUTER_API_KEY)", 0) end
-  local answers, record = require("ports.jev").new(host, { key = key }):decide(state, questions)
+  local jev = arock.models(host).jev
+  if not jev then error("no Jev key (OPENROUTER_API_KEY)", 0) end
+  local answers, record = jev:decide(state, questions)
   return answers, { cost = record.cost }
 end
 
