@@ -191,6 +191,15 @@ end
 
 -- The facts in a few lines, as both minds read them.
 --   s = { stage, why, repeats, looked, unfilled, regressed }: what the world knows of the run beside the facts
+-- a call as the computer should run it: every command in /home (a folder of the model's own was a guess), and the
+-- app, being /home, published by publish alone (a budget run's publish expense_tracker asked for an app under apps/
+-- that is not there, four times, then blocked)
+function M.tidy(verb, c)
+  c.cwd = nil
+  if verb == "publish" and c.cmd then c.cmd = c.cmd:gsub("^(%s*publish)%s+[%w_%-]+%s*$", "%1") end
+  return c
+end
+
 -- an answer_task step that did not come out complete
 function M.answer_failed(req)
   for _, st in ipairs(req.steps) do
@@ -353,7 +362,7 @@ function M.new(host, run)
     local failed, used, typed, shown = 0, false, {}, ""
     for _, c in ipairs(calls) do
       -- every command runs in /home: a folder of the model's own was a guess (home became /home/home)
-      c.cwd = nil
+      M.tidy(verb, c)
       local no = M.refused(verb, c)
       local r = no and { code = 1, stdout = "", stderr = "not run: " .. no .. "\n" } or host.exec(c)
       if r.code ~= 0 then failed = failed + 1 end

@@ -338,6 +338,8 @@ defmodule Moss.ComputerAgentTest do
     assert why =~ "outside the app: it lives in /home"
     assert eval.(~s|return require("moss.world").open("/house-plants/")|) == ["open app/house-plants"]
     assert eval.(~s|return require("moss.world").open("/")|) == ["open app"]
+    assert eval.(~s|return require("moss.world").tidy("publish", { cmd = "publish expense_tracker", cwd = "x" }).cmd|) ==
+             ["publish"]
   end
 
   test "once shipped the task is answered: thinking or stopping only after an answer that failed" do

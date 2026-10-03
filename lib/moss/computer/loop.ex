@@ -149,7 +149,9 @@ defmodule Moss.Computer.Loop do
 
     cond do
       not match?({:ok, %{dir: true}}, Disk.stat(state.disk, scope)) ->
-        {2, "", "publish: no app #{Path.basename(scope)}\n", state}
+        {2, "",
+         "publish: no app #{Path.basename(scope)} under apps/; what is in /home is published by publish alone\n",
+         state}
 
       red != [] ->
         why = Enum.map_join(red, "", &"  #{Board.rel(&1.path)} is #{&1.stage}\n")
