@@ -14,9 +14,9 @@ defmodule Moss.Gate0Test do
            do: Path.wildcard(Path.join([@core, dir, "**/*_test.lua"]))
          )
          |> List.flatten()
-         # uspx's model check is a search over the rules (minutes on this VM); the rules' own tests and the fuzzing
-         # run here, and the search runs on LuaJIT in Arock's build
-         |> Enum.reject(&String.ends_with?(&1, "submodules/uspx/model_test.lua"))
+         # uspx's model checks are searches over its rules (minutes on this VM); the rules' own tests and the
+         # fuzzing run here, and the searches run on LuaJIT in Arock's build
+         |> Enum.reject(&(&1 =~ ~r"submodules/uspx/\w*model_test\.lua$"))
          |> Enum.sort()
 
   test "the library has unit test files" do
