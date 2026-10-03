@@ -159,7 +159,9 @@ defmodule Moss.Computer.Agent do
               (r.run["total"] || 0) == 0,
               do: "#{Board.rel(r.path)} has no scenarios: write them in it (Scenario: and its steps)"
             ),
-        "undefined" => Enum.flat_map(runs, &(&1["undefined"] || []))
+        "undefined" => Enum.flat_map(runs, &(&1["undefined"] || [])),
+        # checks answered by the app's own steps, not the page's (sdk/browse.lua): a page-steps run's gate
+        "checked" => Enum.flat_map(runs, &list(&1["checked"]))
       }
     end
   end
@@ -227,4 +229,8 @@ defmodule Moss.Computer.Agent do
 
     ask != nil and (answer == nil or elem(answer, 0) < elem(ask, 0))
   end
+
+  # JSON writes an empty list as {}
+  defp list(l) when is_list(l), do: l
+  defp list(_), do: []
 end

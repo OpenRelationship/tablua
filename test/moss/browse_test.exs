@@ -118,6 +118,24 @@ defmodule Moss.BrowseTest do
     assert out =~ ~s|browse has no navigate: the page is used through the computer's own steps|
   end
 
+  test "Scenario: a check answered by a step of the app's own is named in the run", %{c: c} do
+    write(c, "/home/apps/plants/ui/index.lui", @page)
+    write(c, "/home/apps/plants/code/steps/own.lua", ~s|test.step("the list has {string}", function(w, s) end)\n|)
+
+    write(c, "/home/apps/plants/features/plants.feature", """
+    Feature: plants
+      Scenario: added
+        When I type "Fern" into "Plant name"
+        And I press "Add"
+        Then I see "Fern" in the list
+        And the list has "Fern"
+    """)
+
+    assert %{code: 0} = Computer.run(c, "test")
+    [{_, _, [_, "green", detail | _]} | _] = Moss.Log.events(disk(c).conn, ["Outcome"])
+    assert Jason.decode!(detail)["checked"] == [~s|the list has "Fern"|]
+  end
+
   test "Scenario: a button the page lacks names the buttons it has", %{c: c} do
     write(c, "/home/apps/plants/ui/index.lui", @page)
 

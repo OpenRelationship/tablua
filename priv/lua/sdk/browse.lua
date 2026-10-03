@@ -143,6 +143,7 @@ end
 function M.install(test, at)
   scope = at or "/home"
   test.step("I open the page", function(w) open(w, "/") end)
+  test.step("I open the app", function(w) open(w, "/") end)
   test.step("I open the page again", function(w) open(w, w.path or "/") end)
   test.step("I open the {string} page", function(w, path)
     open(w, string.sub(path, 1, 1) == "/" and path or ("/" .. path))
@@ -223,6 +224,14 @@ function M.install(test, at)
     end
     error(('no row shows "%s"; the page shows: %s'):format(row, shows(w)), 0)
   end)
+  -- the same check in the words a feature often has
+  local function see(w, s)
+    if not string.find(seen(w), value(s), 1, true) then
+      error(('the page does not show "%s"; it shows: %s'):format(value(s), shows(w)), 0)
+    end
+  end
+  test.step("I see {string} in the list", see)
+  test.step("I should see {string}", see)
   test.step("I do not see {string}", function(w, s)
     if string.find(seen(w), value(s), 1, true) then error(('the page still shows "%s"'):format(value(s)), 0) end
   end)

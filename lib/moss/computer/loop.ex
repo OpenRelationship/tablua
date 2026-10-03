@@ -102,7 +102,8 @@ defmodule Moss.Computer.Loop do
         passed: r["passed"] || 0,
         total: r["total"] || 0,
         failing: failing ++ Enum.map(broken, &%{"step" => "a step file", "why" => &1}),
-        undefined: undefined
+        undefined: undefined,
+        checked: list(r["checked"])
       })
 
     :ok = Log.append(state.disk.conn, state.id, "Outcome", [feature, outcome, detail, ""], "host")

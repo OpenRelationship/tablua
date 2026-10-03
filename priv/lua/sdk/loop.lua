@@ -64,10 +64,10 @@ function loop.test(scope, features, report)
     local ok, all, passed, total, r = pcall(run, text, f, clear_data)
     if not ok then
       print("# " .. f .. " does not run: " .. tostring(all))
-      r, passed, total = { failing = { { step = "", why = tostring(all) } }, undefined = {} }, 0, 0
+      r, passed, total = { failing = { { step = "", why = tostring(all) } }, undefined = {}, checked = {} }, 0, 0
     end
     report({ feature = f, passed = passed, total = total, failing = r.failing, undefined = r.undefined,
-      broken = broken })
+      checked = r.checked, broken = broken })
   end
 end
 

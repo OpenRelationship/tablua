@@ -277,9 +277,18 @@ local function hashes(raw)
   return data
 end
 
+-- whether the computer has steps of its own in this run (sdk/browse.lua's, under `test`)
+local function own_any()
+  for _, d in ipairs(defined) do if d.own then return true end end
+  return false
+end
+
 local function run_steps(steps, world, rows, failed, report)
+  local checking = false
   for _, s in ipairs(steps) do
     local text = s.word .. " " .. s.text
+    -- a Then (and its Ands) is a check; one answered by a step file's own step, not the computer's, is named
+    if s.word == "Then" then checking = true elseif s.word == "When" or s.word == "Given" then checking = false end
     if failed then
       rows[#rows + 1] = { text, "NOT RUN" }
     else
@@ -290,6 +299,7 @@ local function run_steps(steps, world, rows, failed, report)
         rows[#rows + 1] = { text, "FAIL", failed }
         report.undefined[#report.undefined + 1] = s.text
       else
+        if checking and own_any() and not d.own then report.checked[#report.checked + 1] = s.text end
         if s.extra ~= nil then args[#args + 1] = type(s.extra) == "table" and hashes(s.extra) or s.extra end
         local ok, why = pcall(d.fn, world, table.unpack(args))
         if ok then
@@ -308,7 +318,7 @@ end
 function test.run(text, name, before)
   local feature, background, scenarios = parse(text)
   local lines, passed = { "*** Test Cases ***" }, 0
-  local report = { failing = {}, undefined = {} }
+  local report = { failing = {}, undefined = {}, checked = {} }
   for _, sc in ipairs(scenarios) do
     -- each scenario starts on empty databases (the computer's loop passes db.clear_scratch)
     if before then before() end

@@ -412,6 +412,25 @@ defmodule Moss.ComputerAgentTest do
     assert options.("{}", 1) == "read_help think write_code write_feature write_page write_steps"
   end
 
+  test "a page-steps run is not ready while a check uses a step of the app's own" do
+    stage = fn run ->
+      Lua.eval!(Moss.Lua.base(), """
+      local world = require("moss.world")
+      local host = { facts = function() return { features = { { path = "features/a.feature", stage = "agreed" } },
+        pages = { { path = "/", status = 200 } }, empty_steps = 0,
+        tests = { passed = 1, total = 1, failing = {}, undefined = {}, checked = { 'Yoga is done' } } } end }
+      local req = { steps = {} }
+      world.new(host, #{run}).question({ req = req })
+      return req.stage .. ": " .. req.why
+      """)
+      |> elem(0)
+      |> hd()
+    end
+
+    assert stage.("{}") =~ "ready"
+    assert stage.(~s|{ steps = "page" }|) =~ ~s|building: 1 checks use steps of the app's own, not the page's (Yoga is done)|
+  end
+
   test "there is no agent without both minds", %{id: id} do
     System.delete_env("OPENROUTER_API_KEY")
     assert %{outcome: "error", why: why} = Moss.Computer.Agent.run(id, "Make me a hello page.")

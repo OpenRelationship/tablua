@@ -136,6 +136,10 @@ function M.stage(f, since)
   if t and t.passed < t.total then why[#why + 1] = ("%d of %d scenarios pass"):format(t.passed, t.total) end
   if t and #t.undefined > 0 then why[#why + 1] = #t.undefined .. " steps have no definition" end
   if (f.empty_steps or 0) > 0 then why[#why + 1] = f.empty_steps .. " step definitions check nothing (an empty body)" end
+  if f.page_steps and t and #(t.checked or {}) > 0 then
+    why[#why + 1] = #t.checked .. " checks use steps of the app's own, not the page's (" .. table.concat(t.checked, "; ")
+      .. '): a check is I see "x" or I see "x" for "row", in the words the page shows'
+  end
   if #f.pages == 0 then why[#why + 1] = "the app has no page" end
   for _, p in ipairs(f.pages) do
     if p.status ~= 200 then why[#why + 1] = ("the page %s answers %d"):format(p.path, p.status) end
@@ -293,6 +297,12 @@ function M.facts_text(f, s)
 end
 
 function M.new(host, run)
+  -- a run whose features use the page's own steps (run.steps "page") holds every check to them
+  if run and run.steps == "page" then
+    local read = host.facts
+    host = setmetatable({ facts = function(...) local f = read(...); f.page_steps = true; return f end },
+      { __index = host })
+  end
   local w = { tools = {}, host = host, run = run }
   for name in pairs(M.moves) do
     if name ~= "answer" and name ~= "think" and name ~= "blocked" then w.tools[#w.tools + 1] = { name = name, what = M.moves[name] } end
