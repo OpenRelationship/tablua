@@ -114,7 +114,9 @@ db = {
 
 -- require, from the disk: the working folder first, then the app's code/ (when the run is in an app), then
 -- /home/code/ (Arock's feature file-kinds: code lives in code/)
-local loaded = {}
+local loaded, from_disk = {}, {}
+-- a request of the person's loads the app's modules afresh; browse's steps make each request so (sdk/browse.lua)
+function __fresh_modules() for name in pairs(from_disk) do loaded[name], from_disk[name] = nil, nil end end
 function require(name)
   if loaded[name] ~= nil then return loaded[name] end
   local own = sys.module(name)
@@ -140,7 +142,7 @@ function require(name)
       if not chunk then error(why, 2) end
       local v = chunk(name)
       if v == nil then v = true end
-      loaded[name] = v
+      loaded[name], from_disk[name] = v, true
       return v
     end
   end

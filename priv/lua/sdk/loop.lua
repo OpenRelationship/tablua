@@ -7,6 +7,7 @@
 --   loop.pages(scope, pages, report)     each page compiled: report{ page, why } (why nil when it compiles)
 local test = require("test")
 local lui = require("shroomi.lui")
+local browse = require("browse")
 
 -- held before any step file runs, so a step file that changes the test table changes no verdict
 local run, clear, locate = test.run, test.clear, test.locate
@@ -32,6 +33,8 @@ end
 
 local function load_steps(scope)
   clear()
+  -- the page's own steps come first, so a step file cannot answer for the page (sdk/browse.lua)
+  browse.install(test, scope)
   local broken = {}
   for _, p in ipairs(lua_files(scope .. "/code/steps")) do
     local text = fs.read(p) or ""

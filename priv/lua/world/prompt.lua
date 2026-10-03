@@ -120,6 +120,26 @@ M.rules = [[
   agreed to without their agreeing again.
 ]]
 
+-- the page's own steps (sdk/browse.lua), for a run whose features use them (run.steps == "page"): the A/B of
+-- Arock's eval, the feature testing the page itself against a feature tested by steps of the agent's own
+M.page_examples = [[
+A feature, in the page's own steps. Right:
+  Scenario: a plant added is on the list
+    When I open the page
+    And I type "Fern" into "Plant name"
+    And I press "Add"
+    Then I see "Fern"
+the computer knows these steps itself, and they use the page as the person does: I open the page (or I open the
+"list" page), I type "x" into "<a field's label or placeholder>", I press "<a button's words>", I press "Water"
+for "Fern" (the button on Fern's row), I see "x", I do not see "x", I see "a" before "b", I open the page again.
+A day is "today", "today+7" or "today-1". Every press is followed by the page opened afresh, so a page shows only
+what it kept. The page's labels and button words are the feature's words exactly. Wrong: Given the list holds 3
+plants, with a step of your own calling plants.add: it passes while the page is broken. Write code/steps only for
+what no page can do (a plant watered 9 days ago), and it calls the code the page calls.
+A scenario starts with every table empty: it adds through the page what it then reads.
+
+]]
+
 function M.system(run)
   return table.concat({
     "<persona>",
@@ -129,7 +149,7 @@ function M.system(run)
     "</persona>",
     "<knowledge_base>", run.help, "</knowledge_base>",
     "<procedures>", run.procedures, "</procedures>",
-    "<examples>", M.examples, "</examples>",
+    "<examples>", run.steps == "page" and M.page_examples .. M.examples or M.examples, "</examples>",
     "<critical_rules>", M.rules, "</critical_rules>",
   }, "\n")
 end
