@@ -204,6 +204,10 @@ defmodule Moss.ComputerAgentTest do
     assert [%{"status" => 200, "nils" => "ui/index.lui:4: {{ d.days_left }}"}] = Computer.agent(id, :facts, ["org:x"])["pages"]
     assert {200, headers, _, _} = Computer.serve(id, %{"method" => "GET", "path" => "/"})
     refute Map.has_key?(headers, "x-moss-nil")
+
+    # and one that opens its database itself is named: no step tests what it shows
+    :ok = Moss.Computer.Disk.write(disk, "/home/ui/index.lui", "<lua>\n  local d = db.open(\"data/x.dbl\")\n</lua>\n<p>x</p>\n")
+    assert [%{"own_db" => "ui/index.lui"}] = Computer.agent(id, :facts, ["org:x"])["pages"]
   end
 
   # a change that breaks scenarios that passed can be put back: Jev is offered undo, and the files return as they were

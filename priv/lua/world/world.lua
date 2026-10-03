@@ -264,6 +264,10 @@ function M.facts_text(f, s)
   for _, p in ipairs(f.pages) do
     out[#out + 1] = ("Page %s (%s) answers %d%s"):format(p.path, M.open(p.path), p.status,
       p.error and (": " .. clip(p.error, 300)) or ".")
+    if p.own_db then
+      out[#out + 1] = "  " .. p.own_db .. " opens its database itself, so no step tests what it shows: let it require"
+        .. " the code module the steps test, and keep the SQL there."
+    end
     if p.nils then
       out[#out + 1] = "  it shows nothing for " .. clip(p.nils, 300) .. " (nil: a name the code does not set?)"
     end

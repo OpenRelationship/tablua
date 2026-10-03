@@ -171,6 +171,7 @@ defmodule Moss.Computer.Agent do
         page <- Board.pages(state.disk, scope),
         not String.contains?(page, "/_") do
       path = url(page)
+      page_file = page
 
       {status, headers, body, _} =
         Script.serve(%{"method" => "GET", "path" => path}, %{
@@ -182,6 +183,15 @@ defmodule Moss.Computer.Agent do
       # names each {{ e }} that showed nothing
       page = %{"path" => path, "status" => status}
       page = if n = headers["x-moss-nil"], do: Map.put(page, "nils", n), else: page
+
+      # a page that opens a database itself shows what no step tests: the steps test the code module
+      own_db =
+        case Disk.read(state.disk, page_file) do
+          {:ok, text} when is_binary(text) -> String.contains?(text, "db.open(")
+          _ -> false
+        end
+
+      page = if own_db, do: Map.put(page, "own_db", Board.rel(page_file)), else: page
       if status == 200, do: page, else: Map.put(page, "error", body |> IO.iodata_to_binary() |> String.slice(0, 400))
     end
   end
