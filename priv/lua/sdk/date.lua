@@ -6,7 +6,7 @@
 --   date.iso(t)                       -> "2026-10-01T09:30:00Z";  date.day(t) -> "2026-10-01"
 --   date.parts(t)                     -> { year, month, day, hour, min, sec, weekday (1 Monday ... 7 Sunday) }
 --   date.add(t, { days = 3, months = 1, hours = 2 })
---   date.diff(a, b, "days")           -> a minus b, whole days: days left until an event is date.diff(event, today, "days")
+--   date.diff(a, b, "days")           -> a minus b in calendar days: days left is date.diff(event, date.now(), "days")
 --   date.format(t, "%Y-%m-%d %H:%M")  (%Y %m %d %H %M %S %a %A %b %B %j)
 local date = {}
 
@@ -95,6 +95,12 @@ function date.add(t, by)
 end
 
 function date.diff(a, b, unit)
+  -- days and weeks are counted between calendar days, as a person counts them: from today at 21:00 to the 10th at
+  -- midnight is 7 days, not the 6 that whole periods of 86400 seconds would make it
+  if unit == "days" or unit == "weeks" then
+    local d = math.floor(a / DAY) - math.floor(b / DAY)
+    return unit == "days" and d or math.floor(d / 7)
+  end
   local s = a - b
   local per = ({ days = DAY, hours = 3600, minutes = 60, seconds = 1, weeks = 7 * DAY })[unit or "seconds"]
   return math.floor(s / per)

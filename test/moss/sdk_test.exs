@@ -99,6 +99,7 @@ defmodule Moss.SdkTest do
     print(date.iso(t), date.day(date.add(t, { years = 1 })), date.day(date.add(t, { days = 1 })))
     print(date.format(t, "%A %d %B %Y, day %j"), date.diff(date.parse("2026-10-01"), date.parse("2026-09-01"), "days"))
     print(date.iso(date.parse("2026-10-01T09:00:00+02:00")), date.parts(0).weekday)
+    print(date.diff(date.parse("2026-10-10"), date.parse("2026-10-03T21:00:00Z"), "days"))
     """)
 
     assert %{code: 0, out: out} = sh(c, "lua code/c.lua")
@@ -113,6 +114,7 @@ defmodule Moss.SdkTest do
              2024-02-29T23:30:00Z\t2025-02-28\t2024-03-01
              Thursday 29 February 2024, day 060\t30
              2026-10-01T07:00:00Z\t4
+             7
              """
   end
 

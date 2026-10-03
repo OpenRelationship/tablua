@@ -52,6 +52,10 @@ require it:
 Wrong: a code/data.lua that keeps the rows in a Lua table and answers SQL with string matching: the steps pass
 or fail on a stand-in, and the page shows nothing the person added.
 
+A date in a feature. Right: Given an event "Party" 7 days from today, and a step that makes it with
+date.add(date.now(), { days = 7 }): it passes on any day. Wrong: an event on "2026-10-10" with 7 days left: it
+is true one day only.
+
 A module. Right: code/habits.lua starts local M = {} and ends return M; a step file needs neither. Wrong:
 function M.add(name) ... in a file that never says local M = {}: the error names it, code/habits.lua:3: attempt to
 index a nil value (global 'M').
