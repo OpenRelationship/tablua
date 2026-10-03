@@ -162,6 +162,8 @@ function M.unfilled(req)
 end
 
 M.repeats = 2   -- changes that left the same failure, after which fixing it again waits on thinking it through
+M.dead_end = 4  -- after which fixing and thinking are no longer offered: rewrite, change the feature, or stop
+M.give_up = 8   -- after which only rewriting, changing the feature or stopping is
 
 -- How a step's change left the work, against the facts before it: the step's note, which both minds read in the
 -- work so far. Counts the changes running that left the same failure in req.repeats.
@@ -226,7 +228,11 @@ function M.facts_text(f, s)
     out[#out + 1] = ("Page %s (%s) answers %d%s"):format(p.path, M.open(p.path), p.status,
       p.error and (": " .. clip(p.error, 300)) or ".")
   end
-  if (repeats or 0) >= M.repeats then
+  if (repeats or 0) >= M.dead_end then
+    out[#out + 1] = ("The last %d changes left the same failure, thinking between them: fixing it piece by piece"
+      .. " has failed. Rewrite the failing code whole from the feature, change the feature if it cannot pass as"
+      .. " written (the person agrees again), or stop as blocked."):format(repeats)
+  elseif (repeats or 0) >= M.repeats then
     out[#out + 1] = ("The last %d changes left the same failure: what was tried is not the cause. Think it through"
       .. " (read the help on what the failing code uses, and the code the step calls) before changing it again.")
       :format(repeats)
@@ -255,9 +261,12 @@ function M.new(host, run)
     local req = a.req
     facts(req)
     local last = req.steps[#req.steps]
-    if last and last.verb == "think" then req.repeats = 0 end
-    -- the same failure through M.repeats changes: fixing it again waits on thinking it through
-    local stuck = (req.repeats or 0) >= M.repeats
+    -- the same failure through M.repeats changes: fixing it again waits on thinking it through, and then one fix
+    -- is offered; thinking does not wipe the count (a plants run went fix, think, fix, think thirty times over when
+    -- it did); through M.dead_end, neither is offered, and through M.give_up only a rewrite, the feature or stopping
+    local repeats = req.repeats or 0
+    local stuck = repeats >= M.repeats and not (last and last.verb == "think" and repeats < M.dead_end)
+    local last_resort = { rewrite = true, write_feature = true, blocked = true }
     local options = {}
     for _, name in ipairs(M.allowed[req.stage]) do
       -- and publishing waits on the app having been used as the person will since it last changed
@@ -269,7 +278,9 @@ function M.new(host, run)
       if not (stuck and name == "fix_failure") and not (name == "publish" and not req.looked)
         and not (name == "think" and last and last.verb == "think") and not (name == "undo" and not req.undo)
         and not (req.stage == "shipped" and name ~= "answer_task" and not M.answer_failed(req))
-        and not (name == "write_feature" and req.stage == "building" and not stuck) then
+        and not (name == "write_feature" and req.stage == "building" and repeats < M.repeats)
+        and not (repeats >= M.dead_end and (name == "fix_failure" or name == "think"))
+        and not (repeats >= M.give_up and not last_resort[name]) then
         options[name] = M.moves[name] or require("agent.parts").verbs[name]
       end
     end

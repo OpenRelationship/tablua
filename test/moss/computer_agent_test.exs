@@ -105,7 +105,7 @@ defmodule Moss.ComputerAgentTest do
   end
 
   # the same failure through two fixes: fix_failure is taken off the table until Jev has the agent think it through
-  test "a fix that leaves the same failure did nothing, and twice running it waits on thinking", %{calls: calls, id: id} do
+  test "a fix that leaves the same failure did nothing, twice running it waits on thinking, and then it escalates", %{calls: calls, id: id} do
     Computer.run(id, "help")
     disk = :sys.get_state(Computer.wake!(id)).disk
     :ok = Moss.Computer.Disk.write(disk, "/home/features/hello.feature",
@@ -122,7 +122,7 @@ defmodule Moss.ComputerAgentTest do
       case conn.request_path do
         "/api/alpha/decisions" ->
           options = Map.keys(sent["questions"]["next"]["criteria"])
-          choice = if "fix_failure" in options, do: "fix_failure", else: "think"
+          choice = Enum.find(["fix_failure", "think", "rewrite"], &(&1 in options))
           Agent.update(calls, &(&1 ++ [{:jev, options, choice}]))
           probabilities = Map.new(options, &{&1, if(&1 == choice, do: 0.9, else: 0.1 / (length(options) - 1))})
           # the cause, asked beside the move while something fails: the steps
@@ -140,12 +140,18 @@ defmodule Moss.ComputerAgentTest do
       end
     end)
 
-    Moss.Computer.Agent.run(id, "Make me a hello page.", max_steps: 4)
+    Moss.Computer.Agent.run(id, "Make me a hello page.", max_steps: 7)
     jev = for {:jev, offered, choice} <- Agent.get(calls, & &1), do: {"fix_failure" in offered, choice}
-    assert jev == [{true, "fix_failure"}, {true, "fix_failure"}, {false, "think"}, {true, "fix_failure"}]
+
+    # one fix after thinking, which does not wipe the count; through the dead end neither is offered, and the
+    # agent rewrites
+    assert jev == [{true, "fix_failure"}, {true, "fix_failure"}, {false, "think"}, {true, "fix_failure"},
+                   {false, "think"}, {true, "fix_failure"}, {false, "rewrite"}]
 
     # and straight after thinking, thinking again is not offered
-    [{:jev, first, _}, _, {:jev, third, _}, {:jev, fourth, _}] = Agent.get(calls, & &1)
+    [{:jev, first, _}, _, {:jev, third, _}, {:jev, fourth, _} | rest] = Agent.get(calls, & &1)
+    {:jev, seventh, _} = List.last(rest)
+    refute "think" in seventh
     assert "think" in third and "think" not in fourth
 
     # and the agreed feature is offered for changing only once fixing has stopped helping
@@ -154,7 +160,7 @@ defmodule Moss.ComputerAgentTest do
     # each fix's note says it left the same failure, and its outcome is that it did nothing
     rows = Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Outcome"])
     steps = for %{"args" => [at, outcome, note | _]} <- rows, String.contains?(at, "/step/"), do: {outcome, note}
-    assert [{"no_effect", n1}, {"no_effect", n2}, {"complete", _}, {"no_effect", _}] = steps
+    assert [{"no_effect", n1}, {"no_effect", n2}, {"complete", _}, {"no_effect", _} | _] = steps
     assert n1 =~ "] Cause placed in the_steps. Test after: 0 of 1 pass (before: 0 of 1). The same failure as before this step (1 changes"
     assert n2 =~ "(2 changes running have left it): Hi: Given the page says hello: /home/code/steps/hello.lua:1: no hello"
   end
