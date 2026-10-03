@@ -208,4 +208,27 @@ defmodule Moss.LoopTest do
     assert out =~ "2 of 2 scenarios passed"
     assert %{out: "1\n"} = sh(c, ~S|lua -e 'print(db.open("data/shelf.dbl"):one("select count(*) as n from book").n)'|)
   end
+  # a data table is read as Cucumber's hashes: the rows under the header, each by name and by position
+  test "a data table gives its rows under the header, by name and by position" do
+    c = id()
+    write(c, "/home/features/totals.feature", """
+    Feature: totals
+      Scenario: two categories
+        Then the totals are:
+          | category | total |
+          | food     | 20.50 |
+          | transit  | 25    |
+    """)
+    write(c, "/home/code/steps/totals.lua", ~S"""
+    test.step("the totals are:", function(w, data)
+      test.eq(#data, 2, "rows")
+      test.eq(data[1].category, "food")
+      test.eq(data[2][2], "25")
+      test.eq(data.header[2], "total")
+    end)
+    """)
+    :ok = Computer.agree(c, "/home/features/totals.feature")
+    assert %{code: 0, out: out} = sh(c, "test")
+    assert out =~ "1 of 1 scenarios passed"
+  end
 end

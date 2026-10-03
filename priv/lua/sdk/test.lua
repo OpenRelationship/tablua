@@ -7,8 +7,10 @@
 --
 -- A step's pattern matches the step's text after Given/When/Then/And/But, with {int}, {number}, {string}
 -- ("quoted"), {word} and {} (anything) as its holes. Its function gets the scenario's world (a fresh table per
--- scenario, which Background steps share) and the holes, then a doc string or a data table (a list of rows)
--- if the step has one. Scenario Outlines run once per Examples row, <name> filled in.
+-- scenario, which Background steps share) and the holes, then a doc string or a data table if the step has one.
+-- A data table is read as Cucumber's hashes: its first row the header, then one row per line, each by the header's
+-- names and by position (data[1].category, data[1][1]); #data counts the rows under the header, data.header is
+-- the first row and data.raw every row as written. Scenario Outlines run once per Examples row, <name> filled in.
 --
 -- The run is printed as Robot Framework rows: one test per scenario, one row per step, its result in the row
 -- (PASS, FAIL and why, or NOT RUN). A step no pattern matches fails, and the run prints the Lua stub to paste
@@ -244,6 +246,21 @@ function test.stub(text)
   return string.format('test.step(%q, function(%s)\n  error("not written yet")\nend)', table.concat(out), params)
 end
 
+-- a data table as its rows under the header, each by name and by position (a budget's step read data[i].category
+-- and counted #data, as Cucumber's hashes have it, and met the header as a row)
+local function hashes(raw)
+  local header, data = raw[1] or {}, { header = raw[1] or {}, raw = raw }
+  for i = 2, #raw do
+    local row = {}
+    for k, cell in ipairs(raw[i]) do
+      row[k] = cell
+      if header[k] and header[k] ~= "" then row[header[k]] = cell end
+    end
+    data[#data + 1] = row
+  end
+  return data
+end
+
 local function run_steps(steps, world, rows, failed, report)
   for _, s in ipairs(steps) do
     local text = s.word .. " " .. s.text
@@ -257,7 +274,7 @@ local function run_steps(steps, world, rows, failed, report)
         rows[#rows + 1] = { text, "FAIL", failed }
         report.undefined[#report.undefined + 1] = s.text
       else
-        if s.extra ~= nil then args[#args + 1] = s.extra end
+        if s.extra ~= nil then args[#args + 1] = type(s.extra) == "table" and hashes(s.extra) or s.extra end
         local ok, why = pcall(d.fn, world, table.unpack(args))
         if ok then
           rows[#rows + 1] = { text, "PASS" }
