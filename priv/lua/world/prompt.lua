@@ -69,8 +69,9 @@ page both require("chores") and call its functions. Wrong: steps that db.open an
 with other columns (assigned_to where the page writes person): the steps pass on their own table and the page
 fails on it.
 
-A scenario starts clean. Right: its first Given clears what it reads through the module, plants.clear() (a
-function M.clear() d:exec("delete from plant") end in code/plants.lua), so it passes on its own steps. Wrong: a scenario that passes on rows an earlier run left behind.
+A scenario's data. test gives each scenario empty tables of its own (never the app's data), so a scenario makes
+what it reads in its Givens. Right: Given there is a plant named Fern, whose step calls plants.add("Fern"). Wrong:
+a Then that counts rows no Given of its scenario made.
 
 Looking at the app. Right: one command line that opens the page the current state names (Page / (open app)
 answers 200), types in the page's fields by number (the browser numbers them from 1 in the page's order, as the

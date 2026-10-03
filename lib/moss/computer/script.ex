@@ -52,7 +52,12 @@ defmodule Moss.Computer.Script do
   def loop(what, scope, paths, state) do
     ref = make_ref()
     state = Map.merge(state, %{cwd: scope, report: {self(), ref}})
-    result = spawn_run(fn -> call(:__loop, [what, scope, Jason.encode!(paths)], [], "", state) end)
+    # a test's run has scratch databases (Script.Sql): empty, cleared per scenario, never written
+    result =
+      spawn_run(fn ->
+        if what == "test", do: Process.put(:sql_scratch, true)
+        call(:__loop, [what, scope, Jason.encode!(paths)], [], "", state)
+      end)
     reports = reports(ref, [])
 
     case result do
@@ -305,6 +310,7 @@ defmodule Moss.Computer.Script do
     |> fun(:db_open, fn [p | _] -> result(Sql.open(disk, path.(p))) end)
     |> fun(:db_save, fn [h | _] -> result(Sql.save(disk, h)) end)
     |> fun(:db_close, fn [h | _] -> result(Sql.close(disk, h)) end)
+    |> fun(:db_clear_scratch, fn _ -> result(Sql.clear_scratch()) end)
     |> fun(:db_exec, fn [h, sql | rest], lua ->
       params =
         case rest do

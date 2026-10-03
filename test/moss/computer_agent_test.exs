@@ -63,7 +63,7 @@ defmodule Moss.ComputerAgentTest do
 
     # first Jev, offered only what a computer with no feature allows; then Mercury, told Jev's move
     assert [{:jev, first, "write_feature"}, {:mercury, fill} | waits] = log
-    assert Enum.sort(first) == ["blocked", "read_help", "think", "write_feature"]
+    assert Enum.sort(first) == ["read_help", "think", "write_feature"]
     [system, turn] = fill["messages"]
     assert system["role"] == "system" and system["content"] =~ "<critical_rules>"
     assert String.ends_with?(String.trim(system["content"]), "</critical_rules>")
@@ -73,7 +73,7 @@ defmodule Moss.ComputerAgentTest do
 
     # the feature written and not agreed: only waiting, or changing it, is offered; Mercury is not asked to wait
     assert [{:jev, offered, "wait_for_agreement"} | _] = waits
-    assert Enum.sort(offered) == ["blocked", "think", "wait_for_agreement", "write_feature"]
+    assert Enum.sort(offered) == ["think", "wait_for_agreement", "write_feature"]
     assert Enum.all?(waits, &match?({:jev, _, "wait_for_agreement"}, &1))
 
     # every mind's calls counted; every decision joined to its outcome by the step's address
@@ -173,18 +173,21 @@ defmodule Moss.ComputerAgentTest do
 
       case conn.request_path do
         "/api/alpha/decisions" ->
-          Req.Test.json(conn, %{"answers" => %{"next" => %{"choice" => "blocked", "probabilities" => %{"blocked" => 0.9}}}})
+          options = Map.keys(sent["questions"]["next"]["criteria"])
+          choice = if "blocked" in options, do: "blocked", else: "write_feature"
+          Req.Test.json(conn, %{"answers" => %{"next" => %{"choice" => choice, "probabilities" => %{choice => 0.9}}}})
 
         "/v1/chat/completions" ->
-          assert sent["messages"] |> hd() |> Map.get("content") =~ "none of its moves can make progress"
+          unless sent["tools"], do: assert(sent["messages"] |> hd() |> Map.get("content") =~ "none of its moves can make progress")
           Req.Test.json(conn, %{"usage" => %{}, "choices" => [%{"message" => %{"content" => "The filler answers 400 every time."}}]})
       end
     end)
 
     run = Moss.Computer.Agent.run(id, "Make me a hello page.")
-    assert %{outcome: "blocked", why: "blocked: The filler answers 400 every time.", steps: 2} = run
+    # stopping is offered only once something is wrong: here a move Mercury made no call for
+    assert %{outcome: "blocked", why: "blocked: The filler answers 400 every time.", steps: 3} = run
     rows = Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Outcome"])
-    assert [{"blocked", "Blocked: The filler" <> _}, {"blocked", _}] =
+    assert [{"no_effect", _}, {"blocked", "Blocked: The filler" <> _}, {"blocked", _}] =
              for(%{"args" => [at, o, note | _]} <- rows, String.contains?(at, "/step/"), do: {o, note})
   end
 

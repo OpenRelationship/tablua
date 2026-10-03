@@ -28,7 +28,8 @@ defmodule Moss.Computer.Loop do
       new page|code|task|note|letter|manifest|app <name>   the smallest working file of that kind
 
   A feature changed after the person agreed goes back to written; any change to its app's features, code or
-  pages wants a new run before it is green again. Every run is an Outcome on the log.
+  pages wants a new run before it is green again. Every run is an Outcome on the log. A test's databases are its
+  own: each scenario starts with every table empty, and the app's data is never read or written.
   """
 
   def help, do: @help

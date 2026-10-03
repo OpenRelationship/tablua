@@ -268,11 +268,13 @@ local function run_steps(steps, world, rows, failed, report)
   return failed
 end
 
-function test.run(text, name)
+function test.run(text, name, before)
   local feature, background, scenarios = parse(text)
   local lines, passed = { "*** Test Cases ***" }, 0
   local report = { failing = {}, undefined = {} }
   for _, sc in ipairs(scenarios) do
+    -- each scenario starts on empty databases (the computer's loop passes db.clear_scratch)
+    if before then before() end
     local rows, world = {}, {}
     local before = #report.failing
     local failed = run_steps(background, world, rows, nil, report)

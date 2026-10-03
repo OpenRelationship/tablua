@@ -10,6 +10,7 @@ local lui = require("shroomi.lui")
 
 -- held before any step file runs, so a step file that changes the test table changes no verdict
 local run, clear, locate = test.run, test.clear, test.locate
+local clear_data = db.clear_scratch
 
 local loop = {}
 
@@ -56,7 +57,7 @@ function loop.test(scope, features, report)
   for _, f in ipairs(features) do
     print("# " .. (string.gsub(f, "^/home/", "")))
     local text = fs.read(f) or ""
-    local ok, all, passed, total, r = pcall(run, text, f)
+    local ok, all, passed, total, r = pcall(run, text, f, clear_data)
     if not ok then
       print("# " .. f .. " does not run: " .. tostring(all))
       r, passed, total = { failing = { { step = "", why = tostring(all) } }, undefined = {} }, 0, 0

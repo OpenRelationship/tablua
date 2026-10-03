@@ -45,7 +45,13 @@ defmodule Moss.Computer.Script.Sql do
     end
   end
 
+  # a test's run (Process :sql_scratch) has databases of its own: each starts empty, is cleared before every
+  # scenario and is never written, so a scenario passes on its own steps and the person's data is never touched
   defp load(disk, path) do
+    if Process.get(:sql_scratch), do: {:ok, Engine.new()}, else: load_kept(disk, path)
+  end
+
+  defp load_kept(disk, path) do
     case Store.load(disk.conn, path) do
       {:ok, db} ->
         {:ok, db}
@@ -95,6 +101,10 @@ defmodule Moss.Computer.Script.Sql do
 
   # a statement's changes to the computer's file; the database's folder made as a file's would be
   defp write(disk, path, db) do
+    if Process.get(:sql_scratch), do: :ok, else: write_kept(disk, path, db)
+  end
+
+  defp write_kept(disk, path, db) do
     with :ok <- Disk.mkdir_p(disk, Path.dirname(path)),
          :ok <- Store.flush(disk.conn, path, db) do
       Disk.changed(disk, [path])
@@ -109,6 +119,16 @@ defmodule Moss.Computer.Script.Sql do
 
   defp out({:blob, b}), do: b
   defp out(v), do: v
+
+  @doc "In a test's run, every open database emptied of its rows, its tables kept; elsewhere nothing."
+  def clear_scratch do
+    if Process.get(:sql_scratch) do
+      dbs = for {h, d} <- dbs(), into: %{}, do: {h, %{d | db: Engine.clear_rows(d.db)}}
+      Process.put(:dbs, dbs)
+    end
+
+    :ok
+  end
 
   @doc "Every change is already written: true, unless the database is closed."
   def save(_disk, h), do: with({:ok, _} <- fetch(h), do: :ok)

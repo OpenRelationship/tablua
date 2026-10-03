@@ -200,6 +200,14 @@ function M.tidy(verb, c)
   return c
 end
 
+-- whether stopping can be right: something fails, Mercury could not fill a move, fixing has stopped helping, or the
+-- last step broke (a chores run, every scenario passing and publish offered, blocked saying nothing was missing)
+function M.troubled(req, repeats)
+  local last = req.steps[#req.steps]
+  return M.failing(req.facts) ~= "" or M.unfilled(req) >= 1 or repeats >= M.repeats
+    or (last ~= nil and last.outcome ~= "complete")
+end
+
 -- an answer_task step that did not come out complete
 function M.answer_failed(req)
   for _, st in ipairs(req.steps) do
@@ -289,7 +297,8 @@ function M.new(host, run)
         and not (req.stage == "shipped" and name ~= "answer_task" and not M.answer_failed(req))
         and not (name == "write_feature" and req.stage == "building" and repeats < M.repeats)
         and not (repeats >= M.dead_end and (name == "fix_failure" or name == "think"))
-        and not (repeats >= M.give_up and not last_resort[name]) then
+        and not (repeats >= M.give_up and not last_resort[name])
+        and not (name == "blocked" and not M.troubled(req, repeats)) then
         options[name] = M.moves[name] or require("agent.parts").verbs[name]
       end
     end

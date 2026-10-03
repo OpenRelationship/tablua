@@ -108,6 +108,8 @@ db = {
     if h == nil then return nil, why end
     return setmetatable({ h = h, path = path }, Db)
   end,
+  -- in a test's run, every open database emptied of its rows before a scenario (elsewhere nothing)
+  clear_scratch = function() return sys.db_clear_scratch() end,
 }
 
 -- require, from the disk: the working folder first, then the app's code/ (when the run is in an app), then

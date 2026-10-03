@@ -33,6 +33,17 @@ defmodule Moss.Sql.Engine do
     }
   end
 
+  @doc "The database with every table's rows gone and its tables, indexes and schema kept."
+  def clear_rows(db) do
+    tables =
+      Map.new(db.tables, fn {name, t} ->
+        indexes = Enum.map(t.indexes, &%{&1 | tree: :gb_sets.empty()})
+        {name, %{t | rows: :gb_trees.empty(), size: 0, seq: 0, indexes: indexes}}
+      end)
+
+    %{db | tables: tables, last_rowid: 0}
+  end
+
   @doc "Whether the database has nothing left to write."
   def clean?(db),
     do: MapSet.size(db.dirty) == 0 and MapSet.size(db.dropped) == 0 and not db.schema

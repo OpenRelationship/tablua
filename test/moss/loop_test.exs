@@ -162,4 +162,36 @@ defmodule Moss.LoopTest do
     assert out =~ "pages and manifests: ok\n"
     assert out =~ "# no step matches \"the water is empty\""
   end
+  # a test's run has databases of its own: every scenario starts empty, and the person's data is never touched
+  test "each scenario starts on empty databases, and a test never writes the app's own data" do
+    c = id()
+    write(c, "/home/code/shelf.lua", ~S"""
+    local M = {}
+    local d = db.open("data/shelf.dbl")
+    d:exec("create table if not exists book (title text)")
+    function M.add(t) d:exec("insert into book values (?)", t) end
+    function M.count() return d:one("select count(*) as n from book").n end
+    return M
+    """)
+    write(c, "/home/features/shelf.feature", """
+    Feature: shelf
+      Scenario: one book
+        Given I add "Dune"
+        Then the shelf holds 1 book
+      Scenario: another book
+        Given I add "Emma"
+        Then the shelf holds 1 book
+    """)
+    write(c, "/home/code/steps/shelf.lua", ~S"""
+    local shelf = require("shelf")
+    test.step("I add {string}", function(w, t) shelf.add(t) end)
+    test.step("the shelf holds {int} book", function(w, n) test.eq(shelf.count(), n) end)
+    """)
+    sh(c, ~S|lua -e 'local d = db.open("data/shelf.dbl") d:exec("create table if not exists book (title text)") d:exec("insert into book values (?)", "Mine")'|)
+    :ok = Computer.agree(c, "/home/features/shelf.feature")
+
+    assert %{code: 0, out: out} = sh(c, "test")
+    assert out =~ "2 of 2 scenarios passed"
+    assert %{out: "1\n"} = sh(c, ~S|lua -e 'print(db.open("data/shelf.dbl"):one("select count(*) as n from book").n)'|)
+  end
 end
