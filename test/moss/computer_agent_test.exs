@@ -229,6 +229,19 @@ defmodule Moss.ComputerAgentTest do
     assert note =~ "Test after: 1 of 1 pass (before: 0 of 1)."
   end
 
+  # code owns the workflow: what belongs to one move is refused in another, and a page names the command that opens it
+  test "a move's calls that belong to another move are not run" do
+    lua = Moss.Lua.base()
+    eval = fn code -> Lua.eval!(lua, code) |> elem(0) end
+    assert eval.(~s|return require("moss.world").refused("look_at_app", { cmd = "mail send rock-1 < files/r.org" })|) ==
+             ["mail belongs to the answer_task move"]
+    assert eval.(~s|return require("moss.world").refused("answer_task", { cmd = "mail send rock-1 -m x" })|) == []
+    assert eval.(~s|return require("moss.world").refused("fix_failure", { cmd = "test", files = { ["features/a.feature"] = "" } })|) ==
+             ["writing features/a.feature belongs to the write_feature move"]
+    assert eval.(~s|return require("moss.world").open("/house-plants/")|) == ["open app/house-plants"]
+    assert eval.(~s|return require("moss.world").open("/")|) == ["open app"]
+  end
+
   test "there is no agent without both minds", %{id: id} do
     System.delete_env("OPENROUTER_API_KEY")
     assert %{outcome: "error", why: why} = Moss.Computer.Agent.run(id, "Make me a hello page.")

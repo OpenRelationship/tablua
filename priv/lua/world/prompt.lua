@@ -49,9 +49,9 @@ require it:
 Wrong: a code/data.lua that keeps the rows in a Lua table and answers SQL with string matching: the steps pass
 or fail on a stand-in, and the page shows nothing the person added.
 
-A Lua error on this computer may name no line ("habits.lua: attempt to index a nil value"). Right: read the whole
-file for each name it indexes that nothing defines; a module starts local M = {} and ends return M, and a step file
-needs neither. Wrong: function M.add(name) ... in a file that never says local M = {}.
+A module. Right: code/habits.lua starts local M = {} and ends return M; a step file needs neither. Wrong:
+function M.add(name) ... in a file that never says local M = {}: the error names it, code/habits.lua:3: attempt to
+index a nil value (global 'M').
 
 A statement checked. Right: assert(d:exec("insert into plant values (?, ?)", name, nil)), so a bad statement
 stops with why. Wrong: d:exec(...) alone: a bad statement returns nil and why, and nothing notices.
@@ -59,9 +59,11 @@ stops with why. Wrong: d:exec(...) alone: a bad statement returns nil and why, a
 A scenario starts clean. Right: its first Given clears what it reads, d:exec("delete from plant"), so it passes on
 its own steps. Wrong: a scenario that passes on rows an earlier run left behind.
 
-Looking at the app. Right: open the page at the path the current state names (Page /house-plants/ answers 200:
-open app/house-plants), type the add field, submit, then read the page for what was added. Wrong: open app when
-the app lives in apps/<name>/ (nothing is served at /), or open app house-plants (the path joins with /).
+Looking at the app. Right: the command the current state gives for the page (Page /house-plants/ (open
+app/house-plants) answers 200), then type the add field, submit, and read the page for what was added. Wrong: open
+app when the app lives in apps/<name>/ (nothing is served at /), or open app house-plants (the path joins with /).
+Each move does only its own part: the DONE letter is answer_task's, publish is publish's, the feature is
+write_feature's; the computer refuses them in any other move.
 
 A page and its database. Right: the code the page uses makes its table first,
   d:exec("create table if not exists plant (name text primary key, watered text)")

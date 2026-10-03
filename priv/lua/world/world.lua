@@ -68,6 +68,32 @@ M.allowed = {
   answered = { "answer" },
 }
 
+-- What only one move may do (code owns the workflow): a call of another move that does it is not run. Mercury filling
+-- look_at_app once also sent the DONE letter, and the run ended answered with nothing shipped.
+M.only = {
+  { what = "mail", move = "answer_task", cmd = "^%s*mail%s" },
+  { what = "publish", move = "publish", cmd = "^%s*publish" },
+  { what = "a feature", move = "write_feature", file = "features/[^/]*%.feature$", cmd = "^%s*new%s+feature" },
+}
+
+-- why a call may not run in this move, or nil
+function M.refused(verb, c)
+  for _, r in ipairs(M.only) do
+    if verb ~= r.move then
+      if string.find(c.cmd or "", r.cmd) then return ("%s belongs to the %s move"):format(r.what, r.move) end
+      for path in pairs(r.file and c.files or {}) do
+        if string.find(path, r.file) then return ("writing %s belongs to the %s move"):format(path, r.move) end
+      end
+    end
+  end
+end
+
+-- the command that opens a page in the computer's browser: /house-plants/ is open app/house-plants
+function M.open(path)
+  local rest = string.gsub(string.gsub(path, "^/", ""), "/$", "")
+  return rest == "" and "open app" or ("open app/" .. rest)
+end
+
 -- The moves that change the app: after one, it has to be used as the person will before it is published.
 M.changes = { write_steps = true, write_code = true, write_page = true, fix_failure = true, rewrite = true }
 
@@ -175,7 +201,8 @@ function M.facts_text(f, s)
     for i = 1, math.min(5, #t.undefined) do out[#out + 1] = "  no step: " .. clip(t.undefined[i], 200) end
   end
   for _, p in ipairs(f.pages) do
-    out[#out + 1] = ("Page %s answers %d%s"):format(p.path, p.status, p.error and (": " .. clip(p.error, 300)) or ".")
+    out[#out + 1] = ("Page %s (%s) answers %d%s"):format(p.path, M.open(p.path), p.status,
+      p.error and (": " .. clip(p.error, 300)) or ".")
   end
   if (repeats or 0) >= M.repeats then
     out[#out + 1] = ("The last %d changes left the same failure: what was tried is not the cause. Think it through"
@@ -286,7 +313,10 @@ function M.new(host, run)
     local kept = M.changes[verb] and undo.keep(host, calls) or nil
     local failed = 0
     for _, c in ipairs(calls) do
-      local r = host.exec(c)
+      -- a relative folder is the model's guess at one (home is /home/home); the computer's own is /home
+      if c.cwd and not string.find(c.cwd, "^/") then c.cwd = nil end
+      local no = M.refused(verb, c)
+      local r = no and { code = 1, stdout = "", stderr = "not run: " .. no .. "\n" } or host.exec(c)
       if r.code ~= 0 then failed = failed + 1 end
       local files = {}
       for path in pairs(c.files or {}) do files[#files + 1] = path end

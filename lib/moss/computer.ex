@@ -166,6 +166,10 @@ defmodule Moss.Computer do
   end
 
   @impl true
+  # the calls without `under`, as hosts and their tests sent them before it
+  def handle_call({:run, line}, from, state), do: handle_call({:run, line, nil}, from, state)
+  def handle_call({:files, cwd, files}, from, state), do: handle_call({:files, cwd, files, nil}, from, state)
+
   def handle_call({:run, line, under}, _from, state) do
     started = System.monotonic_time(:microsecond)
     cwd = state.cwd
