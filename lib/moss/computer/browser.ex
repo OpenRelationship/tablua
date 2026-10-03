@@ -23,13 +23,21 @@ defmodule Moss.Computer.Browser do
   A password field is the person's: the browser never types into one.
   `open app` opens the computer's own pages (`ui/*.lui` and its apps', at http://app/), as its person sees it:
   laid out with its stylesheet, what it hides not read. `open app --width 390 --dark` is a phone in the dark
-  theme (1280, light, until changed). `look [--width N] [--dark]` names, by line, what its person could not use
-  on the app's page: a control of no size or under another element, what runs off the screen, faint text.
+  theme (1280, light, until changed).
   """
 
-  @names ~w(open page read ui click type submit back tabs close data cookies look)
-  def names, do: @names
-  def help, do: @help
+  @look """
+    `look [--width N] [--dark]` names, by line, what its person could not use on the app's page: a control of no
+    size or under another element, what runs off the screen, faint text.
+  """
+
+  @names ~w(open page read ui click type submit back tabs close data cookies)
+
+  # `look` is there unless the node turns it off (config :moss, look_command: false), as the build eval's
+  # comparison does to measure the look in `open app` alone
+  defp look?, do: Application.get_env(:moss, :look_command, true)
+  def names, do: if(look?(), do: @names ++ ["look"], else: @names)
+  def help, do: if(look?(), do: @help <> @look, else: @help)
 
   def new, do: Tabs.new()
   def front(state), do: Tabs.front(state)
