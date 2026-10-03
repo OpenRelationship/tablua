@@ -2,8 +2,9 @@ defmodule Moss.PersonCheck do
   @moduledoc """
   The build suite's hidden check (Arock's eval/build): what the person does with a shipped page, whatever the agent
   tested. Every ask in the suite asks to add something, so the check opens the page, fills its first form that
-  posts (each text field a new name, a number 2, a date today, hidden fields as they are), sends it, and opens the
-  page again: the app works if the name is now on it. The agent never sees this check.
+  posts (each text field a new name, a number 2, a date today, also for a text field whose placeholder or name
+  asks for one; hidden fields as they are), sends it, and opens the page
+  again: the app works if the name is now on it. The agent never sees this check.
   """
   alias Moss.Computer
 
@@ -58,9 +59,23 @@ defmodule Moss.PersonCheck do
         [_, name] <- [Regex.run(~r/name="([^"]+)"/, tag)] do
       type = with([_, t] <- Regex.run(~r/type="([^"]+)"/, tag), do: t, else: (_ -> "text"))
       val = with([_, v] <- Regex.run(~r/value="([^"]*)"/, tag), do: v, else: (_ -> ""))
-      {name, type, val}
+      {name, read_as(type, name, tag), val}
     end
   end
+
+  # a text field the person can tell wants a date or a number (its placeholder, or the name its label would show)
+  # gets one, as a person would type it: a countdown's date field placeholder="YYYY-MM-DD" is not a name
+  defp read_as("text", name, tag) do
+    hint = String.downcase(name <> " " <> with([_, h] <- Regex.run(~r/placeholder="([^"]*)"/, tag), do: h, else: (_ -> "")))
+
+    cond do
+      hint =~ ~r/yyyy|\bdate\b|\bdue\b|\bday\b|\bwhen\b/ -> "date"
+      hint =~ ~r/amount|price|cost|qty|quantity|count|number|how many|\bpages?\b/ -> "number"
+      true -> "text"
+    end
+  end
+
+  defp read_as(type, _, _), do: type
 
   defp value({n, "hidden", v}, _), do: {n, v}
   defp value({n, "number", _}, _), do: {n, "2"}

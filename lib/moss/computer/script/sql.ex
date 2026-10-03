@@ -19,11 +19,16 @@ defmodule Moss.Computer.Script.Sql do
 
   @max_open 8
 
-  @doc "Opens the database at `path` (made on its first write) and returns its handle."
+  @doc "Opens the database at `path` (made on its first write) and returns its handle, the same one if it is open."
   def open(disk, path) do
     dbs = dbs()
+    open = Enum.find_value(dbs, fn {h, %{path: p}} -> p == path && h end)
 
     cond do
+      # the same database opened again (a step helper's db.open on every call) is the handle it already has
+      open ->
+        {:ok, open}
+
       map_size(dbs) >= @max_open ->
         {:error, "too many open databases (#{@max_open})"}
 

@@ -166,6 +166,13 @@ defmodule Moss.Sql.ComputerDbTest do
 
     assert out == "9\ttoo many open databases (8)\n"
 
+    # a helper that opens its database on every call (a budget run's steps did, 9 times) keeps one handle
+    assert %{out: "20\n"} =
+             lua(
+               c,
+               ~S|local d for i = 1, 20 do d = db.open("data/one.dbl") d:exec("create table if not exists t (n)") d:exec("insert into t values (?)", i) end print(d:one("select count(*) n from t").n)|
+             )
+
     assert %{out: "nil\tstring or blob too big: a statement is at most 1024 KB\n"} =
              lua(
                c,

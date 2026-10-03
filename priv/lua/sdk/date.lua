@@ -5,7 +5,8 @@
 --   date.parse("2026-10-01")          -> seconds; also "2026-10-01T09:30:00Z" and "2026-10-01 09:30"
 --   date.iso(t)                       -> "2026-10-01T09:30:00Z";  date.day(t) -> "2026-10-01"
 --   date.parts(t)                     -> { year, month, day, hour, min, sec, weekday (1 Monday ... 7 Sunday) }
---   date.add(t, { days = 3, months = 1, hours = 2 })   date.diff(a, b, "days")
+--   date.add(t, { days = 3, months = 1, hours = 2 })
+--   date.diff(a, b, "days")           -> a minus b, whole days: days left until an event is date.diff(event, today, "days")
 --   date.format(t, "%Y-%m-%d %H:%M")  (%Y %m %d %H %M %S %a %A %b %B %j)
 local date = {}
 
