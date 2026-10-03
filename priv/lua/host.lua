@@ -195,6 +195,9 @@ function arock.names(what, ...)
   return names[what](...)
 end
 
+-- The computer's own agent, one step a call (priv/lua/world/run.lua; Moss.Computer.Agent drives it).
+function arock.agent(saved, ctx) return require("moss.world.run").step(saved, ctx) end
+
 -- The host calls every arock.* function through this, so an error object
 -- (ports.call raises tables with __tostring) reaches the host as its text.
 function arock.call(name, ...)

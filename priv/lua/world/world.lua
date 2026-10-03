@@ -1,0 +1,265 @@
+-- The agent's own computer as the world Arock's agent works in (library/agent; Arock PROJECT.md §14, feature
+-- file-kinds): it builds what the person asks as an app, agreed to shipped, and answers the task. Code owns the
+-- workflow (TypeSafe's rule): the stage and its gates are worked out from the computer's facts (the host's, never a
+-- model's), and Jev is offered only the moves the stage allows. Jev picks the move; Mercury fills it with tool calls
+-- on the computer (world_prompt.lua, laid out as Inception's guide says); the person's part (agreeing to a feature,
+-- the yes to publish) is waited for, never done here.
+--
+--   local world = require("moss.world").new(host, run)   host = { exec(req) -> { code, stdout, stderr }, facts() }
+--   run = { help, procedures, task }                      what Mercury's fixed context holds, read once a run
+--   world.stage(facts) -> stage, why
+local prompt = require("moss.world.prompt")
+local clip = require("agent.clip").clip
+
+local M = {}
+
+-- Each move as Jev reads it: a name in words and what it is for.
+M.moves = {
+  write_feature = "Write the feature: the person's ask, in their words, as Gherkin scenarios (new feature <name>,"
+    .. " then edit it), or change it before the person has agreed.",
+  wait_for_agreement = "The feature is written and the person has not agreed to it yet: wait for them. Nothing is"
+    .. " built before they agree.",
+  write_steps = "Write the Lua steps in code/steps/ that make each scenario check the app's real behaviour, from the"
+    .. " stubs test printed.",
+  write_code = "Write the app's code (code/*.lua) and its database (data/*.dbl) that the steps and pages use.",
+  write_page = "Write or fix the app's pages (ui/*.lui): what the person sees and uses.",
+  run_test = "Run the feature's tests (test) to see what passes, what fails and which steps are missing.",
+  run_check = "Check the pages and code (check) for what is wrong in them.",
+  fix_failure = "Fix what the last test, check or page named as failing, from its file and line.",
+  rewrite = "Throw out the file the failure is in and write it again whole, from the knowledge base's patterns:"
+    .. " for when patching it has not worked.",
+  look_at_app = "Open the app as the person will (open app) and use it: add something, see it there.",
+  read_help = "Read the computer's help on a kind of file or a command, when how to do the next thing is unclear.",
+  publish = "Publish the app: every test is green and every page answers, so it goes to the person for their yes.",
+  wait_for_yes = "Publishing waits for the person's yes: wait for it.",
+  answer_task = "The app has shipped: answer the task with a DONE letter that names what shipped and where.",
+  answer = "The task is answered: the work is done.",
+  think = "Think it through first: go over the task and every step so far, say what is wrong and what to do next."
+    .. " For when steps keep failing or the way on is unclear.",
+  blocked = "None of these moves can make progress: a tool keeps failing, or what is needed is not among them. Say"
+    .. " what is missing.",
+}
+
+-- Where the failure's cause lies, asked beside the move whenever something is failing (TypeSafe: narrow questions,
+-- batched in one call); Mercury is told the answer when it fills the move.
+M.causes = {
+  the_steps = "The step definitions: a step that does not match its line in the feature, checks the wrong thing,"
+    .. " or is missing.",
+  the_app_code = "The app's code or its database: what the steps and pages call does the wrong thing.",
+  the_page = "The page: it does not compile, or its action or markup is wrong.",
+  a_library_call = "A call into the computer's library (db, date, test, lui, mail) made the wrong way: its help says"
+    .. " how.",
+  the_feature = "The feature as written cannot pass: changing it needs the person's agreement again.",
+  unclear = "It cannot be told from what is shown: read the failing file and line first.",
+}
+
+-- What each stage allows, in the order Jev is offered them.
+M.allowed = {
+  no_feature = { "write_feature", "read_help", "think", "blocked" },
+  awaiting_agreement = { "wait_for_agreement", "write_feature", "think", "blocked" },
+  building = { "write_steps", "write_code", "write_page", "run_test", "run_check", "fix_failure", "rewrite",
+    "look_at_app", "read_help", "think", "plan", "next_part", "blocked" },
+  ready = { "publish", "look_at_app", "fix_failure", "rewrite", "write_page", "run_test", "think", "blocked" },
+  awaiting_yes = { "wait_for_yes" },
+  shipped = { "answer_task", "think", "blocked" },
+  answered = { "answer" },
+}
+
+-- The moves that change the app: after one, it has to be used as the person will before it is published.
+M.changes = { write_steps = true, write_code = true, write_page = true, fix_failure = true, rewrite = true }
+
+M.waits = { wait_for_agreement = "the person's agreement to the feature", wait_for_yes = "the person's yes to publish" }
+
+-- The stage from the facts, and why: code's judgement, never a model's.
+--   facts = { features = { { path, stage } }, tests = { passed, total, failing = {}, undefined = {} } | nil,
+--             empty_steps = n, pages = { { path, status } }, asked = bool, shipped = bool, answered = bool }
+function M.stage(f)
+  if f.answered then return "answered", "the task is answered DONE" end
+  if f.shipped then return "shipped", "the app has shipped; the task is not answered yet" end
+  if f.asked then return "awaiting_yes", "publishing waits for the person's yes" end
+  if #f.features == 0 then return "no_feature", "there is no feature yet" end
+  for _, ft in ipairs(f.features) do
+    if ft.stage == "written" then return "awaiting_agreement", ft.path .. " is written and not agreed" end
+  end
+  local t, why = f.tests, {}
+  if not t or t.total == 0 then why[#why + 1] = "no test has run since the last change" end
+  if t and t.passed < t.total then why[#why + 1] = ("%d of %d scenarios pass"):format(t.passed, t.total) end
+  if t and #t.undefined > 0 then why[#why + 1] = #t.undefined .. " steps have no definition" end
+  if (f.empty_steps or 0) > 0 then why[#why + 1] = f.empty_steps .. " step definitions check nothing (an empty body)" end
+  if #f.pages == 0 then why[#why + 1] = "the app has no page" end
+  for _, p in ipairs(f.pages) do
+    if p.status ~= 200 then why[#why + 1] = ("the page %s answers %d"):format(p.path, p.status) end
+  end
+  if #why > 0 then return "building", table.concat(why, "; ") end
+  return "ready", "every scenario passes and every page answers"
+end
+
+-- What is failing, as one string: the same string after a change means the change fixed nothing.
+function M.failing(f)
+  local out, t = {}, f.tests
+  if t then
+    for _, x in ipairs(t.failing) do out[#out + 1] = x end
+    for _, x in ipairs(t.undefined) do out[#out + 1] = "no step: " .. x end
+  end
+  if (f.empty_steps or 0) > 0 then out[#out + 1] = f.empty_steps .. " empty steps" end
+  for _, p in ipairs(f.pages) do
+    if p.status ~= 200 then out[#out + 1] = ("%s answers %d"):format(p.path, p.status) end
+  end
+  return table.concat(out, "\n")
+end
+
+M.repeats = 2   -- changes that left the same failure, after which fixing it again waits on thinking it through
+
+-- How a step's change left the work, against the facts before it: the step's note, which both minds read in the
+-- work so far. Counts the changes running that left the same failure in req.repeats.
+function M.after(req, before, f)
+  local was, now = M.failing(before), M.failing(f)
+  local t0, t = before.tests, f.tests
+  local out = {}
+  if t then
+    out[1] = ("Test after: %d of %d pass"):format(t.passed, t.total)
+      .. (t0 and (" (before: %d of %d)."):format(t0.passed, t0.total) or ".")
+  end
+  if now ~= "" and now == was then
+    req.repeats = (req.repeats or 0) + 1
+    out[#out + 1] = ("The same failure as before this step (%d changes running have left it): %s"):format(
+      req.repeats, clip(now, 300))
+  else
+    req.repeats = 0
+  end
+  return table.concat(out, " ")
+end
+
+-- The facts in a few lines, as both minds read them.
+function M.facts_text(f, stage, why, repeats, looked)
+  local out = { ("Stage: %s (%s)."):format(stage, why) }
+  if stage == "ready" and not looked then
+    out[#out + 1] = "Nobody has used the app as the person will since it last changed: publishing waits on"
+      .. " look_at_app (open it, add something, see it there)."
+  end
+  for _, ft in ipairs(f.features) do out[#out + 1] = ("Feature %s: %s."):format(ft.path, ft.stage) end
+  if f.tests then
+    local t = f.tests
+    out[#out + 1] = ("Last test: %d of %d scenarios pass."):format(t.passed, t.total)
+    for i = 1, math.min(5, #t.failing) do out[#out + 1] = "  failing: " .. clip(t.failing[i], 300) end
+    for i = 1, math.min(5, #t.undefined) do out[#out + 1] = "  no step: " .. clip(t.undefined[i], 200) end
+  end
+  for _, p in ipairs(f.pages) do out[#out + 1] = ("Page %s answers %d."):format(p.path, p.status) end
+  if (repeats or 0) >= M.repeats then
+    out[#out + 1] = ("The last %d changes left the same failure: what was tried is not the cause. Think it through"
+      .. " (read the help on what the failing code uses, and the code the step calls) before changing it again.")
+      :format(repeats)
+  end
+  return table.concat(out, "\n")
+end
+
+function M.new(host, run)
+  local w = { tools = {}, host = host, run = run }
+  for name in pairs(M.moves) do
+    if name ~= "answer" and name ~= "think" and name ~= "blocked" then w.tools[#w.tools + 1] = { name = name, what = M.moves[name] } end
+  end
+  table.sort(w.tools, function(a, b) return a.name < b.name end)
+
+  -- the facts are read again before every decision, so what the person did between steps is seen
+  local function facts(req)
+    req.facts = host.facts()
+    req.stage, req.why = M.stage(req.facts)
+    return req.facts
+  end
+
+  function w.facts_text(req) return M.facts_text(req.facts, req.stage, req.why, req.repeats, req.looked) end
+
+  function w.question(a)
+    local req = a.req
+    facts(req)
+    local last = req.steps[#req.steps]
+    if last and last.verb == "think" then req.repeats = 0 end
+    -- the same failure through M.repeats changes: fixing it again waits on thinking it through
+    local stuck = (req.repeats or 0) >= M.repeats
+    local options = {}
+    for _, name in ipairs(M.allowed[req.stage]) do
+      -- and publishing waits on the app having been used as the person will since it last changed
+      -- and thinking twice running changes nothing
+      if not (stuck and name == "fix_failure") and not (name == "publish" and not req.looked)
+        and not (name == "think" and last and last.verb == "think") then
+        options[name] = M.moves[name] or require("agent.parts").verbs[name]
+      end
+    end
+    if options.plan or options.next_part then
+      options.plan, options.next_part = nil, nil
+      require("agent.parts").options(a, options)
+    end
+    return { kind = "choice", options = options,
+      text = "Which move should the agent make next on its computer to build what the task asks? Read the stage,"
+        .. " the facts and the steps so far. Waiting is for when only the person can move it on." }
+  end
+
+  function w.state(a, req, for_jev) return prompt.state(a, req, for_jev, w.facts_text(req)) end
+
+  -- whenever something is failing, where its cause lies, in the same call
+  function w.questions(_, req)
+    if M.failing(req.facts) == "" then req.cause = nil return {} end
+    return { cause = { kind = "choice", options = M.causes,
+      text = "Where does the cause of what is failing now lie? Read the failing lines, the files the steps so far"
+        .. " wrote and their results." } }
+  end
+
+  -- the move Jev weighed second, which Mercury is told of when Jev was unsure; and the cause, when asked
+  function w.answered(_, req, answers)
+    local c = answers.cause
+    req.cause = c and c.choice and { choice = c.choice, p = tonumber((c.probabilities or {})[c.choice]) } or nil
+    local n, second, p2 = answers.next, nil, -1
+    for v, p in pairs(n and n.probabilities or {}) do
+      if v ~= n.choice and tonumber(p) and tonumber(p) > p2 then second, p2 = v, tonumber(p) end
+    end
+    req.second = second
+  end
+
+  function w.arbiter(a, req, first, second) return prompt.arbiter(a, req, first, second, M.moves) end
+  function w.think(a, req) return prompt.think(a, req, M.moves) end
+  function w.ask() error("the computer's agent asks the person through its task's letters, not a form") end
+  w.form = w.ask
+
+  function w.act(a, req, verb, step)
+    if M.changes[verb] then req.looked = false end
+    if M.waits[verb] then
+      step.lines[1] = "waiting for " .. M.waits[verb]
+      step.outcome = "complete"
+      return { "wait", M.waits[verb] }
+    end
+    if verb == "blocked" then
+      local missing = a:mercury(prompt.blocked(a, req, M.moves)) or "(Mercury could not say)"
+      step.note, step.outcome = "Blocked: " .. clip(missing, 600), "blocked"
+      local last = req.steps[#req.steps]
+      if last and last.verb == "blocked" then return { "done", "blocked: " .. clip(missing, 600) } end
+      return
+    end
+    local calls, err = prompt.fill(a, req, verb, M.moves[verb], run, M.causes)
+    if not calls then step.note, step.outcome = "Filling the move failed: " .. tostring(err), "broken" return end
+    if #calls == 0 then step.note, step.outcome = "Mercury made no call for this move.", "no_effect" return end
+    local failed = 0
+    for _, c in ipairs(calls) do
+      local r = host.exec(c)
+      if r.code ~= 0 then failed = failed + 1 end
+      local files = {}
+      for path in pairs(c.files or {}) do files[#files + 1] = path end
+      table.sort(files)
+      step.lines[#step.lines + 1] = ("$ %s  -> %d%s\n%s%s"):format(c.cmd, r.code,
+        #files > 0 and ("  (wrote " .. table.concat(files, ", ") .. ")") or "",
+        clip(r.stdout or "", 3000), (r.stderr or "") ~= "" and ("\nstderr: " .. clip(r.stderr, 1500)) or "")
+    end
+    step.outcome = failed == 0 and "complete" or "broken"
+    if verb == "look_at_app" then req.looked = step.outcome == "complete" end
+    if req.facts then
+      local repeats = req.repeats or 0
+      step.note = (req.cause and ("Cause placed in %s. "):format(req.cause.choice) or "")
+        .. M.after(req, req.facts, host.facts())
+      -- a fix that left the failure as it was did nothing, whatever its commands said
+      if verb == "fix_failure" and (req.repeats or 0) > repeats then step.outcome = "no_effect" end
+    end
+  end
+
+  return w
+end
+
+return M

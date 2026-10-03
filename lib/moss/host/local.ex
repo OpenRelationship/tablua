@@ -49,7 +49,11 @@ defmodule Moss.Host.Local do
   @impl true
   def gone(_id, _path), do: :ok
 
-  @keys %{"jev" => "OPENROUTER_API_KEY", "mercury" => "INCEPTION_API_KEY"}
+  @keys %{
+    "jev" => "OPENROUTER_API_KEY",
+    "mercury" => "INCEPTION_API_KEY",
+    "tabpfn" => "PRIORLABS_API_KEY"
+  }
 
   @impl true
   def key(name) do
@@ -58,4 +62,8 @@ defmodule Moss.Host.Local do
       _ -> nil
     end
   end
+
+  # on its own a computer calls the providers with the environment's keys
+  @impl true
+  def service(_id), do: nil
 end

@@ -130,7 +130,8 @@ defmodule Moss.Computer.Board do
   end
 
   # the files under dir whose names end in ext, in path order
-  defp files(disk, dir, ext) do
+  @doc "The files under `dir` ending in `ext`, by path."
+  def files(disk, dir, ext) do
     list(disk, dir)
     |> Enum.flat_map(fn
       %{name: n, dir: true} -> files(disk, "#{dir}/#{n}", ext)

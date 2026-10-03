@@ -83,6 +83,10 @@ defmodule Moss.Computer do
   def answer(id, line, yes?),
     do: GenServer.call(wake!(id), {:person, :answer, [line, yes?]}, :infinity)
 
+  @doc "For the computer's own agent (`Moss.Computer.Agent`): its facts, or its log read or written, in here."
+  def agent(id, fun, args) when fun in [:facts, :events, :append],
+    do: GenServer.call(wake!(id), {:agent, fun, args}, :infinity)
+
   def sleep(id), do: if(pid = whereis(id), do: GenServer.call(pid, :sleep, :infinity), else: :ok)
 
   @doc "Computer `id`'s snapshot now, awake (`Moss.Host.cut/1`); one asleep is whole already."
@@ -219,6 +223,11 @@ defmodule Moss.Computer do
   def handle_call({:person, what, args}, _from, state) do
     reply = apply(Moss.Computer.Person, what, [state | args])
     Disk.rest(state.disk)
+    {:reply, reply, %{state | touched: now()}}
+  end
+
+  def handle_call({:agent, fun, args}, _from, state) do
+    reply = apply(Moss.Computer.Agent, fun, [state | args])
     {:reply, reply, %{state | touched: now()}}
   end
 

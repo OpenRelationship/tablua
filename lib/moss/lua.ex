@@ -37,7 +37,7 @@ defmodule Moss.Lua do
   """
   def build(extra \\ %{}, preload \\ @core) do
     Lua.new(exclude: [[:load]])
-    |> Lua.set!([:__sources], Map.merge(Sources.all(), extra))
+    |> Lua.set!([:__sources], Sources.all() |> Map.merge(Sources.own()) |> Map.merge(extra))
     |> eval!(Sources.priv("prelude.lua"))
     |> eval!(Sources.priv("host.lua"))
     |> Lua.set!([:__preload], preload)

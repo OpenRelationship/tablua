@@ -259,6 +259,21 @@ defmodule Moss.Log do
     for r <- rows, do: {r["seq"], r["keyword"], Jason.decode!(r["args"])}
   end
 
+  @doc "Events of `keywords` with their task, oldest first: `%{\"task\", \"keyword\", \"args\"}` each."
+  def rows(conn, keywords) do
+    {:ok, rows} =
+      Db.exec(
+        conn,
+        "select e.task, e.keyword, (select json_group_array(value) from " <>
+          "(select value from args where seq = e.seq order by pos)) as args from events e " <>
+          "where e.keyword in (select value from json_each(?)) order by e.seq",
+        [Jason.encode!(keywords)]
+      )
+
+    for r <- rows,
+        do: %{"task" => r["task"], "keyword" => r["keyword"], "args" => Jason.decode!(r["args"])}
+  end
+
   def clock, do: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
   # blobs.lua's text: what recall indexes, no NUL byte and at most 64 KB

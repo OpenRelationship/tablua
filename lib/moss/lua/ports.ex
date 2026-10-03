@@ -11,8 +11,9 @@ defmodule Moss.Lua.Ports do
       never holds the headers, so never the key.
     * `sha256(bytes) -> hex`: arock-log's content ids, from `:crypto` (tv-labs Lua's own hash is
       about 10 ms at 16 KB).
-    * `key(name) -> string | nil`: a model key from the environment or the
-      keychain (`Moss.Keys`).
+    * `key(name) -> string | nil`: a model key from the host (`Moss.Host.key/1`).
+    * `service() -> { base, key, person } | nil`: Arock's service in the keys' place, for this call's computer
+      (`Moss.Host.service/1`): on a node its token and the computer's person.
 
     * `exec{ cmd, cwd, files, timeout } -> { code, stdout, stderr, timed_out }`
       on a computer of its own (`Moss.Computer`, PROJECT.md §14),
@@ -29,12 +30,49 @@ defmodule Moss.Lua.Ports do
     |> Lua.set!([:__host, :sleep], &sleep/1)
     |> Lua.set!([:__host, :fetch], &fetch/2)
     |> Lua.set!([:__host, :key], fn [name | _] -> [Moss.Host.key(name)] end)
+    |> bind_service(ports[:agent] || ports[:computer])
     |> Lua.set!([:__host, :sha256], fn [s | _] ->
       [Base.encode16(:crypto.hash(:sha256, s), case: :lower)]
     end)
     |> bind_db(ports[:db])
     |> bind_resolve(ports[:resolve])
     |> bind_computer(ports[:computer])
+    |> bind_agent(ports[:agent])
+  end
+
+  # Arock's service for this call's computer, or nil: its base, the node's token and the computer's person
+  defp bind_service(lua, id) do
+    Lua.set!(lua, [:__host, :service], fn _, lua ->
+      case Moss.Host.service(id) do
+        nil ->
+          {[nil], lua}
+
+        svc ->
+          {table, lua} = Lua.encode!(lua, Map.take(svc, ["base", "key", "person"]))
+          {[table], lua}
+      end
+    end)
+  end
+
+  # the computer's own agent (Moss.Computer.Agent): the facts its stages are worked out from, and its log, read
+  # and written through the computer, which owns the file
+  defp bind_agent(lua, nil), do: lua
+
+  defp bind_agent(lua, id) do
+    lua
+    |> Lua.set!([:__host, :agent_facts], fn [at | _], lua ->
+      {table, lua} = Lua.encode!(lua, Moss.Computer.agent(id, :facts, [to_string(at)]))
+      {[table], lua}
+    end)
+    |> Lua.set!([:__host, :agent_events], fn _, lua ->
+      {table, lua} = Lua.encode!(lua, Moss.Computer.agent(id, :events, []))
+      {[table], lua}
+    end)
+    |> Lua.set!([:__host, :agent_append], fn [task, keyword, {:tref, _} = args, actor | _], lua ->
+      args = Lua.decode!(lua, args) |> Enum.sort() |> Enum.map(fn {_, v} -> to_string(v) end)
+      :ok = Moss.Computer.agent(id, :append, [task, keyword, args, actor])
+      {[], lua}
+    end)
   end
 
   defp bind_computer(lua, nil), do: lua

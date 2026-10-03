@@ -54,6 +54,19 @@ defmodule Moss.Lua.Sources do
     end
   end
 
+  @doc """
+  This host's own modules, run on the host and never on a computer: the computer's agent world in
+  priv/lua/world (`world.lua` is `moss.world`, `run.lua` is `moss.world.run`).
+  """
+  def own do
+    root = Path.join(:code.priv_dir(:moss), "lua/world")
+
+    for file <- Path.wildcard(Path.join(root, "*.lua")), into: %{} do
+      name = Path.rootname(Path.basename(file))
+      {if(name == "world", do: "moss.world", else: "moss.world." <> name), File.read!(file)}
+    end
+  end
+
   @doc "A Lua file of this host, from priv/lua."
   def priv(name), do: File.read!(Path.join(:code.priv_dir(:moss), "lua/" <> name))
 end
