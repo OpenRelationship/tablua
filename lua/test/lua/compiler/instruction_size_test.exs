@@ -50,7 +50,7 @@ defmodule Lua.Compiler.InstructionSizeTest do
     {{:modulo, 7, 1, 2, nil, nil}, 8},
     {{:power, 7, 1, 2, nil, nil}, 8},
     {{:negate, 7, 1, nil}, 8},
-    {{:concatenate, 7, 1, 2}, 8},
+    {{:concatenate, 7, 1, 2, nil, nil}, 8},
     {{:bitwise_and, 7, 1, 2, nil, nil}, 8},
     {{:bitwise_or, 7, 1, 2, nil, nil}, 8},
     {{:bitwise_xor, 7, 1, 2, nil, nil}, 8},
@@ -64,7 +64,7 @@ defmodule Lua.Compiler.InstructionSizeTest do
     {{:greater_equal, 7, 1, 2}, 8},
     {{:not_equal, 7, 1, 2}, 8},
     {{:not, 7, 1}, 8},
-    {{:length, 7, 1}, 8},
+    {{:length, 7, 1, nil}, 8},
     {{:closure, 7, 0}, 8}
   ]
 

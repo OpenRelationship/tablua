@@ -20,6 +20,7 @@ defmodule Lua.VM.Executor do
   alias Lua.VM.Dispatcher
   alias Lua.VM.InternalError
   alias Lua.VM.Numeric
+  alias Lua.VM.ProtectedCall
   alias Lua.VM.RuntimeError
   alias Lua.VM.State
   alias Lua.VM.Table
@@ -253,159 +254,155 @@ defmodule Lua.VM.Executor do
   # current `proto` (for source attribution) and returns the same
   # `{value, state}` shape the interpreter clauses produce.
   #
-  # Line position for these non-call raise sites is passed as `nil` rather
-  # than a literal line: the dispatcher does not yet bake per-instruction
-  # lines into binop / compare / index / concat opcodes (that is B5d-v2's
-  # subject). `nil` lets `Lua.VM.TypeError.exception/1` / `RuntimeError`
-  # fall back to `current_position/0` instead of rendering a bogus `:0:`.
-  # The pcall error *value* is unaffected (TypeError's §6.1 value carries no
-  # source:line: prefix); this only keeps the rich render / `to_map` line in
-  # sync with the interpreter. Native callbacks invoked via metamethods
-  # still get accurate positions via the process-dictionary bridge installed
-  # at the call boundary.
+  # Each takes the source `line` the bytecode encoder baked into the
+  # faulting opcode (`Lua.Compiler.Bytecode`'s `@faulting` list), so a type
+  # error names the statement it was raised in, as the interpreter's
+  # threaded `line` does, and the pcall error value gets its `source:line:`
+  # prefix (see `Lua.VM.ProtectedCall`). Native callbacks invoked via
+  # metamethods still get their positions via the process-dictionary bridge
+  # installed at the call boundary.
 
   @doc false
-  @spec dispatcher_binop(atom(), term(), term(), State.t(), term(), term(), term()) ::
+  @spec dispatcher_binop(atom(), term(), term(), State.t(), term(), term(), term(), integer()) ::
           {term(), State.t()}
-  def dispatcher_binop(:add, a, b, state, proto, hint_a, hint_b) do
+  def dispatcher_binop(:add, a, b, state, proto, hint_a, hint_b, line) do
     try_binary_metamethod("__add", a, b, state, fn ->
-      safe_add(a, b, nil, proto.source, hint_a, hint_b, state)
+      safe_add(a, b, line, proto.source, hint_a, hint_b, state)
     end)
   end
 
-  def dispatcher_binop(:subtract, a, b, state, proto, hint_a, hint_b) do
+  def dispatcher_binop(:subtract, a, b, state, proto, hint_a, hint_b, line) do
     try_binary_metamethod("__sub", a, b, state, fn ->
-      safe_subtract(a, b, nil, proto.source, hint_a, hint_b, state)
+      safe_subtract(a, b, line, proto.source, hint_a, hint_b, state)
     end)
   end
 
-  def dispatcher_binop(:multiply, a, b, state, proto, hint_a, hint_b) do
+  def dispatcher_binop(:multiply, a, b, state, proto, hint_a, hint_b, line) do
     try_binary_metamethod("__mul", a, b, state, fn ->
-      safe_multiply(a, b, nil, proto.source, hint_a, hint_b, state)
+      safe_multiply(a, b, line, proto.source, hint_a, hint_b, state)
     end)
   end
 
-  def dispatcher_binop(:divide, a, b, state, proto, hint_a, hint_b) do
+  def dispatcher_binop(:divide, a, b, state, proto, hint_a, hint_b, line) do
     try_binary_metamethod("__div", a, b, state, fn ->
-      safe_divide(a, b, nil, proto.source, hint_a, hint_b, state)
+      safe_divide(a, b, line, proto.source, hint_a, hint_b, state)
     end)
   end
 
-  def dispatcher_binop(:floor_divide, a, b, state, proto, hint_a, hint_b) do
+  def dispatcher_binop(:floor_divide, a, b, state, proto, hint_a, hint_b, line) do
     try_binary_metamethod("__idiv", a, b, state, fn ->
-      safe_floor_divide(a, b, nil, proto.source, hint_a, hint_b, state)
+      safe_floor_divide(a, b, line, proto.source, hint_a, hint_b, state)
     end)
   end
 
-  def dispatcher_binop(:modulo, a, b, state, proto, hint_a, hint_b) do
+  def dispatcher_binop(:modulo, a, b, state, proto, hint_a, hint_b, line) do
     try_binary_metamethod("__mod", a, b, state, fn ->
-      safe_modulo(a, b, nil, proto.source, hint_a, hint_b, state)
+      safe_modulo(a, b, line, proto.source, hint_a, hint_b, state)
     end)
   end
 
-  def dispatcher_binop(:power, a, b, state, proto, hint_a, hint_b) do
+  def dispatcher_binop(:power, a, b, state, proto, hint_a, hint_b, line) do
     try_binary_metamethod("__pow", a, b, state, fn ->
-      safe_power(a, b, nil, proto.source, hint_a, hint_b, state)
+      safe_power(a, b, line, proto.source, hint_a, hint_b, state)
     end)
   end
 
   @doc false
-  @spec dispatcher_unop(atom(), term(), State.t(), term(), term()) :: {term(), State.t()}
-  def dispatcher_unop(:negate, val, state, proto, hint) do
-    try_unary_metamethod("__unm", val, state, fn -> safe_negate(val, nil, proto.source, hint, state) end)
+  @spec dispatcher_unop(atom(), term(), State.t(), term(), term(), integer()) :: {term(), State.t()}
+  def dispatcher_unop(:negate, val, state, proto, hint, line) do
+    try_unary_metamethod("__unm", val, state, fn -> safe_negate(val, line, proto.source, hint, state) end)
   end
 
   # Bitwise bridges mirror the `:bitwise_*` / `:shift_*` interpreter clauses
-  # (do_execute) with `line = 0`, matching how `dispatcher_binop/7` drops the
-  # line. The dispatcher inlines the two-integer fast path for band/bor/bxor
+  # (do_execute). The dispatcher inlines the two-integer fast path for band/bor/bxor
   # and bridges here for everything else (non-integers, metamethods) and for
   # all of shl/shr (no profitable inline fast path — shift semantics live in
   # `lua_shift_left` / `lua_shift_right`).
   @doc false
-  @spec dispatcher_bitwise(atom(), term(), term(), State.t(), term(), term(), term()) ::
+  @spec dispatcher_bitwise(atom(), term(), term(), State.t(), term(), term(), term(), integer()) ::
           {term(), State.t()}
-  def dispatcher_bitwise(:band, a, b, state, proto, hint_a, hint_b) do
+  def dispatcher_bitwise(:band, a, b, state, proto, hint_a, hint_b, line) do
     src = proto.source
 
     try_binary_metamethod("__band", a, b, state, fn ->
-      Numeric.to_signed_int64(Bitwise.band(to_integer!(a, 0, src, hint_a, state), to_integer!(b, 0, src, hint_b, state)))
+      Numeric.to_signed_int64(Bitwise.band(to_integer!(a, line, src, hint_a, state), to_integer!(b, line, src, hint_b, state)))
     end)
   end
 
-  def dispatcher_bitwise(:bor, a, b, state, proto, hint_a, hint_b) do
+  def dispatcher_bitwise(:bor, a, b, state, proto, hint_a, hint_b, line) do
     src = proto.source
 
     try_binary_metamethod("__bor", a, b, state, fn ->
-      Numeric.to_signed_int64(Bitwise.bor(to_integer!(a, 0, src, hint_a, state), to_integer!(b, 0, src, hint_b, state)))
+      Numeric.to_signed_int64(Bitwise.bor(to_integer!(a, line, src, hint_a, state), to_integer!(b, line, src, hint_b, state)))
     end)
   end
 
-  def dispatcher_bitwise(:bxor, a, b, state, proto, hint_a, hint_b) do
+  def dispatcher_bitwise(:bxor, a, b, state, proto, hint_a, hint_b, line) do
     src = proto.source
 
     try_binary_metamethod("__bxor", a, b, state, fn ->
-      Numeric.to_signed_int64(Bitwise.bxor(to_integer!(a, 0, src, hint_a, state), to_integer!(b, 0, src, hint_b, state)))
+      Numeric.to_signed_int64(Bitwise.bxor(to_integer!(a, line, src, hint_a, state), to_integer!(b, line, src, hint_b, state)))
     end)
   end
 
-  def dispatcher_bitwise(:shl, a, b, state, proto, hint_a, hint_b) do
+  def dispatcher_bitwise(:shl, a, b, state, proto, hint_a, hint_b, line) do
     src = proto.source
 
     try_binary_metamethod("__shl", a, b, state, fn ->
-      lua_shift_left(to_integer!(a, 0, src, hint_a, state), to_integer!(b, 0, src, hint_b, state))
+      lua_shift_left(to_integer!(a, line, src, hint_a, state), to_integer!(b, line, src, hint_b, state))
     end)
   end
 
-  def dispatcher_bitwise(:shr, a, b, state, proto, hint_a, hint_b) do
+  def dispatcher_bitwise(:shr, a, b, state, proto, hint_a, hint_b, line) do
     src = proto.source
 
     try_binary_metamethod("__shr", a, b, state, fn ->
-      lua_shift_right(to_integer!(a, 0, src, hint_a, state), to_integer!(b, 0, src, hint_b, state))
+      lua_shift_right(to_integer!(a, line, src, hint_a, state), to_integer!(b, line, src, hint_b, state))
     end)
   end
 
   @doc false
-  @spec dispatcher_bnot(term(), State.t(), term(), term()) :: {term(), State.t()}
-  def dispatcher_bnot(val, state, proto, hint) do
+  @spec dispatcher_bnot(term(), State.t(), term(), term(), integer()) :: {term(), State.t()}
+  def dispatcher_bnot(val, state, proto, hint, line) do
     src = proto.source
 
     try_unary_metamethod("__bnot", val, state, fn ->
-      Numeric.to_signed_int64(Bitwise.bnot(to_integer!(val, 0, src, hint, state)))
+      Numeric.to_signed_int64(Bitwise.bnot(to_integer!(val, line, src, hint, state)))
     end)
   end
 
   @doc false
-  @spec dispatcher_cmp(atom(), term(), term(), State.t(), term()) :: {term(), State.t()}
-  def dispatcher_cmp(:less_than, a, b, state, proto) do
-    try_binary_metamethod("__lt", a, b, state, fn -> safe_compare_lt(a, b, nil, proto.source, state) end)
+  @spec dispatcher_cmp(atom(), term(), term(), State.t(), term(), integer() | nil) :: {term(), State.t()}
+  def dispatcher_cmp(:less_than, a, b, state, proto, line) do
+    try_binary_metamethod("__lt", a, b, state, fn -> safe_compare_lt(a, b, line, proto.source, state) end)
   end
 
-  def dispatcher_cmp(:less_equal, a, b, state, proto) do
-    compare_le(a, b, state, nil, proto.source)
+  def dispatcher_cmp(:less_equal, a, b, state, proto, line) do
+    compare_le(a, b, state, line, proto.source)
   end
 
-  def dispatcher_cmp(:greater_than, a, b, state, proto) do
+  def dispatcher_cmp(:greater_than, a, b, state, proto, line) do
     # Lua 5.3 §3.4.4: a > b dispatches __lt with swapped operands.
-    try_binary_metamethod("__lt", b, a, state, fn -> safe_compare_lt(b, a, nil, proto.source, state) end)
+    try_binary_metamethod("__lt", b, a, state, fn -> safe_compare_lt(b, a, line, proto.source, state) end)
   end
 
-  def dispatcher_cmp(:greater_equal, a, b, state, proto) do
+  def dispatcher_cmp(:greater_equal, a, b, state, proto, line) do
     # Lua 5.3 §3.4.4: a >= b is rewritten to b <= a.
-    compare_le(b, a, state, nil, proto.source)
+    compare_le(b, a, state, line, proto.source)
   end
 
-  def dispatcher_cmp(:equal, a, b, state, _proto) do
+  def dispatcher_cmp(:equal, a, b, state, _proto, _line) do
     try_equality_metamethod(a, b, state, fn -> lua_equal(a, b) end)
   end
 
-  def dispatcher_cmp(:not_equal, a, b, state, _proto) do
+  def dispatcher_cmp(:not_equal, a, b, state, _proto, _line) do
     {eq, new_state} = try_equality_metamethod(a, b, state, fn -> lua_equal(a, b) end)
     {not eq, new_state}
   end
 
   @doc false
-  @spec dispatcher_get_field(term(), term(), State.t(), term(), term()) :: {term(), State.t()}
-  def dispatcher_get_field({:tref, id} = tref, name, state, proto, name_hint) do
+  @spec dispatcher_get_field(term(), term(), State.t(), term(), term(), integer()) :: {term(), State.t()}
+  def dispatcher_get_field({:tref, id} = tref, name, state, proto, name_hint, line) do
     # Fast path mirrors the interpreter's `:get_field` clause: skip the
     # full `index_value` pipeline when the table has the key and either
     # has no metatable, or the key is present at the data layer.
@@ -418,99 +415,72 @@ defmodule Lua.VM.Executor do
       _ ->
         case :erlang.map_get(:metatable, table) do
           nil -> {nil, state}
-          _ -> index_value(tref, name, state, nil, proto.source, name_hint)
+          _ -> index_value(tref, name, state, line, proto.source, name_hint)
         end
     end
   end
 
-  def dispatcher_get_field(value, name, state, proto, name_hint) do
-    index_value(value, name, state, nil, proto.source, name_hint)
+  def dispatcher_get_field(value, name, state, proto, name_hint, line) do
+    index_value(value, name, state, line, proto.source, name_hint)
   end
 
   # ── Dispatcher bridges: table opcodes ───────────────────────────────────
   #
   # These wrap the same `defp` helpers that the interpreter's `:get_table`
   # / `:set_table` / `:set_field` / `:length` clauses call, so the
-  # dispatcher inherits metamethod fidelity for free. Line attribution is
-  # uniformly `nil` here so the error render falls back to
-  # `current_position/0` instead of `:0:`; threading honest line info into
-  # compiled prototypes is B5d-v2. Native callbacks reached via metamethods
-  # still see accurate positions via the process-dictionary bridge installed
-  # at the call boundary.
+  # dispatcher inherits metamethod fidelity for free.
 
   @doc false
-  @spec dispatcher_get_table(term(), term(), State.t(), term(), term()) ::
+  @spec dispatcher_get_table(term(), term(), State.t(), term(), term(), integer()) ::
           {term(), State.t()}
-  def dispatcher_get_table(value, key, state, proto, name_hint) do
-    index_value(value, key, state, nil, proto.source, name_hint)
+  def dispatcher_get_table(value, key, state, proto, name_hint, line) do
+    index_value(value, key, state, line, proto.source, name_hint)
   end
 
   @doc false
-  @spec dispatcher_set_table(term(), term(), term(), State.t(), term(), term()) ::
+  @spec dispatcher_set_table(term(), term(), term(), State.t(), term(), term(), integer()) ::
           State.t() | no_return()
-  def dispatcher_set_table({:tref, _} = tref, key, value, state, _proto, _name_hint) do
+  def dispatcher_set_table({:tref, _} = tref, key, value, state, _proto, _name_hint, _line) do
     table_newindex(tref, key, value, state)
   end
 
-  def dispatcher_set_table(value, _key, _value, state, proto, name_hint) do
-    raise_index_type_error(value, nil, proto.source, name_hint, state)
+  def dispatcher_set_table(value, _key, _value, state, proto, name_hint, line) do
+    raise_index_type_error(value, line, proto.source, name_hint, state)
   end
 
   @doc false
-  @spec dispatcher_set_field(term(), binary(), term(), State.t(), term(), term()) ::
+  @spec dispatcher_set_field(term(), binary(), term(), State.t(), term(), term(), integer()) ::
           State.t() | no_return()
-  def dispatcher_set_field({:tref, _} = tref, name, value, state, _proto, _name_hint) do
+  def dispatcher_set_field({:tref, _} = tref, name, value, state, _proto, _name_hint, _line) do
     table_newindex(tref, name, value, state)
   end
 
-  def dispatcher_set_field(value, _name, _value, state, proto, name_hint) do
-    raise_index_type_error(value, nil, proto.source, name_hint, state)
-  end
-
-  # The `_proto` parameter is unused today because `try_unary_metamethod`
-  # doesn't thread a `source` through; B5d-v2 will route `__len` errors
-  # back to `proto.source` (matching the other bridges' attribution),
-  # so the parameter stays in the signature for forward-compat.
-  @doc false
-  @spec dispatcher_length(term(), State.t(), term()) :: {term(), State.t()}
-  def dispatcher_length(value, state, _proto) do
-    try_unary_metamethod("__len", value, state, fn ->
-      case value do
-        {:tref, id} ->
-          table = Map.fetch!(state.tables, id)
-          Table.length(table)
-
-        v when is_binary(v) ->
-          byte_size(v)
-
-        v when is_list(v) ->
-          length(v)
-
-        _ ->
-          0
-      end
-    end)
+  def dispatcher_set_field(value, _name, _value, state, proto, name_hint, line) do
+    raise_index_type_error(value, line, proto.source, name_hint, state)
   end
 
   @doc false
-  @spec dispatcher_coerce_numeric_for_controls(term(), term(), term(), State.t()) ::
+  @spec dispatcher_length(term(), State.t(), term(), term(), integer()) :: {term(), State.t()}
+  def dispatcher_length(value, state, proto, hint, line) do
+    length_of(value, state, line, proto.source, hint)
+  end
+
+  @doc false
+  @spec dispatcher_coerce_numeric_for_controls(term(), term(), term(), State.t(), term(), integer()) ::
           {number(), number(), number()}
-  def dispatcher_coerce_numeric_for_controls(init, limit, step, state) do
-    coerce_numeric_for_controls(init, limit, step, state)
+  def dispatcher_coerce_numeric_for_controls(init, limit, step, state, proto, line) do
+    coerce_numeric_for_controls(init, limit, step, state, line, proto.source)
   end
 
   # ── Dispatcher bridges: B5c-v2 ──────────────────────────────────────────
   #
   # `:self` method resolution. Wraps `index_value/6` so __index metamethod
-  # dispatch matches the interpreter clause-for-clause. Line attribution is
-  # `nil` for the same reason as the other non-call bridges — it falls back
-  # to `current_position/0` rather than rendering `:0:`; per-instruction line
-  # baking for these opcodes is B5d-v2.
+  # dispatch matches the interpreter clause-for-clause.
   @doc false
-  @spec dispatcher_index_method_target(term(), term(), State.t(), term(), term()) ::
+  @spec dispatcher_index_method_target(term(), term(), State.t(), term(), term(), integer()) ::
           {term(), State.t()}
-  def dispatcher_index_method_target(obj, method_name, state, proto, name_hint) do
-    index_value(obj, method_name, state, nil, proto.source, name_hint)
+  def dispatcher_index_method_target(obj, method_name, state, proto, name_hint, line) do
+    index_value(obj, method_name, state, line, proto.source, name_hint)
   end
 
   # `:generic_for` step: invoke the iterator function. The iterator can be
@@ -534,13 +504,13 @@ defmodule Lua.VM.Executor do
   # the metatable case and the coerce path here so the type-error wording
   # stays in sync with the interpreter.
   @doc false
-  @spec dispatcher_concat(term(), term(), State.t(), term()) ::
+  @spec dispatcher_concat(term(), term(), State.t(), term(), term(), term(), integer()) ::
           {binary(), State.t()}
-  def dispatcher_concat(left, right, state, proto) do
+  def dispatcher_concat(left, right, state, proto, hint_a, hint_b, line) do
     src = proto.source
 
     try_binary_metamethod("__concat", left, right, state, fn ->
-      concat_checked(concat_coerce(left, nil, src, state), concat_coerce(right, nil, src, state), state)
+      concat_checked(concat_coerce(left, line, src, hint_a, state), concat_coerce(right, line, src, hint_b, state), state)
     end)
   end
 
@@ -1197,7 +1167,14 @@ defmodule Lua.VM.Executor do
     # loop start and write the canonical numbers back into the control
     # registers so subsequent iterations work on numbers.
     {counter, limit, step} =
-      coerce_numeric_for_controls(elem(regs, base), elem(regs, base + 1), elem(regs, base + 2), state)
+      coerce_numeric_for_controls(
+        elem(regs, base),
+        elem(regs, base + 1),
+        elem(regs, base + 2),
+        state,
+        line,
+        proto.source
+      )
 
     regs =
       regs
@@ -1965,7 +1942,7 @@ defmodule Lua.VM.Executor do
   # ── String concatenation ───────────────────────────────────────────────────
 
   defp do_execute(
-         [{:concatenate, dest, a, b} | rest],
+         [{:concatenate, dest, a, b, hint_a, hint_b} | rest],
          regs,
          upvalues,
          proto,
@@ -1990,7 +1967,14 @@ defmodule Lua.VM.Executor do
 
       (is_binary(left) or is_number(left)) and (is_binary(right) or is_number(right)) ->
         src = proto.source
-        result = concat_checked(concat_coerce(left, line, src, state), concat_coerce(right, line, src, state), state)
+
+        result =
+          concat_checked(
+            concat_coerce(left, line, src, hint_a, state),
+            concat_coerce(right, line, src, hint_b, state),
+            state
+          )
+
         regs = put_elem(regs, dest, result)
         do_execute(rest, regs, upvalues, proto, state, cont, frames, line, instruction_count)
 
@@ -1999,7 +1983,11 @@ defmodule Lua.VM.Executor do
 
         {result, new_state} =
           try_binary_metamethod("__concat", left, right, state, fn ->
-            concat_checked(concat_coerce(left, line, src, state), concat_coerce(right, line, src, state), state)
+            concat_checked(
+              concat_coerce(left, line, src, hint_a, state),
+              concat_coerce(right, line, src, hint_b, state),
+              state
+            )
           end)
 
         regs = put_elem(regs, dest, result)
@@ -2580,27 +2568,18 @@ defmodule Lua.VM.Executor do
     do_execute(rest, regs, upvalues, proto, state, cont, frames, line, instruction_count)
   end
 
-  defp do_execute([{:length, dest, source} | rest], regs, upvalues, proto, state, cont, frames, line, instruction_count) do
-    value = elem(regs, source)
-
-    {result, new_state} =
-      try_unary_metamethod("__len", value, state, fn ->
-        case value do
-          {:tref, id} ->
-            table = Map.fetch!(state.tables, id)
-            Table.length(table)
-
-          v when is_binary(v) ->
-            byte_size(v)
-
-          v when is_list(v) ->
-            length(v)
-
-          _ ->
-            0
-        end
-      end)
-
+  defp do_execute(
+         [{:length, dest, source, hint} | rest],
+         regs,
+         upvalues,
+         proto,
+         state,
+         cont,
+         frames,
+         line,
+         instruction_count
+       ) do
+    {result, new_state} = length_of(elem(regs, source), state, line, proto.source, hint)
     regs = put_elem(regs, dest, result)
     do_execute(rest, regs, upvalues, proto, new_state, cont, frames, line, instruction_count)
   end
@@ -3298,18 +3277,45 @@ defmodule Lua.VM.Executor do
 
   # ── Coerce a value to string for concatenation ─────────────────────────────
 
-  defp concat_coerce(value, _line, _source, _state) when is_binary(value), do: value
-  defp concat_coerce(value, _line, _source, _state) when is_integer(value), do: Integer.to_string(value)
-  defp concat_coerce(value, _line, _source, _state) when is_float(value), do: Value.to_string(value)
+  defp concat_coerce(value, _line, _source, _hint, _state) when is_binary(value), do: value
+  defp concat_coerce(value, _line, _source, _hint, _state) when is_integer(value), do: Integer.to_string(value)
+  defp concat_coerce(value, _line, _source, _hint, _state) when is_float(value), do: Value.to_string(value)
 
-  defp concat_coerce(value, line, source, state) do
+  defp concat_coerce(value, line, source, hint, state) do
     raise TypeError,
-      value: "attempt to concatenate a #{Value.type_name(value)} value",
+      value: "attempt to concatenate a #{Value.type_name(value)} value" <> format_target_hint(hint),
       line: line,
       source: source,
       error_kind: :concatenate_type_error,
       value_type: value_type(value),
       state: state
+  end
+
+  # `#value` for both engines: `__len` when the value has one, else a
+  # table's border or a string's byte length. Anything else is the type error
+  # PUC-Lua raises (Lua 5.3 §3.4.7), never a silent 0.
+  defp length_of(value, state, line, source, hint) do
+    try_unary_metamethod("__len", value, state, fn ->
+      case value do
+        {:tref, id} ->
+          Table.length(Map.fetch!(state.tables, id))
+
+        v when is_binary(v) ->
+          byte_size(v)
+
+        v when is_list(v) ->
+          length(v)
+
+        _ ->
+          raise TypeError,
+            value: "attempt to get length of a #{Value.type_name(value)} value" <> format_target_hint(hint),
+            line: line,
+            source: source,
+            error_kind: :length_non_table,
+            value_type: value_type(value),
+            state: state
+      end
+    end)
   end
 
   # `..` builds a new binary on every step. A doubling loop (`s = s .. s`)
@@ -3786,7 +3792,12 @@ defmodule Lua.VM.Executor do
 
     cond do
       is_integer(na) and is_integer(nb) and nb == 0 ->
-        raise RuntimeError, value: "attempt to divide by zero", line: line, source: source, state: state
+        raise RuntimeError,
+          value: "attempt to divide by zero",
+          lua_value: ProtectedCall.positioned("attempt to divide by zero", line, source),
+          line: line,
+          source: source,
+          state: state
 
       is_integer(na) and is_integer(nb) ->
         Numeric.to_signed_int64(lua_idiv(na, nb))
@@ -3813,7 +3824,12 @@ defmodule Lua.VM.Executor do
 
     cond do
       is_integer(na) and is_integer(nb) and nb == 0 ->
-        raise RuntimeError, value: "attempt to perform 'n%0'", line: line, source: source, state: state
+        raise RuntimeError,
+          value: "attempt to perform 'n%0'",
+          lua_value: ProtectedCall.positioned("attempt to perform 'n%0'", line, source),
+          line: line,
+          source: source,
+          state: state
 
       is_integer(na) and is_integer(nb) ->
         Numeric.to_signed_int64(na - lua_idiv(na, nb) * nb)
@@ -3939,10 +3955,10 @@ defmodule Lua.VM.Executor do
   # init and step are integers, the loop runs with integers; otherwise,
   # init is promoted to float (limit stays as whatever number it parsed
   # to — counter/limit comparison works numerically across int/float).
-  defp coerce_numeric_for_controls(init, limit, step, state) do
-    init_n = coerce_for_value(init, "'for' initial value must be a number", state)
-    limit_n = coerce_for_value(limit, "'for' limit must be a number", state)
-    step_n = coerce_for_value(step, "'for' step must be a number", state)
+  defp coerce_numeric_for_controls(init, limit, step, state, line, source) do
+    init_n = coerce_for_value(init, "'for' initial value must be a number", {line, source}, state)
+    limit_n = coerce_for_value(limit, "'for' limit must be a number", {line, source}, state)
+    step_n = coerce_for_value(step, "'for' step must be a number", {line, source}, state)
 
     if is_float(init_n) or is_float(step_n) do
       {init_n * 1.0, limit_n, step_n * 1.0}
@@ -3951,13 +3967,15 @@ defmodule Lua.VM.Executor do
     end
   end
 
-  defp coerce_for_value(v, _msg, _state) when is_number(v), do: v
+  defp coerce_for_value(v, _msg, _at, _state) when is_number(v), do: v
 
-  defp coerce_for_value(v, msg, state) when is_binary(v) do
+  defp coerce_for_value(v, msg, {line, source}, state) when is_binary(v) do
     case Value.parse_number(v) do
       nil ->
         raise TypeError,
           value: msg,
+          line: line,
+          source: source,
           error_kind: :for_loop_non_number,
           value_type: :string,
           state: state
@@ -3967,9 +3985,11 @@ defmodule Lua.VM.Executor do
     end
   end
 
-  defp coerce_for_value(v, msg, state) do
+  defp coerce_for_value(v, msg, {line, source}, state) do
     raise TypeError,
       value: msg,
+      line: line,
+      source: source,
       error_kind: :for_loop_non_number,
       value_type: value_type(v),
       state: state

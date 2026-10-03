@@ -163,18 +163,24 @@ defmodule Lua.VM.Stdlib.Debug do
 
   defp stack_position_for_level(_, _state), do: nil
 
-  # debug.traceback([message [, level]]) — returns traceback string
+  # debug.traceback([message [, level]]) — returns traceback string.
+  # Each call-stack entry is a call site: the caller's source and line, and
+  # the name the callee was called by. A traceback line names the function
+  # at that position, which is the name the *next* entry out called it by.
+  # The outermost entry's function is unknown (natives such as `pcall` push
+  # no entry, so it need not be the main chunk) and shows as `?`.
   defp debug_traceback(args, state) do
     message = List.first(args)
     _level = Enum.at(args, 1, 1)
+    stack = state.call_stack
 
     traceback =
-      state.call_stack
-      |> Enum.with_index(1)
-      |> Enum.map(fn {frame, _i} ->
+      stack
+      |> Enum.zip(tl(stack ++ [:outermost]))
+      |> Enum.map(fn {frame, caller} ->
         source = Executor.frame_source(frame) || "?"
         line = Executor.frame_line(frame) || 0
-        "\t#{source}:#{line}: in ?"
+        "\t#{source}:#{line}: in #{traceback_name(caller)}"
       end)
 
     header = "stack traceback:"
@@ -189,6 +195,18 @@ defmodule Lua.VM.Stdlib.Debug do
 
     {[result], state}
   end
+
+  defp traceback_name(:outermost), do: "?"
+
+  defp traceback_name(frame) do
+    case Executor.frame_name(frame) do
+      nil -> "?"
+      name -> "#{traceback_namewhat(Executor.frame_namewhat(frame))}'#{name}'"
+    end
+  end
+
+  defp traceback_namewhat(namewhat) when namewhat in ["", "global"], do: "function "
+  defp traceback_namewhat(namewhat), do: namewhat <> " "
 
   # debug.getmetatable(obj) — returns metatable bypassing __metatable protection
   defp debug_getmetatable([{:tref, _} = tref | _], state) do

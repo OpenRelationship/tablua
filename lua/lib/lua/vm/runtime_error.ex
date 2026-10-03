@@ -24,9 +24,9 @@ defmodule Lua.VM.RuntimeError do
   # rolling back to their entry snapshot. It is out-of-band metadata: it never
   # participates in `message` and stays `nil` when no state was in scope.
   #
-  # `:lua_value` is Lua-facing only: when `error()` raises a string message,
-  # it carries the §6.1 `source:line:`-prefixed view that `pcall`/`xpcall`
-  # hand back to Lua code. It is NEVER read by `message`, `to_map`,
+  # `:lua_value` is Lua-facing only: when `error()` raises a string message
+  # (or the VM raises one of its own arithmetic errors), it carries the §6.1
+  # `source:line:`-prefixed view that `pcall`/`xpcall` hand back to Lua code. It is NEVER read by `message`, `to_map`,
   # `format_message`, `raw_message`, or `stringify` — those keep reading the
   # raw `:value`, so host-facing rendering (which adds its own
   # `at source:line:` header) never doubles the location.

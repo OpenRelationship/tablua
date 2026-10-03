@@ -162,6 +162,48 @@ defmodule Lua.Compiler.Bytecode do
     @op_call_zero_2
   ]
 
+  # The opcodes that can raise a type error of their own (indexing,
+  # arithmetic, bitwise, ordering, concatenation, length, the numeric `for`
+  # control check). Each gets the
+  # source line appended as its last operand, the way the call opcodes do, so
+  # the dispatcher's slow-path bridges can name the faulting line. Equality
+  # never raises on its own and keeps its shape.
+  @faulting [
+    @op_get_field,
+    @op_get_field_upvalue,
+    @op_set_field,
+    @op_set_field_upvalue,
+    @op_get_table,
+    @op_set_table,
+    @op_self,
+    @op_add,
+    @op_subtract,
+    @op_multiply,
+    @op_divide,
+    @op_floor_divide,
+    @op_modulo,
+    @op_power,
+    @op_negate,
+    @op_add_k,
+    @op_subtract_k,
+    @op_multiply_k,
+    @op_bitwise_and,
+    @op_bitwise_or,
+    @op_bitwise_xor,
+    @op_shift_left,
+    @op_shift_right,
+    @op_bitwise_not,
+    @op_less_than,
+    @op_less_equal,
+    @op_greater_than,
+    @op_greater_equal,
+    @op_less_than_k,
+    @op_less_equal_k,
+    @op_length,
+    @op_concatenate,
+    @op_numeric_for
+  ]
+
   @doc """
   Compile a prototype, populating its `bytecode` field on success.
 
@@ -237,9 +279,9 @@ defmodule Lua.Compiler.Bytecode do
   # lookup table. `:generic_for` carries its own line because the iterator
   # is invoked at the `for` statement before the body's `:source_line`
   # opcodes run, so a native iterator raising mid-step (e.g. `error()`)
-  # would otherwise leak `:0:`. Other opcodes pass through unchanged —
-  # line attribution for non-call raise sites (binops, indexing, concat)
-  # is deferred.
+  # would otherwise leak `:0:`. The `@faulting` opcodes carry the line as
+  # their last operand for their type errors. Other opcodes pass through
+  # unchanged.
   defp annotate_line({tag, base, hint}, line) when tag in @static_arity_calls, do: {tag, base, hint, line}
 
   defp annotate_line({@op_call_one, base, args, hint}, line), do: {@op_call_one, base, args, hint, line}
@@ -253,6 +295,8 @@ defmodule Lua.Compiler.Bytecode do
     do: {@op_call_self, base, args, results, hint, line}
 
   defp annotate_line({@op_generic_for, base, var_regs, body}, line), do: {@op_generic_for, base, var_regs, body, line}
+
+  defp annotate_line(instr, line) when :erlang.element(1, instr) in @faulting, do: :erlang.append_element(instr, line)
 
   defp annotate_line(other, _line), do: other
 
@@ -349,7 +393,7 @@ defmodule Lua.Compiler.Bytecode do
 
   # Arithmetic instructions carry per-operand hint tuples for error
   # attribution. The v2 dispatcher threads them into
-  # `Executor.dispatcher_binop/7` / `dispatcher_unop/5` so on-disk
+  # `Executor.dispatcher_binop/8` / `dispatcher_unop/6` so on-disk
   # bytecode preserves the hint suffix (e.g. `(local 'n')`) on
   # arithmetic type errors.
   defp encode({:add, dest, a, b, hint_a, hint_b}), do: {:ok, {@op_add, dest, a, b, hint_a, hint_b}}
@@ -363,7 +407,7 @@ defmodule Lua.Compiler.Bytecode do
 
   # Bitwise instructions carry the same per-operand hint tuples as
   # arithmetic. The dispatcher inlines a two-integer fast path for
-  # band/bor/bxor and bridges to `Executor.dispatcher_bitwise/7` /
+  # band/bor/bxor and bridges to `Executor.dispatcher_bitwise/8` /
   # `dispatcher_bnot/5` for non-integer operands, metamethods, and all
   # shifts — so on-disk bytecode preserves both the int64 wrap and the
   # hint suffix on `attempt to perform bitwise operation` errors.
@@ -517,7 +561,7 @@ defmodule Lua.Compiler.Bytecode do
   defp encode({:set_list, table_reg, start, {:multi, init_count}, offset}),
     do: {:ok, {@op_set_list_multi, table_reg, start, init_count, offset}}
 
-  defp encode({:length, dest, source}), do: {:ok, {@op_length, dest, source}}
+  defp encode({:length, dest, source, hint}), do: {:ok, {@op_length, dest, source, hint}}
 
   # `:numeric_for`, `:while_loop`, `:repeat_loop`, `:generic_for` each carry
   # nested instruction lists for the loop body (and, for while / repeat, the
@@ -549,7 +593,7 @@ defmodule Lua.Compiler.Bytecode do
   defp encode({:self, base, obj_reg, method_name, name_hint}),
     do: {:ok, {@op_self, base, obj_reg, method_name, name_hint}}
 
-  defp encode({:concatenate, dest, a, b}), do: {:ok, {@op_concatenate, dest, a, b}}
+  defp encode({:concatenate, dest, a, b, hint_a, hint_b}), do: {:ok, {@op_concatenate, dest, a, b, hint_a, hint_b}}
 
   defp encode(:break), do: {:ok, {@op_break}}
 
@@ -619,8 +663,8 @@ defmodule Lua.Compiler.Bytecode do
     {@op_test, reg, resolve_gotos(then_bc, anc), resolve_gotos(else_bc, anc)}
   end
 
-  defp resolve_entry({@op_numeric_for, base, loop_var, body_bc}, pc, labels, ancestors) do
-    {@op_numeric_for, base, loop_var, resolve_gotos(body_bc, [{labels, pc, @loop_weight} | ancestors])}
+  defp resolve_entry({@op_numeric_for, base, loop_var, body_bc, line}, pc, labels, ancestors) do
+    {@op_numeric_for, base, loop_var, resolve_gotos(body_bc, [{labels, pc, @loop_weight} | ancestors]), line}
   end
 
   defp resolve_entry({@op_while_loop, test_reg, cond_bc, body_bc}, pc, labels, ancestors) do

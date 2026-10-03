@@ -285,20 +285,26 @@ defmodule Lua.VM.Stdlib do
     {[true | results], state}
   rescue
     e in [RuntimeError, AssertionError, TypeError, ArgumentError] ->
-      run_xpcall_handler(handler, ProtectedCall.error_value(e), State.unwind_to(state, e.state))
+      run_xpcall_handler(handler, ProtectedCall.error_value(e), State.unwind_to(state, e.state), e.state)
 
     e ->
       # Catch any other error
-      run_xpcall_handler(handler, Exception.message(e), State.unwind_to(state, raised_state(e)))
+      raised = raised_state(e)
+      run_xpcall_handler(handler, Exception.message(e), State.unwind_to(state, raised), raised)
   end
 
   defp lua_xpcall(_, state), do: {[false, "bad argument to 'xpcall'"], state}
 
+  # The handler sees the call stack as it was at the raise, as PUC-Lua runs
+  # it before the stack unwinds, so `xpcall(f, debug.traceback)` lists the
+  # frames that failed; the caller's stack is put back afterwards.
   # If the handler itself fails, return the original error — keeping any
   # heap effects the handler made before its own error.
-  defp run_xpcall_handler(handler, error_msg, state) do
-    {handler_results, state} = Executor.call_function(handler, [error_msg], state)
-    {[false | handler_results], state}
+  defp run_xpcall_handler(handler, error_msg, state, raised) do
+    stack = state.call_stack
+    at_raise = if raised, do: %{state | call_stack: raised.call_stack}, else: state
+    {handler_results, state} = Executor.call_function(handler, [error_msg], at_raise)
+    {[false | handler_results], %{state | call_stack: stack}}
   rescue
     e ->
       {[false, error_msg], State.unwind_to(state, raised_state(e))}
@@ -468,19 +474,19 @@ defmodule Lua.VM.Stdlib do
   # chunk ends when it returns nil, an empty string, or no value.
   # Returns the compiled function, or (nil, error message) on failure.
   defp lua_load([chunk | rest], state) when is_binary(chunk) do
-    compile_loaded_chunk(chunk, load_env_arg(rest, state), state, chunk_id(rest))
+    compile_loaded_chunk(chunk, load_env_arg(rest, state), state, chunk_id(rest, chunk))
   end
 
   defp lua_load([{:lua_closure, _, _} = reader | rest], state) do
-    load_from_reader(reader, load_env_arg(rest, state), state, chunk_id(rest))
+    load_from_reader(reader, load_env_arg(rest, state), state, chunk_id(rest, "=(load)"))
   end
 
   defp lua_load([{:compiled_closure, _, _} = reader | rest], state) do
-    load_from_reader(reader, load_env_arg(rest, state), state, chunk_id(rest))
+    load_from_reader(reader, load_env_arg(rest, state), state, chunk_id(rest, "=(load)"))
   end
 
   defp lua_load([{:native_func, _} = reader | rest], state) do
-    load_from_reader(reader, load_env_arg(rest, state), state, chunk_id(rest))
+    load_from_reader(reader, load_env_arg(rest, state), state, chunk_id(rest, "=(load)"))
   end
 
   defp lua_load([_other | _], state) do
@@ -544,24 +550,30 @@ defmodule Lua.VM.Stdlib do
 
   # The name a loaded chunk goes by in its error messages and tracebacks, from
   # load's chunkname as Lua's luaO_chunkid shows it: "@file" is the file,
-  # "=name" is used as is, any other string is [string "its first line"].
-  # Without a chunkname the chunk keeps the compiler's default.
-  defp chunk_id([name | _]) when is_binary(name) do
-    case name do
-      "@" <> file -> file
-      "=" <> as_is -> as_is
-      text -> ~s([string "#{text |> String.split("\n") |> hd() |> String.slice(0, 60)}"])
+  # "=name" is used as is (neither cut to LUA_IDSIZE: a whole path is worth
+  # more than PUC's fixed buffer), any other string is [string "its first
+  # line"], cut with "..." when it is long or has more lines. Without a
+  # chunkname, load names a string chunk by its own text and a reader's
+  # chunk "=(load)", as PUC-Lua does.
+  defp chunk_id([name | _], _default) when is_binary(name), do: chunk_id(name)
+  defp chunk_id(_, default), do: chunk_id(default)
+
+  defp chunk_id("=" <> as_is), do: as_is
+  defp chunk_id("@" <> file), do: file
+
+  defp chunk_id(text) do
+    case String.split(text, "\n", parts: 2) do
+      [line] when byte_size(line) < 45 -> ~s([string "#{line}"])
+      [line | _] -> ~s([string "#{String.slice(line, 0, 45)}..."])
     end
   end
-
-  defp chunk_id(_), do: nil
 
   defp compile_loaded_chunk(source, env, state, id) do
     case Lua.Parser.parse(source) do
       {:ok, ast} ->
         # Compiler currently never returns errors, always succeeds — see
         # `Lua.Compiler.compile!/2` for the matching note.
-        {:ok, prototype} = if id, do: Lua.Compiler.compile(ast, source: id), else: Lua.Compiler.compile(ast)
+        {:ok, prototype} = Lua.Compiler.compile(ast, source: id)
 
         # A loaded chunk's sole upvalue is `_ENV`. Back it with a real cell
         # holding `env` so `load_env` sources it (instead of `_G`), the chunk's
@@ -583,7 +595,7 @@ defmodule Lua.VM.Stdlib do
 
       {:error, reason} ->
         error_msg = format_parse_error(reason)
-        {[nil, if(id, do: id <> ": " <> error_msg, else: error_msg)], state}
+        {[nil, id <> ": " <> error_msg], state}
     end
   end
 

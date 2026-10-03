@@ -321,7 +321,8 @@ defmodule Lua.CallFunctionErrorValueTest do
             lua,
             """
             local function g()
-              local t = nil
+              local t = {}
+              setmetatable(t, {__index = t})
               return t.x
             end
             return g()
@@ -330,11 +331,12 @@ defmodule Lua.CallFunctionErrorValueTest do
           )
         end
 
-      # Indexing nil inside a compiled body raises without line info, and
-      # the exception falls back to `current_position/0`. A leaked position
-      # would attribute this error to first.lua:4 instead of no line.
-      assert %TypeError{error_kind: :index_non_table, line: nil, source: "second.lua"} =
-               error.original
+      # An `__index` loop inside a compiled body raises without line info,
+      # and the exception falls back to `current_position/0` (opcode type
+      # errors carry their own line now, so they cannot show a leak). A
+      # leaked position would attribute this error to first.lua:4 instead
+      # of no line.
+      assert %RuntimeError{line: nil, source: nil} = error.original
 
       message = Lua.format_exception(error)
       refute message =~ "first.lua"

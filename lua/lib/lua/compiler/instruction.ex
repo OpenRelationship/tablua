@@ -68,7 +68,7 @@ defmodule Lua.Compiler.Instruction do
   def modulo(dest, a, b, hint_a \\ nil, hint_b \\ nil), do: {:modulo, dest, a, b, hint_a, hint_b}
   def power(dest, a, b, hint_a \\ nil, hint_b \\ nil), do: {:power, dest, a, b, hint_a, hint_b}
   def negate(dest, source, hint \\ nil), do: {:negate, dest, source, hint}
-  def concatenate(dest, a, b), do: {:concatenate, dest, a, b}
+  def concatenate(dest, a, b, hint_a \\ nil, hint_b \\ nil), do: {:concatenate, dest, a, b, hint_a, hint_b}
 
   # Bitwise. Same hint convention as arithmetic.
   def bitwise_and(dest, a, b, hint_a \\ nil, hint_b \\ nil), do: {:bitwise_and, dest, a, b, hint_a, hint_b}
@@ -103,7 +103,7 @@ defmodule Lua.Compiler.Instruction do
 
   # Unary / logical
   def logical_not(dest, source), do: {:not, dest, source}
-  def length(dest, source), do: {:length, dest, source}
+  def length(dest, source, hint \\ nil), do: {:length, dest, source, hint}
 
   # Control flow
   def test(register, then_body, else_body), do: {:test, register, then_body, else_body}

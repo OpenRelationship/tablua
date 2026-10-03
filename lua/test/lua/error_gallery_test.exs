@@ -50,10 +50,19 @@ defmodule Lua.ErrorGalleryTest do
      """
      Lua runtime error: at gallery.lua:2:
 
-       attempt to concatenate a table value
+       attempt to concatenate a table value (local 't')
 
      Suggestion:
        Concatenation (..) requires strings or numbers. Convert other values with tostring() first.\
+     """},
+    {"length_non_table", "local t = {}\nprint(#t.items)", [],
+     """
+     Lua runtime error: at gallery.lua:2:
+
+       attempt to get length of a nil value (field 'items' on local 't')
+
+     Suggestion:
+       The length operator (#) takes a string or a table. Check that the value is not a nil here.\
      """},
     {"compare_incompatible", "print(1 < \"x\")", [],
      """
@@ -75,7 +84,9 @@ defmodule Lua.ErrorGalleryTest do
      """},
     {"for_loop_non_number", "for i = 1, \"x\" do end", [],
      """
-     Lua runtime error: 'for' limit must be a number
+     Lua runtime error: at gallery.lua:1:
+
+       'for' limit must be a number
 
      Suggestion:
        Numeric for loops need number values for the start, limit, and step. Check the loop bounds.\

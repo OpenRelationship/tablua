@@ -985,11 +985,11 @@ defmodule Lua.Compiler.Peephole do
   defp writes?({:get_field, dest, _table, _name, _hint}, reg), do: dest === reg
   defp writes?({:get_field_upvalue, dest, _index, _name, _hint}, reg), do: dest === reg
   defp writes?({:closure, dest, _index}, reg), do: dest === reg
-  defp writes?({:length, dest, _source}, reg), do: dest === reg
+  defp writes?({:length, dest, _source, _hint}, reg), do: dest === reg
   defp writes?({:not, dest, _source}, reg), do: dest === reg
   defp writes?({:negate, dest, _source, _hint}, reg), do: dest === reg
   defp writes?({:bitwise_not, dest, _source, _hint}, reg), do: dest === reg
-  defp writes?({:concatenate, dest, _a, _b}, reg), do: dest === reg
+  defp writes?({:concatenate, dest, _a, _b, _hint_a, _hint_b}, reg), do: dest === reg
   defp writes?({op, dest, _a, _b, _hint_a, _hint_b}, reg) when op in @binary_ops, do: dest === reg
   defp writes?({op, dest, _a, _constant, _hint_a}, reg) when op in @arith_k_ops, do: dest === reg
   defp writes?({op, dest, _a, _b}, reg) when op in @compare_ops, do: dest === reg
@@ -1029,11 +1029,11 @@ defmodule Lua.Compiler.Peephole do
 
   defp reads?({:set_list, table, start, _multi, _offset}, reg, _protos), do: table === reg or reg >= start
 
-  defp reads?({:length, _dest, source}, reg, _protos), do: source === reg
+  defp reads?({:length, _dest, source, _hint}, reg, _protos), do: source === reg
   defp reads?({:not, _dest, source}, reg, _protos), do: source === reg
   defp reads?({:negate, _dest, source, _hint}, reg, _protos), do: source === reg
   defp reads?({:bitwise_not, _dest, source, _hint}, reg, _protos), do: source === reg
-  defp reads?({:concatenate, _dest, a, b}, reg, _protos), do: a === reg or b === reg
+  defp reads?({:concatenate, _dest, a, b, _hint_a, _hint_b}, reg, _protos), do: a === reg or b === reg
   defp reads?({:self, _base, object, _name, _hint}, reg, _protos), do: object === reg
   defp reads?({:vararg, _base, _count}, _reg, _protos), do: false
   defp reads?({:source_line, _line, _file}, _reg, _protos), do: false

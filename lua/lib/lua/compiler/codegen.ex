@@ -792,22 +792,28 @@ defmodule Lua.Compiler.Codegen do
 
         {closure_instructions ++ store_instructions, ctx}
 
-      [_first | rest] ->
+      [first | rest] ->
         # Dotted name: load the head value via the var_map entry resolved
         # by scope analysis, then walk the field chain and set the leaf.
+        # Each step carries the name hint of the value it indexes, so
+        # `function M.f()` with `M` unset says `(global 'M')`.
         {get_instructions, table_reg, ctx} = gen_func_decl_head(decl, ctx)
 
-        {final_instructions, final_table_reg, ctx} =
-          Enum.reduce(Enum.slice(rest, 0..-2//1), {get_instructions, table_reg, ctx}, fn field, {instrs, reg, ctx} ->
-            field_reg = ctx.next_reg
-            ctx = %{ctx | next_reg: field_reg + 1}
-            {instrs ++ [Instruction.get_field(field_reg, reg, field)], field_reg, ctx}
-          end)
+        {final_instructions, final_table_reg, final_hint, ctx} =
+          Enum.reduce(
+            Enum.slice(rest, 0..-2//1),
+            {get_instructions, table_reg, func_decl_head_hint(decl, first, ctx), ctx},
+            fn field, {instrs, reg, hint, ctx} ->
+              field_reg = ctx.next_reg
+              ctx = %{ctx | next_reg: field_reg + 1}
+              {instrs ++ [Instruction.get_field(field_reg, reg, field, hint)], field_reg, {:field, field, hint}, ctx}
+            end
+          )
 
         last_field = List.last(rest)
 
-        {closure_instructions ++ final_instructions ++ [Instruction.set_field(final_table_reg, last_field, closure_reg)],
-         ctx}
+        {closure_instructions ++
+           final_instructions ++ [Instruction.set_field(final_table_reg, last_field, closure_reg, final_hint)], ctx}
     end
   end
 
@@ -935,6 +941,17 @@ defmodule Lua.Compiler.Codegen do
 
       nil ->
         raise "codegen: missing var_map entry for FuncDecl head #{inspect(decl.name)}"
+    end
+  end
+
+  # The `name_hint` for the head of a dotted FuncDecl, from the same var_map
+  # entry `gen_func_decl_head/2` loads it by.
+  defp func_decl_head_hint(decl, name, ctx) do
+    case Map.get(ctx.scope.var_map, {:func_decl_head, Scope.node_key(decl)}) do
+      {:env_field, _env_ref, _name} -> {:global, name}
+      {:upvalue, _index} -> {:upvalue, name}
+      {_local, _reg} -> {:local, name}
+      nil -> nil
     end
   end
 
@@ -1102,9 +1119,8 @@ defmodule Lua.Compiler.Codegen do
   defp gen_expr(%Expr.BinOp{op: op, left: left, right: right}, ctx) do
     # Resolve operand origin hints before codegen consumes them so the
     # executor can render PUC-Lua-style `(field 'huge')` / `(global 'x')`
-    # suffixes on arithmetic / bitwise type errors. Only meaningful for
-    # ops that can raise on operand type — comparisons and concat go
-    # through different raise paths.
+    # suffixes on arithmetic / bitwise / concat type errors. Comparisons
+    # name no operand, as in PUC-Lua.
     hint_a = name_hint(left, ctx)
     hint_b = name_hint(right, ctx)
 
@@ -1133,7 +1149,7 @@ defmodule Lua.Compiler.Codegen do
         :bxor -> Instruction.bitwise_xor(dest_reg, left_reg, right_reg, hint_a, hint_b)
         :shl -> Instruction.shift_left(dest_reg, left_reg, right_reg, hint_a, hint_b)
         :shr -> Instruction.shift_right(dest_reg, left_reg, right_reg, hint_a, hint_b)
-        :concat -> Instruction.concatenate(dest_reg, left_reg, right_reg)
+        :concat -> Instruction.concatenate(dest_reg, left_reg, right_reg, hint_a, hint_b)
         :eq -> Instruction.equal(dest_reg, left_reg, right_reg)
         :ne -> {:not_equal, dest_reg, left_reg, right_reg}
         :lt -> Instruction.less_than(dest_reg, left_reg, right_reg)
@@ -1161,7 +1177,7 @@ defmodule Lua.Compiler.Codegen do
       case op do
         :neg -> Instruction.negate(dest_reg, operand_reg, hint)
         :not -> Instruction.logical_not(dest_reg, operand_reg)
-        :len -> Instruction.length(dest_reg, operand_reg)
+        :len -> Instruction.length(dest_reg, operand_reg, hint)
         :bnot -> Instruction.bitwise_not(dest_reg, operand_reg, hint)
       end
 

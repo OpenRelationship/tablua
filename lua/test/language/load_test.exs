@@ -210,6 +210,30 @@ defmodule Lua.Language.LoadTest do
       assert {[~s([string "return 1"]:1: x)], _} = Lua.eval!(lua, code)
     end
 
+    test "without a chunkname a string chunk is named by its first line", %{lua: lua} do
+      code = """
+      local short = select(2, pcall(load("error('x')")))
+      local long = select(2, pcall(load("local t\\nreturn t.x")))
+      local wide = select(2, pcall(load("error('x') -- " .. string.rep("y", 40))))
+      return short, long, wide
+      """
+
+      assert {[short, long, wide], _} = Lua.eval!(lua, code)
+      assert short == ~s{[string "error('x')"]:1: x}
+      assert long == ~s{[string "local t..."]:2: attempt to index a nil value (local 't')}
+      assert wide == ~s{[string "error('x') -- yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy..."]:1: x}
+    end
+
+    test "a runtime error in an @file chunk names the file, line and value", %{lua: lua} do
+      code = """
+      local f = load("local habits\\nfunction M.add_habit() end", "@/home/code/steps/habit_tracker.lua")
+      return select(2, pcall(f))
+      """
+
+      assert {["/home/code/steps/habit_tracker.lua:2: attempt to index a nil value (global 'M')"], _} =
+               Lua.eval!(lua, code)
+    end
+
     test "a syntax error names the chunk too", %{lua: lua} do
       code = """
       return select(2, load("return +", "@bad.lua"))
