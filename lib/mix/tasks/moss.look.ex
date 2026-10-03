@@ -2,10 +2,10 @@ defmodule Mix.Tasks.Moss.Look do
   @shortdoc "Fetches the look module, the release pinned in config"
   @moduledoc """
   Fetches `look.wasm` from the GitHub release named in config `:look` (`repo`, `release`), checks it against the
-  pinned SHA-384 and writes it to `path`. A file already there with that hash is kept. The repository is private, so
-  the request carries GITHUB_TOKEN when it is set; the token is sent to GitHub only, never printed or written.
+  pinned SHA-384 and writes it to `path`. A file already there with that hash is kept. VMOSS is public, so no token is
+  needed; GITHUB_TOKEN, when set (a private fork), is sent to GitHub only, never printed or written.
 
-      GITHUB_TOKEN=... mix moss.look
+      mix moss.look
   """
   use Mix.Task
 
@@ -56,7 +56,7 @@ defmodule Mix.Tasks.Moss.Look do
     end
   end
 
-  defp hint(404), do: " (a private repository: set GITHUB_TOKEN)"
+  defp hint(404), do: " (no such release, or a private repository: set GITHUB_TOKEN)"
   defp hint(_), do: ""
 
   defp headers(accept) do
