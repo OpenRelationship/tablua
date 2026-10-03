@@ -115,6 +115,10 @@ function lui.template(app)
 ]==], "APP", app):gsub("^\n", ""))
 end
 
+local KEYWORDS = {}
+for w in string.gmatch("and break do else elseif end false for function goto if in local nil not or repeat return then"
+  .. " true until while", "%a+") do KEYWORDS[w] = true end
+
 function lui.compile(text, name)
   name = name or "page.lui"
   local ok, src = pcall(function()
@@ -171,7 +175,8 @@ function lui.compile(text, name)
           parts[#parts + 1] = { "[__flag(" .. a.flag .. ")] = true, ", a.line }
         else
           check_attr(tag, a)
-          local key = string.match(a.name, "^[%a_][%w_]*$") and a.name or "[" .. q(a.name) .. "]"
+          -- a Lua word (<label for="name">) is a key only in brackets: for = ... is no Lua
+          local key = string.match(a.name, "^[%a_][%w_]*$") and not KEYWORDS[a.name] and a.name or "[" .. q(a.name) .. "]"
           parts[#parts + 1] = { key .. " = " .. a.code .. ", ", a.line }
         end
       end

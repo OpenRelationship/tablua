@@ -188,4 +188,9 @@ spec.test("each {{ e }} that comes out nil is named with its line, once, for the
   spec.eq(table.concat(nils, "; "), "ui/x.lui:5: {{ r.days_left }}")
 end)
 
+spec.test("an attribute named as a Lua word is an attribute (label for)", function()
+  local html = lui.answer('<label for="n">Name</label><input id="n" name="name"/>', "ui/x.lui", get())
+  spec.ok(string.find(body(html), 'for="n"', 1, true), body(html))
+end)
+
 spec.run()
