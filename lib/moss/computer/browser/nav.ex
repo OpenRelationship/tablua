@@ -28,7 +28,7 @@ defmodule Moss.Computer.Browser.Nav do
           {state, note} =
             if where == :new_tab, do: Tabs.open(state, page), else: {Tabs.go(state, page), ""}
 
-          err = if r.status >= 400, do: "the page answered #{r.status}\n", else: ""
+          err = if r.status >= 400, do: "the page answered #{r.status}#{why(r)}\n", else: ""
           {if(r.status >= 400, do: 22, else: 0), Parts.summary(page) <> note, err, state}
         end
 
@@ -146,6 +146,16 @@ defmodule Moss.Computer.Browser.Nav do
     end
   end
 
+  # what a page that did not answer says of why, its text in short: an app's page names its file, line and error
+  # (a pantry run's form answered 500 and the agent, told only the status, fixed nothing for fifty steps)
+  defp why(%{body: body}) when is_binary(body) do
+    text = body |> String.replace(~r/<(style|script)\b.*?<\/\1>/s, " ") |> String.replace(~r/<[^>]*>/, " ")
+    text = text |> String.replace(~r/\s+/, " ") |> String.trim() |> String.slice(0, 300)
+    if text == "", do: "", else: ": " <> text
+  end
+
+  defp why(_), do: ""
+
   # -- forms -------------------------------------------------------------------------------------
 
   def send_form(state, tab, pressed) do
@@ -202,8 +212,8 @@ defmodule Moss.Computer.Browser.Nav do
     ]
 
     case fetch(state, url, opts) do
-      {:ok, %{status: status}, state} when status >= 400 ->
-        {22, "", "#{method} #{url} answered #{status}\n", state}
+      {:ok, %{status: status} = r, state} when status >= 400 ->
+        {22, "", "#{method} #{url} answered #{status}#{why(r)}\n", state}
 
       {:ok, %{headers: %{"hx-redirect" => to}}, state} ->
         go(state, resolve(tab.page, hx_to(to)), :same_tab, [], tab.page)

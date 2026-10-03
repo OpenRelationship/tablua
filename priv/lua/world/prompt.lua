@@ -72,9 +72,12 @@ fails on it.
 A scenario starts clean. Right: its first Given clears what it reads through the module, plants.clear() (a
 function M.clear() d:exec("delete from plant") end in code/plants.lua), so it passes on its own steps. Wrong: a scenario that passes on rows an earlier run left behind.
 
-Looking at the app. Right: the command the current state gives for the page (Page / (open app) answers 200), then
-type the add field, submit, and read the page for what was added. Wrong: open app house-plants (a second page is
-open app/<path>, the path joined with /).
+Looking at the app. Right: one command line that opens the page the current state names (Page / (open app)
+answers 200), types in the page's fields by number (the browser numbers them from 1 in the page's order, as the
+page you wrote has them), and submits:
+  {"cmd": "open app; type 1 Zinnia; submit 1"}     (a form whose second field is a count: type 2 3 before submit)
+then the page it prints must show Zinnia. Wrong: open app alone (nothing was used, so nothing was seen); open app
+house-plants (a second page is open app/<path>, the path joined with /).
 Each move does only its own part: the DONE letter is answer_task's, publish is publish's, the feature is
 write_feature's; the computer refuses them in any other move.
 

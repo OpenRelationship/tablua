@@ -46,4 +46,12 @@ defmodule Moss.PersonCheckTest do
 
     assert %{status: 200, added: false} = Moss.PersonCheck.uses(computer(pretend), "/")
   end
+  # the computer's own browser, as the agent uses it: a form whose action fails says why, not its status alone
+  test "a form that fails answers with the page's error" do
+    id = computer(String.replace(@works, "values (?)", "values (?, ?)"))
+    Computer.run(id, "open app")
+    Computer.run(id, ~s(type 1 Pothos))
+    assert %{code: 22, err: err} = Computer.run(id, "submit 1")
+    assert err =~ "answered 500: The page failed: ui/index.lui:"
+  end
 end
