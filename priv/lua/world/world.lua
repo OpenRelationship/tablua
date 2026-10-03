@@ -35,9 +35,9 @@ M.moves = {
   answer_task = "The app has shipped: answer the task with a DONE letter that names what shipped and where.",
   answer = "The task is answered: the work is done.",
   think = "Think it through first: go over the task and every step so far, say what is wrong and what to do next."
-    .. " For when steps keep failing or the way on is unclear.",
-  blocked = "None of these moves can make progress: a tool keeps failing, or what is needed is not among them. Say"
-    .. " what is missing.",
+    .. " For when the app's tests or pages keep failing, or the way on is unclear.",
+  blocked = "Stop and report: the agent's own tools keep failing (a move could not be filled, a command answers an"
+    .. " error that is not the app's), or what is needed is not among these moves. Say what is missing.",
 }
 
 -- Where the failure's cause lies, asked beside the move whenever something is failing (TypeSafe: narrow questions,
@@ -47,8 +47,8 @@ M.causes = {
     .. " or is missing.",
   the_app_code = "The app's code or its database: what the steps and pages call does the wrong thing.",
   the_page = "The page: it does not compile, or its action or markup is wrong.",
-  a_library_call = "A call into the computer's library (db, date, test, lui, mail) made the wrong way: its help says"
-    .. " how.",
+  a_library_call = "A call into the computer's library (db, date, test, lui, mail) made the wrong way, such as a"
+    .. " missing or wrong argument (\"bad argument #1 to ...\" from inside it): its help says how.",
   the_feature = "The feature as written cannot pass: changing it needs the person's agreement again.",
   unclear = "It cannot be told from what is shown: read the failing file and line first.",
 }

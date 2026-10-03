@@ -6,7 +6,8 @@
 -- decision is joined to how it turned out; each call to Jev, Mercury and TabPFN is counted with what it cost.
 --
 --   run.step(saved_json | nil, ctx) -> kind ("act" | "wait" | "done" | "blocked"), detail, saved_json, counts
---   ctx = { task, at, help, procedures, filler? }   filler: an OpenRouter model in Mercury's place, to compare    host: __host.exec, agent_facts(at), agent_events(), agent_append(...)
+--   ctx = { task, at, help, procedures, filler?, decider? }    host: __host.exec, agent_facts(at), agent_events(), ...
+--   filler: an OpenRouter model in Mercury's place; decider: a System One model in Jev's; each to compare
 local agent = require("agent")
 local memory = require("agent.memory")
 local learn = require("agent.learn")
@@ -64,9 +65,12 @@ function M.step(saved_json, ctx)
   -- (a thinking model on OpenRouter may refuse tool_choice "required": Qwen 3.8 does, so it is asked for "auto")
   local filler = ctx.filler and models.chat(ctx.filler, { tool_choice = "auto" })
     or assert(models.mercury, "no Mercury key")
+  -- the decider: Jev, or for a comparison another System One model in its place, with the host's own key
+  local decider = ctx.decider and require("ports.jev").new(host, { key = assert(host.key("jev"), "no Jev key"),
+    model = ctx.decider }) or models.jev
   local env = {
     name = "the agent",
-    jev = counted(assert(models.jev, "no Jev key"), "jev", counts),
+    jev = counted(assert(decider, "no Jev key"), "jev", counts),
     mercury = counted(filler, "mercury", counts),
     memory = mem,
   }

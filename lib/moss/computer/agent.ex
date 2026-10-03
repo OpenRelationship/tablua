@@ -36,7 +36,7 @@ defmodule Moss.Computer.Agent do
   the person three steps running with nothing changed. Options: `at` (the task's address, the key every
   decision is joined to its outcome by; `org:<id>` by default), `between` (a function of `id`, called after each
   step: the person's part, in a test), `max_steps` (150), `filler` (an OpenRouter model to fill
-  Jev's moves in Mercury's place, for a comparison). Gives `%{outcome, why, steps, counts}`, outcome being
+  Jev's moves in Mercury's place) and `decider` (a System One model in Jev's), each for a comparison. Gives `%{outcome, why, steps, counts}`, outcome being
   "done", "blocked", "waiting", "stopped" or "error".
   """
   def run(id, task, opts \\ []) do
@@ -45,7 +45,8 @@ defmodule Moss.Computer.Agent do
       "at" => opts[:at] || "org:#{id}",
       "help" => help(id),
       "procedures" => procedures(id),
-      "filler" => opts[:filler]
+      "filler" => opts[:filler],
+      "decider" => opts[:decider]
     }
 
     loop(id, ctx, nil, opts[:between] || fn _ -> :ok end, opts[:max_steps] || 150, 0, 0, nil)
