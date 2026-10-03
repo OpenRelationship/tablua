@@ -144,12 +144,19 @@ defmodule Moss.Computer.Agent do
       %{
         "passed" => Enum.sum(Enum.map(runs, &(&1["passed"] || 0))),
         "total" => Enum.sum(Enum.map(runs, &(&1["total"] || 0))),
+        # a feature with no scenarios fails check every run, and no change to code can fix it (a notes change
+        # wrote one and rewrote its code fifty times)
         "failing" =>
           for(
             r <- runs,
             f <- r["failing"] || [],
             do: "#{f["scenario"]}: #{f["step"]}: #{f["why"]}"
-          ),
+          ) ++
+            for(
+              r <- board,
+              (r.run["total"] || 0) == 0,
+              do: "#{Board.rel(r.path)} has no scenarios: write them in it (Scenario: and its steps)"
+            ),
         "undefined" => Enum.flat_map(runs, &(&1["undefined"] || []))
       }
     end

@@ -205,6 +205,14 @@ defmodule Moss.ComputerAgentTest do
     assert {200, headers, _, _} = Computer.serve(id, %{"method" => "GET", "path" => "/"})
     refute Map.has_key?(headers, "x-moss-nil")
 
+    # a feature with no scenarios is failing, whatever else passes
+    :ok = Moss.Computer.Disk.write(disk, "/home/features/empty.feature", "Feature: nothing yet\n")
+    :ok = Computer.agree(id, "/home/features/empty.feature")
+    Computer.run(id, "test")
+    assert [failing] = Computer.agent(id, :facts, ["org:x"])["tests"]["failing"]
+    assert failing =~ "features/empty.feature has no scenarios"
+    Computer.run(id, "rm features/empty.feature")
+
     # and one that opens its database itself is named: no step tests what it shows
     :ok = Moss.Computer.Disk.write(disk, "/home/ui/index.lui", "<lua>\n  local d = db.open(\"data/x.dbl\")\n</lua>\n<p>x</p>\n")
     assert [%{"own_db" => "ui/index.lui"}] = Computer.agent(id, :facts, ["org:x"])["pages"]
