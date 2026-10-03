@@ -72,6 +72,10 @@ A page and its database. Right: the code the page uses makes its table first,
   d:exec("create table if not exists plant (name text primary key, watered text)")
 then queries it. Wrong: a query of a table nothing made: the page answers 500 and the app cannot ship.
 
+A page's colours. Right: the theme's, class="btn" or "bg-primary text-primary-foreground", "text-muted-foreground",
+"border-border". Wrong: palette colours such as bg-blue-500 or text-gray-600: Shroomi knows none of them and
+check names each one.
+
 Answering the task. Right: the letter in a file, each line on its own line, then sent:
   {"cmd": "mail send rock-1 < files/reply.org", "files": {"files/reply.org": "* DONE Built the plants app
   :PROPERTIES:

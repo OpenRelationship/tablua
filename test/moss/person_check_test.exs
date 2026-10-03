@@ -24,6 +24,13 @@ defmodule Moss.PersonCheckTest do
     assert %{status: 200, added: true} = Moss.PersonCheck.uses(computer(@works), "/")
   end
 
+  # a second page's form posts relative to it, as a browser resolves it: pantry?do=add on /pantry is /pantry
+  test "a form on a second page is posted where a browser would post it" do
+    id = computer(@works)
+    Computer.exec(id, %{"cmd" => "true", "files" => %{"ui/pantry.lui" => @works}})
+    assert %{status: 200, form: 200, added: true} = Moss.PersonCheck.uses(id, "/pantry")
+  end
+
   test "a page whose table was never made, or that only says it added, does not" do
     broken =
       String.replace(

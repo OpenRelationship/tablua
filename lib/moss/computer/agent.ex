@@ -86,7 +86,7 @@ defmodule Moss.Computer.Agent do
 
   # Mercury's knowledge base: the index and every topic the building uses, so it never has to guess an API
   # (static for the run, so Inception's prefix cache holds it)
-  @topics ["feature", "code", "lua date", "data", "page", "loop", "manifest", "mail"]
+  @topics ["feature", "code", "lua date", "data", "page", "loop", "manifest", "mail", "classes"]
 
   defp help(id) do
     Enum.map_join(["help" | Enum.map(@topics, &"help #{&1}")], "\n", &Computer.run(id, &1).out)

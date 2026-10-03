@@ -14,9 +14,10 @@ defmodule Moss.PersonCheck do
     case status == 200 && form(page) do
       {action, fields} ->
         name = "Zz#{System.unique_integer([:positive])}"
-        [p | q] = String.split(action, "?", parts: 2)
-        target = if p == "", do: path, else: Path.join(path, p)
-        query = if q == [], do: %{}, else: URI.decode_query(hd(q))
+        # the action resolved against the page as a browser resolves it: pantry?do=add on /pantry is /pantry?do=add
+        url = URI.merge("http://app" <> path, action)
+        target = url.path || path
+        query = if url.query, do: URI.decode_query(url.query), else: %{}
         form = Map.new(fields, &value(&1, name))
 
         {posted, _, _, _} =

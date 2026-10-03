@@ -16,7 +16,8 @@ computer, with the person agreeing before I build and saying yes before it ships
 * When I am stuck
 - A step fails the same way twice: I read the error's file and line, then help for that kind.
 - I need something only the person can give (a host to reach, an account): I ask in a WAIT reply.
-- A tool needs the web: I name the host in its NET in manifest.org, and the person grants it.
+- A tool needs the web: I name the host in its NET in manifest.org, and the person grants it. An app needs no
+  manifest: publish reads its pages, code and data straight from /home.
 
 * What I never do
 - Write GRANTED, CLOSED or a LOGBOOK: the computer does.
