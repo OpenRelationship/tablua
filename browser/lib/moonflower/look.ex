@@ -33,17 +33,32 @@ defmodule Moonflower.Look do
     timeout = Keyword.get(opts, :timeout, 10_000)
     {marked, tree} = Mark.mark(html)
 
-    # CSS given beside the page goes in first, so the parser puts it in the head; the page's tree is left as it was
-    css = if css = Keyword.get(opts, :css), do: "<style>" <> css <> "</style>", else: ""
-
     input =
-      "#{width} #{if dark, do: 1, else: 0} #{Keyword.get(opts, :base) || ""}\n" <> css <> marked
+      "#{width} #{if dark, do: 1, else: 0} #{Keyword.get(opts, :base) || ""}\n" <>
+        with_css(marked, Keyword.get(opts, :css))
 
     fuel = Keyword.get(opts, :fuel, 10_000_000_000)
 
     with {:ok, peer} <- Node.peer(node),
          {:ok, out} <- call(peer, [input, fuel, timeout], timeout) do
       {:ok, read(out, %__MODULE__{width: width, dark: dark, tree: tree})}
+    end
+  end
+
+  # CSS given beside the page goes first in its head, before the page's own styles, as a <link> there would; before
+  # a page with no <head>. Ahead of <html> it would make the parser start a head of its own and drop the page's.
+  defp with_css(marked, nil), do: marked
+
+  defp with_css(marked, css) do
+    style = ~s(<style data-mf="css">) <> css <> "</style>"
+
+    case Regex.run(~r/<head\b[^>]*>/i, marked, return: :index) do
+      [{at, len}] ->
+        binary_part(marked, 0, at + len) <>
+          style <> binary_part(marked, at + len, byte_size(marked) - at - len)
+
+      nil ->
+        style <> marked
     end
   end
 

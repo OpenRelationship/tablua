@@ -15,6 +15,7 @@ blitz-dom = { git = "https://github.com/DioxusLabs/blitz", rev = "d2827fb386fd22
 blitz-html = { git = "https://github.com/DioxusLabs/blitz", rev = "d2827fb386fd22668b7b8bed42639d8e75ddca71", default-features = false }
 blitz-traits = { git = "https://github.com/DioxusLabs/blitz", rev = "d2827fb386fd22668b7b8bed42639d8e75ddca71", default-features = false }
 style = { version = "0.22.0", package = "stylo" }
+style_config = { version = "0.22.0", package = "stylo_static_prefs" }
 
 [profile.release]
 opt-level = "z"

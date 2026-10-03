@@ -139,4 +139,29 @@ defmodule Moonflower.LookTest do
     assert {:ok, look} = Look.look(node, "<p>back</p>", base: "https://example.com/")
     assert Look.shown?(look, "p", "back")
   end
+
+  test "a selector list holding :has() still applies (Basecoat's field labels)", %{node: node} do
+    html = ~S"""
+    <style>.field>label,label:has(>.x){width:fit-content}</style>
+    <div class="field"><label>Name</label></div>
+    """
+
+    {:ok, look} = Look.look(node, html, width: 390, base: "https://example.com/")
+    assert [%{w: w}] = Look.boxes(look, "label")
+    assert w < 100
+  end
+
+  test "Blitz's own nodes are not elements the page's parser missed", %{node: node} do
+    html = ~S"""
+    <style>p::before{content:"x"}</style><div>a<p>b</p>c</div><details><summary>s</summary>x</details>
+    """
+
+    {:ok, look} = Look.look(node, html, base: "https://example.com/")
+    assert look.unmarked == 0
+
+    # nor is CSS given beside a whole page: it goes in the page's head, so the page's own <head> stays its own
+    page = "<!doctype html><html><head><title>t</title></head><body>" <> html <> "</body></html>"
+    {:ok, look} = Look.look(node, page, base: "https://example.com/", css: "p { color: red }")
+    assert look.unmarked == 0
+  end
 end

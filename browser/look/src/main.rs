@@ -10,12 +10,14 @@
 //! its own background colour, sRGB as eight hex digits (RRGGBBAA); and `v` when its content may overflow it (overflow
 //! visible) or `c` when it clips or scrolls what overflows; then
 //! `= <elements> <unmarked> <parse ms> <resolve ms>`, where unmarked counts elements this parser built that the
-//! host's did not.
+//! host's did not (Blitz's own nodes, its anonymous blocks, ::before and ::after and template contents, are not
+//! elements of the page and are left out).
 //!
 //! No file, directory or network is reached: the font is inside the module and nothing is fetched.
 use blitz_dom::{DocumentConfig, StyleThreading, build_single_font_ctx};
 use blitz_html::HtmlDocument;
 use blitz_traits::shell::{ColorScheme, Viewport};
+use std::collections::HashSet;
 use std::io::{Read, Write};
 use std::time::Instant;
 use style::color::{AbsoluteColor, ColorSpace};
@@ -32,6 +34,12 @@ fn main() {
     let width: u32 = head.next().and_then(|w| w.parse().ok()).unwrap_or(1280);
     let dark = head.next() == Some("1");
     let base = head.next().filter(|b| !b.is_empty()).map(str::to_string);
+
+    // Selectors Stylo has and Blitz leaves off: :has() (Basecoat writes `.field>label,label:has(>.field)`, and a list
+    // with a selector the parser refuses is dropped whole) and :nth-child(An+B of S). Both only match; no layout
+    // waits on them.
+    style_config::set_pref!("layout.css.has-selector.enabled", true);
+    style_config::set_pref!("layout.css.nth-child-of.enabled", true);
 
     let t0 = Instant::now();
     let mut config = DocumentConfig::default();
@@ -50,8 +58,17 @@ fn main() {
     let mut out = std::io::BufWriter::new(out.lock());
     let (mut elements, mut unmarked) = (0u32, 0u32);
     let ids: Vec<_> = doc.tree().iter().map(|(id, _)| id).collect();
+    let pseudos: HashSet<_> = ids
+        .iter()
+        .filter_map(|&id| doc.get_node(id))
+        .flat_map(|n| [n.before(), n.after()])
+        .flatten()
+        .collect();
     for id in ids {
         let node = doc.get_node(id).unwrap();
+        if node.is_anonymous() || pseudos.contains(&id) || !node.flags.is_in_document() {
+            continue;
+        }
         let Some(el) = node.element_data() else { continue };
         elements += 1;
         let Some(mark) = el.attrs.iter().find(|a| &*a.name.local == "data-mf") else {

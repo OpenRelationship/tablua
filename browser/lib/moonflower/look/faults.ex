@@ -6,7 +6,7 @@ defmodule Moonflower.Look.Faults do
     * `:unseen`: a control (link, button, field) with no width or no height
     * `:covered`: a control whose middle is under a positioned element painted above it, so a click lands there
     * `:off_screen`: an element reaching past the screen's edge with nothing around it that scrolls or clips it
-      (the outermost only; what is inside it is not named again)
+      (the outermost only; what is inside it is not named again, and a table is named for its cells)
     * `:faint`: text whose colour is under 4.5 to 1 against what is behind it
 
   Each fault is `%{kind:, id:, element: {tag, attrs, kids}}`, with `by:` and `by_id:` the covering element,
@@ -16,6 +16,7 @@ defmodule Moonflower.Look.Faults do
   alias Moonflower.Page.Attrs
 
   @controls ~w(a button input select textarea summary)
+  @table_parts ~w(caption thead tbody tfoot tr th td col colgroup)
   @min 4.5
 
   def faults(%Moonflower.Look{} = look) do
@@ -99,20 +100,33 @@ defmodule Moonflower.Look.Faults do
 
   defp off_screen(els, width) do
     clipping = for e <- els, e.box.clips, into: MapSet.new(), do: e.id
+    byid = Map.new(els, &{&1.id, &1})
 
-    els
-    |> Enum.filter(fn e ->
-      (e.box.x < -1 or e.box.x + e.box.w > width + 1) and e.box.w > 1 and
-        not Enum.any?(e.up, &MapSet.member?(clipping, &1))
-    end)
-    |> then(fn off ->
-      named = MapSet.new(off, & &1.id)
+    off =
+      Enum.filter(els, fn e ->
+        (e.box.x < -1 or e.box.x + e.box.w > width + 1) and e.box.w > 1 and
+          not Enum.any?(e.up, &MapSet.member?(clipping, &1))
+      end)
 
-      for e <- off,
-          not Enum.any?(e.up, &MapSet.member?(named, &1)),
-          do: %{kind: :off_screen, id: e.id, element: e.element, box: e.box}
-    end)
+    groups = Enum.group_by(off, &subject(&1, byid).id)
+    named = MapSet.new(Map.keys(groups))
+
+    for s <- off |> Enum.map(&subject(&1, byid)) |> Enum.uniq_by(& &1.id),
+        not Enum.any?(s.up, &MapSet.member?(named, &1)) do
+      boxes = [s.box | Enum.map(groups[s.id], & &1.box)]
+      left = boxes |> Enum.map(& &1.x) |> Enum.min()
+      right = boxes |> Enum.map(&(&1.x + &1.w)) |> Enum.max()
+      %{kind: :off_screen, id: s.id, element: s.element, box: %{s.box | x: left, w: right - left}}
+    end
   end
+
+  # what runs out of a table is named as the table: a cell may reach past the table's own box (Blitz keeps a table
+  # at its container's width and lets its cells overflow it, where a browser widens the table)
+  defp subject(%{tag: t} = e, byid) when t in @table_parts do
+    Enum.find_value(e.up, e, fn id -> if match?(%{tag: "table"}, byid[id]), do: byid[id] end)
+  end
+
+  defp subject(e, _byid), do: e
 
   defp faint(els, dark) do
     byid = Map.new(els, &{&1.id, &1})
