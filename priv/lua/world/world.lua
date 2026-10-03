@@ -187,9 +187,14 @@ function M.after(req, before, f)
   req.regressed = (t and t0 and t.passed < t0.passed) and ("%d of %d to %d of %d"):format(t0.passed, t0.total,
     t.passed, t.total) or nil
   if req.regressed then out[#out + 1] = "This change broke scenarios that passed." end
-  if now ~= "" and now == was then
+  -- a stall: something failed before and fails after, and no more scenarios pass. The same failure's words are one;
+  -- a failure reworded is another (a pantry run's 26 fixes each changed the message a little, so the count kept
+  -- starting again and fixing was never taken away)
+  local stalled = now ~= "" and was ~= "" and (now == was or (t ~= nil and t0 ~= nil and t.passed <= t0.passed))
+  if stalled then
     req.repeats = (req.repeats or 0) + 1
-    out[#out + 1] = ("The same failure as before this step (%d changes running have left it): %s"):format(
+    out[#out + 1] = (now == was and "The same failure as before this step (%d changes running have left it): %s"
+      or "No more scenarios pass than before this step (%d changes running have moved nothing on): %s"):format(
       req.repeats, clip(now, 300))
   else
     req.repeats = 0

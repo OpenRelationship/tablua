@@ -358,6 +358,18 @@ defmodule Moss.ComputerAgentTest do
     assert eval.(~s|return require("moss.world").open("/house-plants/")|) == ["open app/house-plants"]
     assert eval.(~s|return require("moss.world").open("/")|) == ["open app"]
 
+    # a failure reworded with no more scenarios passing is a stall all the same; one more passing starts again
+    stall = fn b, a ->
+      eval.(~s"""
+      local req = { repeats = 1 }
+      local function f(p, why) return { pages = {}, tests = { passed = p, total = 3, failing = { why }, undefined = {} } } end
+      require("moss.world").after(req, f(#{b}), f(#{a}))
+      return req.repeats
+      """)
+    end
+    assert stall.(~s|1, "x: wanted 0"|, ~s|1, "x: wanted 0, got 1"|) == [2]
+    assert stall.(~s|1, "x: wanted 0"|, ~s|2, "y: wanted 0"|) == [0]
+
     # one move Mercury could not fill is a service's bad minute: stopping waits for a second
     unfilled = ~s|{ verb = "fix_failure", outcome = "broken", note = "Filling the move failed: mercury unreachable" }|
     troubled = fn steps -> eval.(~s|return require("moss.world").troubled({ facts = { pages = {} }, steps = #{steps} }, 0)|) end
