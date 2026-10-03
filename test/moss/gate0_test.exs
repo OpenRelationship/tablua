@@ -2,7 +2,7 @@ defmodule Moss.Gate0Test do
   @moduledoc """
   Gate 0: every Arock Core unit test file runs unchanged in tv-labs lua on this
   host, each from a fresh copy of the base state, and every case passes
-  (arock-log's, Shroomi's and arock-mail's too).
+  (arock-log's, Shroomi's and uspx's too).
   """
   use ExUnit.Case, async: true
 
@@ -10,10 +10,13 @@ defmodule Moss.Gate0Test do
 
   @core Application.compile_env!(:moss, :core)
   @files for(
-           dir <- ["library", "submodules/shroomi"],
+           dir <- ["library", "submodules/shroomi", "submodules/uspx"],
            do: Path.wildcard(Path.join([@core, dir, "**/*_test.lua"]))
          )
          |> List.flatten()
+         # uspx's model check is a search over the rules (minutes on this VM); the rules' own tests and the fuzzing
+         # run here, and the search runs on LuaJIT in Arock's build
+         |> Enum.reject(&String.ends_with?(&1, "submodules/uspx/model_test.lua"))
          |> Enum.sort()
 
   test "the library has unit test files" do

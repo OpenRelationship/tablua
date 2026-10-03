@@ -12,8 +12,8 @@ computer sleeps where it is, has no post and takes its model keys from the envir
 (`app/server` in the Arock repository, `ArockServer.Host`) keeps them in its object store, carries their mail
 and serves the pages a person watches them on.
 
-VMOSS is attached to the Arock repository at `submodules/vmoss`, and reads Arock Core's Lua (the Jev port,
-arock-log and arock-mail) from that repository's `library/`; `AROCK_ROOT` names another checkout.
+VMOSS is attached to the Arock repository at `submodules/vmoss`, and reads Arock Core's Lua from that repository: the Jev port and
+arock-log from its `library/`, uspx and Shroomi from its submodules; `AROCK_ROOT` names another checkout.
 
 ```
 mix setup
