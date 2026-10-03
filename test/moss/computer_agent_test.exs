@@ -347,6 +347,12 @@ defmodule Moss.ComputerAgentTest do
     assert why =~ "outside the app: it lives in /home"
     assert eval.(~s|return require("moss.world").open("/house-plants/")|) == ["open app/house-plants"]
     assert eval.(~s|return require("moss.world").open("/")|) == ["open app"]
+
+    # one move Mercury could not fill is a service's bad minute: stopping waits for a second
+    unfilled = ~s|{ verb = "fix_failure", outcome = "broken", note = "Filling the move failed: mercury unreachable" }|
+    troubled = fn steps -> eval.(~s|return require("moss.world").troubled({ facts = { pages = {} }, steps = #{steps} }, 0)|) end
+    assert troubled.("{ #{unfilled} }") == [false]
+    assert troubled.("{ #{unfilled}, #{unfilled} }") == [true]
     assert eval.(~s|return require("moss.world").tidy("publish", { cmd = "publish expense_tracker", cwd = "x" }).cmd|) ==
              ["publish"]
   end

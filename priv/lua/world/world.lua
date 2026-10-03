@@ -211,8 +211,9 @@ end
 -- last step broke (a chores run, every scenario passing and publish offered, blocked saying nothing was missing)
 function M.troubled(req, repeats)
   local last = req.steps[#req.steps]
-  return M.failing(req.facts) ~= "" or M.unfilled(req) >= 1 or repeats >= M.repeats
-    or (last ~= nil and last.outcome ~= "complete")
+  -- (one move Mercury could not fill is a service's bad minute, tried again; two running is the tool failing)
+  return M.failing(req.facts) ~= "" or M.unfilled(req) >= 2 or repeats >= M.repeats
+    or (last ~= nil and last.outcome ~= "complete" and not (last.note or ""):find("^Filling the move failed"))
 end
 
 -- an answer_task step that did not come out complete
