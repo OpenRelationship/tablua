@@ -82,6 +82,9 @@ A page and its database. Right: the code the page uses makes its table first,
   d:exec("create table if not exists plant (name text primary key, watered text)")
 then queries it. Wrong: a query of a table nothing made: the page answers 500 and the app cannot ship.
 
+A form that adds. Right: <form post="add"> and function post.add(req) that inserts req.form's fields. Wrong: an
+empty function get.add(req) end written to quiet check's "names no action": the form then keeps nothing.
+
 A page's colours. Right: the theme's, class="btn" or "bg-primary text-primary-foreground", "text-muted-foreground",
 "border-border". Wrong: palette colours such as bg-blue-500 or text-gray-600: Shroomi knows none of them and
 check names each one.

@@ -265,6 +265,45 @@ defmodule Moss.ComputerAgentTest do
     assert ["no_effect"] = for(%{"args" => [at, o | _]} <- rows, String.contains?(at, "/step/"), do: o)
   end
 
+  # and using it shows what was typed: a form whose action keeps nothing makes the look broken
+  test "a look whose typed name never shows on the page is broken", %{id: id} do
+    Computer.run(id, "help")
+    disk = :sys.get_state(Computer.wake!(id)).disk
+    :ok = Moss.Computer.Disk.write(disk, "/home/features/hello.feature",
+      "Feature: Hello\n  Scenario: Hi\n    Given the page says hello\n")
+    :ok = Moss.Computer.Disk.write(disk, "/home/code/steps/hello.lua",
+      ~s|test.step("the page says hello", function(w) test.ok(true) end)\n|)
+    :ok = Moss.Computer.Disk.write(disk, "/home/ui/index.lui",
+      "<lua>\nfunction post.add(req) end\n</lua>\n<form post=\"add\"><input name=\"name\" placeholder=\"Plant name\"/><button>Add</button></form>\n")
+    :ok = Computer.agree(id, "/home/features/hello.feature")
+    Computer.run(id, "test")
+
+    Req.Test.stub(Moss.Fetch, fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      sent = Jason.decode!(body)
+
+      case conn.request_path do
+        "/api/alpha/decisions" ->
+          answers = %{"next" => %{"choice" => "look_at_app", "probabilities" => %{"look_at_app" => 0.9}}}
+          answers = if sent["questions"]["cause"], do: Map.put(answers, "cause", %{"choice" => "unclear"}), else: answers
+          Req.Test.json(conn, %{"answers" => answers})
+
+        "/v1/chat/completions" ->
+          calls =
+            for {cmd, n} <- Enum.with_index(["open app", ~s(type "Plant name" "Pothos"), "submit Add"]) do
+              %{"id" => "c#{n}", "type" => "function",
+                "function" => %{"name" => "computer", "arguments" => Jason.encode!(%{"cmd" => cmd})}}
+            end
+
+          Req.Test.json(conn, %{"usage" => %{}, "choices" => [%{"message" => %{"tool_calls" => calls}}]})
+      end
+    end)
+
+    Moss.Computer.Agent.run(id, "Make me a hello page.", max_steps: 1)
+    rows = Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Outcome"])
+    assert ["broken"] = for(%{"args" => [at, o | _]} <- rows, String.contains?(at, "/step/"), do: o)
+  end
+
   # code owns the workflow: what belongs to one move is refused in another, and a page names the command that opens it
   test "a move's calls that belong to another move are not run" do
     lua = Moss.Lua.base()

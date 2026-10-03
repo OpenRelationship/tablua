@@ -339,7 +339,7 @@ function M.new(host, run)
     if not calls then step.note, step.outcome = "Filling the move failed: " .. tostring(err), "broken" return end
     if #calls == 0 then step.note, step.outcome = "Mercury made no call for this move.", "no_effect" return end
     local kept = M.changes[verb] and undo.keep(host, calls) or nil
-    local failed, used = 0, false
+    local failed, used, typed, shown = 0, false, {}, ""
     for _, c in ipairs(calls) do
       -- every command runs in /home: a folder of the model's own was a guess (home became /home/home)
       c.cwd = nil
@@ -348,6 +348,9 @@ function M.new(host, run)
       if r.code ~= 0 then failed = failed + 1 end
       local word = (c.cmd or ""):match("^%s*(%a+)")
       if r.code == 0 and (word == "submit" or word == "click") then used = true end
+      -- what was typed, its last word (type "Plant name" "Pothos": Pothos), and what the page said once used
+      if word == "type" then typed[#typed + 1] = (c.cmd:match("([%w%-]+)[\"']?%s*$")) end
+      if used then shown = shown .. (r.stdout or "") end
       local files = {}
       for path in pairs(c.files or {}) do files[#files + 1] = path end
       table.sort(files)
@@ -362,6 +365,16 @@ function M.new(host, run)
       step.outcome = "no_effect"
       step.lines[#step.lines + 1] = "Only opened: using the app is typing in its form and submitting it (or clicking"
         .. " its button), then reading the page for what was added."
+    end
+    -- and using it shows what was typed: a page whose form went to an empty get.add showed nothing it was given
+    if verb == "look_at_app" and step.outcome == "complete" and #typed > 0 then
+      local seen = false
+      for _, t in ipairs(typed) do seen = seen or shown:find(t, 1, true) ~= nil end
+      if not seen then
+        step.outcome = "broken"
+        step.lines[#step.lines + 1] = ("Typed %s and sent it, but the page after shows none of it: the form keeps"
+          .. " nothing. Read the page's form and the action it names."):format(table.concat(typed, ", "))
+      end
     end
     if verb == "look_at_app" then req.looked = step.outcome == "complete" end
     if req.facts then
