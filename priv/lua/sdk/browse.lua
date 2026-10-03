@@ -32,6 +32,16 @@ function M.text(html)
   return (string.gsub(unescape(s), "%s+", " "))
 end
 
+-- what names a field, in the order a person reads it: its label, placeholder, name; the missing ones left out
+local function says(...)
+  local out = {}
+  for i = 1, select("#", ...) do
+    local v = select(i, ...)
+    if v and v ~= "" then out[#out + 1] = v end
+  end
+  return out
+end
+
 local function low(s) return string.lower(string.gsub(s or "", "^%s*(.-)%s*$", "%1")) end
 
 -- the page's forms (action, fields with what names them, buttons) and the buttons outside them (action, vals, text)
@@ -47,17 +57,17 @@ function M.parse(html)
       local t = attrs(tag)
       if t.name then
         form.fields[#form.fields + 1] = { name = t.name, type = t.type or "text", value = t.value,
-          says = { labels[t.id or ""], t.placeholder, t.name, t["aria-label"] } }
+          says = says(labels[t.id or ""], t.placeholder, t["aria-label"], t.name) }
       end
     end
     for tag in string.gmatch(inner, "<(textarea[^>]*)>") do
       local t = attrs(tag)
-      if t.name then form.fields[#form.fields + 1] = { name = t.name, type = "text", says = { labels[t.id or ""], t.placeholder, t.name } } end
+      if t.name then form.fields[#form.fields + 1] = { name = t.name, type = "text", says = says(labels[t.id or ""], t.placeholder, t.name) } end
     end
     for tag, body in string.gmatch(inner, "<(select[^>]*)>(.-)</select>") do
       local t = attrs(tag)
       local first = string.match(body, '<option[^>]-value="([^"]*)"')
-      if t.name then form.fields[#form.fields + 1] = { name = t.name, type = "select", value = first, says = { labels[t.id or ""], t.name } } end
+      if t.name then form.fields[#form.fields + 1] = { name = t.name, type = "select", value = first, says = says(labels[t.id or ""], t.name) } end
     end
     for _, body in string.gmatch(inner, "<button([^>]*)>(.-)</button>") do form.buttons[#form.buttons + 1] = M.text(body) end
     forms[#forms + 1] = form
@@ -115,8 +125,7 @@ end
 local function shows(w) return string.sub((string.gsub(seen(w), "^%s+", "")), 1, 400) end
 
 local function names(field)
-  for _, s in ipairs(field.says) do if s and s ~= "" then return s end end
-  return field.name
+  return field.says[1] or field.name
 end
 
 -- send: the action against the page's path (?do=add on /list is /list?do=add), then the page opened again
@@ -145,7 +154,7 @@ function M.install(test, at)
     for fi, form in ipairs(w.page.forms) do
       for _, f in ipairs(form.fields) do
         for _, s in ipairs(f.says) do
-          if s and (low(s) == want or string.find(low(s), want, 1, true)) then
+          if (low(s) == want or string.find(low(s), want, 1, true)) then
             w.typed[fi] = w.typed[fi] or {}
             w.typed[fi][f.name] = value(v)
             return

@@ -99,6 +99,11 @@ defmodule Moss.BrowseTest do
              ~s|apps/plants/code/steps/page.lua:2: "I see {string}" is the computer's own step (the page's, sdk/browse.lua)|
   end
 
+  test "Scenario: a field with no label is found by its placeholder", %{c: c} do
+    write(c, "/home/apps/plants/ui/index.lui", String.replace(@page, ~s|<label for="n">Plant name</label><input id="n" name="name"/>|, ~s|<input name="name" placeholder="Plant name"/>|))
+    assert %{code: 0} = Computer.run(c, "test")
+  end
+
   test "Scenario: a button the page lacks names the buttons it has", %{c: c} do
     write(c, "/home/apps/plants/ui/index.lui", @page)
 
