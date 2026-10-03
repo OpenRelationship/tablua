@@ -45,6 +45,67 @@ end
 
 function test.clear() defined = {} end
 
+-- Where the steps a file just defined live (its loader calls this with the file's text): each pattern's line, found by
+-- its text, so a near miss can say where the step it nearly matched is.
+function test.locate(path, text)
+  for _, d in ipairs(defined) do
+    if not d.at then
+      local s = string.find(text, d.text, 1, true)
+      local line = 1
+      if s then for _ in string.gmatch(string.sub(text, 1, s), "\n") do line = line + 1 end end
+      d.at = string.gsub(path, "^/home/", "") .. (s and (":" .. line) or "")
+    end
+  end
+end
+
+-- a line's words, a "quoted" string one word; a pattern's holes stay words of their own
+local function words(s)
+  local out, i = {}, 1
+  while i <= #s do
+    local a, b = string.find(s, '^"[^"]*"', i)
+    if not a then a, b = string.find(s, "^[^%s]+", i) end
+    if a then out[#out + 1], i = string.sub(s, a, b), b + 1 else i = i + 1 end
+  end
+  return out
+end
+
+local FITS = {
+  ["{string}"] = function(w) return string.match(w, '^".*"$') end,
+  ["{int}"] = function(w) return string.match(w, "^%-?%d+$") end,
+  ["{number}"] = function(w) return string.match(w, "^%-?%d+%.?%d*$") end,
+  ["{word}"] = function(w) return not string.find(w, '"', 1, true) end,
+  ["{}"] = function() return true end,
+}
+
+-- why a line no step matches nearly matched one: the nearest pattern of as many words, where it is, and each word
+-- that kept them apart
+function test.nearest(text)
+  local tw, best, score = words(text), nil, 0
+  for _, d in ipairs(defined) do
+    local pw = words(d.text)
+    if #pw == #tw then
+      local same = 0
+      for k = 1, #pw do if pw[k] == tw[k] or (FITS[pw[k]] and FITS[pw[k]](tw[k])) then same = same + 1 end end
+      if same / #pw > score then best, score = d, same / #pw end
+    end
+  end
+  if not best or score < 0.75 then return nil end
+  local pw, why = words(best.text), {}
+  for k = 1, #pw do
+    local fits = FITS[pw[k]]
+    if fits and not fits(tw[k]) then
+      if pw[k] == "{string}" then
+        why[#why + 1] = ('{string} takes "quoted" text and the line has %s: use {word} for one bare word'):format(tw[k])
+      else
+        why[#why + 1] = ("%s does not take %s"):format(pw[k], tw[k])
+      end
+    elseif not fits and pw[k] ~= tw[k] then
+      why[#why + 1] = ('the step says "%s" where the line says "%s"'):format(pw[k], tw[k])
+    end
+  end
+  return ("nearest: %q%s: %s"):format(best.text, best.at and (" at " .. best.at) or "", table.concat(why, "; "))
+end
+
 local function show(v)
   if type(v) == "string" then return string.format("%q", v) end
   return tostring(v)
@@ -187,7 +248,8 @@ local function run_steps(steps, world, rows, failed, report)
     else
       local d, args = find(s.text)
       if not d then
-        failed = "no step matches: " .. s.text
+        local near = test.nearest(s.text)
+        failed = "no step matches: " .. s.text .. (near and (" (" .. near .. ")") or "")
         rows[#rows + 1] = { text, "FAIL", failed }
         report.undefined[#report.undefined + 1] = s.text
       else

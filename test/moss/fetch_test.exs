@@ -40,10 +40,12 @@ defmodule Moss.FetchTest do
   end
 
   test "a 503 is retried once through the host's sleep" do
+    # each request runs in a task of its own, so the count lives outside any one process
+    calls = :counters.new(1, [])
+
     Req.Test.expect(Moss.Fetch, 2, fn conn ->
-      if Process.get(:answered),
-        do: answer(conn),
-        else: Process.put(:answered, true) && Plug.Conn.send_resp(conn, 503, "busy")
+      :counters.add(calls, 1, 1)
+      if :counters.get(calls, 1) > 1, do: answer(conn), else: Plug.Conn.send_resp(conn, 503, "busy")
     end)
 
     assert {:ok, ["yes", 2, 200]} =

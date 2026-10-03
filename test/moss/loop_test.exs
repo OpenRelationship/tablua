@@ -45,6 +45,22 @@ defmodule Moss.LoopTest do
     assert out =~ ~r"^apps/plants/ui/index\.lui:2: no class \"glow-9000\""
   end
 
+  # a line that nearly matches a step says which step, where it is, and the word that kept them apart
+  test "Scenario: a near miss names the step it nearly matched and why", %{c: c} do
+    write(c, "/home/apps/plants/features/plants.feature", """
+    Feature: plants
+      Scenario: one plant
+        Given 3 plants called Fern
+    """)
+
+    write(c, "/home/apps/plants/code/steps/given.lua", "\n" <> Enum.at(String.split(@steps, "\n"), 0))
+    assert %{code: 1, out: out} = sh(c, "test")
+
+    assert out =~
+             ~s|no step matches: 3 plants called Fern (nearest: "{int} plants called {string}" at | <>
+               ~s|apps/plants/code/steps/given.lua:2: {string} takes "quoted" text and the line has Fern: use {word} for one bare word)|
+  end
+
   test "Scenario: an undefined step prints its stub", %{c: c} do
     assert %{code: 1, out: out} = sh(c, "test")
     assert out =~ ~s|# no step matches "the list holds 3 plants"; paste this into code/steps/|

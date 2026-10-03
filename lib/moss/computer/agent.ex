@@ -171,13 +171,15 @@ defmodule Moss.Computer.Agent do
         not String.contains?(page, "/_") do
       path = url(page)
 
-      {status, _, _, _} =
+      {status, _, body, _} =
         Script.serve(%{"method" => "GET", "path" => path}, %{
           state
           | disk: %{state.disk | actor: "user"}
         })
 
-      %{"path" => path, "status" => status}
+      # a page that does not answer says why (its file, line and error), for both minds to read
+      page = %{"path" => path, "status" => status}
+      if status == 200, do: page, else: Map.put(page, "error", body |> IO.iodata_to_binary() |> String.slice(0, 400))
     end
   end
 

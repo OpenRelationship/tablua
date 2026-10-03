@@ -9,7 +9,7 @@ local test = require("test")
 local lui = require("shroomi.lui")
 
 -- held before any step file runs, so a step file that changes the test table changes no verdict
-local run, clear = test.run, test.clear
+local run, clear, locate = test.run, test.clear, test.locate
 
 local loop = {}
 
@@ -33,10 +33,16 @@ local function load_steps(scope)
   clear()
   local broken = {}
   for _, p in ipairs(lua_files(scope .. "/code/steps")) do
-    local chunk, why = load(fs.read(p) or "", "@" .. p)
+    local text = fs.read(p) or ""
+    local chunk, why = load(text, "@" .. p)
     if chunk then
       local ok, err = pcall(chunk)
-      if not ok then broken[#broken + 1] = p .. ": " .. tostring(err) end
+      -- the VM's message carries the file and line when it knows them; the file is named either way
+      if not ok then
+        err = tostring(err)
+        broken[#broken + 1] = string.find(err, p, 1, true) and err or (p .. ": " .. err)
+      end
+      locate(p, text)
     else
       broken[#broken + 1] = why
     end

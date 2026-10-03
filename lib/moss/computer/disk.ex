@@ -26,7 +26,9 @@ defmodule Moss.Computer.Disk do
   alias Moss.Computer.{Kinds, Named}
   alias Moss.Sql.Store
 
-  defstruct [:conn, :task, actor: "agent"]
+  # `under`: the task its events go under for a while (an agent's step, while its commands run), the computer's own
+  # task when nil; `task` stays the computer it belongs to
+  defstruct [:conn, :task, :under, actor: "agent"]
 
   @kept "create table if not exists kept (key text primary key, value blob not null)"
 
@@ -155,7 +157,7 @@ defmodule Moss.Computer.Disk do
 
   # one event on the computer's log, by the disk's actor
   defp log(disk, keyword, args) do
-    with :ok <- Log.append(disk.conn, disk.task, keyword, args, disk.actor),
+    with :ok <- Log.append(disk.conn, disk.under || disk.task, keyword, args, disk.actor),
          do: home_changed(disk, if(keyword == "Move File", do: args, else: Enum.take(args, 1)))
   end
 

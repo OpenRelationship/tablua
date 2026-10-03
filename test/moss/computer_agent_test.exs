@@ -85,6 +85,11 @@ defmodule Moss.ComputerAgentTest do
     outcomes = for %{"keyword" => "Outcome", "args" => [at | _]} <- rows, String.contains?(at, "/step/"), do: at
     assert decided == ["org:rock/mail/1/step/1", "org:rock/mail/1/step/2", "org:rock/mail/1/step/3", "org:rock/mail/1/step/4"]
     assert outcomes == decided
+
+    # the step's own commands are logged under its address, so the log reads a step's work as one
+    commands = Log.rows(state.disk.conn, ["Run Command"])
+    assert [%{"args" => ["cd '/home' && new feature hello" | _]}] =
+             Enum.filter(commands, &(&1["task"] == "org:rock/mail/1/step/1"))
   end
 
   test "the person's agreement moves the stage on, and Jev is offered the building moves", %{calls: calls, id: id} do
@@ -147,7 +152,7 @@ defmodule Moss.ComputerAgentTest do
     rows = Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Outcome"])
     steps = for %{"args" => [at, outcome, note | _]} <- rows, String.contains?(at, "/step/"), do: {outcome, note}
     assert [{"no_effect", n1}, {"no_effect", n2}, {"complete", _}, {"no_effect", _}] = steps
-    assert n1 =~ "Cause placed in the_steps. Test after: 0 of 1 pass (before: 0 of 1). The same failure as before this step (1 changes"
+    assert n1 =~ "] Cause placed in the_steps. Test after: 0 of 1 pass (before: 0 of 1). The same failure as before this step (1 changes"
     assert n2 =~ "(2 changes running have left it): Hi: Given the page says hello: /home/code/steps/hello.lua:1: no hello"
   end
 
@@ -172,6 +177,56 @@ defmodule Moss.ComputerAgentTest do
     rows = Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Outcome"])
     assert [{"blocked", "Blocked: The filler" <> _}, {"blocked", _}] =
              for(%{"args" => [at, o, note | _]} <- rows, String.contains?(at, "/step/"), do: {o, note})
+  end
+
+  # a page that does not answer says why in the facts both minds read, not its status alone
+  test "a page that does not answer carries its error in the facts", %{id: id} do
+    Computer.run(id, "help")
+    disk = :sys.get_state(Computer.wake!(id)).disk
+    :ok = Moss.Computer.Disk.write(disk, "/home/ui/index.lui", "<lua>\n  local d = nil\n</lua>\n<p>{{ d.name }}</p>\n")
+    assert [%{"path" => "/", "status" => 500, "error" => error}] = Computer.agent(id, :facts, ["org:x"])["pages"]
+    assert error =~ "index.lui"
+  end
+
+  # a change that breaks scenarios that passed can be put back: Jev is offered undo, and the files return as they were
+  test "a change that breaks what passed is offered undo, and undo puts its files back", %{calls: calls, id: id} do
+    good = ~s|test.step("the page says hello", function(w) test.ok(true) end)\n|
+    Computer.run(id, "help")
+    disk = :sys.get_state(Computer.wake!(id)).disk
+    :ok = Moss.Computer.Disk.write(disk, "/home/features/hello.feature",
+      "Feature: Hello\n  Scenario: Hi\n    Given the page says hello\n")
+    :ok = Moss.Computer.Disk.write(disk, "/home/code/steps/hello.lua", good)
+    :ok = Computer.agree(id, "/home/features/hello.feature")
+    Computer.run(id, "test")
+
+    Req.Test.stub(Moss.Fetch, fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      sent = Jason.decode!(body)
+
+      case conn.request_path do
+        "/api/alpha/decisions" ->
+          options = Map.keys(sent["questions"]["next"]["criteria"])
+          choice = if "undo" in options, do: "undo", else: "write_steps"
+          Agent.update(calls, &(&1 ++ [{:jev, options, choice}]))
+          answers = %{"next" => %{"choice" => choice, "probabilities" => %{choice => 0.9}}}
+          answers = if sent["questions"]["cause"], do: Map.put(answers, "cause", %{"choice" => "the_steps"}), else: answers
+          Req.Test.json(conn, %{"answers" => answers})
+
+        "/v1/chat/completions" ->
+          bad = %{"cmd" => "test", "files" => %{"code/steps/hello.lua" => ~s|test.step("the page says hello", function(w) test.ok(false) end)\n|}}
+          Req.Test.json(conn, %{"usage" => %{}, "choices" => [%{"message" => %{"tool_calls" => [%{"id" => "c",
+            "type" => "function", "function" => %{"name" => "computer", "arguments" => Jason.encode!(bad)}}]}}]})
+      end
+    end)
+
+    Moss.Computer.Agent.run(id, "Make me a hello page.", max_steps: 2)
+    assert [{:jev, first, "write_steps"}, {:jev, second, "undo"}] = Agent.get(calls, & &1)
+    refute "undo" in first
+    assert "undo" in second
+    assert Computer.run(id, "cat code/steps/hello.lua").out == good
+    rows = Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Outcome"])
+    assert [_, note] = for(%{"args" => [at, _, note | _]} <- rows, String.contains?(at, "/step/"), do: note)
+    assert note =~ "Test after: 1 of 1 pass (before: 0 of 1)."
   end
 
   test "there is no agent without both minds", %{id: id} do

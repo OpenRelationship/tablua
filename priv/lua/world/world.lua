@@ -9,6 +9,7 @@
 --   run = { help, procedures, task }                      what Mercury's fixed context holds, read once a run
 --   world.stage(facts) -> stage, why
 local prompt = require("moss.world.prompt")
+local undo = require("moss.world.undo")
 local clip = require("agent.clip").clip
 
 local M = {}
@@ -26,6 +27,7 @@ M.moves = {
   run_test = "Run the feature's tests (test) to see what passes, what fails and which steps are missing.",
   run_check = "Check the pages and code (check) for what is wrong in them.",
   fix_failure = "Fix what the last test, check or page named as failing, from its file and line.",
+  undo = "Put back the files the last change wrote, as they were: it broke scenarios that passed before it.",
   rewrite = "Throw out the file the failure is in and write it again whole, from the knowledge base's patterns:"
     .. " for when patching it has not worked.",
   look_at_app = "Open the app as the person will (open app) and use it: add something, see it there.",
@@ -36,8 +38,9 @@ M.moves = {
   answer = "The task is answered: the work is done.",
   think = "Think it through first: go over the task and every step so far, say what is wrong and what to do next."
     .. " For when the app's tests or pages keep failing, or the way on is unclear.",
-  blocked = "Stop and report: the agent's own tools keep failing (a move could not be filled, a command answers an"
-    .. " error that is not the app's), or what is needed is not among these moves. Say what is missing.",
+  blocked = "Stop and report: the agent's own tools keep failing (Mercury could not fill a move, the computer"
+    .. " itself errs), or what is needed is not among these moves. Never for a mistyped command or a failing test or"
+    .. " page: those are the app's to fix. Say what is missing.",
 }
 
 -- Where the failure's cause lies, asked beside the move whenever something is failing (TypeSafe: narrow questions,
@@ -57,9 +60,9 @@ M.causes = {
 M.allowed = {
   no_feature = { "write_feature", "read_help", "think", "blocked" },
   awaiting_agreement = { "wait_for_agreement", "write_feature", "think", "blocked" },
-  building = { "write_steps", "write_code", "write_page", "run_test", "run_check", "fix_failure", "rewrite",
+  building = { "undo", "write_steps", "write_code", "write_page", "run_test", "run_check", "fix_failure", "rewrite",
     "look_at_app", "read_help", "think", "plan", "next_part", "blocked" },
-  ready = { "publish", "look_at_app", "fix_failure", "rewrite", "write_page", "run_test", "think", "blocked" },
+  ready = { "publish", "undo", "look_at_app", "fix_failure", "rewrite", "write_page", "run_test", "think", "blocked" },
   awaiting_yes = { "wait_for_yes" },
   shipped = { "answer_task", "think", "blocked" },
   answered = { "answer" },
@@ -108,6 +111,19 @@ function M.failing(f)
   return table.concat(out, "\n")
 end
 
+-- the moves running, newest first, that Mercury could not fill (thinking between them does not break the run)
+function M.unfilled(req)
+  local n = 0
+  for i = #req.steps, 1, -1 do
+    local s = req.steps[i]
+    if s.verb ~= "think" then
+      if not (s.note and s.note:find("^Filling the move failed")) then break end
+      n = n + 1
+    end
+  end
+  return n
+end
+
 M.repeats = 2   -- changes that left the same failure, after which fixing it again waits on thinking it through
 
 -- How a step's change left the work, against the facts before it: the step's note, which both minds read in the
@@ -120,6 +136,10 @@ function M.after(req, before, f)
     out[1] = ("Test after: %d of %d pass"):format(t.passed, t.total)
       .. (t0 and (" (before: %d of %d)."):format(t0.passed, t0.total) or ".")
   end
+  -- fewer scenarios pass than before the change: it broke what worked
+  req.regressed = (t and t0 and t.passed < t0.passed) and ("%d of %d to %d of %d"):format(t0.passed, t0.total,
+    t.passed, t.total) or nil
+  if req.regressed then out[#out + 1] = "This change broke scenarios that passed." end
   if now ~= "" and now == was then
     req.repeats = (req.repeats or 0) + 1
     out[#out + 1] = ("The same failure as before this step (%d changes running have left it): %s"):format(
@@ -131,9 +151,19 @@ function M.after(req, before, f)
 end
 
 -- The facts in a few lines, as both minds read them.
-function M.facts_text(f, stage, why, repeats, looked)
-  local out = { ("Stage: %s (%s)."):format(stage, why) }
-  if stage == "ready" and not looked then
+--   s = { stage, why, repeats, looked, unfilled, regressed }: what the world knows of the run beside the facts
+function M.facts_text(f, s)
+  local stage, repeats = s.stage, s.repeats
+  local out = { ("Stage: %s (%s)."):format(stage, s.why) }
+  if (s.unfilled or 0) >= 2 then
+    out[#out + 1] = ("Mercury, who fills the moves, failed on the last %d moves: the agent's own tool is failing,"
+      .. " not the app."):format(s.unfilled)
+  end
+  if s.regressed then
+    out[#out + 1] = ("The last change broke scenarios that passed (%s): undo puts its files back as they were.")
+      :format(s.regressed)
+  end
+  if stage == "ready" and not s.looked then
     out[#out + 1] = "Nobody has used the app as the person will since it last changed: publishing waits on"
       .. " look_at_app (open it, add something, see it there)."
   end
@@ -144,7 +174,9 @@ function M.facts_text(f, stage, why, repeats, looked)
     for i = 1, math.min(5, #t.failing) do out[#out + 1] = "  failing: " .. clip(t.failing[i], 300) end
     for i = 1, math.min(5, #t.undefined) do out[#out + 1] = "  no step: " .. clip(t.undefined[i], 200) end
   end
-  for _, p in ipairs(f.pages) do out[#out + 1] = ("Page %s answers %d."):format(p.path, p.status) end
+  for _, p in ipairs(f.pages) do
+    out[#out + 1] = ("Page %s answers %d%s"):format(p.path, p.status, p.error and (": " .. clip(p.error, 300)) or ".")
+  end
   if (repeats or 0) >= M.repeats then
     out[#out + 1] = ("The last %d changes left the same failure: what was tried is not the cause. Think it through"
       .. " (read the help on what the failing code uses, and the code the step calls) before changing it again.")
@@ -167,7 +199,8 @@ function M.new(host, run)
     return req.facts
   end
 
-  function w.facts_text(req) return M.facts_text(req.facts, req.stage, req.why, req.repeats, req.looked) end
+  function w.facts_text(req) return M.facts_text(req.facts, { stage = req.stage, why = req.why,
+    repeats = req.repeats, looked = req.looked, unfilled = M.unfilled(req), regressed = req.undo and req.regressed }) end
 
   function w.question(a)
     local req = a.req
@@ -181,7 +214,7 @@ function M.new(host, run)
       -- and publishing waits on the app having been used as the person will since it last changed
       -- and thinking twice running changes nothing
       if not (stuck and name == "fix_failure") and not (name == "publish" and not req.looked)
-        and not (name == "think" and last and last.verb == "think") then
+        and not (name == "think" and last and last.verb == "think") and not (name == "undo" and not req.undo) then
         options[name] = M.moves[name] or require("agent.parts").verbs[name]
       end
     end
@@ -228,15 +261,29 @@ function M.new(host, run)
       return { "wait", M.waits[verb] }
     end
     if verb == "blocked" then
-      local missing = a:mercury(prompt.blocked(a, req, M.moves)) or "(Mercury could not say)"
+      local missing = a:mercury(prompt.blocked(a, req, M.moves))
+      if type(missing) ~= "string" or not missing:find("%S") then missing = "(Mercury could not say what is missing)" end
       step.note, step.outcome = "Blocked: " .. clip(missing, 600), "blocked"
+      -- the first time, what is missing is guidance both minds read; a second blocked running ends the run
+      req.guidance = "Blocked: " .. clip(missing, 600)
       local last = req.steps[#req.steps]
       if last and last.verb == "blocked" then return { "done", "blocked: " .. clip(missing, 600) } end
+      return
+    end
+    if verb == "undo" then
+      local kept = req.undo or {}
+      req.undo, req.regressed = nil, nil
+      for _, l in ipairs(undo.restore(host, kept)) do step.lines[#step.lines + 1] = l end
+      local r = host.exec({ cmd = "test" })   -- the run that shows the files as they were pass again
+      step.lines[#step.lines + 1] = ("$ test  -> %d\n%s"):format(r.code, clip(r.stdout or "", 1500))
+      step.outcome = "complete"
+      if req.facts then step.note = M.after(req, req.facts, host.facts()) end
       return
     end
     local calls, err = prompt.fill(a, req, verb, M.moves[verb], run, M.causes)
     if not calls then step.note, step.outcome = "Filling the move failed: " .. tostring(err), "broken" return end
     if #calls == 0 then step.note, step.outcome = "Mercury made no call for this move.", "no_effect" return end
+    local kept = M.changes[verb] and undo.keep(host, calls) or nil
     local failed = 0
     for _, c in ipairs(calls) do
       local r = host.exec(c)
@@ -251,9 +298,15 @@ function M.new(host, run)
     step.outcome = failed == 0 and "complete" or "broken"
     if verb == "look_at_app" then req.looked = step.outcome == "complete" end
     if req.facts then
-      local repeats = req.repeats or 0
-      step.note = (req.cause and ("Cause placed in %s. "):format(req.cause.choice) or "")
-        .. M.after(req, req.facts, host.facts())
+      local repeats, now = req.repeats or 0, host.facts()
+      -- the stage Jev was shown, then where it placed the cause, then how the change left the work
+      step.note = ("[%s: %s] "):format(req.stage, clip(req.why or "", 160))
+        .. (req.cause and ("Cause placed in %s. "):format(req.cause.choice) or "")
+        .. M.after(req, req.facts, now)
+      -- only the last change can be undone, and only when it broke what passed
+      req.undo = req.regressed and kept or nil
+      -- publish answers 3 when it has asked the person: that is it done
+      if verb == "publish" and (now.asked or now.shipped) then step.outcome = "complete" end
       -- a fix that left the failure as it was did nothing, whatever its commands said
       if verb == "fix_failure" and (req.repeats or 0) > repeats then step.outcome = "no_effect" end
     end

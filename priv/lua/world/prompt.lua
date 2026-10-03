@@ -20,7 +20,7 @@ M.tool = { type = "function", ["function"] = { name = "computer", strict = true,
     .. " written first, each whole, so a call can write a file and run what checks it.",
   parameters = { type = "object", required = { "cmd" }, properties = {
     cmd = { type = "string", description = "One command line, as help lists them: test, check, open app, mail send"
-      .. " rock-1 -m '...', cat code/plants.lua" },
+      .. " rock-1 -m '...', cat code/plants.lua. To write files and only check them, check." },
     cwd = { type = "string", description = "The folder the command runs in; /home when left out." },
     files = { type = "object", additionalProperties = { type = "string" },
       description = "Files to write before the command runs: path (relative to cwd) to the whole new text." } } } } }
@@ -49,14 +49,19 @@ require it:
 Wrong: a code/data.lua that keeps the rows in a Lua table and answers SQL with string matching: the steps pass
 or fail on a stand-in, and the page shows nothing the person added.
 
+A Lua error on this computer may name no line ("habits.lua: attempt to index a nil value"). Right: read the whole
+file for each name it indexes that nothing defines; a module starts local M = {} and ends return M, and a step file
+needs neither. Wrong: function M.add(name) ... in a file that never says local M = {}.
+
 A statement checked. Right: assert(d:exec("insert into plant values (?, ?)", name, nil)), so a bad statement
 stops with why. Wrong: d:exec(...) alone: a bad statement returns nil and why, and nothing notices.
 
 A scenario starts clean. Right: its first Given clears what it reads, d:exec("delete from plant"), so it passes on
 its own steps. Wrong: a scenario that passes on rows an earlier run left behind.
 
-Looking at the app. Right: open app, type the add field, submit, then read the page for what was added. Wrong:
-publishing because the tests are green: the steps may check the database while the page's own action fails.
+Looking at the app. Right: open the page at the path the current state names (Page /house-plants/ answers 200:
+open app/house-plants), type the add field, submit, then read the page for what was added. Wrong: open app when
+the app lives in apps/<name>/ (nothing is served at /), or open app house-plants (the path joins with /).
 
 A page and its database. Right: the code the page uses makes its table first,
   d:exec("create table if not exists plant (name text primary key, watered text)")
@@ -75,7 +80,8 @@ computer has no printf).
 
 M.rules = [[
 - Make only this move's calls, then stop. Never decide the work is done: the decider does.
-- Write every file whole with files; never build one with echo, printf, sed or >>.
+- Write every file whole with files; never build one with echo, printf, sed or >>. Change only what the failing
+  step or page needs: keep every step and function that passes as it is.
 - Every step checks real behaviour with test.eq or test.ok; never leave a body empty.
 - Use only the commands help lists, and the APIs the knowledge base shows (db.open for data, test.step for steps,
   .lui for pages); never write a stand-in for one. Read an error's file and line before changing anything.
@@ -165,7 +171,7 @@ function M.blocked(a, req, moves)
   local names = {}
   for name, what in pairs(moves) do names[#names + 1] = "- " .. name .. ": " .. what end
   table.sort(names)
-  return { kind = "blocked", reasoning_effort = "high", max_tokens = 800,
+  return { kind = "blocked", reasoning_effort = "medium", max_tokens = 3000,
     system = "An agent building an app on its own computer has decided that none of its moves can make progress."
       .. " Its moves:\n" .. table.concat(names, "\n") .. "\nRead the task, the state and every step so far. In at"
       .. " most four short lines say what is missing or failing that no move can fix, as its maker would need to"

@@ -85,8 +85,13 @@ function M.step(saved_json, ctx)
     store:append(req.task, "Decide", { at(#req.steps + 1), how == "arbiter" and "mercury" or "jev",
       json.encode(json.array(options)), verb, tostring(answer.confidence or "") })
   end
+  -- each command is logged under the step it is for, so the log (and its Robot rows) reads a step's work as one
+  local doing
   local world = require("moss.world").new({
-    exec = function(req) return __host.exec(req) end,
+    exec = function(req)
+      req.task = req.task or doing
+      return __host.exec(req)
+    end,
     facts = function() return __host.agent_facts(ctx.at) end,
   }, ctx)
   world.after = function(_, req, step)
@@ -111,6 +116,7 @@ function M.step(saved_json, ctx)
   end
   if kind == "act" then
     local step = detail
+    doing = at(#req.steps + 1)
     local after = a:perform(req, step)
     -- the agent's own verbs (think, plan) leave no outcome: they did their part unless they say they failed, and
     -- every decision has its outcome

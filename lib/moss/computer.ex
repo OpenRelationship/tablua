@@ -30,17 +30,22 @@ defmodule Moss.Computer do
   @registry Moss.Computer.Registry
   @lines 200
 
-  def run(id, line), do: GenServer.call(wake!(id), {:run, line}, :infinity)
+  def run(id, line), do: run(id, line, nil)
+
+  # `under`: the task the run's events go under (an agent's step address), the computer's own when nil
+  defp run(id, line, under), do: GenServer.call(wake!(id), {:run, line, under}, :infinity)
 
   @doc """
   The core's exec port (`ports.box`'s contract) on this computer: `files` are
-  written first (path => content, relative to `cwd`), then `cmd` runs in `cwd`.
+  written first (path => content, relative to `cwd`), then `cmd` runs in `cwd`. `task`, when given, is what the
+  writes and the run are logged under (an agent's step address), so the log reads a step's work as one.
   """
   def exec(id, %{} = req) do
     cwd = req["cwd"] || "/home"
+    under = req["task"]
 
-    with :ok <- GenServer.call(wake!(id), {:files, cwd, req["files"] || %{}}) do
-      r = run(id, "cd '#{String.replace(cwd, "'", "")}' && " <> (req["cmd"] || "true"))
+    with :ok <- GenServer.call(wake!(id), {:files, cwd, req["files"] || %{}, under}) do
+      r = run(id, "cd '#{String.replace(cwd, "'", "")}' && " <> (req["cmd"] || "true"), under)
       %{"code" => r.code, "stdout" => r.out, "stderr" => r.err, "timed_out" => false}
     else
       {:error, why} ->
@@ -161,13 +166,14 @@ defmodule Moss.Computer do
   end
 
   @impl true
-  def handle_call({:run, line}, _from, state) do
+  def handle_call({:run, line, under}, _from, state) do
     started = System.monotonic_time(:microsecond)
     cwd = state.cwd
-    {r, state} = Shell.run(line, state)
+    {r, state} = Shell.run(line, put_in(state.disk.under, under))
+    state = put_in(state.disk.under, nil)
     ms = (System.monotonic_time(:microsecond) - started) / 1000
     log_mailed(state, "agent")
-    log(state, "Run Command", [line, cwd, to_string(r.code), ms(ms), r.out, r.err], "agent")
+    log(state, "Run Command", [line, cwd, to_string(r.code), ms(ms), r.out, r.err], "agent", under)
     entry = %{line: line, out: r.out, err: r.err, code: r.code, cwd: state.cwd, ms: ms}
 
     state = %{
@@ -189,12 +195,13 @@ defmodule Moss.Computer do
     {:reply, Map.put(r, :cwd, state.cwd), state, :hibernate}
   end
 
-  def handle_call({:files, cwd, files}, _from, state) do
-    :ok = Disk.mkdir_p(state.disk, Disk.norm(cwd))
+  def handle_call({:files, cwd, files, under}, _from, state) do
+    disk = %{state.disk | under: under}
+    :ok = Disk.mkdir_p(disk, Disk.norm(cwd))
 
     result =
       Enum.reduce_while(files, :ok, fn {path, body}, :ok ->
-        case Disk.write(state.disk, Disk.norm(path, Disk.norm(cwd)), body) do
+        case Disk.write(disk, Disk.norm(path, Disk.norm(cwd)), body) do
           :ok -> {:cont, :ok}
           {:error, e} -> {:halt, {:error, "#{path}: #{e}"}}
         end
@@ -323,8 +330,8 @@ defmodule Moss.Computer do
   # -- the log ------------------------------------------------------------------------------------
 
   # an event on the computer's log; one that cannot be written (a full disk) is told, never fatal to the run
-  defp log(state, keyword, args, actor) do
-    with {:error, why} <- Log.append(state.disk.conn, state.id, keyword, args, actor) do
+  defp log(state, keyword, args, actor, under \\ nil) do
+    with {:error, why} <- Log.append(state.disk.conn, under || state.id, keyword, args, actor) do
       Logger.warning("computer #{state.id}: #{keyword} not logged: #{why}")
     end
   end

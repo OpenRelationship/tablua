@@ -4,6 +4,10 @@ defmodule Moss.Fetch do
   decoded from Lua) to `{:ok, status, body}`, or `{:error, message}` for a
   transport failure. No retries here: `ports.call` owns the retry policy. The
   request, and so the key in its headers, is never logged or put in an error.
+
+  Each request runs in a task of its own: a reply that comes after its request gave up (Finch's
+  `{:status, ref, 200}`) then dies with the task, instead of waiting in a long-lived caller's mailbox (the
+  computer's agent runs a whole build in one process) to break the next request.
   """
 
   def request(req) do
@@ -18,9 +22,13 @@ defmodule Moss.Fetch do
         decode_body: false
       ] ++ Application.get_env(:moss, :req_options, [])
 
-    case Req.request(opts) do
-      {:ok, %Req.Response{status: status, body: body}} -> {:ok, status, body}
-      {:error, e} -> {:error, "fetch: " <> Exception.message(e)}
+    task = Task.async(fn -> Req.request(opts) end)
+
+    case Task.yield(task, opts[:receive_timeout] + 5_000) || Task.shutdown(task, :brutal_kill) do
+      {:ok, {:ok, %Req.Response{status: status, body: body}}} -> {:ok, status, body}
+      {:ok, {:error, e}} -> {:error, "fetch: " <> Exception.message(e)}
+      {:exit, why} -> {:error, "fetch: " <> Exception.format_exit(why)}
+      nil -> {:error, "fetch: no answer in time"}
     end
   end
 end
