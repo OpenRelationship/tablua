@@ -32,8 +32,11 @@ defmodule Moss.Host do
   @doc "`id`'s board: its tasks and their letters, as text."
   @callback board(id :: String.t()) :: String.t()
 
-  @doc "An `org:` address resolved without waking what it names: `{:ok, what}` or `{:error, why}`."
-  @callback resolve(address :: String.t()) :: {:ok, term()} | {:error, String.t()}
+  @doc """
+  An `org:` address resolved for computer `from` without waking what it names: `{:ok, what}` or `{:error, why}`. A host
+  with tenants answers only for `from`'s own tenant (Arock's uspx).
+  """
+  @callback resolve(from :: String.t(), address :: String.t()) :: {:ok, term()} | {:error, String.t()}
   @doc "A computer awake on this host, so its address resolves."
   @callback computer(id :: String.t()) :: term()
   @doc "A manifest written at `path`: the names it declares replace the ones it declared before."
@@ -64,7 +67,7 @@ defmodule Moss.Host do
   def read(id, letter), do: impl().read(id, letter)
   def sent(id), do: impl().sent(id)
   def board(id), do: impl().board(id)
-  def resolve(address), do: impl().resolve(address)
+  def resolve(from, address), do: impl().resolve(from, address)
   def computer(id), do: impl().computer(id)
   def manifest(id, path, text), do: impl().manifest(id, path, text)
   def gone(id, path), do: impl().gone(id, path)

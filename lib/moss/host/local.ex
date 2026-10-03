@@ -38,7 +38,7 @@ defmodule Moss.Host.Local do
   def board(_id), do: "no tasks: this computer runs on its own\n"
 
   @impl true
-  def resolve(address), do: {:error, "#{address} names nothing: this computer runs on its own"}
+  def resolve(_from, address), do: {:error, "#{address} names nothing: this computer runs on its own"}
 
   @impl true
   def computer(_id), do: :ok
