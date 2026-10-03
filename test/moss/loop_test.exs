@@ -162,6 +162,7 @@ defmodule Moss.LoopTest do
     assert {200, _, _, _} = Computer.serve(c, %{"method" => "GET", "path" => "/notes/"})
 
     assert %{code: 0, out: "wrote features/water.feature\n"} = sh(c, "new feature water")
+    assert %{code: 0, out: "wrote features/water-log.feature\n"} = sh(c, "new feature Water_log")
 
     assert %{code: 1, err: "new: features/water.feature is there already" <> _} =
              sh(c, "new feature water")

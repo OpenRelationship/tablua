@@ -17,6 +17,8 @@ defmodule Moss.Computer.New do
 
   def run([kind | rest], state) when kind in @kinds do
     name = List.first(rest) || if(kind == "manifest", do: "manifest")
+    # recipe_box or Recipe_Box is recipe-box: the name a file can have, not a refusal (a recipes run blocked on it)
+    name = name && name |> String.downcase() |> String.replace(~r/[_\s]+/, "-")
 
     cond do
       name == nil or not Regex.match?(~r/\A[a-z0-9][a-z0-9-]{0,63}\z/, name) ->
