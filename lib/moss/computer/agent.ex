@@ -136,7 +136,7 @@ defmodule Moss.Computer.Agent do
   end
 
   defp tests(board) do
-    if board == [] or Enum.any?(board, &(&1.run == nil or &1.stage in ["written", "agreed"])) do
+    if board == [] or Enum.any?(board, &(&1.run == nil or &1.stage in ["asked", "written", "agreed"])) do
       nil
     else
       runs = Enum.map(board, & &1.run)

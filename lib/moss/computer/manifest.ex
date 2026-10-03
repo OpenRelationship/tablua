@@ -110,7 +110,9 @@ defmodule Moss.Computer.Manifest do
       mail: list(t["mail"]),
       account: t["account"],
       ask: t["ask"] == true,
-      publish: t["publish"] == true
+      publish: t["publish"] == true,
+      from: t["from"],
+      output: t["output"]
     }
   end
 

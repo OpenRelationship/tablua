@@ -33,7 +33,9 @@ defmodule Moss.Computer.Tools do
 
   A tool runs by its name (weather Lisbon); its code reads arg.city or arg[1]. tools lists them.
   Arguments: string, number, bool, one of a|b; = gives a default, ? makes one optional.
-  Triggers: EVERY hourly, daily HH:MM, weekly Mon HH:MM, every 15m|2h|1d (UTC); the computer wakes for it.
+  Triggers: EVERY hourly, daily HH:MM, weekdays HH:MM, weekly Mon HH:MM, every 15m|2h|1d (UTC, or a clock's own
+  offset: weekdays 07:00 UTC-07:00); the computer wakes for it. A tool with FROM is a writ's: the person's words make
+  it, and it changes when the writ does.
   Reach is asked here and granted only by the person: NET <host, ...>, MAIL <address>, ACCOUNT <app>.
   ASK makes each run wait for the person's yes. Until they grant it, a fetch is refused with what to ask;
   removing a request takes its grant back. A lua run outside a tool reaches nothing beyond the computer.

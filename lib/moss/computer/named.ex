@@ -7,12 +7,17 @@ defmodule Moss.Computer.Named do
   """
   alias Moss.Computer.{Disk, Manifest}
 
-  @doc "`:ok`, or why an agent's manifest is refused, by line."
+  @doc """
+  `:ok`, or why an agent's manifest is refused: a tool a writ made changed or gone (`Moss.Computer.Writs`), or a
+  bad line, by line.
+  """
   def check(disk, path, data) do
     with true <- disk.actor != "user" and Path.basename(path) == "manifest.org",
+         :ok <- Moss.Computer.Writs.check(disk, path, data),
          [_ | _] = errs <- Manifest.check(data) do
       {:error, "manifest.org is refused:\n" <> Enum.join(errs, "\n")}
     else
+      {:error, _} = refused -> refused
       _ -> :ok
     end
   end

@@ -3,6 +3,8 @@ defmodule Moss.Computer.Board do
   Each feature's stage (Arock's feature file-kinds, "The build loop"), derived from its files, its last run and
   the log; no plan is stored.
 
+      asked     the .feature says what is asked and has no scenario yet (a writ's service no app offers, Arock
+                feature notes: the person asked for it in words; the loop writes its scenarios)
       written   the .feature exists, and the person has not agreed to it as it stands
       agreed    the person agreed (Agree Feature, for this text), and it has not run since its files changed
       red       agreed, and its last run failed or has undefined steps
@@ -74,12 +76,21 @@ defmodule Moss.Computer.Board do
     shipped = last(log, "Publish Artifact", address(state, scope))
 
     cond do
+      agreed == nil and asked?(state.disk, path) -> "asked"
       agreed == nil or hd(agreed.args) != text_digest(state.disk, path) -> "written"
       run == nil or run.seq < agreed.seq -> "agreed"
       run.outcome == "red" -> "red"
       run.detail["digest"] != digest(state.disk, scope) -> "agreed"
       shipped && shipped.seq > run.seq -> "shipped"
       true -> "green"
+    end
+  end
+
+  @doc "Whether a feature only asks: it has no scenario yet."
+  def asked?(disk, path) do
+    case Disk.read(disk, path) do
+      {:ok, text} -> not Regex.match?(~r/^\s*(Scenario|Scenario Outline|Scenario Template|Example):/m, text)
+      _ -> false
     end
   end
 

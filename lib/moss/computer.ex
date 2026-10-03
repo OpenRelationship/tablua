@@ -81,6 +81,12 @@ defmodule Moss.Computer do
   def revoke(id, tool, reach, value),
     do: GenServer.call(wake!(id), {:person, :revoke, [tool, reach, value]})
 
+  @doc """
+  The person writes `text` at `path` (`Moss.Computer.Person.write/3`): a writ, or what a writ made, such as a
+  manifest's tools. `:ok` or `{:error, why}`.
+  """
+  def write(id, path, text), do: GenServer.call(wake!(id), {:person, :write, [path, text]})
+
   @doc "The person agrees to a feature as it stands (`Moss.Computer.Person.agree/2`)."
   def agree(id, path), do: GenServer.call(wake!(id), {:person, :agree, [path]})
 

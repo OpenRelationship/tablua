@@ -184,7 +184,8 @@ end
 function names.address(s) return require("arock-log.org").address(s) end
 
 -- arock.names("full", text) -> JSON { apps = { name, ... }, tools = { tool, ... } } in their order, each tool as
--- arock-log.manifest reads it (run, description, args, every, on, net, mail, account, ask, publish), the valid ones only
+-- arock-log.manifest reads it (run, description, args, every, on, net, mail, account, ask, publish, from, output), the
+-- valid ones only
 function names.full(text)
   local m = require("arock-log.manifest").read(require("arock-log.org").parse(text), { host = true })
   local out = { apps = {}, tools = {} }
@@ -193,7 +194,7 @@ function names.full(text)
     local t = m.tools[n]
     out.tools[#out.tools + 1] = { name = t.name, run = t.run, description = t.description, args = t.args,
       every = t.every, on = t.on, net = t.net, mail = t.mail, account = t.account, ask = t.ask or false,
-      publish = t.publish or false }
+      publish = t.publish or false, from = t.from, output = t.output }
   end
   return require("ports.json").encode(out)
 end

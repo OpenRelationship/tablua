@@ -127,6 +127,8 @@ function M.stage(f, since)
   if f.asked then return "awaiting_yes", "publishing waits for the person's yes" end
   if #f.features == 0 then return "no_feature", "there is no feature yet" end
   for _, ft in ipairs(f.features) do
+    -- a feature the person asked for in a writ, its scenarios not written yet: the loop writes them
+    if ft.stage == "asked" then return "building", ft.path .. " only asks: write its scenarios (Scenario: and its steps)" end
     if ft.stage == "written" then return "awaiting_agreement", ft.path .. " is written and not agreed" end
   end
   local t, why = f.tests, {}

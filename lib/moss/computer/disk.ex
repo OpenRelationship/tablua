@@ -339,7 +339,7 @@ defmodule Moss.Computer.Disk do
   @doc "Removes a file, or a folder with everything in it when `all` is true (an empty one otherwise)."
   def remove(disk, path, all \\ false) do
     path = norm(path)
-    remove_own(disk, path, all)
+    with :ok <- Moss.Computer.Writs.guard(disk, path), do: remove_own(disk, path, all)
   end
 
   defp remove_own(disk, path, all) do
@@ -369,7 +369,9 @@ defmodule Moss.Computer.Disk do
   def rename(disk, from, to) do
     {from, to} = {norm(from), norm(to)}
 
-    with false <- database?(disk, from) or database?(disk, to),
+    with :ok <- Moss.Computer.Writs.guard(disk, from),
+         :ok <- Moss.Computer.Writs.guard(disk, to),
+         false <- database?(disk, from) or database?(disk, to),
          {:ok, st} <- stat(disk, from),
          {:ok, %{dir: true}} <- stat(disk, Path.dirname(to)),
          :ok <- if(String.starts_with?(to <> "/", from <> "/"), do: {:error, :einval}, else: :ok),
@@ -382,8 +384,11 @@ defmodule Moss.Computer.Disk do
     end
   end
 
-  # the six kinds (Kinds) hold for the agent and the person; the host writes where it must
+  # the six kinds (Kinds) hold for the agent and the person; the host writes where it must, and the person's writs
+  # (Arock feature notes) are kept in /home/writs, theirs and the host's alone: an agent reads them and writes none
   defp kind(%{actor: "host"}, _path, _check), do: :ok
+  defp kind(%{actor: "user"}, "/home/writs", _check), do: :ok
+  defp kind(%{actor: "user"}, "/home/writs/" <> _, _check), do: :ok
   defp kind(_disk, path, check), do: check.(path)
 
   # a folder moves only where every file under it may go
