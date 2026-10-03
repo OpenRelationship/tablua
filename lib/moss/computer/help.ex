@@ -33,7 +33,8 @@ defmodule Moss.Computer.Help do
   SQLite's SQL: create table/index, alter table add column, drop; insert (or ignore/replace, on conflict, returning);
   select with joins, group by, subqueries, union; update; delete; begin/commit/rollback. ? and :name bind the
   arguments after the SQL. Views, triggers, WITH, window functions and pragma are refused. 64 MB at most.
-  ls shows a database, cat sums it up, rm removes it. A bad statement returns nil and why.
+  ls shows a database, cat sums it up, rm removes it. A bad statement stops the code that ran it with its file,
+  line and why (pcall it to go on); db.open returns nil and why.
   """
 
   @files """

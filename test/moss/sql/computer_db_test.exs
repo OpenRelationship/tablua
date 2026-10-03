@@ -61,8 +61,8 @@ defmodule Moss.Sql.ComputerDbTest do
     assert %{out: ""} = sh(c, "ls data")
     assert %{out: "f.txt\n"} = sh(c, "ls files")
 
-    assert %{out: "nil\tno such table: t\n"} =
-             lua(c, ~S|print(db.open("data/p.dbl"):query("select * from t"))|)
+    assert %{out: "false\t(command line):1: no such table: t\n"} =
+             lua(c, ~S|print(pcall(function() return db.open("data/p.dbl"):query("select * from t") end))|)
   end
 
   test "databases sit in folders by path, and a database's folder is made as a file's would be" do
@@ -132,11 +132,11 @@ defmodule Moss.Sql.ComputerDbTest do
         :timer.tc(fn ->
           lua(
             c,
-            ~S|print(db.open("data/big.dbl"):query("select count(*) n from t a, t b, t c where a.a + b.a + c.a < 0"))|
+            ~S|print(pcall(function() return db.open("data/big.dbl"):query("select count(*) n from t a, t b, t c where a.a + b.a + c.a < 0") end))|
           )
         end)
 
-      assert r.out == "nil\tinterrupted: the statement ran past the run's instruction budget\n"
+      assert r.out == "false\t(command line):1: interrupted: the statement ran past the run's instruction budget\n"
       assert us < 10_000_000
 
       # one that keeps every row ends on the run's memory, as a Lua table that big would
@@ -173,16 +173,16 @@ defmodule Moss.Sql.ComputerDbTest do
                ~S|local d for i = 1, 20 do d = db.open("data/one.dbl") d:exec("create table if not exists t (n)") d:exec("insert into t values (?)", i) end print(d:one("select count(*) n from t").n)|
              )
 
-    assert %{out: "nil\tstring or blob too big: a statement is at most 1024 KB\n"} =
+    assert %{out: "false\t(command line):1: string or blob too big: a statement is at most 1024 KB\n"} =
              lua(
                c,
-               ~S|print(db.open("data/a.dbl"):query("select " .. string.rep("1+", 600000) .. "1"))|
+               ~S|print(pcall(function() return db.open("data/a.dbl"):query("select " .. string.rep("1+", 600000) .. "1") end))|
              )
 
-    assert %{out: "nil\tExpression tree is too large (maximum depth 1000)\n"} =
+    assert %{out: "false\t(command line):1: Expression tree is too large (maximum depth 1000)\n"} =
              lua(
                c,
-               ~S|print(db.open("data/a.dbl"):query("select " .. "1" .. string.rep("+1", 1000)))|
+               ~S|print(pcall(function() return db.open("data/a.dbl"):query("select " .. "1" .. string.rep("+1", 1000)) end))|
              )
   end
 

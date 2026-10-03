@@ -244,6 +244,26 @@ defmodule Moss.ComputerAgentTest do
     assert eval.(~s|return require("moss.world").open("/")|) == ["open app"]
   end
 
+  test "once shipped the task is answered: thinking or stopping only after an answer that failed" do
+    options = fn steps ->
+      Lua.eval!(Moss.Lua.base(), """
+      local world = require("moss.world")
+      local host = { facts = function() return { features = { { path = "features/a.feature", stage = "shipped" } },
+        pages = {}, shipped = true } end }
+      local q = world.new(host, {}).question({ req = { steps = #{steps} } })
+      local out = {}
+      for name in pairs(q.options) do out[#out + 1] = name end
+      table.sort(out)
+      return table.concat(out, " ")
+      """)
+      |> elem(0)
+      |> hd()
+    end
+
+    assert options.("{ { verb = 'publish', outcome = 'complete' } }") == "answer_task"
+    assert options.("{ { verb = 'answer_task', outcome = 'broken' } }") == "answer_task blocked think"
+  end
+
   test "there is no agent without both minds", %{id: id} do
     System.delete_env("OPENROUTER_API_KEY")
     assert %{outcome: "error", why: why} = Moss.Computer.Agent.run(id, "Make me a hello page.")

@@ -188,6 +188,14 @@ end
 
 -- The facts in a few lines, as both minds read them.
 --   s = { stage, why, repeats, looked, unfilled, regressed }: what the world knows of the run beside the facts
+-- an answer_task step that did not come out complete
+function M.answer_failed(req)
+  for _, st in ipairs(req.steps) do
+    if st.verb == "answer_task" and st.outcome ~= "complete" then return true end
+  end
+  return false
+end
+
 function M.facts_text(f, s)
   local stage, repeats = s.stage, s.repeats
   local out = { ("Stage: %s (%s)."):format(stage, s.why) }
@@ -198,6 +206,9 @@ function M.facts_text(f, s)
   if s.regressed then
     out[#out + 1] = ("The last change broke scenarios that passed (%s): undo puts its files back as they were.")
       :format(s.regressed)
+  end
+  if stage == "shipped" then
+    out[#out + 1] = "The person said yes and the app is published: nothing waits on them any more; answer the task."
   end
   if stage == "ready" and not s.looked then
     out[#out + 1] = "Nobody has used the app as the person will since it last changed: publishing waits on"
@@ -250,8 +261,11 @@ function M.new(host, run)
     for _, name in ipairs(M.allowed[req.stage]) do
       -- and publishing waits on the app having been used as the person will since it last changed
       -- and thinking twice running changes nothing
+      -- and once shipped, the task is answered: thinking or stopping is for after an answer that failed (a budget
+      -- run, shipped, thought and then blocked twice saying it still waited on the person's yes)
       if not (stuck and name == "fix_failure") and not (name == "publish" and not req.looked)
-        and not (name == "think" and last and last.verb == "think") and not (name == "undo" and not req.undo) then
+        and not (name == "think" and last and last.verb == "think") and not (name == "undo" and not req.undo)
+        and not (req.stage == "shipped" and name ~= "answer_task" and not M.answer_failed(req)) then
         options[name] = M.moves[name] or require("agent.parts").verbs[name]
       end
     end

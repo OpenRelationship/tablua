@@ -56,11 +56,17 @@ A module. Right: code/habits.lua starts local M = {} and ends return M; a step f
 function M.add(name) ... in a file that never says local M = {}: the error names it, code/habits.lua:3: attempt to
 index a nil value (global 'M').
 
-A statement checked. Right: assert(d:exec("insert into plant values (?, ?)", name, nil)), so a bad statement
-stops with why. Wrong: d:exec(...) alone: a bad statement returns nil and why, and nothing notices.
+A statement that fails stops. Right: read its error, code/chores.lua:12: table chores has no column named person,
+and change the statement or the table so they agree. Wrong: wrapping it in pcall so the page answers and keeps
+nothing.
 
-A scenario starts clean. Right: its first Given clears what it reads, d:exec("delete from plant"), so it passes on
-its own steps. Wrong: a scenario that passes on rows an earlier run left behind.
+One table, one module. Right: code/chores.lua makes the table and holds every statement on it; the steps and the
+page both require("chores") and call its functions. Wrong: steps that db.open and create the table themselves
+with other columns (assigned_to where the page writes person): the steps pass on their own table and the page
+fails on it.
+
+A scenario starts clean. Right: its first Given clears what it reads through the module, plants.clear() (a
+function M.clear() d:exec("delete from plant") end in code/plants.lua), so it passes on its own steps. Wrong: a scenario that passes on rows an earlier run left behind.
 
 Looking at the app. Right: the command the current state gives for the page (Page / (open app) answers 200), then
 type the add field, submit, and read the page for what was added. Wrong: open app house-plants (a second page is

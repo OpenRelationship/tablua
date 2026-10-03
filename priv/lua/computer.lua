@@ -13,7 +13,7 @@
 --   date, csv and test are at hand; require("name"): the library's modules (`help lua`), then name.lua or
 --     name/init.lua in the working folder, then the app's code/, then /home/code/
 --   Pages are ui/*.lui (`help page`); a tool is code named in manifest.org (`help manifest`).
--- A failure returns nil and why, as Lua's own io does.
+-- A failure returns nil and why, as Lua's own io does; a database statement that fails raises, with its file and line.
 
 -- (Moss.Computer.Script binds __sys, the host's functions; everything here is plain Lua over them.)
 local sys = __sys
@@ -89,17 +89,16 @@ end
 
 local Db = {}
 Db.__index = Db
-function Db:exec(sql, ...)
+-- a statement that fails stops the code that ran it, with its file and line: a page whose insert named a column
+-- the table lacks answered 200 and kept nothing (a chores run), where it now answers 500 and says why
+local function run(self, sql, ...)
   local rows, changes = sys.db_exec(self.h, sql, params(...))
-  if rows == nil then return nil, changes end
-  return changes
+  if rows == nil then error(changes, 3) end
+  return rows, changes
 end
-function Db:query(sql, ...) return sys.db_exec(self.h, sql, params(...)) end
-function Db:one(sql, ...)
-  local rows, why = sys.db_exec(self.h, sql, params(...))
-  if rows == nil then return nil, why end
-  return rows[1]
-end
+function Db:exec(sql, ...) return select(2, run(self, sql, ...)) end
+function Db:query(sql, ...) return (run(self, sql, ...)) end
+function Db:one(sql, ...) return run(self, sql, ...)[1] end
 function Db:save() return sys.db_save(self.h) end
 function Db:close() return sys.db_close(self.h) end
 

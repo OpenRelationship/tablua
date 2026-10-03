@@ -52,22 +52,24 @@ defmodule Moss.SdkTest do
 
     put(c, "/home/code/x.lua", ~S"""
     local d = db.open("data/x.dbl")
-    print(d:exec("attach '/tmp/y.db' as y"))
-    print(d:exec("pragma max_page_count = 1000000000"))
-    print(d:exec("vacuum into '/tmp/z.db'"))
-    print(d:exec("create view v as select 1"))
-    print(d:query("with t as (select 1) select * from t"))
-    print(d:query("select nope"))
+    -- a statement refused stops its code; pcall shows why
+    local function try(sql) print(pcall(function() return d:query(sql) end)) end
+    try("attach '/tmp/y.db' as y")
+    try("pragma max_page_count = 1000000000")
+    try("vacuum into '/tmp/z.db'")
+    try("create view v as select 1")
+    try("with t as (select 1) select * from t")
+    try("select nope")
     """)
 
     assert %{code: 0, out: out} = sh(c, "lua code/x.lua")
     assert [a, p, v, cv, w, q] = String.split(out, "\n", trim: true)
-    assert a == "nil\tATTACH is not supported (the database speaks a subset of SQLite: help data)"
-    assert p =~ ~r/^nil\tPRAGMA is not supported/
-    assert v =~ ~r/^nil\tVACUUM is not supported/
-    assert cv =~ ~r/^nil\tCREATE VIEW is not supported/
-    assert w =~ ~r/^nil\tWITH \(a common table expression\) is not supported/
-    assert q == "nil\tno such column: nope"
+    assert a == "false\tcode/x.lua:3: ATTACH is not supported (the database speaks a subset of SQLite: help data)"
+    assert p =~ ~r/^false\tcode\/x.lua:3: PRAGMA is not supported/
+    assert v =~ ~r/^false\tcode\/x.lua:3: VACUUM is not supported/
+    assert cv =~ ~r/^false\tcode\/x.lua:3: CREATE VIEW is not supported/
+    assert w =~ ~r/^false\tcode\/x.lua:3: WITH \(a common table expression\) is not supported/
+    assert q == "false\tcode/x.lua:3: no such column: nope"
 
     # a file's bytes are never a database, whatever they hold: none is written in data/, none opened elsewhere
     assert {:error, "a database goes in data/ as .dbl" <> _} =
