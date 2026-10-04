@@ -45,6 +45,26 @@ export const run: Row[] = [
   { code: "R", text: "shipped=1  works=1  steps=6", by: "host", mark: "shipped" },
 ];
 
+// Real time: the median seconds of each model's call in Arock's port traces (368 calls, 2026-09-30 to 10-03): Jev's
+// decide 0.20 s, Mercury's fill 0.77 s, TabPFN's predict 3.0 s (on a cached fit). The host's rows are writes to the
+// agent's own SQLite file and its checks on the agent's own computer, a few milliseconds.
+export const latency = { jev: 0.2, mercury: 0.77, tabpfn: 3.0, host: 0.005, checks: 0.05 };
+
+// Seconds from the row before until row i is written: one TabPFN call ranks every candidate at once, and one Jev
+// call gives both its probabilities and its choice.
+export function secondsBefore(i: number): number {
+  const r = run[i];
+  const prev = run[i - 1];
+  if (r.code === "C") {
+    if (prev?.code === "C") return 0;
+    return r.by === "tabpfn" ? latency.tabpfn : latency.jev;
+  }
+  if (r.code === "D") return prev?.code === "C" && prev.by === "jev" ? 0 : latency.jev;
+  if (r.code === "A") return latency.mercury;
+  if (r.code === "O") return latency.checks;
+  return latency.host;
+}
+
 export const steps = [
   {
     code: "S" as Code,

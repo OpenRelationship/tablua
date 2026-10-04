@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useInView, useReducedMotion } from "framer-motion";
-import { run, tableOf } from "./data";
+import { run, secondsBefore, tableOf } from "./data";
 import { REPO } from "./links";
 import { Arrow, GitHub } from "./icons";
 
 const WINDOW = 7;
+const READABLE_MS = 1300;   // a row at a time, slowed for reading
+const PAUSE_MS = 4500;      // between one run and the next
+
+// seconds since the run began, when row i was written, at the models' real speed
+const at: number[] = [];
+run.forEach((_, i) => (at[i] = (at[i - 1] ?? 0) + secondsBefore(i)));
 
 // The claim, and an example run writing itself into the agent's file one row at a time.
 export function Hero() {
@@ -12,13 +18,20 @@ export function Hero() {
   const seen = useInView(ref, { amount: 0.3 });
   const still = useReducedMotion();
   const [count, setCount] = useState(WINDOW);
+  const [real, setReal] = useState(false);
 
   useEffect(() => {
     if (still || !seen) return;
     const done = count >= run.length;
-    const t = setTimeout(() => setCount(done ? WINDOW : count + 1), done ? 4500 : 1300);
+    const wait = done ? PAUSE_MS : real ? secondsBefore(count) * 1000 : READABLE_MS;
+    const t = setTimeout(() => setCount(done ? (real ? 1 : WINDOW) : count + 1), wait);
     return () => clearTimeout(t);
-  }, [count, seen, still]);
+  }, [count, seen, still, real]);
+
+  const toggle = () => {
+    setReal(!real);
+    setCount(real ? WINDOW : 1);   // real time starts the run over, so its clock means something
+  };
 
   const end = still ? run.length : count;
   const start = Math.max(0, end - WINDOW);
@@ -46,9 +59,19 @@ export function Hero() {
         <div className="table-frame" ref={ref} role="figure" aria-label="An example run, written as rows in the agent's file">
           <div className="table-bar">
             <span className="file">agent.sqlite</span>
-            <span>·</span>
-            <span>an example run</span>
-            <span className="note">illustrative values</span>
+            <span className="sub">·</span>
+            <span className="sub">an example run</span>
+            <span className={`note${real ? " clock" : ""}`}>{real ? `t = ${at[Math.max(0, end - 1)].toFixed(2)} s` : "illustrative values"}</span>
+            <button
+              type="button"
+              className={`speed${real ? " on" : ""}`}
+              aria-pressed={real}
+              onClick={toggle}
+              title="Real time: each row appears when the model behind it would answer (median latencies from Arock's traces). Off: slowed for reading."
+            >
+              <span className="knob" aria-hidden="true" />
+              Real time
+            </button>
           </div>
           <table className="grid">
             <thead>
@@ -65,9 +88,9 @@ export function Hero() {
                   key={i}
                   layout={!still}
                   className={i === end - 1 && !still ? "new" : ""}
-                  initial={still || i < WINDOW ? false : { opacity: 0, y: 8 }}
+                  initial={still || (!real && i < WINDOW) ? false : { opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ duration: real ? 0.15 : 0.5, ease: [0.16, 1, 0.3, 1] }}
                 >
                   <td className="n">{i + 1}</td>
                   <td className="t">{tableOf[r.code].replace("tablua_", "")}</td>
