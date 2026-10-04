@@ -13,3 +13,14 @@ export function GitHub() {
     </svg>
   );
 }
+
+// The mark: a small table, its middle row filled.
+export function Logo() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="2.5" y="3.5" width="19" height="17" rx="3.5" stroke="#0c0e13" strokeWidth="1.6" />
+      <rect x="2.5" y="9.5" width="19" height="5" fill="#2152e8" />
+      <path d="M9 3.5v17" stroke="#0c0e13" strokeWidth="1.6" />
+    </svg>
+  );
+}

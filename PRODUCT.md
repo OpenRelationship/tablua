@@ -52,6 +52,8 @@ to https://github.com/OpenRelationship/tablua (public, Apache-2.0).
 
 - Name: Tablua (table + Lua). Moss (🌿) and Shroomi (🍄) keep their names as parts.
 - Visual brief pinned by the owner: blue primary, light and white theme, spreadsheets and graph paper, animated.
+- Owner, 2026-10-04, after rejecting a dense coding-form grid design as ugly: clean, minimalist, white and light.
+  Tables and graph paper are accents in one or two places, never the texture of the page. Never dark.
 
 ## Evidence on Hand
 

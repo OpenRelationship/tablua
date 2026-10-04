@@ -1,59 +1,67 @@
 import { useState } from "react";
 import { LayoutGroup, motion } from "framer-motion";
 import { gates, moves } from "./data";
-import { Comment, Line, Sheet } from "./Sheet";
 
-// Sheet 4: policy is data. Strike a gate row and the moves it withheld open again.
-const inForce = new Set(["green_before_publish", "look_after_pages"]);
+// Policy is data: switch a gate off and the moves it withheld open again.
+const applies = new Set(["green_before_publish", "look_after_pages"]);
 
 export function Policy() {
-  const [struck, setStruck] = useState<Set<string>>(new Set());
+  const [off, setOff] = useState<Set<string>>(new Set());
   const toggle = (id: string) =>
-    setStruck((s) => {
+    setOff((s) => {
       const n = new Set(s);
-      n.has(id) ? n.delete(id) : n.add(id);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
       return n;
     });
-  const withheld = new Set(gates.filter((g) => inForce.has(g.id) && !struck.has(g.id)).flatMap((g) => g.withholds));
+  const held = new Set(gates.filter((g) => applies.has(g.id) && !off.has(g.id)).flatMap((g) => g.withholds));
   return (
-    <Sheet id="policy" n={4} of={5} label="Table" purpose="tablua_gate">
-      <h2 className="sheet-title" id="policy-title">The rules are rows you can take out.</h2>
-      <Line code="S" by="host">stage=building  passed=2/4  pages_ok=0</Line>
-      {gates.map((g, i) => {
-        const off = struck.has(g.id);
-        return (
-          <button
-            key={g.id}
-            className="gate-toggle"
-            aria-pressed={!off}
-            onClick={() => toggle(g.id)}
-            title={`${off ? "Restore" : "Strike"} gate ${g.id}`}
-          >
-            <Line seq={String((i + 1) * 10).padStart(5, "0")} code="G" by={off ? "struck" : inForce.has(g.id) ? "in force" : "idle"} className={off ? "struck" : ""}>
-              <span className="box">
-                <span className="sq" />
-              </span>{" "}
-              {g.id}  when {g.when}  withholds {g.withholds.join(", ")}
-            </Line>
-          </button>
-        );
-      })}
-      <Line code="M">
-        <LayoutGroup>
-          <span className="moves" aria-live="polite">
-            {[...moves].sort((a, b) => Number(withheld.has(a)) - Number(withheld.has(b))).map((m) => (
-              <motion.span layout key={m} className={`move ${withheld.has(m) ? "withheld" : "open"}`} transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
-                {m}
-              </motion.span>
-            ))}
-          </span>
-        </LayoutGroup>
-        {withheld.size > 0 && <span className="mark mark-blocked">{withheld.size} blocked</span>}
-      </Line>
-      <Comment>
-        A gate says when it applies and which moves it withholds. Decisions and outcomes are rows too, so what a
-        gate costs can be measured, and a gate that only ever blocks good moves can be taken out. Try striking one.
-      </Comment>
-    </Sheet>
+    <section className="block" id="policy">
+      <div className="wrap split">
+        <div>
+          <h2>The rules are rows too.</h2>
+          <p className="intro">
+            A gate says when it applies and which moves it withholds. Since decisions and outcomes are rows, what a
+            gate costs can be measured, and a gate that only blocks good moves can be taken out. Try switching one off.
+          </p>
+        </div>
+        <div className="panel">
+          <div className="panel-head">
+            <span className="mono">tablua_gate</span>
+            <span className="mono">stage=building · passed=2/4</span>
+          </div>
+          <ul className="gates">
+            {gates.map((g) => {
+              const on = !off.has(g.id);
+              return (
+                <li key={g.id}>
+                  <button className="gate" role="switch" aria-checked={on} onClick={() => toggle(g.id)}>
+                    <span className="switch" />
+                    <span>
+                      <span className="name">{g.id}</span>
+                      <span className="rule">
+                        when {g.when}, withholds {g.withholds.join(", ")}
+                      </span>
+                    </span>
+                    <span className="state">{!on ? "off" : applies.has(g.id) ? "applies now" : "idle"}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <LayoutGroup>
+            <div className="moves" aria-live="polite" aria-label="Moves allowed now">
+              {[...moves]
+                .sort((a, b) => Number(held.has(a)) - Number(held.has(b)))
+                .map((m) => (
+                  <motion.span layout key={m} className={`move${held.has(m) ? " held" : ""}`} transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}>
+                    {m}
+                  </motion.span>
+                ))}
+            </div>
+          </LayoutGroup>
+        </div>
+      </div>
+    </section>
   );
 }

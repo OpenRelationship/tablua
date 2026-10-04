@@ -1,35 +1,24 @@
----
-version: 1
-slug: "site"
-primary_target: "site"
-related_targets: []
----
-
 # tablua.com landing
 
 Scope: the whole site at launch, one page. Visitor mode: Persuade. Audience: agent researchers. Action: go to
-github.com/OpenRelationship/tablua. Proof: the mechanism itself, shown with example rows labelled as an example;
-no numbers, customers or benchmarks.
+github.com/OpenRelationship/tablua. Proof: the mechanism itself, with example rows labelled as examples; no
+numbers, customers or benchmarks.
 
 ## Direction contract
 
-THESIS: The agent's whole life written as lines on a coding sheet: every step is a row, every column numbered.
-Refuses the category's hero-plus-feature-grid-plus-architecture-diagram page.
+THESIS: A calm white page that shows one thing well: the agent's life as rows in a table. Refuses the dense
+ornamental grid (the rejected coding-form direction) and the feature-card grid.
 
-OWN-WORLD: White sheet, non-repro blue grid (fine cells, heavier every 10 columns), a 1-80 column ruler, sequence
-numbers in the left margin, graphite monospace entries set to character cells, one saturated print blue for
-headings, the active row and the action. Title block in the corner. Hard state stamps (shipped, blocked,
-regressed). Colour lives in the grid and the active row; text stays graphite. Nothing off-grid.
+OWN-WORLD: White, near-black type, one blue (#2152e8) for the action and the active row. Geist and Geist Mono.
+Hairline dividers, 14px-radius panels with one soft shadow, pill buttons. A faint dot field (graph paper) only
+behind the hero table.
 
-STORY: Visitor sees an agent's steps writing themselves as rows, understands that state, choices, decisions and
-outcomes are tables a model learns from, sees the parts (harness, Moss, Shroomi) as sheets of the same form,
-sees policy as removable gate rows, and opens the repo.
+STORY: The visitor reads the claim, watches an example run write rows into agent.sqlite, sees the four tables of a
+step, the shadow/decide switch, gates as switchable rows, the computer and its file, and opens the repo.
 
-FIRST VIEWPORT: The full-width sheet. Title block top-left: TABLUA, the one-line definition. Column ruler across
-the top. Below, the form fills row by row with an example run (seq, table, columns), the margin's sequence
-numbers lighting in order. The stamped action "Read the source" sits in the title block, top right of the fold.
+FIRST VIEWPORT: Nav (mark, three links, GitHub). Headline "An agent is a table." large on the left, the lede, a
+blue GitHub button and a quiet "How it works"; below, the live table of an example run, rows arriving one by one.
 
-FORM: The Coding Form, my grounded list position 3, seed key 1a6d75d3. Signature interaction: rows typed in
-cell by cell with a chase down the sequence margin; removing a gate row recomposes the sheet.
+FORM: owner-stated direction (clean, minimal, white), replacing the rolled coding form (seed 1a6d75d3).
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
