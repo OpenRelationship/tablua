@@ -2,7 +2,8 @@ defmodule Moss.Computer.Net do
   @moduledoc """
   The computer's way to the web: `curl` (and `wget`, which saves to a file), over moss-browser's fetch
   (`MossBrowser.Fetch`: http and https to public addresses only, every redirect checked again, the checked address
-  dialled). An answer stops at #{div(32 * 1024 * 1024, 1_048_576)} MB (config `net_max_bytes`); the methods are
+  dialled). It reads anywhere public, and sends (a body, or a method other than GET and HEAD) only to a host a tool
+  of this computer asks for in NET and the person granted. An answer stops at #{div(32 * 1024 * 1024, 1_048_576)} MB (config `net_max_bytes`); the methods are
   #{Enum.join(~w(GET POST PUT PATCH DELETE HEAD OPTIONS), ", ")}.
 
   `get(url, opts)` is what the browser fetches with: moss-browser's, with this node's settings (config
@@ -15,6 +16,18 @@ defmodule Moss.Computer.Net do
   @max_bytes 32 * 1024 * 1024
 
   def names, do: @names
+
+  # Reading reaches any public address, as the browser does; sending (a body, or any other method) only reaches a
+  # host a tool of this computer asks for and the person granted, as a tool's own http does: what the person keeps
+  # here leaves only where they said it may (the isolation review, 2026-10-04)
+  defp sends?(method, body), do: body != nil or method not in ~w(GET HEAD)
+
+  defp granted?(state, url) do
+    host = host(url)
+    Enum.any?(Moss.Computer.Manifest.grants(state.disk), &match?({_, "NET", ^host}, &1))
+  end
+
+  defp host(url), do: URI.parse(url).host || url
 
   def run(name, args, stdin, state) do
     case parse(args, %{method: nil, headers: [], data: nil, out: nil, include: false, url: nil}) do
@@ -39,9 +52,19 @@ defmodule Moss.Computer.Net do
         body = if o.data == "@-", do: stdin, else: o.data
         method = o.method || if(body, do: "POST", else: "GET")
 
-        case if method in @methods,
-               do: MossBrowser.Fetch.request(o.url, opts(method: method, headers: o.headers, body: body)),
-               else: {:error, :method} do
+        fetched =
+          cond do
+            method not in @methods ->
+              {:error, :method}
+
+            not sends?(method, body) or granted?(state, o.url) ->
+              MossBrowser.Fetch.request(o.url, opts(method: method, headers: o.headers, body: body))
+
+            true ->
+              {:error, {:not_granted, host(o.url)}}
+          end
+
+        case fetched do
           {:ok, r} ->
             head =
               if o.include,
@@ -67,6 +90,11 @@ defmodule Moss.Computer.Net do
 
           {:error, :method} ->
             {2, "", "#{name}: no such method: #{method}\n", state}
+
+          {:error, {:not_granted, host}} ->
+            {2, "",
+             "#{name}: sending to #{host} needs a tool in manifest.org with NET #{host} that the person granted " <>
+               "(reading, GET or HEAD, reaches any public address)\n", state}
 
           {:error, {:too_big, max}} ->
             {63, "", "#{name}: the answer is over #{max} bytes\n", state}
