@@ -1,0 +1,51 @@
+<lua>
+  -- Settings: a form the server checks, fields that say what is wrong, switches, and a dialog that asks first.
+  -- What save returns is the page's result: the errors to show, or that it was saved.
+  page.title = "Settings"
+  local FILE = "files/settings.json"
+  local DEFAULT = { name = "Pebbles", email = "pebbles@example.com", tone = "warm", digest = true, sounds = false }
+
+  function post.save(req)
+    local f = req.form
+    local s = { name = f.name, email = f.email, tone = f.tone, digest = f.digest == "on", sounds = f.sounds == "on" }
+    local errors = {}
+    if (f.name or "") == "" then errors.name = "A name, please." end
+    if not string.match(f.email or "", "^[^@%s]+@[^@%s]+%.[^@%s]+$") then errors.email = "That is not an address." end
+    if next(errors) then return { errors = errors, settings = s } end
+    fs.mkdir("files")
+    fs.write(FILE, json.encode(s))
+    return { saved = true }
+  end
+
+  function post.reset() fs.remove(FILE) end
+</lua>
+{% local saved = fs.read(FILE)
+   local s = result and result.settings or saved and json.decode(saved) or DEFAULT
+   local errors = result and result.errors or {} %}
+<a href="../" class="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground"><icon name="sprout"/> Shroomi gallery</a>
+<div class="mx-auto max-w-xl">
+  <card title="Settings" description="Checked on the computer, not in the browser.">
+    <form post="save">
+      {% if result and result.saved then %}
+        <alert title="Saved">Your settings are kept on this computer.</alert>
+      {% end %}
+      <input name="name" label="Name" value={{ s.name }} error={{ errors.name }} hint="What the rock calls itself."/>
+      <input name="email" label="Email" type="email" value={{ s.email }} error={{ errors.email }}/>
+      <select name="tone" label="Tone" value={{ s.tone }} options={{ { { "warm", "Warm" }, { "plain", "Plain" }, { "brief", "Brief" } } }}/>
+      <switch name="digest" label="Send a digest every morning" checked={{ s.digest }}/>
+      <switch name="sounds" label="Play sounds" checked={{ s.sounds }}/>
+      <row class="justify-between">
+        <button><icon name="check"/> Save</button>
+        <dialog id="reset" trigger="Reset everything" title="Reset every setting?"
+          description="Your name, address and choices go back to how they began.">
+          <slot name="footer">
+            <row>
+              <button type="button" variant="outline" data-close="reset">Keep them</button>
+              <button variant="destructive" post="reset" data-close="reset">Reset</button>
+            </row>
+          </slot>
+        </dialog>
+      </row>
+    </form>
+  </card>
+</div>

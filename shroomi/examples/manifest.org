@@ -1,0 +1,9 @@
+#+TITLE: shroomi-gallery
+
+* Apps
+- [[org:shroomi-gallery/plants]]
+- [[org:shroomi-gallery/notes]]
+- [[org:shroomi-gallery/dashboard]]
+- [[org:shroomi-gallery/settings]]
+- [[org:shroomi-gallery/report]]
+- [[org:shroomi-gallery/inbox]]
