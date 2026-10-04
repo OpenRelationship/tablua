@@ -95,7 +95,7 @@ defmodule Moss.Computer do
     do: GenServer.call(wake!(id), {:person, :answer, [line, yes?]}, :infinity)
 
   @doc "For the computer's own agent (`Moss.Computer.Agent`): its facts, or its log read or written, in here."
-  def agent(id, fun, args) when fun in [:facts, :events, :append, :sql],
+  def agent(id, fun, args) when fun in [:facts, :events, :append, :sql, :share],
     do: GenServer.call(wake!(id), {:agent, fun, args}, :infinity)
 
   def sleep(id), do: if(pid = whereis(id), do: GenServer.call(pid, :sleep, :infinity), else: :ok)

@@ -3,10 +3,14 @@
 -- checkpoints, not every step: "step", after a step that failed (which tool now), and "control", before a control
 -- step in a window with many controls (which one the request means).
 --
---   local l = learn.new{ tabpfn?, memory, on = fn -> bool, log = fn(line) }
+--   local l = learn.new{ tabpfn?, memory, tablua?, on = fn -> bool, log = fn(line) }
 --   l:rank(checkpoint, ctx, candidates) -> { { name, p }, ... } best first | nil, why
 --   l:training(checkpoint) -> table, labels, weights (pruned: every failure and surprise, a sample of the rest)
 --   l:record(checkpoint) -> { n, right, brier }   how TabPFN's scored predictions have done
+--
+-- With a Tablua handle (tablua?: the agent's work as typed rows, a shared file attached), the "step" checkpoint
+-- learns from Tablua's rows (t:training("progress"), in the columns known before Jev answers) in place of
+-- memory's; the control checkpoint and the predictions' record stay memory's.
 --
 -- One fit (Fast, with the server's cache) serves many predictions; it is refitted once M.refit more outcomes are
 -- known. TabPFN is not asked every turn (the free tier's 5M tokens a day are the account's, and a stalled run
@@ -19,7 +23,7 @@ local L = {}
 L.__index = L
 
 M.model = "v3.5-fast_default"
-M.schema = { step = "2", control = "1" }
+M.schema = { step = "2", control = "1", rows = "t1" }   -- a fit's schema; "t1" for Tablua's rows
 M.min_rows, M.min_each = 12, 3    -- labelled rows, and of each label, before TabPFN is asked
 M.refit = 25                      -- new labelled rows before a refit
 M.per_run = 20                    -- predictions one run may ask for (a ranking reused costs none)
@@ -37,7 +41,8 @@ M.columns = {
 M.categorical = { step = { 2, 5, 6, 7 }, control = { 2, 3 } }   -- 0-based column indices
 
 function M.new(env)
-  return setmetatable({ tabpfn = env.tabpfn, memory = env.memory, on = env.on or function() return true end,
+  return setmetatable({ tabpfn = env.tabpfn, memory = env.memory, tablua = env.tablua,
+    on = env.on or function() return true end,
     log = env.log or function() end, fits = {}, asked = 0, seen = {} }, L)
 end
 
@@ -109,9 +114,28 @@ local function surprise(m, checkpoint, e)
   return false
 end
 
+-- the step checkpoint's columns from Tablua's rows: those known before Jev answers, and a count
+local function rows_columns()
+  local tablua, columns = require("tablua"), {}
+  for j = 1, tablua.before do columns[j] = tablua.columns[j] end
+  columns[#columns + 1] = "count"
+  return columns
+end
+
+-- Tablua's rows for the step checkpoint, each with a count of 1 as memory's merged rows have
+local function rows_training(t)
+  local train, labels = t:training("progress", { before = true })
+  for _, row in ipairs(train.rows) do row[#row + 1] = 1 end
+  return { columns = rows_columns(), rows = train.rows, categorical = require("tablua").categorical }, labels, #labels
+end
+
+-- whether the checkpoint learns from Tablua's rows
+local function rows(self, checkpoint) return checkpoint == "step" and self.tablua ~= nil end
+
 -- The pruned training set: every failure and surprise, the newest M.easy other successes; identical rows merged
--- with a count. Logs Prune Memory with what was kept and dropped.
+-- with a count. Logs Prune Memory with what was kept and dropped. With Tablua's rows, those rows as they are.
 function L:training(checkpoint)
+  if rows(self, checkpoint) then return rows_training(self.tablua) end
   local m, all = self.memory, examples(self.memory, checkpoint)
   local keep, easy = {}, 0
   for i = #all, 1, -1 do
@@ -143,8 +167,10 @@ end
 -- A fitted training set for the checkpoint, fitting (or refitting) when there is none or enough is new.
 function L:fitted(checkpoint, force)
   local m = self.memory
-  local labelled = #examples(m, checkpoint)
-  local have = self.fits[checkpoint] or m:fit(checkpoint, M.schema[checkpoint])
+  local from_rows = rows(self, checkpoint)
+  local schema = from_rows and M.schema.rows or M.schema[checkpoint]
+  local labelled = from_rows and select(3, rows_training(self.tablua)) or #examples(m, checkpoint)
+  local have = self.fits[checkpoint] or m:fit(checkpoint, schema)
   if have and not force and labelled - have.rows < M.refit then
     self.fits[checkpoint] = have   -- a fit kept from an earlier session: its rows price the prediction
     return have.id
@@ -158,9 +184,10 @@ function L:fitted(checkpoint, force)
   if total < M.min_rows or ones < M.min_each or total - ones < M.min_each then
     return nil, "no past outcomes to learn from yet"
   end
-  local id = self.tabpfn:fit(train, labels, { model = M.model, cache = true, categorical = M.categorical[checkpoint] })
+  local id = self.tabpfn:fit({ columns = train.columns, rows = train.rows }, labels, { model = M.model, cache = true,
+    categorical = train.categorical or M.categorical[checkpoint] })
   self.fits[checkpoint] = { id = id, rows = labelled }
-  m:fitted(checkpoint, M.schema[checkpoint], id, labelled)
+  m:fitted(checkpoint, schema, id, labelled)
   return id
 end
 
@@ -173,10 +200,14 @@ function L:rank(checkpoint, ctx, candidates)
   local ok, id, why = pcall(self.fitted, self, checkpoint)
   if not ok then return nil, "TabPFN could not be reached: " .. tostring(id) end
   if not id then return nil, why end
-  local test = { columns = M.columns[checkpoint], rows = {} }
+  local from_rows = rows(self, checkpoint)
+  local test = { columns = from_rows and rows_columns() or M.columns[checkpoint], rows = {} }
   local counts = checkpoint == "control" and select(2, control_examples(self.memory)) or nil
   for i, c in ipairs(candidates) do
-    if checkpoint == "step" then
+    if from_rows then
+      test.rows[i] = require("tablua").row(ctx, c)
+      test.rows[i][#test.rows[i] + 1] = 1
+    elseif checkpoint == "step" then
       test.rows[i] = { ctx.request, ctx.app or "", c, ctx.n, ctx.fails, ctx.last_verb or "", ctx.last_outcome or "",
         ctx.stage or "", ctx.pass or -1, 1 }
     else
@@ -187,7 +218,8 @@ function L:rank(checkpoint, ctx, candidates)
   -- a state ranked before, but for its step number, is ranked the same again
   local parts = { checkpoint, tostring(id) }
   for _, row in ipairs(test.rows) do
-    for j, v in ipairs(row) do if not (checkpoint == "step" and j == 4) then parts[#parts + 1] = tostring(v) end end
+    local step_at = from_rows and require("tablua").before or 4
+    for j, v in ipairs(row) do if not (checkpoint == "step" and j == step_at) then parts[#parts + 1] = tostring(v) end end
   end
   local key = table.concat(parts, "\0")
   local probas = self.seen[key]

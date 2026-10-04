@@ -31,6 +31,14 @@ function M.new(task, log)
   end
   if not ok then (log or print)("tablua: " .. tostring(t)) end
 
+  -- the run's Tablua handle for learning from its rows, the shared experience attached when given; nil when the
+  -- tables could not be opened
+  function r.tablua(experience)
+    if not ok then return nil end
+    if experience and experience ~= "" and not t.sources[2] then try(t.attach, t, "shared", experience) end
+    return t
+  end
+
   function r.decided(req, verb, answer, how)
     try(function()
       local n, f, last = #req.steps + 1, req.facts or {}, req.steps[#req.steps]

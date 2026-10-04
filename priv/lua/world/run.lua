@@ -78,10 +78,13 @@ function M.step(saved_json, ctx)
     -- shadow mode (ctx.learn "shadow"): the same ranking, only recorded (Tablua's p_progress); Jev never reads it
     shadow = ctx.learn == "shadow" or nil,
   }
-  env.learn = learn.new({ memory = mem, tabpfn = models.tabpfn and counted(models.tabpfn, "tabpfn", counts) })
   local function at(n) return ctx.at .. "/step/" .. n end
   -- every step as Tablua's typed rows in the computer's own file (world/record.lua)
   local rec = require("moss.world.record").new(ctx.at, function(line) __host.agent_append(ctx.at, "Note", { line }, "host") end)
+  -- TabPFN learns which move helps from Tablua's rows: this computer's, and the node's shared experience when there is
+  -- one (other computers' finished runs, Moss.Computer.Experience.share), in place of memory's folded rows
+  env.learn = learn.new({ memory = mem, tabpfn = models.tabpfn and counted(models.tabpfn, "tabpfn", counts),
+    tablua = rec.tablua(ctx.experience) })
   local decided
   env.decided = function(req, verb, answer, how)
     decided = verb

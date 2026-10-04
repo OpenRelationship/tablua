@@ -54,10 +54,14 @@ defmodule Moss.Computer.Agent do
       "steps" => opts[:steps],
       "learn" => opts[:learn],
       "gates_off" => opts[:gates_off],
-      "edits" => opts[:edits]
+      "edits" => opts[:edits],
+      "experience" => Experience.path()
     }
 
-    loop(id, ctx, nil, opts[:between] || fn _ -> :ok end, opts[:max_steps] || 150, 0, 0, nil)
+    run = loop(id, ctx, nil, opts[:between] || fn _ -> :ok end, opts[:max_steps] || 150, 0, 0, nil)
+    # the finished run's Tablua rows join the node's shared experience, for the computers after it to learn from
+    Computer.agent(id, :share, [])
+    run
   end
 
   defp loop(_id, _ctx, _saved, _between, max, n, _waits, counts) when n >= max,
@@ -119,6 +123,9 @@ defmodule Moss.Computer.Agent do
     {:ok, _} = Log.alog(state.disk.conn, "append", [task, keyword, args, actor])
     Experience.add(state.id, task, keyword, args)
   end
+
+  @doc "This computer's Tablua rows into the node's shared experience (Moss.Computer.Experience.share/2)."
+  def share(state), do: Experience.share(state.id, state.disk.conn)
 
   @doc "The harness's own tables (core/tablua), through Moss.Computer.Tablua's door: {:ok, rows} or {:error, why}."
   def sql(state, sql, params), do: Moss.Computer.Tablua.exec(state.disk.conn, sql, params)

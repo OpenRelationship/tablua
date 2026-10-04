@@ -50,6 +50,21 @@ spec.test("training rows are a query: progress per step, and ship from the run's
   spec.same(ship, { 1, 1 })
 end)
 
+spec.test("before Jev answers, a step is its first columns alone, and a move's row for a state is built alike", function()
+  local t = fresh()
+  step(t, "r1", 1, "write_steps", 0, 1, "complete")
+  t:features("r1", 1, { done = 0.5 }, "score")
+  local train, labels = t:training("progress", { before = true })
+  spec.same(labels, { 1 })
+  spec.eq(#train.columns, tablua.before)
+  spec.eq(#train.rows[1], tablua.before)
+  spec.eq(train.columns[tablua.before], "n")
+  local row = tablua.row({ stage = "building", pass = 0.5, stalls = 2, last_verb = "run_test", last_outcome = "broken",
+    cause = "the_steps", own_checks = 1, n = 7 }, "rewrite")
+  spec.same(row, { "rewrite", "building", 0.5, 2, "run_test", "broken", "the_steps", 1, 7 })
+  spec.eq(#tablua.row({}, "think"), tablua.before)
+end)
+
 spec.test("another file's rows are read first, then this one's", function()
   -- Moss's test host keeps the files it opens in a folder of its own, which an attach by path does not reach;
   -- Moss attaches the node's real shared file (Moss.Computer.Tablua), tested there

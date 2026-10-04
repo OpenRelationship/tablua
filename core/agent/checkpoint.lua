@@ -55,7 +55,10 @@ function M.before(a, req)
   if not every then for _, t in ipairs(a.world.tools) do names[#names + 1] = t.name end end
   local ranked, why = learn:rank("step", { request = req.text, app = last and last.app or "", n = #req.steps + 1,
     fails = M.fails(req), last_verb = last and last.verb or "", last_outcome = last and last.outcome or "",
-    stage = req.standing.stage, pass = req.standing.pass, task = req.task, at = #req.steps + 1 }, names)
+    stage = req.standing.stage, pass = req.standing.pass, task = req.task, at = #req.steps + 1,
+    -- what a world that keeps them knows besides (Tablua's columns before Jev answers, learn's rows)
+    stalls = req.repeats or 0, cause = req.cause and req.cause.choice or "",
+    own_checks = req.facts and req.facts.tests and #(req.facts.tests.checked or {}) or 0 }, names)
   if not ranked then req.unranked = why; note(a, why) return end
   req.ranking, req.record, req.unranked = ranked, learn:record_line("step"), nil
   req.ranked_all = every and true or nil

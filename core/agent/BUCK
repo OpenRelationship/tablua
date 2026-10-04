@@ -7,7 +7,7 @@ lua_library(
     srcs = ["init.lua", "clip.lua", "history.lua", "parts.lua", "checkpoint.lua", "learn.lua", "memory.lua",
             "calibrate.lua", "trace.lua"],
     prefix = "agent",
-    deps = ["//submodules/vmoss/core/ports:ports"],
+    deps = ["//submodules/vmoss/core/ports:ports", "//submodules/vmoss/core/tablua:tablua"],
     visibility = ["PUBLIC"],
 )
 

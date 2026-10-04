@@ -18,7 +18,7 @@
 --   t:label(task, n, head, value, source)      a label given after the fact (Jev's hindsight, head "contrib")
 --   t:effects(task, n, { { keyword, arg } })   the step's effects, from the harness's telemetry (tablua.effects)
 --   t:gate{ name, predicate, version?, retired_by? }   a harness gate, and what turned it off if anything did
---   t:training(head) -> { columns, rows }, labels   head "progress" (did the step help), "ship" (did its run ship
+--   t:training(head[, { before = true }]) -> { columns, rows }, labels   head "progress" (did the step help), "ship" (did its run ship
 --                                                   and work) or "contrib" (did the step contribute to the app built,
 --                                                   in hindsight: steps so labelled only) or "effect:<Keyword>" (did
 --                                                   the effect follow: steps given effects only), one row per step,
@@ -46,6 +46,16 @@ M.columns = { "move", "stage", "pass", "stalls", "last_verb", "last_outcome", "c
 M.features = { "ask_dates", "ask_counts", "ask_groups", "ask_delete", "ask_edit", "done" }
 for _, f in ipairs(M.features) do M.columns[#M.columns + 1] = f end
 M.categorical = { 0, 1, 4, 5, 6 }
+-- the columns known before Jev answers (all but Jev's numbers and its fan-out answers): what ranks the moves before
+-- Jev decides is trained on these alone, so a row it scores is a row like those it learned from
+M.before = 9
+
+-- A row for `move` taken in state s ({ stage, pass, stalls, last_verb, last_outcome, cause, own_checks, n }), in the
+-- columns known before Jev answers (training's `before`)
+function M.row(s, move)
+  return { move, s.stage or "", s.pass or -1, s.stalls or 0, s.last_verb or "", s.last_outcome or "", s.cause or "",
+    s.own_checks or 0, s.n or 0 }
+end
 
 local function now() return os.date("!%Y-%m-%dT%H:%M:%SZ") end
 
@@ -206,8 +216,9 @@ end
 local HEADS = { progress = true, ship = true, contrib = true }
 local function effect_of(head) return type(head) == "string" and head:match("^effect:(.+)$") end
 
--- One row per decided step, other files' first, then this one's, each oldest first.
-function T:training(head)
+-- One row per decided step, other files' first, then this one's, each oldest first; with opts.before, each row
+-- only in the columns known before Jev answers (M.before).
+function T:training(head, opts)
   local effect = effect_of(head)
   assert(HEADS[head] or effect, "tablua: no head " .. tostring(head))
   local rows, labels, keys = {}, {}, {}
@@ -227,6 +238,7 @@ function T:training(head)
       local row = { r.move, r.stage, r.pass or -1, r.stalls or 0, r.last_verb or "", r.last_outcome or "",
         r.cause or "", r.own_checks or 0, r.n, r.jev_p or -1, r.jev_margin or -1 }
       for _, f in ipairs(M.features) do row[#row + 1] = r["f_" .. f] or -1 end
+      if opts and opts.before then for j = #row, M.before + 1, -1 do row[j] = nil end end
       rows[#rows + 1] = row
       keys[#keys + 1] = { task = r.task, n = r.n }
       if head == "progress" then labels[#labels + 1] = r.progress
@@ -235,7 +247,12 @@ function T:training(head)
       else labels[#labels + 1] = (r.shipped == 1 and r.works == 1) and 1 or 0 end
     end
   end
-  return { columns = M.columns, rows = rows, keys = keys }, labels
+  local columns = M.columns
+  if opts and opts.before then
+    columns = {}
+    for j = 1, M.before do columns[j] = M.columns[j] end
+  end
+  return { columns = columns, rows = rows, keys = keys }, labels
 end
 
 require("tablua.program")(T, put)
