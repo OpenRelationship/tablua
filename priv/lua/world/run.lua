@@ -114,6 +114,7 @@ function M.step(saved_json, ctx)
     a.history.entries, a.history.request = saved.history.entries, saved.history.request
   else
     req = a:begin(ctx.task)
+    rec.gates(ctx)
   end
 
   local next = a:step(req)

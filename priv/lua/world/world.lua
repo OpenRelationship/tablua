@@ -155,23 +155,16 @@ function M.new(host, run)
     -- once kept publishing from ever being offered (Tablua issue #1, M5's no-deadlock test)
     local repeats = M.failing(req.facts or {}) ~= "" and (req.repeats or 0) or 0
     local stuck = repeats >= M.repeats and not (last and last.verb == "think" and repeats < M.dead_end)
-    local last_resort = { rewrite = true, write_feature = true, blocked = true }
     local options = {}
+    -- each move the stage allows, unless a gate in force holds it back (world/gates.lua, named in priv/gates.org):
+    -- publishing waits on the app having been used since it changed; thinking twice running changes nothing; once
+    -- shipped, the task is answered (a budget run, shipped, thought and then blocked twice); an agreed feature
+    -- changes only once fixing the code has stopped helping (a countdown run blocked with no move that could
+    -- change the feature it blamed)
+    local c = { req = req, last = last, repeats = repeats, stuck = stuck, w = M }
     for _, name in ipairs(M.allowed[req.stage]) do
-      -- and publishing waits on the app having been used as the person will since it last changed
-      -- and thinking twice running changes nothing
-      -- and once shipped, the task is answered: thinking or stopping is for after an answer that failed (a budget
-      -- run, shipped, thought and then blocked twice saying it still waited on the person's yes)
-      -- and an agreed feature is changed only once fixing the code has stopped helping (a countdown run blocked
-      -- with no move that could change the feature it blamed)
-      if not (stuck and name == "fix_failure") and not (name == "publish" and not req.looked)
-        and not (name == "think" and last and last.verb == "think") and not (name == "undo" and not req.undo)
-        and not (req.stage == "shipped" and name ~= "answer_task" and not M.answer_failed(req))
-        and not (name == "write_feature" and req.stage == "building" and repeats < M.repeats
-          and not M.checks_own(req.facts))
-        and not (repeats >= M.dead_end and (name == "fix_failure" or name == "think"))
-        and not (repeats >= M.give_up and not last_resort[name])
-        and not (name == "blocked" and not M.troubled(req, repeats)) then
+      c.move = name
+      if not require("moss.world.gates").blocking(w.run, c) then
         options[name] = M.moves[name] or require("agent.parts").verbs[name]
       end
     end

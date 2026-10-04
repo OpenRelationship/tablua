@@ -5,6 +5,7 @@
 --
 --   local r = record.new(task, log)    task: the run's address (one computer may run several)
 --   r.decided(req, verb, answer, how)  before the step: state, candidates, decision
+--   r.gates(run)                       the harness's gates, once a run, each with whether the run turned it off
 --   r.after(req, step, facts, stage)   after it: the outcome, with the facts as they are now, and the step's effects
 --                                      (tablua.effects: the facts at the decision against these, its commands)
 local M = {}
@@ -52,6 +53,17 @@ function M.new(task, log)
       t:candidates(task, n, list)
       t:decision{ task = task, n = n, chosen = verb, by = how == "arbiter" and "mercury" or how, propensity = 1 }
       if req.features then t:features(task, n, req.features, "jev") end
+    end)
+  end
+
+  -- the harness's gates as rows, once a run: each, and whether this run turned it off (world/gates.lua)
+  function r.gates(run)
+    try(function()
+      local gates = require("moss.world.gates")
+      local off = gates.off(run)
+      for _, g in ipairs(gates.list) do
+        t:gate{ name = g.name, predicate = g.what, retired_by = (off[g.name] and not g.fixed) and "gates_off" or false }
+      end
     end)
   end
 

@@ -199,6 +199,9 @@ defmodule Moss.ComputerAgentTest do
     assert_in_delta v, 1 / 3, 0.001
     assert [%{"n" => 0}] = sql.("select count(*) as n from tablua_feature where name = 'ask_edit'")
 
+    # the harness's gates as rows, written once when the run starts
+    assert [%{"n" => 9}] = sql.("select count(*) as n from tablua_gate where retired_by is null")
+
     # the harness's behaviour model: every step has its effects, from the facts before and after it
     assert [%{"n" => 7}] = sql.("select count(distinct n) as n from tablua_effect")
     assert [%{"n" => same}] = sql.("select count(*) as n from tablua_effect where keyword = 'Same Line Failing'")
@@ -490,6 +493,26 @@ defmodule Moss.ComputerAgentTest do
       |> hd()
 
     assert stuck == ""
+  end
+
+  # M5: each gate but the fixed ones can be turned off for a run, for an A/B (world/gates.lua)
+  test "a gate turned off for a run holds nothing back, and a fixed gate cannot be turned off" do
+    offered = fn run ->
+      Lua.eval!(Moss.Lua.base(), """
+      local world = require("moss.world")
+      local host = { facts = function() return { features = { { path = "features/a.feature", stage = "agreed" } },
+        pages = { { path = "/", status = 200 } }, empty_steps = 0,
+        tests = { passed = 1, total = 2, failing = { "a: When I open the page: no page" }, undefined = {} } } end }
+      local req = { steps = { { n = 1, verb = "think", outcome = "complete" } } }
+      local q = world.new(host, #{run}).question({ req = req })
+      return tostring(q.options.think ~= nil) .. " " .. tostring(q.options.undo ~= nil)
+      """)
+      |> elem(0)
+      |> hd()
+    end
+
+    assert offered.("{}") == "false false"
+    assert offered.(~s|{ gates_off = "think_twice,undo_regressed" }|) == "true false"
   end
 
   test "a page-steps run is not ready while a check uses a step of the app's own" do

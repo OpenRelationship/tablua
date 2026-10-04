@@ -39,7 +39,8 @@ defmodule Moss.Computer.Agent do
   Jev's moves in Mercury's place), `decider` (a System One model in Jev's), each for a comparison, and `steps`
   ("page": features in the page's own steps, sdk/browse.lua), and `learn` ("rank": TabPFN ranks the allowed moves
   at every building decision and may take the step, agent.checkpoint), and `pages` ("org": the agent writes its
-  pages in org and Lua, ui/*.org, arock issue #2). Gives `%{outcome, why, steps, counts}`, outcome being
+  pages in org and Lua, ui/*.org, arock issue #2), and `gates_off` (gates to turn off for an A/B, "stuck_fix,give_up":
+  world/gates.lua, priv/gates.org). Gives `%{outcome, why, steps, counts}`, outcome being
   "done", "blocked", "waiting", "stopped" or "error".
   """
   def run(id, task, opts \\ []) do
@@ -52,7 +53,8 @@ defmodule Moss.Computer.Agent do
       "decider" => opts[:decider],
       "steps" => opts[:steps],
       "learn" => opts[:learn],
-      "pages" => opts[:pages]
+      "pages" => opts[:pages],
+      "gates_off" => opts[:gates_off]
     }
 
     loop(id, ctx, nil, opts[:between] || fn _ -> :ok end, opts[:max_steps] || 150, 0, 0, nil)
