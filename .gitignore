@@ -44,3 +44,8 @@ npm-debug.log
 
 # moss-browser's look module, fetched by `mix moss.look` (never committed)
 /priv/look.wasm
+
+# Impeccable working files (screenshots, decision pages); the surface briefs and design.json are kept
+/.impeccable/review/
+/.impeccable/questions/
+/.impeccable/mocks/

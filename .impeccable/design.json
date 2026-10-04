@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-04T00:00:00Z",
+  "title": "Design System: Tablua",
+  "extensions": {
+    "colorMeta": {
+      "print":      { "role": "primary",   "displayName": "Print Blue",    "canonical": "#1f56d6", "tonalRamp": ["oklch(18% 0.08 264)", "oklch(28% 0.13 264)", "oklch(38% 0.17 264)", "oklch(49% 0.2 264)", "oklch(60% 0.17 264)", "oklch(72% 0.12 264)", "oklch(84% 0.07 264)", "oklch(95% 0.02 264)"] },
+      "print-deep": { "role": "primary",   "displayName": "Deep Print",    "canonical": "#153f9f", "tonalRamp": ["oklch(16% 0.07 264)", "oklch(26% 0.11 264)", "oklch(38% 0.15 264)", "oklch(48% 0.17 264)", "oklch(60% 0.14 264)", "oklch(72% 0.1 264)", "oklch(84% 0.06 264)", "oklch(95% 0.02 264)"] },
+      "wash":       { "role": "primary",   "displayName": "Wash",          "canonical": "#e9f0fd", "tonalRamp": ["oklch(20% 0.03 262)", "oklch(32% 0.04 262)", "oklch(45% 0.05 262)", "oklch(58% 0.05 262)", "oklch(70% 0.04 262)", "oklch(82% 0.03 262)", "oklch(91% 0.02 262)", "oklch(95.5% 0.015 262)"] },
+      "pencil-red": { "role": "secondary", "displayName": "Pencil Red",    "canonical": "#c23a2b", "tonalRamp": ["oklch(18% 0.06 30)", "oklch(28% 0.1 30)", "oklch(40% 0.14 30)", "oklch(53% 0.17 30)", "oklch(64% 0.14 30)", "oklch(75% 0.1 30)", "oklch(86% 0.05 30)", "oklch(95% 0.02 30)"] },
+      "paper":      { "role": "neutral",   "displayName": "Paper",         "canonical": "#ffffff" },
+      "ground":     { "role": "neutral",   "displayName": "Ground",        "canonical": "#f6f9fe", "tonalRamp": ["oklch(18% 0.01 260)", "oklch(30% 0.01 260)", "oklch(45% 0.012 260)", "oklch(60% 0.012 260)", "oklch(74% 0.01 260)", "oklch(86% 0.008 260)", "oklch(93% 0.007 260)", "oklch(98% 0.006 260)"] },
+      "grid":       { "role": "neutral",   "displayName": "Grid",          "canonical": "#dbe6f8", "tonalRamp": ["oklch(18% 0.03 262)", "oklch(30% 0.04 262)", "oklch(44% 0.05 262)", "oklch(58% 0.05 262)", "oklch(72% 0.04 262)", "oklch(84% 0.035 262)", "oklch(92% 0.025 262)", "oklch(96% 0.012 262)"] },
+      "grid-major": { "role": "neutral",   "displayName": "Grid Major",    "canonical": "#b3c9ef", "tonalRamp": ["oklch(18% 0.04 262)", "oklch(30% 0.06 262)", "oklch(44% 0.07 262)", "oklch(58% 0.07 262)", "oklch(70% 0.06 262)", "oklch(83% 0.05 262)", "oklch(91% 0.03 262)", "oklch(96% 0.015 262)"] },
+      "ink":        { "role": "neutral",   "displayName": "Graphite",      "canonical": "#23272e", "tonalRamp": ["oklch(15% 0.012 260)", "oklch(27% 0.014 260)", "oklch(38% 0.014 260)", "oklch(50% 0.014 260)", "oklch(62% 0.012 260)", "oklch(74% 0.01 260)", "oklch(86% 0.008 260)", "oklch(95% 0.005 260)"] },
+      "ink-2":      { "role": "neutral",   "displayName": "Soft Graphite", "canonical": "#4f5663", "tonalRamp": ["oklch(15% 0.015 260)", "oklch(27% 0.018 260)", "oklch(43% 0.02 260)", "oklch(52% 0.02 260)", "oklch(64% 0.016 260)", "oklch(76% 0.012 260)", "oklch(87% 0.008 260)", "oklch(95% 0.005 260)"] }
+    },
+    "typographyMeta": {
+      "display":  { "displayName": "Display",  "purpose": "One claim per page and the closing call, lettered across two rows, key word in print blue." },
+      "headline": { "displayName": "Headline", "purpose": "Each sheet's one-sentence title." },
+      "body":     { "displayName": "Body",     "purpose": "Lede and comment prose in the statement field, 62-66ch." },
+      "entry":    { "displayName": "Entry",    "purpose": "Every line on the form, one character per cell; --cw = measured Martian Mono advance (--chr) x --fs." },
+      "label":    { "displayName": "Label",    "purpose": "The printed form's field labels and ruler field names, uppercase print blue." },
+      "wordmark": { "displayName": "Wordmark", "purpose": "TABLUA in the title block's Program field." }
+    },
+    "shadows": [
+      { "name": "sheet-on-desk", "value": "0 1px 2px rgba(23, 32, 51, 0.06), 0 12px 32px -12px rgba(31, 86, 214, 0.18)", "purpose": "Every sheet, and nothing else." }
+    ],
+    "motion": [
+      { "name": "ease-print", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Stamp hover (160ms), row layout shift (450ms), move recomposition (400ms), stamp landing (350ms)." },
+      { "name": "typewriter", "value": "steps per character, 18ms each, clip-path wipe left to right", "purpose": "A new line typing itself into its cells." },
+      { "name": "stamp-land", "value": "scale 1.6 -> 1, opacity 0 -> 1, 350ms, delay 500ms", "purpose": "A state mark landing after its row is typed." },
+      { "name": "reduced", "value": "prefers-reduced-motion: show the finished form, no wipes or layout motion", "purpose": "Every motion's still state." }
+    ],
+    "breakpoints": [
+      { "name": "desktop", "value": "> 900px (80 columns)" },
+      { "name": "tablet", "value": "900px (56 columns)" },
+      { "name": "phone", "value": "560px (38 columns, BY field dropped)" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Stamp Action",
+      "kind": "button",
+      "refersTo": "stamp-action",
+      "description": "The one action: a filled block of print blue, uppercase wide Archivo, with an arrow.",
+      "html": "<a class=\"ds-stamp\" href=\"#\">Read the source <svg viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" aria-hidden=\"true\"><path d=\"M4 12 12 4M6 4h6v6\" stroke-linecap=\"square\"/></svg></a>",
+      "css": ".ds-stamp { display: inline-flex; align-items: center; gap: 1ch; font-family: \"Archivo Variable\", system-ui, sans-serif; font-stretch: 118%; font-weight: 760; font-size: 19px; letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; color: #ffffff; background: #1f56d6; padding: 0 1.5ch; line-height: 41px; border: 1px solid #153f9f; border-radius: 0; transition: background 160ms cubic-bezier(0.16, 1, 0.3, 1), transform 160ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-stamp:hover { background: #153f9f; } .ds-stamp:active { transform: translateY(1px); } .ds-stamp:focus-visible { outline: 2px solid #1f56d6; outline-offset: 2px; } .ds-stamp svg { width: 1em; height: 1em; }"
+    },
+    {
+      "name": "State Mark",
+      "kind": "chip",
+      "refersTo": "state-mark",
+      "description": "A rubber stamp after an entry: print blue for shipped, pencil red for regressed or blocked.",
+      "html": "<span class=\"ds-mark\">Shipped</span> <span class=\"ds-mark ds-mark-fault\">Regressed</span>",
+      "css": ".ds-mark { display: inline-block; border: 2px solid #1f56d6; color: #1f56d6; text-transform: uppercase; font-family: \"Archivo Variable\", system-ui, sans-serif; font-stretch: 125%; font-weight: 820; font-size: 19px; letter-spacing: 0.12em; padding: 0 0.8ch; line-height: 30px; margin-left: 1ch; transform: rotate(-4deg); white-space: nowrap; } .ds-mark-fault { border-color: #c23a2b; color: #c23a2b; }"
+    },
+    {
+      "name": "Form Line",
+      "kind": "custom",
+      "refersTo": "line-active",
+      "description": "The atom: seq, table code, statement and BY in character cells; the active line takes the wash.",
+      "html": "<div class=\"ds-cells\"><div class=\"ds-line\"><span class=\"ds-seq\">00270</span><span class=\"ds-code\">D</span><span class=\"ds-stmt\">chosen=publish  by=jev</span><span class=\"ds-by\">jev</span></div><div class=\"ds-line ds-active\"><span class=\"ds-seq\">00280</span><span class=\"ds-code\">R</span><span class=\"ds-stmt\">shipped=1  works=1  steps=6</span><span class=\"ds-by\">host</span></div><div class=\"ds-line ds-comment\"><span class=\"ds-seq\">C</span><span class=\"ds-code\"></span><span class=\"ds-stmt\">A comment line: prose in the statement field.</span><span class=\"ds-by\"></span></div></div>",
+      "css": ".ds-cells { font-family: \"Martian Mono Variable\", ui-monospace, monospace; font-stretch: 87.5%; font-size: 15px; line-height: 26px; font-variant-numeric: tabular-nums; color: #23272e; background: #ffffff; background-image: linear-gradient(to right, #b3c9ef 1px, transparent 1px), linear-gradient(to right, #dbe6f8 1px, transparent 1px), linear-gradient(to bottom, #dbe6f8 1px, transparent 1px); background-size: 10ch 100%, 1ch 100%, 100% 26px; background-position: 0 0, 0 0, 0 -1px; border-bottom: 1px solid #dbe6f8; border-right: 1px solid #b3c9ef; width: 60ch; } .ds-line { display: grid; grid-template-columns: 5ch 1ch 1fr 8ch; min-height: 26px; } .ds-seq { color: #4f5663; } .ds-code { color: #1f56d6; font-weight: 700; text-align: center; } .ds-stmt { padding-left: 1ch; white-space: pre-wrap; } .ds-by { color: #4f5663; padding-left: 1ch; text-transform: uppercase; font-size: 0.85em; } .ds-active { background: #e9f0fd; } .ds-active .ds-seq { color: #1f56d6; font-weight: 700; } .ds-comment .ds-code { color: #4f5663; } .ds-comment .ds-stmt { font-family: \"Archivo Variable\", system-ui, sans-serif; font-stretch: 100%; }"
+    },
+    {
+      "name": "Title Block",
+      "kind": "card",
+      "refersTo": "sheet",
+      "description": "The sheet's header boxes, ruled in print blue: Program, a labelled field, Sheet n of N.",
+      "html": "<div class=\"ds-title-block\"><div><span class=\"ds-label\">Program</span><span class=\"ds-value ds-wordmark\">TABLUA</span></div><div><span class=\"ds-label\">Table</span><span class=\"ds-value\">tablua_gate</span></div><div><span class=\"ds-label\">Sheet</span><span class=\"ds-value\">4 of 5</span></div></div>",
+      "css": ".ds-title-block { display: grid; grid-template-columns: 22ch 1fr 14ch; border: 1px solid #1f56d6; font-family: \"Martian Mono Variable\", ui-monospace, monospace; font-stretch: 87.5%; font-size: 15px; color: #23272e; background: #ffffff; width: 60ch; } .ds-title-block > div { border-right: 1px solid #1f56d6; padding: 0 1ch; } .ds-title-block > div:last-child { border-right: 0; } .ds-label { display: block; font-family: \"Archivo Variable\", system-ui, sans-serif; font-stretch: 112%; font-size: 0.55em; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: #1f56d6; line-height: 1.9; } .ds-value { display: block; line-height: 26px; } .ds-wordmark { font-family: \"Archivo Variable\", system-ui, sans-serif; font-stretch: 125%; font-weight: 820; letter-spacing: 0.02em; }"
+    },
+    {
+      "name": "Check Box Toggle",
+      "kind": "input",
+      "refersTo": "line-active",
+      "description": "The form's own 1ch box, outlined in print blue, filled when on.",
+      "html": "<span class=\"ds-boxes\"><button class=\"ds-box\" role=\"radio\" aria-checked=\"true\"><span class=\"ds-sq\"></span> SHADOW</button><button class=\"ds-box\" role=\"radio\" aria-checked=\"false\"><span class=\"ds-sq\"></span> DECIDE</button></span>",
+      "css": ".ds-boxes { display: inline-flex; gap: 3ch; font-family: \"Martian Mono Variable\", ui-monospace, monospace; font-stretch: 87.5%; font-size: 15px; } .ds-box { display: inline-flex; align-items: center; gap: 1ch; font: inherit; color: #23272e; background: none; border: 0; padding: 0; cursor: pointer; } .ds-box:hover { color: #1f56d6; } .ds-box:focus-visible { outline: 2px solid #1f56d6; outline-offset: 2px; } .ds-sq { width: 1ch; height: 1ch; border: 1px solid #1f56d6; display: inline-grid; place-items: center; } .ds-box[aria-checked=\"true\"] .ds-sq { background: #1f56d6; } .ds-box[aria-checked=\"true\"] .ds-sq::after { content: \"\"; width: 0.5ch; height: 0.5ch; background: #ffffff; }"
+    },
+    {
+      "name": "Sheet Tabs",
+      "kind": "nav",
+      "refersTo": "sheet-tabs",
+      "description": "A spreadsheet's tabs along the bottom; the sheet in view is current.",
+      "html": "<nav class=\"ds-tabs\"><a href=\"#\" aria-current=\"true\"><span class=\"ds-n\">1</span>The run</a><a href=\"#\"><span class=\"ds-n\">2</span>A step</a><a href=\"#\"><span class=\"ds-n\">3</span>Learning</a><a class=\"ds-gh\" href=\"#\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z\"/></svg>GitHub</a></nav>",
+      "css": ".ds-tabs { display: flex; align-items: stretch; background: #ffffff; border-top: 1px solid #b3c9ef; font-family: \"Archivo Variable\", system-ui, sans-serif; font-stretch: 112%; font-size: 13px; font-weight: 600; height: 44px; } .ds-tabs a { display: flex; align-items: center; gap: 8px; padding: 0 18px; color: #4f5663; text-decoration: none; border-right: 1px solid #dbe6f8; white-space: nowrap; position: relative; } .ds-tabs a:hover { color: #23272e; } .ds-tabs a:focus-visible { outline: 2px solid #1f56d6; outline-offset: -2px; } .ds-tabs a[aria-current=\"true\"] { color: #23272e; background: #e9f0fd; } .ds-tabs a[aria-current=\"true\"]::before { content: \"\"; position: absolute; left: 0; right: 0; top: -1px; height: 3px; background: #1f56d6; } .ds-n { color: #1f56d6; font-family: \"Martian Mono Variable\", ui-monospace, monospace; font-stretch: 87.5%; font-size: 11px; } .ds-tabs .ds-gh { margin-left: auto; border-left: 1px solid #dbe6f8; border-right: 0; color: #1f56d6; } .ds-gh svg { width: 16px; height: 16px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Coding Form",
+    "overview": "Every surface is a printed programmer's coding sheet: a white form ruled in non-repro blue, a numbered column ruler across its top, sequence numbers down its left margin, and graphite monospace entries set one character to a cell. The agent's life is written onto it as lines. Headings are lettered large across whole rows; the form's own furniture (title block, field labels, ruler, check boxes, stamps) is the only chrome there is.\n\nThe page itself is plain: a faint blue-white ground on which white sheets sit, one per topic, each numbered \"n of 5\" in its title block. The graph paper lives only inside a sheet's cell area, never on the page ground. Every measurement derives from one character cell, so the grid, the type and the layout cannot drift apart. Density is high and legible, like a form filled in by a careful hand; motion is a typewriter advancing, a row being added, a stamp landing.\n\nColour is printed, not painted. One saturated print blue carries the form's printing (rules, labels, ruler numbers), the headline's key word, the active row and the action. Entries stay graphite. Pencil red is the checker's correction: faults, strikes, blocks.",
+    "keyCharacteristics": [
+      "One character cell (`--cw`) is the unit of the whole system; widths come from a column count (80 / 56 / 38).",
+      "White sheets on a plain ground; graph cells (fine every column, heavier every tenth) only inside the sheet's cell area.",
+      "Graphite monospace entries; Archivo, wide, for headings and form labels; Archivo, normal width, for comment prose.",
+      "Print blue for the form and the one action; pencil red only for faults.",
+      "Square everything. No radius anywhere."
+    ],
+    "rules": [
+      { "name": "The Two Inks Rule", "body": "Colour lives in the form and the active row; what is written on the form stays graphite. Blue entries are reserved for codes, keys, the open moves and the focused value.", "section": "colors" },
+      { "name": "The Red Pencil Rule", "body": "Pencil red marks a fault or a removal (regressed, blocked, struck). It never decorates and never marks success; a success stamp is print blue.", "section": "colors" },
+      { "name": "The Row Rule", "body": "Every line height is a whole or half multiple of `--row`; headings occupy whole rows so the text never leaves the ruled lines.", "section": "typography" },
+      { "name": "The Measured Cell Rule", "body": "`--cw` is Martian Mono's measured advance (`--chr`, measured at font load) times `--fs`; never hard-code a character width.", "section": "typography" },
+      { "name": "The One Sheet Shadow Rule", "body": "Only a sheet casts a shadow. Buttons, stamps, tabs and rows stay flat.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do derive every width from `--cols` and `--cw`; add a field as a number of cells, not pixels.",
+      "Do set every entry in Martian Mono at 87.5% width with tabular figures, one character per cell.",
+      "Do keep line heights on `--row`, with headings spanning whole rows.",
+      "Do confine the graph cells to a sheet's cell area; the page ground stays plain.",
+      "Do use print blue for the form's printing, the active row and the single action, and pencil red only for faults and strikes.",
+      "Do label example data as an example on the sheet itself (a footnote under the cells).",
+      "Do give every motion a reduced-motion state that shows the finished form."
+    ],
+    "donts": [
+      "Don't round a corner; the form is square (0px).",
+      "Don't put a shadow on anything but a sheet.",
+      "Don't colour entry text beyond codes, keys, open moves and the focused value; entries stay graphite.",
+      "Don't hard-code a character width or a colour hex in a component; use `--cw`, `--chr` and the colour custom properties.",
+      "Don't place content off the cells: no element sits between columns or between rows."
+    ]
+  }
+}
