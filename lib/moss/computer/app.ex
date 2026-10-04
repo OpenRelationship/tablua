@@ -61,8 +61,12 @@ defmodule Moss.Computer.App do
     }
   end
 
-  @doc "Asks the computer's app; `{status, headers, body}` ready to send from `origin` (scheme://host:port)."
-  def answer(id, req, origin, base) do
+  @doc """
+  Asks the computer's app; `{status, headers, body}` ready to send from `origin` (scheme://host:port). `ancestors:`
+  who may frame the page (the CSP's frame-ancestors; its own origin unless said, as when an app is served on a
+  domain of its own and framed by the site the person signed in to).
+  """
+  def answer(id, req, origin, base, opts \\ []) do
     {status, headers, body, _err} = Moss.Computer.serve(id, req)
     root = base
     base = app_base(base, headers["x-moss-app"])
@@ -94,7 +98,7 @@ defmodule Moss.Computer.App do
       |> Map.merge(%{
         "content-type" => type <> "; charset=utf-8",
         "x-content-type-options" => "nosniff",
-        "content-security-policy" => policy(origin, base),
+        "content-security-policy" => policy(origin, base, Keyword.get(opts, :ancestors, "'self'")),
         "referrer-policy" => "no-referrer"
       })
 
@@ -128,7 +132,7 @@ defmodule Moss.Computer.App do
     if t in @types, do: t, else: "text/plain"
   end
 
-  defp policy(origin, base) do
+  defp policy(origin, base, ancestors) do
     app = origin <> base
     p = Clean.policy()
     scripts = p.scripts |> Enum.sort() |> Enum.map_join(" ", &(origin <> &1))
@@ -142,7 +146,7 @@ defmodule Moss.Computer.App do
         "connect-src #{app}",
         "form-action #{app}",
         "base-uri #{app}",
-        "frame-ancestors 'self'",
+        "frame-ancestors #{ancestors}",
         # the page has no origin wherever it is opened, as the desktop's sandboxed frame gives it: opened on its own
         # it never runs as the site that serves it (arock.ai), with that site's cookies
         "sandbox allow-scripts allow-forms"
