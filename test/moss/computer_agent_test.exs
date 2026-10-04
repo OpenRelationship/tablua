@@ -200,7 +200,7 @@ defmodule Moss.ComputerAgentTest do
     assert [%{"n" => 0}] = sql.("select count(*) as n from tablua_feature where name = 'ask_edit'")
 
     # the harness's gates as rows, written once when the run starts
-    assert [%{"n" => 9}] = sql.("select count(*) as n from tablua_gate where retired_by is null")
+    assert [%{"n" => 10}] = sql.("select count(*) as n from tablua_gate where retired_by is null")
 
     # the harness's behaviour model: every step has its effects, from the facts before and after it
     assert [%{"n" => 7}] = sql.("select count(distinct n) as n from tablua_effect")
@@ -477,7 +477,8 @@ defmodule Moss.ComputerAgentTest do
                 local q = world.new(host, { steps = steps or nil }).question({ req = req })
                 local o = q.options or {}
                 local way = o.write_feature or o.publish or (not looked and o.look_at_app)
-                if steps == "page" and own then way = o.write_feature end
+                -- and only that: looking, thinking or testing again changes no check (own_checks_first)
+                if steps == "page" and own then way = o.write_feature and not (o.look_at_app or o.think or o.run_test) end
                 if not way then
                   stuck[#stuck + 1] = ("%s own=%s looked=%s repeats=%d last=%s stage=%s"):format(tostring(steps),
                     tostring(own), tostring(looked), repeats, last, tostring(req.stage))

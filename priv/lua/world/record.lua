@@ -6,8 +6,9 @@
 --   local r = record.new(task, log)    task: the run's address (one computer may run several)
 --   r.decided(req, verb, answer, how)  before the step: state, candidates, decision
 --   r.gates(run)                       the harness's gates, once a run, each with whether the run turned it off
---   r.after(req, step, facts, stage)   after it: the outcome, with the facts as they are now, and the step's effects
---                                      (tablua.effects: the facts at the decision against these, its commands)
+--   r.after(req, step, facts, stage)   after it: the outcome, with the facts as they are now, the step's effects
+--                                      (tablua.effects: the facts at the decision against these, its commands) and
+--                                      its calls as action rows (step.actions, world.lua)
 local M = {}
 
 local function port()
@@ -80,6 +81,14 @@ function M.new(task, log)
           { task, step.n - 1 })
         prev[#prev + 1] = { keyword = "Undone Next", arg = "" }
         t:effects(task, step.n - 1, prev)
+      end
+    end)
+    -- each call the move made as an action row: a unit spliced in (edit_unit, file#unit), a file written whole
+    -- (write_file) or a command alone (run), with the command's exit
+    try(function()
+      for i, a in ipairs(step.actions or {}) do
+        t:action{ task = task, n = step.n, i = i, cmd = a.cmd, file_kind = a.kind or "", op = a.op,
+          target = a.target, bytes = a.bytes, exit = a.exit }
       end
     end)
     try(function()

@@ -25,6 +25,13 @@ M.list = {
       return c.move == "write_feature" and c.req.stage == "building" and c.repeats < c.w.repeats
         and not c.w.checks_own(c.req.facts)
     end },
+  -- green, with only checks in the app's own words left: rewriting the feature in the page's words is what moves it
+  -- (a packing run looked, thought and tested 80 times, the remedy in its facts, and never rewrote the feature)
+  { name = "own_checks_first", what = "green with only own-word checks left, the feature is rewritten first",
+    blocks = function(c)
+      return c.req.stage == "building" and c.w.checks_own(c.req.facts) and c.w.failing(c.req.facts or {}) == ""
+        and not (c.move == "write_feature" or c.move == "read_help" or c.move == "blocked")
+    end },
   { name = "dead_end", what = "past a dead end neither fixing nor thinking is offered",
     blocks = function(c) return c.repeats >= c.w.dead_end and (c.move == "fix_failure" or c.move == "think") end },
   { name = "give_up", what = "giving up leaves only a rewrite, the feature or stopping",

@@ -117,6 +117,27 @@ M.waits = { wait_for_agreement = "the person's agreement to the feature", wait_f
 -- the stage, the failing, how a step left things, the gates' counts and the facts as read (world/facts.lua)
 require("moss.world.facts")(M)
 
+-- a call as Tablua's action rows (world/record.lua): each unit it spliced, each other file it wrote whole, or its
+-- command alone
+function M.actions(step, c, files, code)
+  step.actions = step.actions or {}
+  local cmd, spliced = tostring(c.cmd or ""), {}
+  for _, e in ipairs(c.applied or {}) do
+    spliced[e.file] = true
+    step.actions[#step.actions + 1] = { cmd = cmd, op = "edit_unit", target = e.file .. "#" .. e.unit,
+      kind = e.file:match("%.(%w+)$"), bytes = e.bytes, exit = code }
+  end
+  for _, path in ipairs(files) do
+    if not spliced[path] then
+      step.actions[#step.actions + 1] = { cmd = cmd, op = "write_file", target = path, kind = path:match("%.(%w+)$"),
+        bytes = #tostring(c.files[path]), exit = code }
+    end
+  end
+  if #files == 0 and #(c.applied or {}) == 0 then
+    step.actions[#step.actions + 1] = { cmd = cmd, op = "run", target = cmd:match("^%S*"), exit = code }
+  end
+end
+
 function M.new(host, run)
   -- a run whose features use the page's own steps (run.steps "page") holds every check to them
   if run and run.steps == "page" then
@@ -241,20 +262,32 @@ function M.new(host, run)
       if req.facts then step.note = M.after(req, req.facts, host.facts()) end
       return
     end
-    local calls, err = prompt.fill(a, req, verb, prompt.pages(run, M.moves[verb]), run, M.causes)
+    local edits = require("moss.world.edits")
+    local what = prompt.pages(run, M.moves[verb]) .. (edits.on(run) and M.changes[verb] and edits.index(host) or "")
+    local calls, err = prompt.fill(a, req, verb, what, run, M.causes)
     if not calls then step.note, step.outcome = "Filling the move failed: " .. tostring(err), "broken" return end
     if #calls == 0 then step.note, step.outcome = "Mercury made no call for this move.", "no_effect" return end
-    for _, c in ipairs(calls) do M.tidy(verb, c) end
+    for _, c in ipairs(calls) do
+      M.tidy(verb, c)
+      -- an edit is spliced into its file before anything runs; one that cannot be keeps its call from running
+      if edits.on(run) then
+        local problems = edits.apply(host, c)
+        if #problems > 0 then c.edit_refused = table.concat(problems, "; ") end
+      else
+        c.edits = nil
+      end
+    end
     local kept = M.changes[verb] and undo.keep(host, calls) or nil
     local failed, seen = 0, look.new()
     for _, c in ipairs(calls) do
-      local no = M.refused(verb, c)
+      local no = c.edit_refused or M.refused(verb, c)
       local r = no and { code = 1, stdout = "", stderr = "not run: " .. no .. "\n" } or host.exec(c)
       if r.code ~= 0 then failed = failed + 1 end
       look.read(seen, c, r)
       local files = {}
       for path in pairs(c.files or {}) do files[#files + 1] = path end
       table.sort(files)
+      M.actions(step, c, files, r.code)
       step.lines[#step.lines + 1] = ("$ %s  -> %d%s\n%s%s"):format(c.cmd, r.code,
         #files > 0 and ("  (wrote " .. table.concat(files, ", ") .. ")") or "",
         clip(r.stdout or "", 3000), (r.stderr or "") ~= "" and ("\nstderr: " .. clip(r.stderr, 1500)) or "")

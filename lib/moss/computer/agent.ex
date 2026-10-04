@@ -40,7 +40,8 @@ defmodule Moss.Computer.Agent do
   ("page": features in the page's own steps, sdk/browse.lua), and `learn` ("rank": TabPFN ranks the allowed moves
   at every building decision and may take the step, agent.checkpoint), and `pages` ("org": the agent writes its
   pages in org and Lua, ui/*.org, arock issue #2), and `gates_off` (gates to turn off for an A/B, "stuck_fix,give_up":
-  world/gates.lua, priv/gates.org). Gives `%{outcome, why, steps, counts}`, outcome being
+  world/gates.lua, priv/gates.org), and `edits` ("rows": the filler may change one unit of a file at a time,
+  spliced in by the harness, world/edits.lua; arock issue #1 M6b). Gives `%{outcome, why, steps, counts}`, outcome being
   "done", "blocked", "waiting", "stopped" or "error".
   """
   def run(id, task, opts \\ []) do
@@ -54,7 +55,8 @@ defmodule Moss.Computer.Agent do
       "steps" => opts[:steps],
       "learn" => opts[:learn],
       "pages" => opts[:pages],
-      "gates_off" => opts[:gates_off]
+      "gates_off" => opts[:gates_off],
+      "edits" => opts[:edits]
     }
 
     loop(id, ctx, nil, opts[:between] || fn _ -> :ok end, opts[:max_steps] || 150, 0, 0, nil)

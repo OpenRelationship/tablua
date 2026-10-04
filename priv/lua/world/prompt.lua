@@ -219,13 +219,19 @@ function M.fill(a, req, move, what, run, causes)
   local turn = M.state(a, req, false, a.world.facts_text(req)) .. "\n<next_move>\n" .. move .. ": " .. what
     .. sure_note(req) .. cause_note(req, causes or {}) .. "\n</next_move>\nMake the tool calls for this move now, in order."
   local ok, _, record = pcall(a.env.mercury.chat, a.env.mercury, { kind = "fill", reasoning_effort = "medium",
-    temperature = 0.6, max_tokens = 8000, tools = { M.tool }, tool_choice = "required",
+    temperature = 0.6, max_tokens = 8000, tool_choice = "required",
+    tools = { require("moss.world.edits").on(run) and require("moss.world.edits").tool(M.tool) or M.tool },
     messages = { { role = "system", content = M.system(run) }, { role = "user", content = turn } } })
   if not ok then return nil, tostring(_) end
   local calls = {}
   for _, tc in ipairs(record.tool_calls or {}) do
     local okj, args = pcall(json.decode, tc["function"] and tc["function"].arguments or "")
     if okj and type(args) == "table" and type(args.cmd) == "string" then calls[#calls + 1] = args end
+    -- edits with no command still change their files: check is the command that only checks them
+    if okj and type(args) == "table" and args.cmd == nil and type(args.edits) == "table" then
+      args.cmd = "check"
+      calls[#calls + 1] = args
+    end
   end
   return calls
 end

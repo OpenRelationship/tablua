@@ -74,6 +74,15 @@ Feature: the harness's gates
     Then write_feature is not offered
     # because: write_feature | stage building | Step Broken | more
 #+end_src
+** Scenario: green with only own-word checks left, the feature is rewritten first
+#+begin_src feature
+  Scenario: green with only own-word checks left, the feature is rewritten first
+    # gate: own_checks_first
+    Given every scenario passes and every page answers
+    And some checks use steps of the app's own words in a page-steps run
+    Then only write_feature, read_help and blocked are offered
+    # because: unmeasured: the checks in the app's own words are not yet an effect the harness records
+#+end_src
 ** Scenario: blocked is offered only when the work is in trouble
 #+begin_src feature
   Scenario: blocked is offered only when the work is in trouble
