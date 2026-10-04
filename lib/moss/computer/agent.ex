@@ -115,13 +115,13 @@ defmodule Moss.Computer.Agent do
   # ------------------------------------------------------------------------------------------------------------
   # In the computer's own process (Moss.Computer.agent/3).
 
-  @doc "The rows agent.memory folds, with their task: other computers' first (Moss.Computer.Experience), then its own."
-  def events(state), do: Experience.rows(state.id) ++ Log.rows(state.disk.conn, @memory)
+  @doc "The rows agent.memory folds, with their task."
+  def events(state), do: Log.rows(state.disk.conn, @memory)
 
   @doc "A row on the computer's log, through arock-log (which takes any keyword and checks the ones it knows)."
   def append(state, task, keyword, args, actor) do
     {:ok, _} = Log.alog(state.disk.conn, "append", [task, keyword, args, actor])
-    Experience.add(state.id, task, keyword, args)
+    :ok
   end
 
   @doc "This computer's Tablua rows into the node's shared experience (Moss.Computer.Experience.share/2)."

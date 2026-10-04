@@ -46,7 +46,7 @@ defmodule Moss.GuardTest do
     "lib/moss/computer/tablua.ex" =>
       "the agent harness's own tables: every statement checked to name only tablua_ tables, its values bound",
     "lib/moss/computer/experience.ex" =>
-      "the node's shared experience: fixed statements, every row's computer, task, keyword and arguments bound"
+      "the node's shared experience: Tablua's own tables copied by name from a fixed list, the computer bound"
   }
 
   # the only terms decoded from bytes: encoded by the host itself, into a place no agent writes, and decoded
