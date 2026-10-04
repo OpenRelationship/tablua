@@ -29,8 +29,13 @@ function M.stage(f, since)
   if t and #t.undefined > 0 then why[#why + 1] = #t.undefined .. " steps have no definition" end
   if (f.empty_steps or 0) > 0 then why[#why + 1] = f.empty_steps .. " step definitions check nothing (an empty body)" end
   if f.page_steps and t and #(t.checked or {}) > 0 then
-    why[#why + 1] = #t.checked .. " checks use steps of the app's own, not the page's (" .. table.concat(t.checked, "; ")
-      .. '): write_feature rewrites each as I see "x" or I see "x" for "row", in the words the page shows'
+    -- what to do first, then at most two of them: a long list once pushed the remedy past where the facts are cut,
+    -- and runs whose tests were green blocked instead of changing the feature
+    local some = {}
+    for i = 1, math.min(2, #t.checked) do some[i] = t.checked[i] end
+    why[#why + 1] = #t.checked .. ' checks use steps of the app\'s own, not the page\'s: write_feature rewrites each'
+      .. ' as I see "x" or I see "x" for "row", in the words the page shows (' .. table.concat(some, "; ")
+      .. (#t.checked > 2 and "; ..." or "") .. ")"
   end
   if #f.pages == 0 then why[#why + 1] = "the app has no page" end
   for _, p in ipairs(f.pages) do

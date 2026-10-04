@@ -484,7 +484,7 @@ defmodule Moss.ComputerAgentTest do
              "blocked fix_failure look_at_app plan read_help rewrite run_check run_test think write_code write_page write_steps 0.25"
 
     assert stage.("{}") =~ "ready"
-    assert stage.(~s|{ steps = "page" }|) =~ ~s|building: 1 checks use steps of the app's own, not the page's (Yoga is done)|
+    assert stage.(~s|{ steps = "page" }|) =~ ~s|building: 1 checks use steps of the app's own, not the page's: write_feature rewrites each as I see "x" or I see "x" for "row", in the words the page shows (Yoga is done)|
 
     # and writing the feature, the one move that can change them, is offered at once
     offered =
