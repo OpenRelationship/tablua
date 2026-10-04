@@ -1,5 +1,5 @@
 defmodule Moss.ComputerAgentTest do
-  # The computer's own agent (Moss.Computer.Agent over Arock's library/agent), with Jev and Mercury answered by
+  # The computer's own agent (Moss.Computer.Agent over core/agent), with Jev and Mercury answered by
   # Req.Test in their places: Jev decides every step, from the moves the stage allows, before Mercury is asked;
   # Mercury fills the move Jev chose; the person's part is waited for, never done; every decision is a Decide row
   # joined to its step's Outcome by address; and the run counts each mind's calls.
@@ -112,7 +112,7 @@ defmodule Moss.ComputerAgentTest do
     assert "write_steps" in offered and "run_test" in offered
     refute "publish" in offered
 
-    # and every step is a typed row in the computer's own file (library/tablua, world/record.lua)
+    # and every step is a typed row in the computer's own file (core/tablua, world/record.lua)
     sql = fn q -> {:ok, rows} = Computer.agent(id, :sql, [q, []]); rows end
     decides = length(Moss.Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Decide"]))
     assert decides >= 1

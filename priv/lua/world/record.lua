@@ -1,4 +1,4 @@
--- What the computer's agent writes of each step as Tablua's typed rows (library/tablua, issue #1), in its own
+-- What the computer's agent writes of each step as Tablua's typed rows (core/tablua, issue #1), in its own
 -- computer's file through __host.agent_sql: where the work stood, every move it could have made with Jev's (and
 -- TabPFN's) numbers, the move taken and by whom, and how the step turned out. It changes no decision; a failure to
 -- write is said once and the run goes on.

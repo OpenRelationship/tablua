@@ -1,4 +1,4 @@
--- The agent's own computer as the world Arock's agent works in (library/agent; Arock PROJECT.md §14, feature
+-- The agent's own computer as the world Arock's agent works in (core/agent; Arock PROJECT.md §14, feature
 -- file-kinds): it builds what the person asks as an app, agreed to shipped, and answers the task. Code owns the
 -- workflow (TypeSafe's rule): the stage and its gates are worked out from the computer's facts (the host's, never a
 -- model's), and Jev is offered only the moves the stage allows. Jev picks the move; Mercury fills it with tool calls

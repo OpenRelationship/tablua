@@ -1,0 +1,30 @@
+# Litestream 0.5.4 or later, beside Moss on a node: every awake computer's file (its arock-log log and the state folded
+# from it) streamed as it changes, found by the directory watcher as computers wake and sleep. Moss writes this file
+# itself (Moss.Litestream) with its work_dir for ${MOSS_WORK_DIR}, and runs `litestream replicate` under it.
+#
+# No key anywhere: the replica is a folder on the node. Every minute Moss's packer (Moss.Objects.Packer) gathers every
+# awake computer's new segments, <id>.sqlite/ltx/<level>/<min>-<max>.ltx, into one pack and puts it through Arock's
+# service with the node's own token (/moss/packs/<node>/<name>, the node's own prefix): one write a minute however many
+# computers work. A sleeping computer is its whole file (one write a sleep), so packs are read only by a node that
+# lost its disk. A broken node reaches its own packs and computers and nothing else.
+#
+# The control socket is how a computer sleeps: its file written whole (`vacuum into`, a read of the file), then
+# `litestream sync -wait` and `litestream stop`. Its path is relative to the working directory (a Unix socket's path
+# is at most 104 bytes). Syncing is local, so it costs no request: every 5 s (Moss's config.exs says why).
+#
+# What each file must be for this to hold (alog.LITESTREAM, checked by litestream_test.lua): journal_mode WAL,
+# synchronous NORMAL, wal_autocheckpoint 0 (Litestream checkpoints; the app never does) and busy_timeout 5000.
+# The app never leaves WAL, never VACUUMs in place (`vacuum into` another file only reads), and never deletes a -wal
+# file while Litestream runs.
+socket:
+  enabled: true
+  path: litestream.sock
+dbs:
+  - dir: ${MOSS_WORK_DIR}/computers
+    pattern: "*.sqlite"
+    recursive: false
+    watch: true
+    replica:
+      type: file
+      path: ${MOSS_WORK_DIR}/replica
+      sync-interval: 5s

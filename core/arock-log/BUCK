@@ -1,0 +1,39 @@
+load("@nomimono//rules/lua:defs.bzl", "lua_library", "lua_test")
+
+lua_library(
+    name = "arock-log",
+    srcs = ["init.lua", "schema.lua", "kinds.lua", "blobs.lua", "fold.lua", "robot.lua", "tokens.lua", "recall.lua", "org.lua", "manifest.lua", "org_kinds.lua", "org_diff.lua", "org_log.lua"],
+    prefix = "arock-log",
+    visibility = ["PUBLIC"],
+)
+
+# The test host's database port: LuaJIT FFI over the system SQLite.
+lua_library(
+    name = "ffi",
+    srcs = ["ffi.lua"],
+    prefix = "arock-log",
+    visibility = ["PUBLIC"],
+)
+
+[
+    lua_test(
+        name = name,
+        src = name + ".lua",
+        deps = [":arock-log", ":ffi"],
+    )
+    for name in ["alog_test", "disk_test", "runs_test", "snapshot_test", "litestream_test", "recall_test", "org_test", "manifest_test", "org_kinds_test", "org_diff_test", "org_log_test"]
+]
+
+# The tokenizer's vectors: data another implementation (Moss's) is checked against.
+lua_library(
+    name = "tokens_vectors",
+    srcs = ["tokens_vectors.lua"],
+    prefix = "arock-log",
+    visibility = ["PUBLIC"],
+)
+
+lua_test(
+    name = "tokens_test",
+    src = "tokens_test.lua",
+    deps = [":arock-log", ":tokens_vectors"],
+)

@@ -1,6 +1,6 @@
 import Config
 
-# Arock Core's Lua (library/, arock-log, uspx, connectory's port; Shroomi is this repository's shroomi/) from the Arock checkout this moss is
+# uspx and connectory's port (Tablua's own core/ and shroomi/ hold the rest) from the Arock checkout this moss is
 # attached to (submodules/vmoss), or AROCK_ROOT. A host (arock-server) sets these for its node in its own config.
 arock = System.get_env("AROCK_ROOT") || Path.expand("../../..", __DIR__)
 

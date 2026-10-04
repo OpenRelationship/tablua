@@ -1,9 +1,9 @@
 defmodule Moss.Lua.Sources do
   @moduledoc """
-  Arock Core's Lua modules as `name => source`, read from the Arock repository:
-  its `library/` (`library/ports/jev.lua` is `ports.jev`) and arock-log, the log, at
-  `library/arock-log` (`init.lua` is `arock-log`, `robot.lua` is `arock-log.robot`),
-  Shroomi from this repository's own `shroomi/` (`shroomi`, `shroomi.css`, ...), and
+  Tablua's core Lua modules as `name => source`: this repository's own `core/` (`core/ports/jev.lua` is
+  `ports.jev`; moved here from Arock's `library/`, arock issue #1 M7) with arock-log, the log, at `core/arock-log`
+  (`init.lua` is `arock-log`, `robot.lua` is `arock-log.robot`), Shroomi from its own `shroomi/` (`shroomi`,
+  `shroomi.css`, ...), and from the Arock repository it is attached to
   uspx (once arock-mail), the post's checks and Jev's reading (PROJECT.md §18), at
   `submodules/uspx` (`checks.lua` is `uspx.checks`), and connectory's
   port at `submodules/connectory/lua` (`connectory.lua.port_http`, which
@@ -15,7 +15,8 @@ defmodule Moss.Lua.Sources do
 
   def core, do: Application.fetch_env!(:moss, :core)
 
-  def library, do: Path.join(core(), "library")
+  @doc "Tablua's core Lua, a folder of this repository: the harness, the model ports and arock-log."
+  def library, do: Path.expand("../../../core", __DIR__)
 
   @doc "Shroomi, a folder of this repository (Tablua): how the agent publishes its work on its computer."
   def shroomi, do: Path.expand("../../../shroomi", __DIR__)
@@ -24,7 +25,7 @@ defmodule Moss.Lua.Sources do
   def roots,
     do: [
       {library(), ""},
-      {Path.join(core(), "library/arock-log"), "arock-log"},
+      {Path.join(library(), "arock-log"), "arock-log"},
       {shroomi(), "shroomi"},
       {Path.join(core(), "submodules/uspx"), "uspx"},
       {Path.join(core(), "submodules/connectory/lua"), "connectory.lua"}

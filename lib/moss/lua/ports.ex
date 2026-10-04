@@ -68,7 +68,7 @@ defmodule Moss.Lua.Ports do
       {table, lua} = Lua.encode!(lua, Moss.Computer.agent(id, :events, []))
       {[table], lua}
     end)
-    # the harness's own tables (library/tablua): sql and its params, rows back; refused outside tablua_ tables
+    # the harness's own tables (core/tablua): sql and its params, rows back; refused outside tablua_ tables
     |> Lua.set!([:__host, :agent_sql], fn [sql | rest], lua ->
       params =
         case rest do

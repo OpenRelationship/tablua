@@ -1,7 +1,7 @@
 defmodule Moss.Computer.Agent do
   @moduledoc """
   The computer's own agent (Arock PROJECT.md §1, §14; feature file-kinds): Arock's harness (Arock's
-  `library/agent`: Jev decides each step, Mercury fills it, TabPFN reaches Jev once it is stuck) with this
+  `core/agent`: Jev decides each step, Mercury fills it, TabPFN reaches Jev once it is stuck) with this
   computer as its world (`priv/lua/world`). It builds what a task asks as an app, agreed to shipped, and answers
   the task; the person's part (agreeing to a feature, the yes to publish) is theirs, and the run waits for it.
 
@@ -120,7 +120,7 @@ defmodule Moss.Computer.Agent do
     Experience.add(state.id, task, keyword, args)
   end
 
-  @doc "The harness's own tables (library/tablua), through Moss.Computer.Tablua's door: {:ok, rows} or {:error, why}."
+  @doc "The harness's own tables (core/tablua), through Moss.Computer.Tablua's door: {:ok, rows} or {:error, why}."
   def sql(state, sql, params), do: Moss.Computer.Tablua.exec(state.disk.conn, sql, params)
 
   @doc """

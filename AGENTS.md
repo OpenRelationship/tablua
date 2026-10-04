@@ -3,8 +3,9 @@ Shroomi folded in (owner, 2026-10-04: Tablua is the core; Arock is its desktop a
 
 ## Tablua rules
 
-- Tablua is attached to the Arock repository at `submodules/vmoss`. The core Lua still in Arock (`library/` there)
-  is read, never edited from here; a change it needs is made in the Arock repository until it moves here.
+- Tablua is attached to the Arock repository at `submodules/vmoss`. Its core Lua (the harness, the model ports and
+  arock-log) is `core/`, moved from Arock's `library/` (arock issue #1, M7); read `core/AGENTS.md` before editing
+  there. uspx and connectory are still read from Arock's submodules.
 - `lua/` (moss-lua), `browser/` (moss-browser) and `shroomi/` (Shroomi) are folders of this repository with rules
   of their own in their AGENTS.md; read it before editing there.
 - `site/` is tablua.com, the one place TypeScript, React and Node tooling are allowed (owner, 2026-10-04). Nothing

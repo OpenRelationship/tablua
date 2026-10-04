@@ -1,4 +1,4 @@
--- What the computer's agent shows its two minds (world/world.lua; Arock's library/agent). Jev reads a small state: the task, the
+-- What the computer's agent shows its two minds (world/world.lua; core/agent). Jev reads a small state: the task, the
 -- stage and facts, the parts, the newest steps; only what bears on the choice (TypeSafe: accuracy falls as state
 -- fills). Mercury fills Jev's move with tool calls on the computer, laid out as Inception's Mercury 2.5 guide says:
 -- a fixed system prompt in its order (persona, knowledge base, procedures, examples with negatives, critical rules

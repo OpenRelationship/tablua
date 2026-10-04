@@ -1,0 +1,42 @@
+load("@nomimono//rules/lua:defs.bzl", "lua_library", "lua_test")
+
+# Tablua, the continual tabular agent harness (issue #1): the agent's work as typed rows in its own SQLite file,
+# and what TabPFN learns from as a query over them.
+lua_library(
+    name = "tablua",
+    srcs = ["edit.lua", "effects.lua", "hindsight.lua", "init.lua", "links.lua", "org.lua", "program.lua",
+        "schema.lua", "source.lua", "telemetry.lua"],
+    prefix = "tablua",
+    deps = ["//submodules/vmoss/core/ports:ports"],
+    visibility = ["PUBLIC"],
+)
+
+lua_test(
+    name = "init_test",
+    src = "init_test.lua",
+    deps = [":tablua", "//submodules/vmoss/core/arock-log:ffi"],
+)
+
+lua_test(
+    name = "source_test",
+    src = "source_test.lua",
+    deps = [":tablua"],
+)
+
+lua_test(
+    name = "effects_test",
+    src = "effects_test.lua",
+    deps = [":tablua"],
+)
+
+lua_test(
+    name = "links_test",
+    src = "links_test.lua",
+    deps = [":tablua"],
+)
+
+lua_test(
+    name = "edit_test",
+    src = "edit_test.lua",
+    deps = [":tablua"],
+)

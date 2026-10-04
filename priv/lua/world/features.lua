@@ -1,5 +1,5 @@
 -- Jev's fan-out (Tablua issue #1, M2): questions asked in the same call as the move, whose answers become feature
--- columns of the step (library/tablua's t:features), never a decision. What kind of ask it is, asked once a
+-- columns of the step (core/tablua's t:features), never a decision. What kind of ask it is, asked once a
 -- request as yes-or-no questions on the task alone (each answer Jev's chance of yes); and, while building or
 -- ready, how much of the task the app does now, as a score whose mean over the levels is kept.
 --

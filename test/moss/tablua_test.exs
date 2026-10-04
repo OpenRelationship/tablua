@@ -1,5 +1,5 @@
 defmodule Moss.TabluaTest do
-  # The harness's own tables (library/tablua): only statements over tablua_ tables pass the door.
+  # The harness's own tables (core/tablua): only statements over tablua_ tables pass the door.
   use ExUnit.Case, async: true
 
   alias Moss.Computer.Tablua

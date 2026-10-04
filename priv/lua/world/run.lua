@@ -1,4 +1,4 @@
--- The computer's agent, one step a call (Moss.Computer.Agent drives it; Arock's library/agent over moss.world).
+-- The computer's agent, one step a call (Moss.Computer.Agent drives it; core/agent over moss.world).
 -- tv-labs lua keeps no garbage collector, so a run is not one long call: each call builds the agent again from
 -- what the last one saved (the request and the conversation, as JSON), takes one step (Jev decides, Mercury fills,
 -- the computer runs it, the step is recorded) and saves again. Every decision is a Decide row on the computer's
