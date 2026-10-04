@@ -253,4 +253,19 @@ defmodule Moss.BrowseTest do
     refute help =~ ".lui"
     refute Computer.run(c, "help code").out =~ "orgpage"
   end
+
+  test "a step that runs the features again fails saying why, and an org page may build itself with ui.page", %{c: c} do
+    write(c, "/home/features/hi.feature", "Feature: hi\n  Scenario: one\n    Given the app says hi\n")
+    write(c, "/home/code/steps/hi.lua", ~s|test.step("the app says hi", function(w) test.run_file("features/hi.feature") end)\n|)
+    assert %{code: 1, out: out} = Computer.run(c, "test features/hi.feature")
+    assert out =~ "a step never runs the features"
+    refute out =~ "out of memory"
+
+    page = "* Page\n#+begin_src lua\nreturn ui.page{ title = \"Hello\", ui.h1\"Hi there\" }\n#+end_src\n"
+    write(c, "/home/ui/index.org", page)
+    assert {200, _, body, _} = Computer.serve(c, %{"method" => "GET", "path" => "/"})
+    body = IO.iodata_to_binary(body)
+    assert body =~ "<title>Hello</title>" and body =~ "<h1>Hi there</h1>"
+    refute body =~ "&lt;!doctype"
+  end
 end

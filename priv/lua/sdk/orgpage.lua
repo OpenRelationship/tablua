@@ -77,7 +77,16 @@ function M.answer(text, name, req)
   local run, lines = chunk(text, name)
   if not run then error(lines, 0) end
   local def = function(r, post, get, meta)
-    local render = run(r, post, get, meta, ui)
+    -- the page is already the document: ui.page{ title = ..., ... } in a Page gives its title to the page and its
+    -- children to the body, rather than a document inside the document
+    local pui = setmetatable({ page = function(p)
+      if type(p) ~= "table" then return p end
+      meta.title, meta.dark = p.title or meta.title, p.dark
+      local kids = {}
+      for i = 1, ui.maxn(p) do kids[i] = p[i] end
+      return kids
+    end }, { __index = ui })
+    local render = run(r, post, get, meta, pui)
     if type(render) ~= "function" then error(name .. ": the page's Code returned before its Page", 0) end
     return function(result) return page.wire(render(result), r, post, get, name) end
   end

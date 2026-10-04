@@ -315,7 +315,23 @@ local function run_steps(steps, world, rows, failed, report)
   return failed
 end
 
+-- a run under way: a step that runs the features again would run itself until the computer's memory ran out (an
+-- eval's step called test.run_file), so it fails, saying why
+local running, run_once = false, nil
+
 function test.run(text, name, before)
+  if running then
+    error("a step never runs the features (test.run, test.run_file): it would run itself forever; a step calls the"
+      .. " app's code and checks what it did", 2)
+  end
+  running = true
+  local ok, a, b, c, d = pcall(run_once, text, name, before)
+  running = false
+  if not ok then error(a, 0) end
+  return a, b, c, d
+end
+
+run_once = function(text, name, before)
   local feature, background, scenarios = parse(text)
   local lines, passed = { "*** Test Cases ***" }, 0
   local report = { failing = {}, undefined = {}, checked = {} }
