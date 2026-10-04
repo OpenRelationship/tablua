@@ -138,7 +138,7 @@ function M.stage(f, since)
   if (f.empty_steps or 0) > 0 then why[#why + 1] = f.empty_steps .. " step definitions check nothing (an empty body)" end
   if f.page_steps and t and #(t.checked or {}) > 0 then
     why[#why + 1] = #t.checked .. " checks use steps of the app's own, not the page's (" .. table.concat(t.checked, "; ")
-      .. '): a check is I see "x" or I see "x" for "row", in the words the page shows'
+      .. '): write_feature rewrites each as I see "x" or I see "x" for "row", in the words the page shows'
   end
   if #f.pages == 0 then why[#why + 1] = "the app has no page" end
   for _, p in ipairs(f.pages) do
@@ -146,6 +146,13 @@ function M.stage(f, since)
   end
   if #why > 0 then return "building", table.concat(why, "; ") end
   return "ready", "every scenario passes and every page answers"
+end
+
+-- A page-steps run's checks answered by the app's own steps: only the feature can change them, so writing it is
+-- offered at once (habits passed every test and blocked after 115 steps, the one move that could fix it withheld)
+function M.checks_own(f)
+  local t = f and f.tests
+  return f and f.page_steps and t and #(t.checked or {}) > 0 or false
 end
 
 -- What is failing, as one string: the same string after a change means the change fixed nothing.
@@ -344,7 +351,8 @@ function M.new(host, run)
       if not (stuck and name == "fix_failure") and not (name == "publish" and not req.looked)
         and not (name == "think" and last and last.verb == "think") and not (name == "undo" and not req.undo)
         and not (req.stage == "shipped" and name ~= "answer_task" and not M.answer_failed(req))
-        and not (name == "write_feature" and req.stage == "building" and repeats < M.repeats)
+        and not (name == "write_feature" and req.stage == "building" and repeats < M.repeats
+          and not M.checks_own(req.facts))
         and not (repeats >= M.dead_end and (name == "fix_failure" or name == "think"))
         and not (repeats >= M.give_up and not last_resort[name])
         and not (name == "blocked" and not M.troubled(req, repeats)) then

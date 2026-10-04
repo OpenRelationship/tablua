@@ -443,6 +443,21 @@ defmodule Moss.ComputerAgentTest do
 
     assert stage.("{}") =~ "ready"
     assert stage.(~s|{ steps = "page" }|) =~ ~s|building: 1 checks use steps of the app's own, not the page's (Yoga is done)|
+
+    # and writing the feature, the one move that can change them, is offered at once
+    offered =
+      Lua.eval!(Moss.Lua.base(), """
+      local world = require("moss.world")
+      local host = { facts = function() return { features = { { path = "features/a.feature", stage = "agreed" } },
+        pages = { { path = "/", status = 200 } }, empty_steps = 0,
+        tests = { passed = 1, total = 1, failing = {}, undefined = {}, checked = { 'Yoga is done' } } } end }
+      local q = world.new(host, { steps = "page" }).question({ req = { steps = {} } })
+      return q.options.write_feature ~= nil
+      """)
+      |> elem(0)
+      |> hd()
+
+    assert offered
   end
 
   test "there is no agent without both minds", %{id: id} do
