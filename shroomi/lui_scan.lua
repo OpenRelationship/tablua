@@ -77,19 +77,18 @@ local function decode(t)
   end))
 end
 
--- the habits of other template languages, each answered with the Lua it should be
+-- the habits of other template languages, each answered with the Lua it should be. A loop without its do, or an if
+-- without its then, means one thing only, so it is given the word it lacks (writers dropped it again and again after
+-- being told); the rest are refused with the Lua to write
 local function teach(st, line, code)
   local c = string.match(code, "^%s*(.-)%s*$")
   local word = string.match(c, "^end(%a+)$")
   if word then st:fail(line, "{% end" .. word .. " %} is Jinja's; a Lua block ends with {% end %}") end
   if string.match(c, "^elif[%s%(]") then st:fail(line, "Lua says {% elseif cond then %}, not elif") end
-  if string.match(c, "^for%s") and not string.match(c, "%sdo$") and not string.match(c, "%sdo%s") then
-    st:fail(line, "a Lua loop opens with do: {% for _, p in ipairs(list) do %} ... {% end %}")
-  end
-  if string.match(c, "^while%s") and not string.match(c, "%sdo$") and not string.match(c, "%sdo%s") then st:fail(line, "a Lua loop opens with do") end
-  if (string.match(c, "^if[%s%(]") or string.match(c, "^elseif[%s%(]")) and not string.match(c, "%sthen$") and not string.match(c, "%sthen%s") then
-    st:fail(line, "a Lua if opens with then: {% if cond then %} ... {% end %}")
-  end
+  local function lacks(w) return not string.match(c, "%s" .. w .. "$") and not string.match(c, "%s" .. w .. "%s") end
+  if (string.match(c, "^for%s") or string.match(c, "^while%s")) and lacks("do") then return c .. " do" end
+  if (string.match(c, "^if[%s%(]") or string.match(c, "^elseif[%s%(]")) and lacks("then") then return c .. " then" end
+  return code
 end
 
 function ST:lua(from, close, what, line)
@@ -240,8 +239,7 @@ function ST:next(keep)
       return { kind = "expr", code = code, line = line }
     elseif string.sub(s, i, i + 1) == "{%" then
       local code = self:lua(i + 2, "%}", "{%", line)
-      teach(self, line, code)
-      return { kind = "stmt", code = code, line = line }
+      return { kind = "stmt", code = teach(self, line, code), line = line }
     elseif string.match(s, "^</", i) then
       local tag, e = string.match(s, "^</([%a_][%w_%-]*)%s*>()", i)
       if not tag then self:fail(line, "a closing tag is </name>") end

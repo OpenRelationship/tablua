@@ -147,10 +147,15 @@ spec.test("the habits of other template languages are answered with the Lua they
   spec.eq(body(lui.answer('<p class="p-2 {% if 1 > 0 then %}font-medium{% end %}" rows=5>x</p>', "ui/a.lui", get())),
     '<p class="p-2 font-medium" rows="5">x</p>')
   refused('<p class="p-2 {% if 1 then %}glow{% end %}">x</p>', 'no class "glow"')
-  refused("<ul>{% for p in plants %}<li/>{% endfor %}</ul>", "a Lua loop opens with do")
   refused("<ul>{% for _, p in ipairs(plants) do %}<li/>{% endfor %}</ul>", "{% endfor %} is Jinja's; a Lua block ends with {% end %}")
-  refused("{% if x %}<p/>{% end %}", "a Lua if opens with then")
   refused("{% if x then %}<p/>{% elif y %}{% end %}", "Lua says {% elseif cond then %}")
+end)
+
+spec.test("a loop without its do, or an if without its then, is given the word it lacks", function()
+  spec.eq(body(lui.answer('<lua>local xs = {"a", "b"}</lua><ul>{% for _, x in ipairs(xs) %}<li>{{ x }}</li>{% end %}</ul>',
+    "ui/a.lui", get())), "<ul><li>a</li><li>b</li></ul>")
+  spec.eq(body(lui.answer("{% if 1 > 0 %}<p>y</p>{% elseif 2 %}<p>n</p>{% end %}", "ui/a.lui", get())), "<p>y</p>")
+  spec.eq(body(lui.answer('{% for i = 1, 2 do %}<i>{{ i }}</i>{% end %}', "ui/a.lui", get())), "<i>1</i><i>2</i>")
 end)
 
 spec.test("Lua's own errors carry the page's lines, at compile time and when it runs", function()
