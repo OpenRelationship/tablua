@@ -22,6 +22,22 @@ defmodule Moss.Computer.Named do
     end
   end
 
+  @doc """
+  `:ok`, or why a move is refused: a manifest it would put in place is checked as one written there (the isolation
+  review, 2026-10-04: `mv` once registered a manifest no write would, and its bad EVERY stopped the node's clock).
+  """
+  def check_moved(disk, from, to) do
+    Enum.reduce_while([{from, to}, {from <> "/manifest.org", to <> "/manifest.org"}], :ok, fn {a, b}, :ok ->
+      with "manifest.org" <- Path.basename(b),
+           {:ok, data} <- Disk.read(disk, a),
+           {:error, _} = refused <- check(disk, b, data) do
+        {:halt, refused}
+      else
+        _ -> {:cont, :ok}
+      end
+    end)
+  end
+
   def written(%{task: id} = disk, path, data) when is_binary(id) do
     if disk.actor != "user" and String.ends_with?(path, "/manifest.org") do
       Moss.Host.manifest(id, path, data)

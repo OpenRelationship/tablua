@@ -84,4 +84,15 @@ defmodule Moss.IsolationTest do
     assert r.code == 137
     assert r.err =~ "out of memory"
   end
+
+  test "an IPv6 address that carries a private IPv4 one is not public" do
+    for url <- ["http://[::7f00:1]/", "http://[::a00:1]/", "http://[64:ff9b::a9fe:a9fe]/", "http://[64:ff9b::a00:1]/",
+                "http://[2002:a00:1::]/", "http://[2002:7f00:1::1]/", "http://[2001:0:4136:e378::1]/"] do
+      assert {:error, _} = MossBrowser.Fetch.public(url), url
+    end
+
+    assert {:ok, _} = MossBrowser.Fetch.public("http://[2606:4700:4700::1111]/")
+    assert {:ok, _} = MossBrowser.Fetch.public("http://[64:ff9b::808:808]/")
+  end
+
 end

@@ -375,7 +375,8 @@ defmodule Moss.Computer.Disk do
          {:ok, st} <- stat(disk, from),
          {:ok, %{dir: true}} <- stat(disk, Path.dirname(to)),
          :ok <- if(String.starts_with?(to <> "/", from <> "/"), do: {:error, :einval}, else: :ok),
-         :ok <- movable(disk, from, to, st) do
+         :ok <- movable(disk, from, to, st),
+         :ok <- Named.check_moved(disk, from, to) do
       with :ok <- log(disk, "Move File", [from, to]), do: Named.moved(disk, from, to)
     else
       true -> {:error, @database}

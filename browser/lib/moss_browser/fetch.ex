@@ -189,8 +189,14 @@ defmodule MossBrowser.Fetch do
            (a == 192 and b == 168) or (a == 100 and b in 64..127) or (a == 198 and b in 18..19))
   end
 
-  defp public_ip?({0, 0, 0, 0, 0, 0xFFFF, hi, lo}),
-    do: public_ip?({div(hi, 256), rem(hi, 256), div(lo, 256), rem(lo, 256)})
+  # an IPv6 address that carries an IPv4 one is as public as that one is: mapped (::ffff:a.b.c.d), compatible
+  # (::a.b.c.d), NAT64 (64:ff9b::a.b.c.d) and 6to4 (2002:aabb:ccdd::); Teredo (2001::/32) hides its own, so it is
+  # never public (the isolation review, 2026-10-04)
+  defp public_ip?({0, 0, 0, 0, 0, 0xFFFF, hi, lo}), do: public_ip?(v4(hi, lo))
+  defp public_ip?({0, 0, 0, 0, 0, 0, hi, lo}) when hi != 0, do: public_ip?(v4(hi, lo))
+  defp public_ip?({0x64, 0xFF9B, 0, 0, 0, 0, hi, lo}), do: public_ip?(v4(hi, lo))
+  defp public_ip?({0x2002, hi, lo, _, _, _, _, _}), do: public_ip?(v4(hi, lo))
+  defp public_ip?({0x2001, 0, _, _, _, _, _, _}), do: false
 
   defp public_ip?({a, _, _, _, _, _, _, _} = ip) do
     import Bitwise
@@ -198,4 +204,6 @@ defmodule MossBrowser.Fetch do
     not (ip in [{0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 1}] or (a &&& 0xFE00) == 0xFC00 or
            (a &&& 0xFFC0) == 0xFE80 or (a &&& 0xFF00) == 0xFF00)
   end
+
+  defp v4(hi, lo), do: {div(hi, 256), rem(hi, 256), div(lo, 256), rem(lo, 256)}
 end

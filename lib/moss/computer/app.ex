@@ -64,6 +64,7 @@ defmodule Moss.Computer.App do
   @doc "Asks the computer's app; `{status, headers, body}` ready to send from `origin` (scheme://host:port)."
   def answer(id, req, origin, base) do
     {status, headers, body, _err} = Moss.Computer.serve(id, req)
+    root = base
     base = app_base(base, headers["x-moss-app"])
     type = content_type(headers)
     # htmx swaps a fragment into a page that has its <base> already
@@ -86,7 +87,8 @@ defmodule Moss.Computer.App do
         "hx-trigger",
         "hx-push-url"
       ])
-      |> Map.update("location", nil, &URI.to_string(URI.merge(origin <> base, &1)))
+      |> Map.update("location", nil, &inside(origin, base, root, &1))
+      |> Map.update("hx-redirect", nil, &inside(origin, base, root, &1))
       |> Enum.reject(fn {_, v} -> v == nil end)
       |> Map.new()
       |> Map.merge(%{
@@ -100,6 +102,15 @@ defmodule Moss.Computer.App do
   end
 
   # a page of an app answers from the app's own root: its links, forms and redirects are the app's
+  # where a redirect may send the browser: within the computer's app path, or else to the app's own root (the
+  # isolation review, 2026-10-04: an app's { redirect = "https://evil/" } sent people off arock.ai from its page)
+  defp inside(origin, base, root, to) do
+    url = URI.to_string(URI.merge(origin <> base, to))
+    if String.starts_with?(url, origin <> root), do: url, else: origin <> base
+  rescue
+    _ -> origin <> base
+  end
+
   defp app_base(base, nil), do: base
 
   defp app_base(base, app) do
