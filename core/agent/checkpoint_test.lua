@@ -10,20 +10,35 @@ local function agent(opts)
       after = function(_, _, step) log[#log + 1] = "after " .. step.verb end,
       judged = function(_, _, label) log[#log + 1] = "judged " .. label end },
     env = { memory = { step = function(_, _, s) log[#log + 1] = "step " .. s.verb .. " " .. s.outcome end,
-      sure = function(_, _, n) log[#log + 1] = "sure " .. n end,
       outcome = function(_, _, label) log[#log + 1] = "outcome " .. label end },
       learn = opts.learn, jev = opts.jev } }
   return a, log
 end
 
-spec.test("a step's outcome goes to memory, its sureness, then the world", function()
+spec.test("a step's outcome goes to memory, then the world", function()
   local a, log = agent({})
   local req = { task = "t", steps = {} }
   local step = { n = 1, verb = "run", outcome = "complete", sure = { p = 0.8 } }
   req.steps[1] = step
   checkpoint.after(a, req, step)
-  spec.same(log, { "step run complete", "sure 1", "after run" })
+  spec.same(log, { "step run complete", "after run" })
   spec.ok(req.acted)
+end)
+
+spec.test("with env.tablua the step is Tablua's rows too: where it stood, Jev's sureness, the move, its outcome", function()
+  local a = agent({})
+  local t = require("tablua").open(require("arock-log.ffi").open(":memory:"))
+  a.env.tablua = t
+  local req = { task = "t", steps = { { n = 1, verb = "look", outcome = "broken" } }, standing = { stage = "" },
+    repeats = 1 }
+  local step = { n = 2, verb = "run", outcome = "complete", sure = { p = 0.8, confidence = 0.6 } }
+  req.steps[2] = step
+  checkpoint.after(a, req, step)
+  local r = t.db:exec([[select s.last_verb, s.last_outcome, s.stalls, c.jev_p, c.jev_conf, d.chosen, d.by, o.progress
+    from tablua_state s join tablua_candidate c using (task, n) join tablua_decision d using (task, n)
+    join tablua_outcome o using (task, n)]])
+  spec.same(r, { { last_verb = "look", last_outcome = "broken", stalls = 1, jev_p = 0.8, jev_conf = 0.6, chosen = "run",
+    by = "jev", progress = 1 } })
 end)
 
 spec.test("TabPFN ranks the world's tools only after enough failed steps", function()

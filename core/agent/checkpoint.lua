@@ -7,7 +7,8 @@
 --                                      with env.rank (or env.shadow, which only records it), at every decision of a
 --                                      stage in M.ranked, of the moves allowed
 --                                      (world.allowed), which A:decide may take over Jev's (init.lua)
---   checkpoint.after(a, req, step)     a tool step is over: its outcome, then world.after(a, req, step)
+--   checkpoint.after(a, req, step)     a tool step is over: its outcome (to memory, and with env.tablua as Tablua's
+--                                      rows), then world.after(a, req, step)
 --   checkpoint.judge(a)                a request is over: Jev says how it ended (run when the agent is idle), then
 --                                      world.judged(a, req, label)
 --   checkpoint.card(req, env) -> text|nil  what Jev reads of the ranking (nothing in shadow mode)
@@ -78,6 +79,18 @@ function M.card(req, env)
   if req.unranked == "no past outcomes to learn from yet" then return "(There are no past outcomes to learn from yet.)" end
 end
 
+-- With env.tablua (a world whose own harness does not write them, as the Mac's), the step as Tablua's rows too: where
+-- the work stood, how sure Jev was of the move, the move, and how it ended; what TabPFN learns from (learn.lua).
+local function rows(a, req, step, prev)
+  local t, s = a.env.tablua, req.standing or {}
+  t:state{ task = req.task, n = step.n, stage = s.stage, stalls = req.repeats, last_verb = prev and prev.verb,
+    last_outcome = prev and prev.outcome, cause = req.cause and req.cause.choice }
+  t:candidates(req.task, step.n, { { move = step.verb, jev_p = step.sure and step.sure.p,
+    jev_conf = step.sure and step.sure.confidence } })
+  t:decision{ task = req.task, n = step.n, chosen = step.verb, by = step.by or "jev" }
+  t:outcome{ task = req.task, n = step.n, verb = step.verb, outcome = step.outcome, note = step.note }
+end
+
 function M.after(a, req, step)
   local m = a.env.memory
   if not m or not req.task or not step.outcome then return end
@@ -86,7 +99,7 @@ function M.after(a, req, step)
     or step.outcome == "no_effect") and 1 or 0), last_verb = prev and prev.verb or "", last_outcome = prev and
     prev.outcome or "", outcome = step.outcome, evidence = step.note or "",
     stage = req.standing and req.standing.stage, pass = req.standing and req.standing.pass })
-  if step.sure then m:sure(req.task, step.n, step.verb, step.sure.p, step.sure.confidence) end
+  if a.env.tablua then rows(a, req, step, prev) end
   if a.world.after then a.world.after(a, req, step) end
   if step.outcome ~= "denied" then req.acted = true end
 end

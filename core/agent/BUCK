@@ -44,7 +44,7 @@ lua_test(
 lua_test(
     name = "calibrate_test",
     src = "calibrate_test.lua",
-    deps = [":agent"],
+    deps = [":agent", "//submodules/vmoss/core/arock-log:ffi"],
 )
 
 lua_test(
@@ -56,11 +56,11 @@ lua_test(
 lua_test(
     name = "checkpoint_test",
     src = "checkpoint_test.lua",
-    deps = [":agent"],
+    deps = [":agent", "//submodules/vmoss/core/arock-log:ffi"],
 )
 
 lua_test(
     name = "learn_test",
     src = "learn_test.lua",
-    deps = [":agent"],
+    deps = [":agent", "//submodules/vmoss/core/arock-log:ffi"],
 )

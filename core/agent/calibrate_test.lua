@@ -17,4 +17,17 @@ spec.test("no probabilities yet", function()
   spec.eq(calibrate.render(calibrate.report({})), "No step has a probability from Jev yet.")
 end)
 
+spec.test("the steps read from Tablua: Jev's probability for the move taken, and how the step ended", function()
+  local t = require("tablua").open(require("arock-log.ffi").open(":memory:"))
+  t:candidates("r1", 1, { { move = "apps", jev_p = 0.8 }, { move = "press", jev_p = 0.1 } })
+  t:decision{ task = "r1", n = 1, chosen = "apps", by = "jev" }
+  t:outcome{ task = "r1", n = 1, verb = "apps", outcome = "complete" }
+  t:decision{ task = "r1", n = 2, chosen = "press", by = "jev" }   -- no probability from Jev
+  t:outcome{ task = "r1", n = 2, verb = "press", outcome = "broken" }
+  local steps = calibrate.steps(t)
+  spec.eq(#steps, 1)
+  spec.eq(steps[1].p, 0.8)
+  spec.eq(steps[1].outcome, "complete")
+end)
+
 spec.run()

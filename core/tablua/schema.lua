@@ -8,10 +8,11 @@
 -- Schema 5 adds the harness's behaviour model (tablua_effect): each step's effects, keywords from the harness's
 -- telemetry (tablua.effects), each a label TabPFN predicts. Schema 6 adds the links between program rows
 -- (tablua_link, tablua.links) and the view of those with nothing at their end (tablua_break), and of actions no
--- page posts to (kind orphan).
+-- page posts to (kind orphan). Schema 7 adds the controls a step chose among on a screen (tablua_control,
+-- tablua.control): the Mac's "control" checkpoint, which one the request means.
 local M = {}
 
-M.version = 6
+M.version = 7
 
 M.ddl = [[
 create table if not exists tablua_meta (key text primary key, value text);
@@ -82,6 +83,10 @@ union all select file, 'orphan', name, name from tablua_unit u where kind = 'act
   and not exists (select 1 from tablua_link p where p.kind = 'post' and p.target = u.name)
 union all select file, 'orphan', target, target from tablua_link d where kind = 'defines'
   and not exists (select 1 from tablua_link p where p.kind = 'post' and p.target = d.target);
+create table if not exists tablua_control (
+  task text not null, n integer not null, i integer not null, id text not null, app text not null default '',
+  verb text not null default '', role text not null default '', label text not null default '', ord integer,
+  chosen integer not null default 0, primary key (task, n, i));
 create table if not exists tablua_gate (
   name text primary key, predicate text not null, version integer not null default 1,
   retired_by text);

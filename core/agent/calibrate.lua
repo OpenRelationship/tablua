@@ -1,10 +1,11 @@
 -- How far Jev's sureness can be trusted (PROJECT.md §7.9, §11): the probability Jev gave each verb it picked
--- (memory.lua's Sure rows) set beside how the step turned out. Steps are put in five bands of what Jev said; each
+-- (Tablua's candidate rows: jev_p of the move chosen) set beside how the step turned out. Steps are put in five bands of what Jev said; each
 -- band has the share that were complete. Brier is the mean squared gap between what was said and what happened; the
 -- calibration error is the bands' gaps weighted by their size. A step the person said no to is left out.
 --
 --   calibrate.report(steps) -> { n, denied, brier, ece, bands = { { lo, hi, n, said, worked } } }
---   calibrate.render(report) -> text                  steps: memory.steps ({ p, outcome, ... })
+--   calibrate.render(report) -> text                  steps: { { p, outcome }, ... }
+--   calibrate.steps(t) -> steps                        a Tablua handle's steps that have Jev's probability
 local M = {}
 
 M.BANDS = 5
@@ -31,6 +32,12 @@ function M.report(steps)
     end
   end
   return r
+end
+
+function M.steps(t)
+  return t.db:exec([[select c.jev_p as p, o.outcome from tablua_decision d
+    join tablua_candidate c on c.task = d.task and c.n = d.n and c.move = d.chosen
+    join tablua_outcome o on o.task = d.task and o.n = d.n where c.jev_p is not null order by d.rowid]])
 end
 
 function M.label(b) return ("%.1f-%.1f"):format(b.lo, b.hi) end
