@@ -78,7 +78,7 @@ function M.step(saved_json, ctx)
   }
   env.learn = learn.new({ memory = mem, tabpfn = models.tabpfn and counted(models.tabpfn, "tabpfn", counts) })
   local function at(n) return ctx.at .. "/step/" .. n end
-  -- every step as Tabula's typed rows in the computer's own file (world/record.lua)
+  -- every step as Tablua's typed rows in the computer's own file (world/record.lua)
   local rec = require("moss.world.record").new(ctx.at, function(line) __host.agent_append(ctx.at, "Note", { line }, "host") end)
   local decided
   env.decided = function(req, verb, answer, how)

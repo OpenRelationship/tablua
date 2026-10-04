@@ -43,8 +43,8 @@ defmodule Moss.GuardTest do
       "the node's org: names: fixed statements, every address and name bound (a manifest is read by arock-log's Lua)",
     "lib/moss/mail/store.ex" =>
       "the post: fixed statements, and `set` names only its known columns",
-    "lib/moss/computer/tabula.ex" =>
-      "the agent harness's own tables: every statement checked to name only tabula_ tables, its values bound",
+    "lib/moss/computer/tablua.ex" =>
+      "the agent harness's own tables: every statement checked to name only tablua_ tables, its values bound",
     "lib/moss/computer/experience.ex" =>
       "the node's shared experience: fixed statements, every row's computer, task, keyword and arguments bound"
   }

@@ -103,16 +103,16 @@ defmodule Moss.ComputerAgentTest do
     assert "write_steps" in offered and "run_test" in offered
     refute "publish" in offered
 
-    # and every step is a typed row in the computer's own file (library/tabula, world/record.lua)
+    # and every step is a typed row in the computer's own file (library/tablua, world/record.lua)
     sql = fn q -> {:ok, rows} = Computer.agent(id, :sql, [q, []]); rows end
     decides = length(Moss.Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Decide"]))
     assert decides >= 1
-    assert [%{"n" => ^decides}] = sql.("select count(*) as n from tabula_decision")
-    assert [%{"chosen" => "write_feature", "by" => "jev"} | _] = sql.("select chosen, by from tabula_decision order by n")
-    assert [%{"stage" => "no_feature"} | _] = sql.("select stage from tabula_state order by n")
-    assert [%{"n" => n}] = sql.("select count(*) as n from tabula_candidate")
+    assert [%{"n" => ^decides}] = sql.("select count(*) as n from tablua_decision")
+    assert [%{"chosen" => "write_feature", "by" => "jev"} | _] = sql.("select chosen, by from tablua_decision order by n")
+    assert [%{"stage" => "no_feature"} | _] = sql.("select stage from tablua_state order by n")
+    assert [%{"n" => n}] = sql.("select count(*) as n from tablua_candidate")
     assert n >= 2
-    assert [%{"n" => outcomes}] = sql.("select count(*) as n from tabula_outcome")
+    assert [%{"n" => outcomes}] = sql.("select count(*) as n from tablua_outcome")
     assert outcomes in [decides - 1, decides]
   end
 

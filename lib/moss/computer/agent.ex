@@ -116,8 +116,8 @@ defmodule Moss.Computer.Agent do
     Experience.add(state.id, task, keyword, args)
   end
 
-  @doc "The harness's own tables (library/tabula), through Moss.Computer.Tabula's door: {:ok, rows} or {:error, why}."
-  def sql(state, sql, params), do: Moss.Computer.Tabula.exec(state.disk.conn, sql, params)
+  @doc "The harness's own tables (library/tablua), through Moss.Computer.Tablua's door: {:ok, rows} or {:error, why}."
+  def sql(state, sql, params), do: Moss.Computer.Tablua.exec(state.disk.conn, sql, params)
 
   @doc """
   What the agent's stages are worked out from, the computer's own account: each feature's stage, the last test

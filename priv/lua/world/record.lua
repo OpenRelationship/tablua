@@ -1,4 +1,4 @@
--- What the computer's agent writes of each step as Tabula's typed rows (library/tabula, issue #1), in its own
+-- What the computer's agent writes of each step as Tablua's typed rows (library/tablua, issue #1), in its own
 -- computer's file through __host.agent_sql: where the work stood, every move it could have made with Jev's (and
 -- TabPFN's) numbers, the move taken and by whom, and how the step turned out. It changes no decision; a failure to
 -- write is said once and the run goes on.
@@ -11,7 +11,7 @@ local M = {}
 local function port()
   return { exec = function(_, sql, params)
     local rows, why = __host.agent_sql(sql, params or {})
-    if rows == nil then error(why or "tabula: refused", 2) end
+    if rows == nil then error(why or "tablua: refused", 2) end
     return rows
   end }
 end
@@ -19,14 +19,14 @@ end
 local function tests(f) return f and f.tests or nil end
 
 function M.new(task, log)
-  local ok, t = pcall(function() return require("tabula").open(port()) end)
+  local ok, t = pcall(function() return require("tablua").open(port()) end)
   local r, said = {}, false
   local function try(f, ...)
     if not ok then return end
     local fine, why = pcall(f, ...)
-    if not fine and not said then said = true; (log or print)("tabula: " .. tostring(why)) end
+    if not fine and not said then said = true; (log or print)("tablua: " .. tostring(why)) end
   end
-  if not ok then (log or print)("tabula: " .. tostring(t)) end
+  if not ok then (log or print)("tablua: " .. tostring(t)) end
 
   function r.decided(req, verb, answer, how)
     try(function()
