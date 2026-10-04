@@ -19,17 +19,18 @@ defmodule Moss.KindsTest do
     assert {:error, :enoent} = Disk.read(disk(c), "/home/run.sh")
   end
 
-  test "Scenario: a file in the wrong folder is refused, saying a page goes in ui/ as .lui" do
+  test "Scenario: a file in the wrong folder is refused, saying a page goes in ui/ as .org or .lui" do
     c = id()
     assert {:error, why} = Disk.write(disk(c), "/home/apps/plants/ui/index.lua", "return {}")
-    assert why =~ "a page goes in ui/ as .lui"
+    assert why =~ "a page goes in ui/ as .org (org and Lua) or .lui"
     assert why =~ "index.lua is code and goes in code/"
   end
 
   test "each kind goes in its folder, at /home and in an app, and files/ takes any format" do
     c = id()
 
-    for p <- ~w(/home/features/plants.feature /home/code/water.lua /home/code/steps/plants.lua
+    for p <-
+          ~w(/home/features/plants.feature /home/code/water.lua /home/code/steps/plants.lua
                 /home/ui/index.lui /home/org/tasks.org /home/files/report.pdf /home/files/a/b/data.json
                 /home/manifest.org /home/apps/plants/manifest.org /home/apps/plants/ui/list.lui
                 /home/apps/plants/code/seed.lua /home/tmp-not-really/../files/x.csv /tmp/scratch.anything) do
@@ -41,10 +42,13 @@ defmodule Moss.KindsTest do
     c = id()
     assert %{code: 1, err: err} = sh(c, "echo hi > notes.txt")
     assert err =~ "notes.txt belongs in files/"
-    assert %{code: 1, err: "mkdir: /home/notes: folders under /home are" <> _} = sh(c, "mkdir notes")
+
+    assert %{code: 1, err: "mkdir: /home/notes: folders under /home are" <> _} =
+             sh(c, "mkdir notes")
+
     assert %{code: 0} = sh(c, "mkdir -p apps/plants/ui files/old")
 
-    assert %{out: "nil\ta page goes in ui/ as .lui; x.lua is code and goes in code/\n"} =
+    assert %{out: "nil\ta page goes in ui/ as .org (org and Lua) or .lui; x.lua is code and goes in code/\n"} =
              sh(c, ~s|lua -e 'print(fs.write("ui/x.lua", "return 1"))'|)
   end
 
@@ -58,9 +62,14 @@ defmodule Moss.KindsTest do
 
   test "data/ holds databases only, named .dbl" do
     c = id()
-    assert {:error, "a database goes in data/" <> _} = Disk.write(disk(c), "/home/data/x.dbl", "bytes")
+
+    assert {:error, "a database goes in data/" <> _} =
+             Disk.write(disk(c), "/home/data/x.dbl", "bytes")
+
     assert %{out: "true\n"} = sh(c, ~s|lua -e 'print(db.open("data/plants.dbl") ~= nil)'|)
-    assert %{out: "nil\ta database goes in data/ as .dbl" <> _} = sh(c, ~s|lua -e 'print(db.open("plants.db"))'|)
+
+    assert %{out: "nil\ta database goes in data/ as .dbl" <> _} =
+             sh(c, ~s|lua -e 'print(db.open("plants.db"))'|)
   end
 
   test "an app's name is a plain one, and apps/ holds only apps" do

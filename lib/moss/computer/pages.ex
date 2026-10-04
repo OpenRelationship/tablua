@@ -1,8 +1,9 @@
 defmodule Moss.Computer.Pages do
   @moduledoc """
-  Which page answers a request (Arock's feature `file-kinds`): a `.lui` page is served at its path in its app.
-  `/plants/list` is `apps/plants/ui/list.lui` when the computer has an app `plants`, and `/list` is
-  `/home/ui/list.lui`; a path ending at a folder is its `index.lui`. A part (`ui/_row.lui`) is never served.
+  Which page answers a request (Arock's feature `file-kinds`): a page is served at its path in its app, an `.org`
+  page (org and Lua, arock issue #2) before a `.lui` one of the same name. `/plants/list` is
+  `apps/plants/ui/list.org` (or `.lui`) when the computer has an app `plants`, and `/list` is `/home/ui/list.org`;
+  a path ending at a folder is its `index`. A part (`ui/_row.lui`) is never served.
   The page runs in its app's folder, so `data/plants.dbl` is the app's own. An app is served only when the root
   manifest lists it (feature manifest): a folder under apps/ not listed is not found.
   """
@@ -22,8 +23,14 @@ defmodule Moss.Computer.Pages do
       end
 
     case page(root, rest, String.ends_with?(path, "/")) do
-      nil -> {"/home", nil}
-      file -> if file?(disk, file), do: {root, file}, else: {"/home", nil}
+      nil ->
+        {"/home", nil}
+
+      base ->
+        case Enum.find([base <> ".org", base <> ".lui"], &file?(disk, &1)) do
+          nil -> {"/home", nil}
+          file -> {root, file}
+        end
     end
   end
 
@@ -73,8 +80,8 @@ defmodule Moss.Computer.Pages do
   defp page(root, rest, folder?) do
     cond do
       Enum.any?(rest, &(String.starts_with?(&1, "_") or String.starts_with?(&1, "."))) -> nil
-      rest == [] or folder? -> Path.join([root, "ui" | rest] ++ ["index.lui"])
-      true -> Path.join([root, "ui" | rest]) <> ".lui"
+      rest == [] or folder? -> Path.join([root, "ui" | rest] ++ ["index"])
+      true -> Path.join([root, "ui" | rest])
     end
   end
 

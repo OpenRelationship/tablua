@@ -195,4 +195,46 @@ defmodule Moss.BrowseTest do
     assert out =~ ~s|I see "Fern"    PASS|
     assert out =~ ~s|"Fern" was typed only in an earlier scenario, and each scenario starts from an empty app|
   end
+
+  # the same page written in org and Lua (arock issue #2; owner, 2026-10-04): its Code runs on every request, its
+  # Page returns nodes built with ui, and an element names an action by its bare name
+  @org_page """
+  * Code
+  #+begin_src lua
+  local d = db.open("data/plants.dbl")
+  d:exec("create table if not exists plant (name text, watered int default 0)")
+  page.title = "Plants"
+  function post.add(req) d:exec("insert into plant (name) values (?)", req.form.name) end
+  function post.water(req) d:exec("update plant set watered = 1 where name = ?", req.form.name) end
+  #+end_src
+  * Page
+  #+begin_src lua
+  local rows = {}
+  for _, p in ipairs(d:query("select * from plant order by name")) do
+    rows[#rows + 1] = ui.p{ p.name .. " " .. (p.watered == 1 and "watered" or "dry") .. " ",
+      ui.button{ "Water", post = "water", vals = { name = p.name } } }
+  end
+  return ui.card{ title = "Plants",
+    ui.form{ post = "add", ui.label{ ["for"] = "n", "Plant name" }, ui.input{ id = "n", name = "name" },
+      ui.button{ type = "submit", "Add" } },
+    rows }
+  #+end_src
+  """
+
+  test "Scenario: a page in org and Lua passes the same steps, and is served before a .lui of its name", %{c: c} do
+    write(c, "/home/apps/plants/ui/index.org", @org_page)
+    write(c, "/home/apps/plants/ui/index.lui", "<p>the old page</p>")
+    assert %{code: 0, out: out} = Computer.run(c, "test")
+    assert out =~ "green: 1 of 1"
+  end
+
+  test "Scenario: an org page's errors name the file's own line, and an unknown action is refused", %{c: c} do
+    broken = String.replace(@org_page, ~s|page.title = "Plants"|, ~s|page.title = nothing.here|)
+    write(c, "/home/ui/index.org", broken)
+    assert {500, _, body, _} = Computer.serve(c, %{"method" => "GET", "path" => "/"})
+    assert body =~ "ui/index.org:5:"
+    write(c, "/home/ui/index.org", String.replace(@org_page, ~s|ui.form{ post = "add"|, ~s|ui.form{ post = "plant"|))
+    assert {500, _, body, _} = Computer.serve(c, %{"method" => "GET", "path" => "/"})
+    assert body =~ ~s|post = "plant" names no action|
+  end
 end

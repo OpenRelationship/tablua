@@ -218,7 +218,9 @@ defmodule Moss.Computer.Agent do
     |> String.replace_prefix("/home", "")
     |> String.replace("/ui/", "/")
     |> String.replace_suffix("index.lui", "")
+    |> String.replace_suffix("index.org", "")
     |> String.replace_suffix(".lui", "")
+    |> String.replace_suffix(".org", "")
   end
 
   # publishing asked the person, and they have not answered since

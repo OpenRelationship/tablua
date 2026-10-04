@@ -180,7 +180,8 @@ function __main(code, name)
   return say(e)
 end
 
--- A request (Moss.Computer.App): the .lui page that answers its path (req.page, chosen by Moss.Computer.Pages, run in
+-- A request (Moss.Computer.App): the page that answers its path (an .org page in org and Lua, sdk/orgpage.lua, or
+-- a .lui one) (req.page, chosen by Moss.Computer.Pages, run in
 -- its app's folder), given { method, path, query = {k = v}, form = {k = v}, headers }; it answers with HTML text,
 -- or { status, body, headers, redirect }.
 local function say(e)
@@ -203,6 +204,7 @@ local function page(req)
   local lines = req.lines == true
   req.lines = nil
   local ok, res, nils = xpcall(function()
+    if name:match("%.org$") then return require("orgpage").answer(sys.read(req.page), name, req) end
     local lui, text = require("shroomi.lui"), sys.read(req.page)
     local src = sys.compiled(name, text)
     if not src then
@@ -239,5 +241,5 @@ end
 
 function __serve(req)
   if req.page then return page(req) end
-  return 404, {}, "This computer has no page here: ui/index.lui is its first."
+  return 404, {}, "This computer has no page here: ui/index.org is its first."
 end

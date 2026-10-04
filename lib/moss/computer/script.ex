@@ -419,8 +419,8 @@ defmodule Moss.Computer.Script do
     )
   end
 
-  # The SDK's own modules, which `require` finds before the disk: priv/lua/sdk, and Shroomi (Arock PROJECT.md §16)
-  # from its submodule as `shroomi` and `shroomi.<file>`
+  # The SDK's own modules, which `require` finds before the disk: priv/lua/sdk, Shroomi (Arock PROJECT.md §16) as
+  # `shroomi` and `shroomi.<file>`, and the core's org reader as `tablua.org` (an org page's, sdk/orgpage.lua)
   defp builtin(name), do: Map.get(sdk(), name)
 
   defp sdk do
@@ -437,6 +437,7 @@ defmodule Moss.Computer.Script do
                into: m,
                do: {if(base == "init", do: "shroomi", else: "shroomi." <> base), File.read!(f)}
 
+         m = Map.put(m, "tablua.org", File.read!(Path.join(Moss.Lua.Sources.library(), "tablua/org.lua")))
          :persistent_term.put({__MODULE__, :sdk}, m)
          m
        end).()

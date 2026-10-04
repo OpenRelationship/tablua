@@ -98,7 +98,9 @@ local scope = "/home"
 local function request(method, path, query, form)
   local p = string.match(path, "^[^?]*")
   local name = p == "/" and "index" or string.gsub(string.gsub(p, "^/", ""), "/$", "")
-  local file = scope .. "/ui/" .. name .. ".lui"
+  -- an org page (org and Lua) before a .lui one, as the node serves them (Moss.Computer.Pages)
+  local file = scope .. "/ui/" .. name .. ".org"
+  if not fs.read(file) then file = scope .. "/ui/" .. name .. ".lui" end
   if not fs.read(file) then error(("there is no page %s yet for %s: write it"):format(string.gsub(file, "^/home/", ""), p), 0) end
   if __fresh_modules then __fresh_modules() end
   -- each of the node's requests is a fresh run: what a page left in a global is gone by the next

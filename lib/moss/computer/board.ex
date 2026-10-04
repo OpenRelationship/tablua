@@ -33,8 +33,9 @@ defmodule Moss.Computer.Board do
   @doc "The scope's features, by path."
   def features(disk, scope), do: files(disk, scope <> "/features", ".feature")
 
-  @doc "The scope's pages, by path."
-  def pages(disk, scope), do: files(disk, scope <> "/ui", ".lui")
+  @doc "The scope's pages, by path: org pages (org and Lua) and .lui ones."
+  def pages(disk, scope),
+    do: Enum.sort(files(disk, scope <> "/ui", ".org") ++ files(disk, scope <> "/ui", ".lui"))
 
   @doc "What publishing `scope` is called on the log: the app's address, or the computer's."
   def address(state, "/home"), do: "org:" <> state.id

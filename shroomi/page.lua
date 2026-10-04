@@ -95,6 +95,36 @@ function page.el(req, post, get, name, lines)
   end
 end
 
+-- A page written in Lua builds its nodes with ui itself; wire gives them what page.el gives a .lui page's elements:
+-- each action named by an element (post = "add", a bare name) made its address and marked to be merged, refused
+-- when the page defines no such action, and vals = {table} sent as JSON. It walks elements, lists and components'
+-- output alike, and returns the nodes.
+function page.wire(nodes, req, post, get, name)
+  local actions = { post = post, get = get }
+  local where = (name or "page") .. ": "
+  local function walk(node)
+    if type(node) ~= "table" or node.html ~= nil and node.tag == nil then return end
+    local attrs = node.attrs
+    if attrs then
+      for verb in pairs(VERBS) do
+        local v = attrs["hx-" .. verb]
+        if type(v) == "string" and string.match(v, "^[%a_][%w_]*$") then
+          if type(actions[verb][v]) ~= "function" then
+            error(where .. verb .. ' = "' .. v .. '" names no action: define function ' .. verb .. "." .. v .. "(req)", 0)
+          end
+          attrs["hx-" .. verb] = page.href(req, v)
+          attrs["data-morph"] = true
+        end
+      end
+      if type(attrs["hx-vals"]) == "table" then attrs["hx-vals"] = vals(attrs["hx-vals"], where) end
+    end
+    local kids = node.children or node
+    for i = 1, node.n or ui.maxn(kids) do walk(kids[i]) end
+  end
+  walk(nodes)
+  return nodes
+end
+
 -- the document a part goes out as: its own styles in the head, the part alone in a body that names it
 local function part(node, id, title)
   local doc = ui.page{ title = title, node }

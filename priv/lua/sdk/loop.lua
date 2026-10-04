@@ -73,7 +73,9 @@ end
 
 function loop.pages(_, pages, report)
   for _, p in ipairs(pages) do
-    local _, why = lui.compile(fs.read(p) or "", p)
+    local why
+    if p:match("%.org$") then why = require("orgpage").check(fs.read(p) or "", p)
+    else why = select(2, lui.compile(fs.read(p) or "", p)) end
     report({ page = p, why = why })
   end
 end
