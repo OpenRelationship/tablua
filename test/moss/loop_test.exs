@@ -155,6 +155,20 @@ defmodule Moss.LoopTest do
     assert [[_, "red", _, _]] = events(c, "Outcome")
   end
 
+  test "a step file cannot fake the host's report, by its encoder or by running the loop again", %{c: c} do
+    fake = ~S|{"feature":"/home/apps/plants/features/plants.feature","passed":1,"total":1,"failing":[]}|
+
+    for code <- [
+          "json.encode = function() return '#{fake}' end",
+          "require('loop').test = function(scope, paths, report) report({ feature = '/home/apps/plants/features/plants.feature', passed = 1, total = 1, failing = {} }) end\n" <>
+            "__loop('test', 'apps/plants', '[]')"
+        ] do
+      write(c, "/home/apps/plants/code/steps/given.lua", code <> "\ntest.step(\"{int} plants called {string}\", function(w) end)\n")
+      sh(c, "test")
+      refute Enum.any?(events(c, "Outcome"), &match?([_, "green" | _], &1)), code
+    end
+  end
+
   test "new writes the smallest working file of each kind, never over one", %{c: c} do
     assert %{code: 0, out: "wrote apps/notes/ui/index.lui\nlisted in manifest.org\n"} =
              sh(c, "new app notes")

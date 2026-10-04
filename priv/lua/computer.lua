@@ -220,9 +220,19 @@ end
 
 -- The loop (Arock feature file-kinds): `test` and `check` run here (sdk/loop.lua), each result handed to the host
 -- by sys.report, which nothing an agent writes can reach.
+-- The host calls __loop once in a run's fresh VM; a second call is the agent's own code (a step file), so it is
+-- refused, and a report is encoded by the host's own function, which no step can swap (the isolation review,
+-- 2026-10-04: a step that replaced json.encode turned a red run green). __serve the page steps call themselves.
+local entered = false
+local function once(name)
+  if entered then error(name .. " is the host's, and runs once", 2) end
+  entered = true
+end
+
 function __loop(what, scope, paths) -- paths as JSON
-  local function report(t) sys.report(json.encode(t)) end
-  local ok, why = xpcall(function() require("loop")[what](scope, json.decode(paths), report) end, tostring)
+  once("__loop")
+  local function report(t) sys.report(sys.json_encode(t)) end
+  local ok, why = xpcall(function() require("loop")[what](scope, sys.json_decode(paths), report) end, tostring)
   if not ok then sys.ewrite("lua: " .. why .. "\n") return 1 end
   return 0
 end
