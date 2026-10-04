@@ -12,6 +12,10 @@ export function Computer() {
               Moss is the agent's computer, an operating system on the BEAM where it works, tests what it builds and
               keeps its files. Shroomi is how it shows its work: pages and apps a person can open.
             </p>
+            <p className="intro" style={{ marginTop: -36 }}>
+              Embeddable by default: it works inside its own computer, in Lua. Give it an API or a sandbox and it can
+              reach anything else.
+            </p>
           </div>
           <ul className="facts">
             {computer.map((c) => (
