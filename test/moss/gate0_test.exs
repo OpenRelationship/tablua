@@ -1,18 +1,17 @@
 defmodule Moss.Gate0Test do
   @moduledoc """
-  Gate 0: every Arock Core unit test file runs unchanged in tv-labs lua on this
-  host, each from a fresh copy of the base state, and every case passes
-  (arock-log's, Shroomi's and uspx's too).
+  Gate 0: every unit test file of Tablua's core (core/: the harness, the model ports and arock-log, moved here
+  from Arock's library/, arock issue #1 M7) runs unchanged in tv-labs lua on this host, each from a fresh copy of
+  the base state, and every case passes (Shroomi's and uspx's too).
   """
   use ExUnit.Case, async: true
 
   alias Moss.{Lua, LuaHost}
 
   @core Application.compile_env!(:moss, :core)
-  @files (for(
-            dir <- ["library", "submodules/uspx"],
-            do: Path.wildcard(Path.join([@core, dir, "**/*_test.lua"]))
-          ) ++ [Path.wildcard(Path.expand("../../shroomi/**/*_test.lua", __DIR__))])
+  @files ([Path.wildcard(Path.expand("../../core/**/*_test.lua", __DIR__)),
+           Path.wildcard(Path.join([@core, "submodules/uspx", "**/*_test.lua"]))] ++
+            [Path.wildcard(Path.expand("../../shroomi/**/*_test.lua", __DIR__))])
          |> List.flatten()
          # uspx's model checks are searches over its rules (minutes on this VM); the rules' own tests and the
          # fuzzing run here, and the searches run on LuaJIT in Arock's build
