@@ -168,6 +168,22 @@ function M.install(test, at)
     error(('no field "%s" on the page; its fields: %s'):format(field, #all > 0 and table.concat(all, ", ") or "none"), 0)
   end)
 
+  -- the innermost rows (a table row, list item, paragraph, card or block) that show `row`, in that order; one with
+  -- another of its kind inside is left to that one
+  local function rows(html, row)
+    local out = {}
+    for _, tag in ipairs({ "tr", "li", "p", "article", "section", "div" }) do
+      for i in string.gmatch(html, "()<" .. tag .. "[%s>]") do
+        local _, j = string.find(html, "</" .. tag .. ">", i, true)
+        local block = string.sub(html, i, j or #html)
+        if string.find(M.text(block), row, 1, true) and not string.find(block, "<" .. tag .. "[%s>]", 2) then
+          out[#out + 1] = block
+        end
+      end
+    end
+    return out
+  end
+
   local function press(w, label, row)
     if not w.page then open(w) end
     local want = low(label)
@@ -192,9 +208,29 @@ function M.install(test, at)
         if hit then return send(w, b.method, b.action, b.vals) end
       end
     end
+    -- the row's button by where it is: the innermost row that shows `row` holds a button of that label (its vals
+    -- may carry only an id)
+    local shown = false
+    if row then
+      for _, block in ipairs(rows(w.html or "", row)) do
+        shown = true
+        for a, body in string.gmatch(block, "<button([^>]*)>(.-)</button>") do
+          local t = attrs(a)
+          if low(M.text(body)) == want and (t["hx-post"] or t["hx-get"]) then
+            local ok, vals = pcall(json.decode, t["hx-vals"] or "{}")
+            return send(w, t["hx-post"] and "POST" or "GET", t["hx-post"] or t["hx-get"],
+              ok and type(vals) == "table" and vals or {})
+          end
+        end
+      end
+    end
     local all = {}
     for _, form in ipairs(w.page.forms) do for _, b in ipairs(form.buttons) do all[#all + 1] = '"' .. b .. '"' end end
     for _, b in ipairs(w.page.buttons) do all[#all + 1] = '"' .. b.text .. '"' end
+    if row and not shown then
+      error(('nothing on the page shows "%s", so it has no "%s" for it: each scenario starts from an empty app, so '
+        .. 'the scenario makes "%s" itself before it uses it; the page shows: %s'):format(row, label, row, shows(w)), 0)
+    end
     error(('no button "%s"%s on the page; its buttons: %s'):format(label, row and (' for "' .. row .. '"') or "",
       #all > 0 and table.concat(all, ", ") or "none"), 0)
   end
@@ -209,18 +245,11 @@ function M.install(test, at)
   -- the row (a table row, list item, paragraph or card) that shows `row` also shows `s`
   test.step("I see {string} for {string}", function(w, s, row)
     if not w.html then open(w) end
-    local html, want = w.html, value(s)
-    for _, tag in ipairs({ "tr", "li", "p", "article", "section", "div" }) do
-      -- each innermost block of the tag: one with another of its kind inside is left to that one
-      for i in string.gmatch(html, "()<" .. tag .. "[%s>]") do
-        local _, j = string.find(html, "</" .. tag .. ">", i, true)
-        local block = string.sub(html, i, j or #html)
-        local t = M.text(block)
-        if string.find(t, row, 1, true) and not string.find(block, "<" .. tag .. "[%s>]", 2) then
-          if string.find(t, want, 1, true) then return end
-          error(('the row of "%s" does not show "%s"; it shows: %s'):format(row, want, (string.gsub(t, "^%s+", ""))), 0)
-        end
-      end
+    local want = value(s)
+    for _, block in ipairs(rows(w.html, row)) do
+      local t = M.text(block)
+      if string.find(t, want, 1, true) then return end
+      error(('the row of "%s" does not show "%s"; it shows: %s'):format(row, want, (string.gsub(t, "^%s+", ""))), 0)
     end
     error(('no row shows "%s"; the page shows: %s'):format(row, shows(w)), 0)
   end)

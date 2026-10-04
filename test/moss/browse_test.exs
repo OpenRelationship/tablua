@@ -149,4 +149,30 @@ defmodule Moss.BrowseTest do
     assert %{code: 1, out: out} = Computer.run(c, "test")
     assert out =~ ~s|no button "Plant" on the page; its buttons: "Add"|
   end
+
+  test "Scenario: a row's button whose vals carry only an id is found by its row", %{c: c} do
+    by_id =
+      @page
+      |> String.replace(~s|set watered = 1 where name = ?", req.form.name|, ~s|set watered = 1 where rowid = ?", req.form.id|)
+      |> String.replace(~s|select * from plant order by name|, ~s|select rowid as id, * from plant order by name|)
+      |> String.replace(~s|vals={{ {name = p.name} }}|, ~s|vals={{ {id = p.id} }}|)
+
+    write(c, "/home/apps/plants/ui/index.lui", by_id)
+    assert %{code: 0, out: out} = Computer.run(c, "test")
+    assert out =~ "green: 1 of 1"
+  end
+
+  test "Scenario: a row the scenario never made is named, each scenario starting empty", %{c: c} do
+    write(c, "/home/apps/plants/ui/index.lui", @page)
+
+    write(c, "/home/apps/plants/features/plants.feature", """
+    Feature: plants
+      Scenario: water a plant never added
+        When I open the page
+        And I press "Water" for "Fern"
+    """)
+
+    assert %{code: 1, out: out} = Computer.run(c, "test")
+    assert out =~ ~s|nothing on the page shows "Fern", so it has no "Water" for it: each scenario starts from an empty app|
+  end
 end
