@@ -68,6 +68,23 @@ defmodule Moss.Lua.Ports do
       {table, lua} = Lua.encode!(lua, Moss.Computer.agent(id, :events, []))
       {[table], lua}
     end)
+    # the harness's own tables (library/tabula): sql and its params, rows back; refused outside tabula_ tables
+    |> Lua.set!([:__host, :agent_sql], fn [sql | rest], lua ->
+      params =
+        case rest do
+          [{:tref, _} = t | _] -> Lua.decode!(lua, t) |> Enum.sort() |> Enum.map(fn {_, v} -> v end)
+          _ -> []
+        end
+
+      case Moss.Computer.agent(id, :sql, [sql, params]) do
+        {:ok, rows} ->
+          {table, lua} = Lua.encode!(lua, rows)
+          {[table], lua}
+
+        {:error, why} ->
+          {[nil, why], lua}
+      end
+    end)
     |> Lua.set!([:__host, :agent_append], fn [task, keyword, {:tref, _} = args, actor | _], lua ->
       args = Lua.decode!(lua, args) |> Enum.sort() |> Enum.map(fn {_, v} -> to_string(v) end)
       :ok = Moss.Computer.agent(id, :append, [task, keyword, args, actor])

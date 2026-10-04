@@ -102,6 +102,18 @@ defmodule Moss.ComputerAgentTest do
     [_, _, {:jev, offered, _}] = Agent.get(calls, & &1)
     assert "write_steps" in offered and "run_test" in offered
     refute "publish" in offered
+
+    # and every step is a typed row in the computer's own file (library/tabula, world/record.lua)
+    sql = fn q -> {:ok, rows} = Computer.agent(id, :sql, [q, []]); rows end
+    decides = length(Moss.Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Decide"]))
+    assert decides >= 1
+    assert [%{"n" => ^decides}] = sql.("select count(*) as n from tabula_decision")
+    assert [%{"chosen" => "write_feature", "by" => "jev"} | _] = sql.("select chosen, by from tabula_decision order by n")
+    assert [%{"stage" => "no_feature"} | _] = sql.("select stage from tabula_state order by n")
+    assert [%{"n" => n}] = sql.("select count(*) as n from tabula_candidate")
+    assert n >= 2
+    assert [%{"n" => outcomes}] = sql.("select count(*) as n from tabula_outcome")
+    assert outcomes in [decides - 1, decides]
   end
 
   # the same failure through two fixes: fix_failure is taken off the table until Jev has the agent think it through

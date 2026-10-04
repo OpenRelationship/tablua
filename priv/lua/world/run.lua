@@ -78,13 +78,16 @@ function M.step(saved_json, ctx)
   }
   env.learn = learn.new({ memory = mem, tabpfn = models.tabpfn and counted(models.tabpfn, "tabpfn", counts) })
   local function at(n) return ctx.at .. "/step/" .. n end
+  -- every step as Tabula's typed rows in the computer's own file (world/record.lua)
+  local rec = require("moss.world.record").new(ctx.at, function(line) __host.agent_append(ctx.at, "Note", { line }, "host") end)
   local decided
   env.decided = function(req, verb, answer, how)
     decided = verb
+    rec.decided(req, verb, answer, how)
     local p = answer.probabilities or {}
     local options = {}
     for _, k in ipairs(keys(p)) do options[#options + 1] = k end
-    store:append(req.task, "Decide", { at(#req.steps + 1), how == "arbiter" and "mercury" or "jev",
+    store:append(req.task, "Decide", { at(#req.steps + 1), how == "arbiter" and "mercury" or how or "jev",
       json.encode(json.array(options)), verb, tostring(answer.confidence or "") })
   end
   -- each command is logged under the step it is for, so the log (and its Robot rows) reads a step's work as one
@@ -98,6 +101,7 @@ function M.step(saved_json, ctx)
   }, ctx)
   world.after = function(_, req, step)
     store:append(req.task, "Outcome", { at(step.n), step.outcome, step.note or "", tostring(step.n) }, "host")
+    rec.after(req, step, __host.agent_facts(ctx.at))
   end
 
   local a = agent.new(env, world)
