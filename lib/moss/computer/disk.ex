@@ -13,7 +13,7 @@ defmodule Moss.Computer.Disk do
       Disk.list(disk, "/notes")                          # {:ok, [%{name: "todo.txt", dir: false, size: 8, mtime: ...}]}
 
   A disk is its connection, the computer it belongs to (the log's task) and
-  who its changes are by (`actor`: "agent", "user" or "host"). Its `kept` table
+  who its changes are by (`actor`: "agent", "user" or "host"; `app`: true when an app's page code makes them for the person using the app, with the agent's rights, not the person's). Its `kept` table
   holds the computer's own state beside the files (`Moss.Computer.Session`).
 
   The agent's databases (`db.open` in Lua, `Moss.Sql.Store`) are entries
@@ -28,7 +28,7 @@ defmodule Moss.Computer.Disk do
 
   # `under`: the task its events go under for a while (an agent's step, while its commands run), the computer's own
   # task when nil; `task` stays the computer it belongs to
-  defstruct [:conn, :task, :under, actor: "agent"]
+  defstruct [:conn, :task, :under, actor: "agent", app: false]
 
   @kept "create table if not exists kept (key text primary key, value blob not null)"
 
@@ -388,8 +388,8 @@ defmodule Moss.Computer.Disk do
   # the six kinds (Kinds) hold for the agent and the person; the host writes where it must, and the person's writs
   # (Arock feature notes) are kept in /home/writs, theirs and the host's alone: an agent reads them and writes none
   defp kind(%{actor: "host"}, _path, _check), do: :ok
-  defp kind(%{actor: "user"}, "/home/writs", _check), do: :ok
-  defp kind(%{actor: "user"}, "/home/writs/" <> _, _check), do: :ok
+  defp kind(%{actor: "user", app: false}, "/home/writs", _check), do: :ok
+  defp kind(%{actor: "user", app: false}, "/home/writs/" <> _, _check), do: :ok
   defp kind(_disk, path, check), do: check.(path)
 
   # a folder moves only where every file under it may go

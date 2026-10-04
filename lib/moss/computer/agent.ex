@@ -192,7 +192,7 @@ defmodule Moss.Computer.Agent do
       {status, headers, body, _} =
         Script.serve(%{"method" => "GET", "path" => path}, %{
           state
-          | disk: %{state.disk | actor: "user"}
+          | disk: %{state.disk | actor: "user", app: true}
         })
 
       # a page that does not answer says why (its file, line and error), for both minds to read; one that does

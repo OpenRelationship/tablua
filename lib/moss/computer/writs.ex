@@ -28,7 +28,7 @@ defmodule Moss.Computer.Writs do
   def suggestions, do: @suggestions
 
   @doc "`:ok`, or why an agent's manifest at `path` may not be written: it changes or drops a writ's tool."
-  def check(%{actor: actor}, _path, _data) when actor in ["user", "host"], do: :ok
+  def check(%{actor: actor, app: false}, _path, _data) when actor in ["user", "host"], do: :ok
 
   def check(disk, path, data) do
     was =
@@ -58,7 +58,7 @@ defmodule Moss.Computer.Writs do
   `:ok`, or why an agent may not remove or move `path`: writs/ is the person's, and a manifest (or an app's
   folder holding one) whose tools a writ made goes only when the writ does.
   """
-  def guard(%{actor: actor}, _path) when actor in ["user", "host"], do: :ok
+  def guard(%{actor: actor, app: false}, _path) when actor in ["user", "host"], do: :ok
 
   def guard(disk, path) do
     if path == "/home/writs" or String.starts_with?(path, "/home/writs/") do

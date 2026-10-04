@@ -228,8 +228,11 @@ defmodule Moss.Computer do
   def handle_call({:serve, req}, _from, state) do
     started = System.monotonic_time(:microsecond)
 
+    # the page's code is the agent's, whoever opens it: what it writes is the person's doing (the log) with the
+    # agent's rights (app: true), never theirs, which would let it write their writs and manifests unchecked (the
+    # isolation review, 2026-10-04)
     {status, _, body, _} =
-      answer = Script.serve(req, %{state | disk: %{state.disk | actor: "user"}})
+      answer = Script.serve(req, %{state | disk: %{state.disk | actor: "user", app: true}})
 
     ms = (System.monotonic_time(:microsecond) - started) / 1000
     log_mailed(state, "user")

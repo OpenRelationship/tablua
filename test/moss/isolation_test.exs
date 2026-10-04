@@ -95,4 +95,29 @@ defmodule Moss.IsolationTest do
     assert {:ok, _} = MossBrowser.Fetch.public("http://[64:ff9b::808:808]/")
   end
 
+
+  test "an app's page code runs with the agent's rights, not the person's, whoever opens it" do
+    c = id()
+    page = ~S"""
+    <lua>
+      function post.writ(req) local ok, why = pcall(fs.write, "writs/forged.org", "* forged") return { said = tostring(ok) } end
+      function post.tool(req)
+        local ok = pcall(fs.write, "manifest.org", "* Tools\n** t\n:PROPERTIES:\n:RUN: code/t.lua\n:EVERY: every abc\n:END:\n")
+        return { said = tostring(ok) }
+      end
+    </lua>
+    <p>{{ result and result.said or "" }}</p>
+    """
+
+    :ok = Disk.write(disk(c), "/home/ui/index.lui", page)
+
+    for act <- ["writ", "tool"] do
+      req = Moss.Computer.App.request("post", "/", %{"do" => act}, %{}, [])
+      assert {200, _, _, _} = Computer.serve(c, req)
+    end
+
+    assert {:error, _} = Disk.read(disk(c), "/home/writs/forged.org")
+    assert {:error, _} = Disk.read(disk(c), "/home/manifest.org")
+  end
+
 end

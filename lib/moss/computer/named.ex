@@ -12,7 +12,7 @@ defmodule Moss.Computer.Named do
   bad line, by line.
   """
   def check(disk, path, data) do
-    with true <- disk.actor != "user" and Path.basename(path) == "manifest.org",
+    with true <- (disk.actor != "user" or disk.app) and Path.basename(path) == "manifest.org",
          :ok <- Moss.Computer.Writs.check(disk, path, data),
          [_ | _] = errs <- Manifest.check(data) do
       {:error, "manifest.org is refused:\n" <> Enum.join(errs, "\n")}
@@ -39,7 +39,7 @@ defmodule Moss.Computer.Named do
   end
 
   def written(%{task: id} = disk, path, data) when is_binary(id) do
-    if disk.actor != "user" and String.ends_with?(path, "/manifest.org") do
+    if (disk.actor != "user" or disk.app) and String.ends_with?(path, "/manifest.org") do
       Moss.Host.manifest(id, path, data)
       Manifest.revoke_dropped(disk, id)
     end
