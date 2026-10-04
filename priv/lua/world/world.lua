@@ -246,7 +246,7 @@ function M.new(host, run)
       if req.facts then step.note = M.after(req, req.facts, host.facts()) end
       return
     end
-    local calls, err = prompt.fill(a, req, verb, M.moves[verb], run, M.causes)
+    local calls, err = prompt.fill(a, req, verb, prompt.pages(run, M.moves[verb]), run, M.causes)
     if not calls then step.note, step.outcome = "Filling the move failed: " .. tostring(err), "broken" return end
     if #calls == 0 then step.note, step.outcome = "Mercury made no call for this move.", "no_effect" return end
     for _, c in ipairs(calls) do M.tidy(verb, c) end

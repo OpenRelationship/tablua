@@ -144,6 +144,23 @@ A scenario starts with every table empty: it adds through the page what it then 
 
 ]]
 
+-- an org-pages run (run.pages "org", arock issue #2): the same examples and rules, its pages ui/*.org in org and Lua
+local ORG = {
+  { "ui/index.lui (served at /", "ui/index.org (served at /" },
+  { 'A form that adds. Right: <form post="add"> and function post.add(req)',
+    'A form that adds. Right: ui.form{ post = "add", ... } in the * Page and function post.add(req) in the * Code' },
+  { ".lui for pages", "org pages, ui/*.org, built with ui" },
+}
+
+function M.pages(run, text)
+  if not (run and run.pages == "org") then return text end
+  for _, r in ipairs(ORG) do
+    local i, j = string.find(text, r[1], 1, true)
+    if i then text = string.sub(text, 1, i - 1) .. r[2] .. string.sub(text, j + 1) end
+  end
+  return (string.gsub(text, "ui/%*%.lui", "ui/*.org"))
+end
+
 function M.system(run)
   return table.concat({
     "<persona>",
@@ -153,8 +170,8 @@ function M.system(run)
     "</persona>",
     "<knowledge_base>", run.help, "</knowledge_base>",
     "<procedures>", run.procedures, "</procedures>",
-    "<examples>", run.steps == "page" and M.page_examples .. M.examples or M.examples, "</examples>",
-    "<critical_rules>", M.rules, "</critical_rules>",
+    "<examples>", M.pages(run, run.steps == "page" and M.page_examples .. M.examples or M.examples), "</examples>",
+    "<critical_rules>", M.pages(run, M.rules), "</critical_rules>",
   }, "\n")
 end
 

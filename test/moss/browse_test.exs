@@ -237,4 +237,20 @@ defmodule Moss.BrowseTest do
     assert {500, _, body, _} = Computer.serve(c, %{"method" => "GET", "path" => "/"})
     assert body =~ ~s|post = "plant" names no action|
   end
+
+  test "new orgpage writes a page in org and Lua that serves, and an org-pages run's help names no .lui", %{c: c} do
+    assert %{code: 0, out: "wrote ui/index.org\n"} = Computer.run(c, "new orgpage index")
+    assert {200, _, body, _} = Computer.serve(c, %{"method" => "GET", "path" => "/"})
+    assert IO.iodata_to_binary(body) =~ "Nothing yet"
+    assert Computer.run(c, "check").out =~ "pages and manifests: ok"
+
+    help =
+      Enum.map_join(["help org-pages" | Enum.map(Moss.Computer.Help.topics(), &"help org-pages #{&1}")], "\n",
+        &Computer.run(c, &1).out)
+
+    assert help =~ "ui/*.org"
+    assert help =~ "new orgpage"
+    refute help =~ ".lui"
+    refute Computer.run(c, "help code").out =~ "orgpage"
+  end
 end

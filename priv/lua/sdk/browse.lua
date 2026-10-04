@@ -101,7 +101,10 @@ local function request(method, path, query, form)
   -- an org page (org and Lua) before a .lui one, as the node serves them (Moss.Computer.Pages)
   local file = scope .. "/ui/" .. name .. ".org"
   if not fs.read(file) then file = scope .. "/ui/" .. name .. ".lui" end
-  if not fs.read(file) then error(("there is no page %s yet for %s: write it"):format(string.gsub(file, "^/home/", ""), p), 0) end
+  if not fs.read(file) then
+    local base = string.gsub(string.gsub(file, "^/home/", ""), "%.lui$", "")
+    error(("there is no page %s.org or %s.lui yet for %s: write it"):format(base, base, p), 0)
+  end
   if __fresh_modules then __fresh_modules() end
   -- each of the node's requests is a fresh run: what a page left in a global is gone by the next
   local before = {}

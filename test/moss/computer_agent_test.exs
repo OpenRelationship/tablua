@@ -54,6 +54,15 @@ defmodule Moss.ComputerAgentTest do
     end
   end
 
+  test "an org-pages run's writer reads only of pages in org and Lua (arock issue #2)", %{calls: calls, id: id} do
+    Moss.Computer.Agent.run(id, "Make me a hello page.", at: "org:rock/mail/1", pages: "org")
+    [{:mercury, fill} | _] = for {:mercury, _} = m <- Agent.get(calls, & &1), do: m
+    [system, _turn] = fill["messages"]
+    assert system["content"] =~ "ui/index.org (served at /"
+    assert system["content"] =~ "new orgpage"
+    refute system["content"] =~ ".lui"
+  end
+
   test "Jev decides every step before Mercury fills it, and the person's agreement is waited for", %{calls: calls, id: id} do
     run = Moss.Computer.Agent.run(id, "Make me a hello page.", at: "org:rock/mail/1")
 

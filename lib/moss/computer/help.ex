@@ -50,9 +50,31 @@ defmodule Moss.Computer.Help do
   @doc "The text for `help [topic ...]`."
   def run([]), do: @index <> "\ncommands: " <> Enum.join(Moss.Computer.Commands.names(), " ") <> "\n"
   def run(["feature" | _]), do: module("test") <> "\nSteps live in code/steps/*.lua; `test` prints a stub for each one missing.\n"
-  def run(["code" | _]), do: Script.prelude_help() <> "\n" <> modules()
+  def run(["code" | _]), do: Script.prelude_help() <> "\n" <> String.replace(modules(), ~r/^  orgpage .*\n/m, "")
   def run(["lua", name | _]), do: module(name)
   def run(["lua" | _]), do: modules()
+  # pages in org and Lua (arock issue #2): each topic as an org-pages run's agent reads it (Agent's `pages: "org"`),
+  # its pages ui/*.org built with ui; without it, no topic names org pages
+  def run(["org-pages", "page" | _]), do: module("orgpage") <> "\n" <> module("shroomi") <> App.org_help()
+
+  def run(["org-pages", "kit" | _]) do
+    "In an org page each component is a ui call: <card title=\"x\">...</card> below is ui.card{ title = \"x\", ... }.\n" <>
+      String.replace(module("shroomi.components"), "In a .lui page each is a tag;", "Below each is shown as a tag;")
+  end
+
+  def run(["org-pages" | rest]) do
+    run(rest)
+    |> String.replace(
+      "ui/*.lui             pages: HTML with Lua in it      help page",
+      "ui/*.org             pages: org and Lua, with ui     help page"
+    )
+    |> String.replace(".lui in ui/, .org in org/", "a page (.org) in ui/, any other .org in org/")
+    |> String.replace("Pages are ui/*.lui (`help page`)", "Pages are ui/*.org, org and Lua (`help page`)")
+    |> String.replace("new page|code|", "new orgpage|code|")
+    |> String.replace(~r/^.*new page index .*\n/m, "")
+    |> String.replace(~r/^  shroomi\.lui .*\n/m, "")
+  end
+
   def run(["page" | _]), do: module("shroomi.lui") <> App.help()
   def run(["kit" | _]), do: module("shroomi.components")
   def run(["classes" | _]), do: module("shroomi.css")

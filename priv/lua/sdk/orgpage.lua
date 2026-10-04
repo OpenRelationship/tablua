@@ -1,7 +1,7 @@
 -- A page written in org and Lua (arock issue #2; owner, 2026-10-04): ui/<name>.org. Its Code section runs on every
 -- request, where post.<name> and get.<name> define the page's actions and page.title its title; its Page section is
 -- the body of the render, and returns the page's nodes built with ui (`result` is what an action returned, {} when
--- nothing). An element names an action by its bare name (post = "add"), as a .lui page's elements do.
+-- nothing). An element names an action by its bare name (post = "add").
 --
 --   * Code
 --   #+begin_src lua
@@ -19,6 +19,7 @@
 --   orgpage.compile(text, name) -> src, lines (lines[n]: the file's line for line n of src) | nil, why
 --   orgpage.check(text, name) -> nil, or why the page does not compile (the build loop's check)
 --   orgpage.answer(text, name, req) -> HTML or { status, body } / { redirect }; errors name the file's own lines
+--   orgpage.template(app) -> a whole page to start from, as `new orgpage` gives it
 local org = require("tablua.org")
 local ui = require("shroomi")
 local page = require("shroomi.page")
@@ -83,6 +84,41 @@ function M.answer(text, name, req)
   local ok, res = pcall(page.answer, def, req)
   if not ok then error(placed(res, name, lines), 0) end
   return res
+end
+
+-- a whole page to start from: a table, a list, an action that adds and one that removes
+function M.template(app)
+  return (string.gsub([==[
+* Code
+#+begin_src lua
+local d = db.open("data/APP.dbl")
+d:exec("create table if not exists item (id integer primary key, name text not null)")
+page.title = "<A title>"
+
+function post.add(req)
+  if (req.form.name or "") ~= "" then d:exec("insert into item (name) values (?)", req.form.name) end
+end
+
+function post.remove(req) d:exec("delete from item where id = ?", tonumber(req.form.id)) end
+
+local items = d:query("select * from item order by name")
+#+end_src
+* Page
+#+begin_src lua
+local rows = {}
+for _, it in ipairs(items) do
+  rows[#rows + 1] = ui.li{ class = "flex items-center justify-between", it.name,
+    ui.button{ size = "sm", variant = "ghost", post = "remove", vals = { id = it.id }, ui.icon{ name = "trash" } } }
+end
+return ui.container{
+  ui.card{ title = "<A title>", description = "<what it is for>",
+    #items == 0 and ui.empty{ title = "Nothing yet", description = "Add the first one." } or nil,
+    ui.ul{ class = "space-y-2", rows },
+    ui.form{ post = "add", class = "flex gap-2",
+      ui.input{ name = "name", placeholder = "New", required = true },
+      ui.button"Add" } } }
+#+end_src
+]==], "APP", app or "items"))
 end
 
 return M
