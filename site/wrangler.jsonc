@@ -1,6 +1,7 @@
 // tablua.com: the built site (dist/) served as a Worker's static assets. `bun run deploy` builds and deploys.
 {
   "name": "tablua-site",
+  "account_id": "6d4b74aeb10f455fbf88141901e7595d",
   "compatibility_date": "2026-10-01",
   "assets": { "directory": "./dist", "not_found_handling": "single-page-application" },
   "routes": [
