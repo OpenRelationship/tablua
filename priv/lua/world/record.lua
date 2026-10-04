@@ -5,7 +5,8 @@
 --
 --   local r = record.new(task, log)    task: the run's address (one computer may run several)
 --   r.decided(req, verb, answer, how)  before the step: state, candidates, decision
---   r.after(req, step, facts)          after it: the outcome, with the facts as they are now
+--   r.after(req, step, facts, stage)   after it: the outcome, with the facts as they are now, and the step's effects
+--                                      (tablua.effects: the facts at the decision against these, its commands)
 local M = {}
 
 local function port()
@@ -54,7 +55,21 @@ function M.new(task, log)
     end)
   end
 
-  function r.after(req, step, facts)
+  function r.after(req, step, facts, stage)
+    try(function()
+      local effects = require("tablua.effects")
+      local list = effects.compare(effects.snapshot(req.facts, req.stage), effects.snapshot(facts, stage),
+        { verb = step.verb, outcome = step.outcome, regressed = req.regressed and true or false,
+          same_failure = (step.note or ""):find("same failure", 1, true) ~= nil }, effects.commands(step.lines))
+      t:effects(task, step.n, list)
+      -- an undo is the step before it undone
+      if step.verb == "undo" and step.n > 1 then
+        local prev = t.db:exec("select keyword, arg from tablua_effect where task = ? and n = ? and keyword != ''",
+          { task, step.n - 1 })
+        prev[#prev + 1] = { keyword = "Undone Next", arg = "" }
+        t:effects(task, step.n - 1, prev)
+      end
+    end)
     try(function()
       local tt = tests(facts)
       local note = step.note or ""

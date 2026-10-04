@@ -103,7 +103,8 @@ function M.step(saved_json, ctx)
   }, ctx)
   world.after = function(_, req, step)
     store:append(req.task, "Outcome", { at(step.n), step.outcome, step.note or "", tostring(step.n) }, "host")
-    rec.after(req, step, __host.agent_facts(ctx.at))
+    local now = __host.agent_facts(ctx.at)
+    rec.after(req, step, now, (require("moss.world").stage(now, req.publishes0)))
   end
 
   local a = agent.new(env, world)

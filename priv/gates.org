@@ -1,0 +1,75 @@
+* Notes
+The harness's own gates (arock issue #1, M5), written once by us as keyword scenarios: each says which move is
+held back in which state, and why, in the words of the behaviour model (Tablua's effects, recorded from the
+harness's telemetry). The gates live in Lua (world/world.lua, facts.lua); this file states them, and each
+=# because:= line is checked against every recorded run (=just tool eval build gates=): the move, the state and
+the effect the gate expects it to bring, more or less often than steps at all. A gate whose reason does not hold
+is the first to be retired, and every gate is retired only through an A/B (tablua_gate).
+
+A because line: =# because: <move> | <given> | <effect> | more|less=, the given a list of =stage <s>=,
+=<n>+ stalls=, =last step <outcome>=, =last move <move>= or =any=, joined with commas; or
+=# because: unmeasured: <why>= where no effect the harness records can speak to the gate's reason.
+* Feature
+#+begin_src feature
+Feature: the harness's gates
+
+#+end_src
+** Scenario: fixing the same failure again waits on thinking it through
+#+begin_src feature
+  Scenario: fixing the same failure again waits on thinking it through
+    Given Same Failure after 2 changes running
+    When the last move was not think
+    Then fix_failure is not offered
+    # because: fix_failure | 2+ stalls | Same Line Failing | more
+#+end_src
+** Scenario: past a dead end neither fixing nor thinking is offered
+#+begin_src feature
+  Scenario: past a dead end neither fixing nor thinking is offered
+    Given Same Failure after 4 changes running
+    Then fix_failure is not offered
+    And think is not offered
+    # because: fix_failure | 4+ stalls | Same Failure | more
+#+end_src
+** Scenario: giving up leaves only a rewrite, the feature or stopping
+#+begin_src feature
+  Scenario: giving up leaves only a rewrite, the feature or stopping
+    Given Same Failure after 8 changes running
+    Then only rewrite, write_feature and blocked are offered
+    # because: fix_failure | 8+ stalls | Step No Effect | more
+#+end_src
+** Scenario: thinking twice running changes nothing
+#+begin_src feature
+  Scenario: thinking twice running changes nothing
+    Given the last move was think
+    Then think is not offered
+    # because: think | last move think | Step No Effect | more
+#+end_src
+** Scenario: publishing waits on the app having been used since it changed
+#+begin_src feature
+  Scenario: publishing waits on the app having been used since it changed
+    Given the app changed since it was last looked at
+    Then publish is not offered
+    # because: unmeasured: the person's own use of the app is not yet an effect the harness records
+#+end_src
+** Scenario: undo is offered only after a change broke what passed
+#+begin_src feature
+  Scenario: undo is offered only after a change broke what passed
+    Given no change left a scenario that passed failing
+    Then undo is not offered
+    # because: undo | stage building | More Passing | more
+#+end_src
+** Scenario: an agreed feature changes only once fixing the code stopped helping
+#+begin_src feature
+  Scenario: an agreed feature changes only once fixing the code stopped helping
+    Given stage building
+    And Same Failure after fewer than 2 changes running
+    Then write_feature is not offered
+    # because: write_feature | stage building | Step Broken | more
+#+end_src
+** Scenario: blocked is offered only when the work is in trouble
+#+begin_src feature
+  Scenario: blocked is offered only when the work is in trouble
+    Given nothing is failing and fewer than 2 changes ran into the same failure
+    Then blocked is not offered
+    # because: unmeasured: what the agent would have done instead of saying it was blocked is not seen
+#+end_src

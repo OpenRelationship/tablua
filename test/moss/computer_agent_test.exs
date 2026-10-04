@@ -198,6 +198,11 @@ defmodule Moss.ComputerAgentTest do
     assert [%{"value" => v} | _] = sql.("select value from tablua_feature where name = 'done' order by n")
     assert_in_delta v, 1 / 3, 0.001
     assert [%{"n" => 0}] = sql.("select count(*) as n from tablua_feature where name = 'ask_edit'")
+
+    # the harness's behaviour model: every step has its effects, from the facts before and after it
+    assert [%{"n" => 7}] = sql.("select count(distinct n) as n from tablua_effect")
+    assert [%{"n" => same}] = sql.("select count(*) as n from tablua_effect where keyword = 'Same Line Failing'")
+    assert same >= 1
     asked = for {:jev, _, _} <- Agent.get(calls, & &1), do: 1
     assert length(asked) == 7
   end
