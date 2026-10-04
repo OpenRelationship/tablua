@@ -230,7 +230,6 @@ function M.new(host, run)
     req.second = second
   end
 
-  function w.arbiter(a, req, first, second) return prompt.arbiter(a, req, first, second, M.moves) end
   function w.think(a, req) return prompt.think(a, req, M.moves) end
   function w.ask() error("the computer's agent asks the person through its task's letters, not a form") end
   w.form = w.ask

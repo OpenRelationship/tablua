@@ -89,7 +89,7 @@ function M.step(saved_json, ctx)
     local p = answer.probabilities or {}
     local options = {}
     for _, k in ipairs(keys(p)) do options[#options + 1] = k end
-    store:append(req.task, "Decide", { at(#req.steps + 1), how == "arbiter" and "mercury" or how or "jev",
+    store:append(req.task, "Decide", { at(#req.steps + 1), how or "jev",
       json.encode(json.array(options)), verb, tostring(answer.confidence or "") })
   end
   -- each command is logged under the step it is for, so the log (and its Robot rows) reads a step's work as one

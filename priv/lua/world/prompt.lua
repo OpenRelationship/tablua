@@ -7,7 +7,7 @@
 -- schema, tool_choice required, temperature 0.6, medium reasoning.
 --
 --   prompt.state(a, req, for_jev, facts) -> text      prompt.fill(a, req, move, what, run) -> calls | nil, why
---   prompt.system(run) -> text                         prompt.arbiter(...), prompt.think(...) -> Mercury requests
+--   prompt.system(run) -> text                         prompt.think(...), prompt.blocked(...) -> Mercury requests
 local json = require("ports.json")
 
 local M = {}
@@ -219,15 +219,6 @@ function M.fill(a, req, move, what, run, causes)
     end
   end
   return calls
-end
-
-function M.arbiter(a, req, first, second, moves)
-  return { kind = "arbiter", reasoning_effort = "high", max_tokens = 1500,
-    system = "You settle a close call for an agent building an app on its own computer. Its decider is torn between"
-      .. " two next moves:\n- " .. first .. ": " .. tostring(moves[first]) .. "\n- " .. second .. ": "
-      .. tostring(moves[second]) .. "\nRead the task, the state and every step so far, and pick the move that gets"
-      .. " the task done. Reply with the name alone: " .. first .. " or " .. second .. ".",
-    user = M.state(a, req, false, a.world.facts_text(req)) }
 end
 
 function M.blocked(a, req, moves)

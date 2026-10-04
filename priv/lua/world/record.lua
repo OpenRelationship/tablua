@@ -52,7 +52,7 @@ function M.new(task, log)
         c.jev_margin = c.jev_p and (c.jev_p - (c.jev_p == ps[1] and (ps[2] or 0) or ps[1])) or nil
       end
       t:candidates(task, n, list)
-      t:decision{ task = task, n = n, chosen = verb, by = how == "arbiter" and "mercury" or how, propensity = 1 }
+      t:decision{ task = task, n = n, chosen = verb, by = how, propensity = 1 }
       if req.features then t:features(task, n, req.features, "jev") end
     end)
   end
