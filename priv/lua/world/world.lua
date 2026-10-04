@@ -11,6 +11,7 @@
 local prompt = require("moss.world.prompt")
 local undo = require("moss.world.undo")
 local look = require("moss.world.look")
+local features = require("moss.world.features")
 local clip = require("agent.clip").clip
 
 local M = {}
@@ -193,14 +194,17 @@ function M.new(host, run)
 
   -- whenever something is failing, where its cause lies, in the same call
   function w.questions(_, req)
-    if M.failing(req.facts) == "" then req.cause = nil return {} end
-    return { cause = { kind = "choice", options = M.causes,
+    local q = features.questions(req)
+    if M.failing(req.facts) == "" then req.cause = nil return q end
+    q.cause = { kind = "choice", options = M.causes,
       text = "Where does the cause of what is failing now lie? Read the failing lines, the files the steps so far"
-        .. " wrote and their results." } }
+        .. " wrote and their results." }
+    return q
   end
 
   -- the move Jev weighed second, which Mercury is told of when Jev was unsure; and the cause, when asked
   function w.answered(_, req, answers)
+    features.answered(req, answers)
     local c = answers.cause
     req.cause = c and c.choice and { choice = c.choice, p = tonumber((c.probabilities or {})[c.choice]) } or nil
     local n, second, p2 = answers.next, nil, -1

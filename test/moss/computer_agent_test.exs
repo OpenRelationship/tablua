@@ -139,7 +139,14 @@ defmodule Moss.ComputerAgentTest do
           probabilities = Map.new(options, &{&1, if(&1 == choice, do: 0.9, else: 0.1 / (length(options) - 1))})
           # the cause, asked beside the move while something fails: the steps
           cause = if sent["questions"]["cause"], do: %{"cause" => %{"choice" => "the_steps", "probabilities" => %{"the_steps" => 0.8}}}, else: %{}
-          Req.Test.json(conn, %{"answers" => Map.put(cause, "next", %{"choice" => choice, "probabilities" => probabilities})})
+          # Jev's fan-out features (world/features.lua): the ask's kind once, and how done the app is; ask_edit
+          # left unanswered, as an optional question may be
+          feats =
+            %{"ask_dates" => %{"noul" => 0.1}, "done" => %{"score" => "a little of it works",
+              "probabilities" => %{"a little of it works" => 1.0}}}
+            |> Map.filter(fn {k, _} -> sent["questions"][k] end)
+          answers = cause |> Map.merge(feats) |> Map.put("next", %{"choice" => choice, "probabilities" => probabilities})
+          Req.Test.json(conn, %{"answers" => answers})
 
         "/v1/chat/completions" ->
           message =
@@ -175,6 +182,15 @@ defmodule Moss.ComputerAgentTest do
     assert [{"no_effect", n1}, {"no_effect", n2}, {"complete", _}, {"no_effect", _} | _] = steps
     assert n1 =~ "] Cause placed in the_steps. Test after: 0 of 1 pass (before: 0 of 1). The same failure as before this step (1 changes"
     assert n2 =~ "(2 changes running have left it): Hi: Given the page says hello: /home/code/steps/hello.lua:1: no hello"
+
+    # Jev's fan-out answers are feature rows of each step: the ask's kind asked once and kept, done as a 0-1 mean
+    sql = fn q -> {:ok, rows} = Computer.agent(id, :sql, [q, []]); rows end
+    assert [%{"n" => 7}] = sql.("select count(*) as n from tablua_feature where name = 'ask_dates'")
+    assert [%{"value" => v} | _] = sql.("select value from tablua_feature where name = 'done' order by n")
+    assert_in_delta v, 1 / 3, 0.001
+    assert [%{"n" => 0}] = sql.("select count(*) as n from tablua_feature where name = 'ask_edit'")
+    asked = for {:jev, _, _} <- Agent.get(calls, & &1), do: 1
+    assert length(asked) == 7
   end
 
   # Jev's none-of-these: twice running, the run ends blocked, with what is missing in Mercury's words

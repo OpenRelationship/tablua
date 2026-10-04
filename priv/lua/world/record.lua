@@ -50,6 +50,7 @@ function M.new(task, log)
       end
       t:candidates(task, n, list)
       t:decision{ task = task, n = n, chosen = verb, by = how == "arbiter" and "mercury" or how, propensity = 1 }
+      if req.features then t:features(task, n, req.features, "jev") end
     end)
   end
 
