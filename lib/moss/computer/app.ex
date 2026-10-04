@@ -131,7 +131,10 @@ defmodule Moss.Computer.App do
         "connect-src #{app}",
         "form-action #{app}",
         "base-uri #{app}",
-        "frame-ancestors 'self'"
+        "frame-ancestors 'self'",
+        # the page has no origin wherever it is opened, as the desktop's sandboxed frame gives it: opened on its own
+        # it never runs as the site that serves it (arock.ai), with that site's cookies
+        "sandbox allow-scripts allow-forms"
       ],
       "; "
     )
