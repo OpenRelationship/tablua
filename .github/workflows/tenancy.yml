@@ -1,0 +1,19 @@
+# One tenant never reaches another (Arock's goal, 2026-10-04): the tests that hold a computer to its own files, code,
+# memory and network (test/moss/isolation_test.exs, from the isolation review, and hardening_test.exs, from the
+# 2026-10-01 review) run on every push, so a change that opens a hole between tenants fails here.
+name: tenancy
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  isolation:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20"
+      - run: mix deps.get
+      - run: mix test test/moss/isolation_test.exs test/moss/hardening_test.exs
