@@ -5,16 +5,15 @@ defmodule Moss.Computer.New do
   from nothing. It never writes over a file.
 
       new feature plants    features/plants.feature, one scenario (test then prints the stubs for its steps)
-      new page index        ui/index.lui, a page that renders, adds and removes
-      new orgpage index     ui/index.org, the same page in org and Lua (sdk/orgpage.lua)
+      new page index        ui/index.org, a page in org and Lua that renders, adds and removes (sdk/orgpage.lua)
       new code water        code/water.lua
       new task|note|letter <name>   org/<name>.org, from org's own template
       new manifest          manifest.org
-      new app plants        apps/plants/ui/index.lui, and the app listed in the root manifest
+      new app plants        apps/plants/ui/index.org, and the app listed in the root manifest
   """
   alias Moss.Computer.{Board, Disk, Script}
 
-  @kinds ~w(feature page orgpage code task note letter manifest app)
+  @kinds ~w(feature page code task note letter manifest app)
 
   def run([kind | rest], state) when kind in @kinds do
     name = List.first(rest) || if(kind == "manifest", do: "manifest")
@@ -58,8 +57,7 @@ defmodule Moss.Computer.New do
   end
 
   defp file("feature", n), do: "features/#{n}.feature"
-  defp file("page", n), do: "ui/#{n}.lui"
-  defp file("orgpage", n), do: "ui/#{n}.org"
+  defp file("page", n), do: "ui/#{n}.org"
   defp file("code", n), do: "code/#{n}.lua"
   defp file("manifest", _), do: "manifest.org"
   defp file(_org, n), do: "org/#{n}.org"
@@ -77,13 +75,6 @@ defmodule Moss.Computer.New do
   end
 
   defp text("page", _name, scope, state) do
-    app = if scope == "/home", do: "items", else: Path.basename(scope)
-    code = ~s|io.write(require("shroomi.lui").template(arg[1]))|
-    {0, out, _, _} = Script.run(["-e", code, app], "", state)
-    out
-  end
-
-  defp text("orgpage", _name, scope, state) do
     app = if scope == "/home", do: "items", else: Path.basename(scope)
     {0, out, _, _} = Script.run(["-e", ~s|io.write(require("orgpage").template(arg[1]))|, app], "", state)
     out

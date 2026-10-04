@@ -26,7 +26,7 @@ M.moves = {
   write_steps = "Write the Lua steps in code/steps/ that make each scenario check the app's real behaviour, from the"
     .. " stubs test printed.",
   write_code = "Write the app's code (code/*.lua) and its database (data/*.dbl) that the steps and pages use.",
-  write_page = "Write or fix the app's pages (ui/*.lui): what the person sees and uses.",
+  write_page = "Write or fix the app's pages (ui/*.org, org and Lua): what the person sees and uses.",
   run_test = "Run the feature's tests (test) to see what passes, what fails and which steps are missing.",
   run_check = "Check the pages and code (check) for what is wrong in them.",
   fix_failure = "Fix what the last test, check or page named as failing, from its file and line.",
@@ -53,7 +53,7 @@ M.causes = {
     .. " or is missing.",
   the_app_code = "The app's code or its database: what the steps and pages call does the wrong thing.",
   the_page = "The page: it does not compile, or its action or markup is wrong.",
-  a_library_call = "A call into the computer's library (db, date, test, lui, mail) made the wrong way, such as a"
+  a_library_call = "A call into the computer's library (db, date, test, ui, mail) made the wrong way, such as a"
     .. " missing or wrong argument (\"bad argument #1 to ...\" from inside it): its help says how.",
   the_feature = "The feature as written cannot pass: changing it needs the person's agreement again.",
   unclear = "It cannot be told from what is shown: read the failing file and line first.",
@@ -263,7 +263,7 @@ function M.new(host, run)
       return
     end
     local edits = require("moss.world.edits")
-    local what = prompt.pages(run, M.moves[verb]) .. (edits.on(run) and M.changes[verb] and edits.index(host) or "")
+    local what = M.moves[verb] .. (edits.on(run) and M.changes[verb] and edits.index(host) or "")
     local calls, err = prompt.fill(a, req, verb, what, run, M.causes)
     if not calls then step.note, step.outcome = "Filling the move failed: " .. tostring(err), "broken" return end
     if #calls == 0 then step.note, step.outcome = "Mercury made no call for this move.", "no_effect" return end

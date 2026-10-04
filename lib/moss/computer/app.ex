@@ -16,37 +16,6 @@ defmodule Moss.Computer.App do
 
   @help """
 
-  Pages: each is a .lui file in ui/, served at its path: /home/ui/index.lui at /, apps/plants/ui/index.lui at
-  /plants/ and apps/plants/ui/list.lui at /plants/list. HTML with Lua in it:
-
-    <lua>
-      local d = db.open("data/plants.dbl")          -- the app's own folder is the working folder
-      page.title = "Plants"
-      function post.water(req) d:exec("update plant set watered = 1 where name = ?", req.form.name) end
-    </lua>
-    <card title="Plants">
-      {% for _, p in ipairs(d:query("select * from plant")) do %}
-        <p>{{ p.name }} <button post="water" vals={{ {name = p.name} }}>Water</button></p>
-      {% end %}
-    </card>
-
-  {{ e }} is text, escaped; {{{ e }}} markup as it is; {% lua %} a statement ({% end %} closes a block).
-  Kit components are tags; attr={{ e }} passes a table or a boolean; every tag is closed (<x/> or </x>).
-  post="water" names the page's action: it runs, the page runs again from its top, and the person's page is
-  updated in place. An action may return "#id" (that element alone), { redirect = "?x=1" }, or a value the
-  markup reads as result (a form's errors). Links in an app are relative to it ("list", "?note=a").
-  A page that does not compile answers with its file, line and why.
-
-  The app as its person sees it, in this computer's browser:
-    open app              its page: title, words and controls, each control with an id
-    open app/plants       any path of it
-    click <id|words>      follows a link, presses a button (hx-post sends, then the page is shown again)
-    type <id|words> <text>   fills a field       submit [id|words]   sends a form
-    page                  the page's words again  ui   its controls   back   tabs
-  """
-
-  @org_help """
-
   Pages: each is an org file in ui/, served at its path: /home/ui/index.org at /, apps/plants/ui/index.org at
   /plants/ and apps/plants/ui/list.org at /plants/list. Its * Code runs on every request; its * Page returns the
   nodes the person sees, built with ui (every HTML tag and kit component is ui.<name>{ attrs..., children... }):
@@ -71,7 +40,7 @@ defmodule Moss.Computer.App do
   post = "water" names the page's action: it runs, the page runs again from its top, and the person's page is
   updated in place. An action may return "#id" (that element alone), { redirect = "?x=1" }, or a value the
   Page reads as result (a form's errors). Links in an app are relative to it ("list", "?note=a").
-  A page that does not compile or run answers with its file, line and why. new orgpage index writes one to start.
+  A page that does not compile or run answers with its file, line and why. new page index writes one to start.
 
   The app as its person sees it, in this computer's browser:
     open app              its page: title, words and controls, each control with an id
@@ -81,10 +50,7 @@ defmodule Moss.Computer.App do
     page                  the page's words again  ui   its controls   back   tabs
   """
 
-  @doc "`help org-pages page`'s last part: the same, for pages in org and Lua (arock issue #2)."
-  def org_help, do: @org_help
-
-  @doc "`help page`'s last part: how this computer serves its pages, and how to look at it."
+  @doc "`help page`'s last part: how this computer serves its pages, in org and Lua, and how to look at it."
   def help, do: @help
 
   @types ~w(text/html text/plain text/css text/csv application/json)

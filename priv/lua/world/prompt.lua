@@ -26,7 +26,7 @@ M.tool = { type = "function", ["function"] = { name = "computer", strict = true,
 
 M.examples = [[
 Where the app lives. Right: everything in /home: features/plants.feature, code/plants.lua, code/steps/plants.lua,
-ui/index.lui (served at /, opened with open app), data/plants.dbl. Wrong: apps/plants/... or a manifest.org: the
+ui/index.org (served at /, opened with open app), data/plants.dbl. Wrong: apps/plants/... or a manifest.org: the
 home is the app and needs neither, and the computer refuses files under apps/.
 
 Writing a file. Right: {"cmd": "test", "files": {"code/steps/plants.lua": "<the whole file>"}}, the file whole,
@@ -87,7 +87,8 @@ A page and its database. Right: the code the page uses makes its table first,
   d:exec("create table if not exists plant (name text primary key, watered text)")
 then queries it. Wrong: a query of a table nothing made: the page answers 500 and the app cannot ship.
 
-A form that adds. Right: <form post="add"> and function post.add(req) that inserts req.form's fields. Wrong: an
+A form that adds. Right: ui.form{ post = "add", ... } in the * Page and function post.add(req) in the * Code,
+inserting req.form's fields. Wrong: an
 empty function get.add(req) end written to quiet check's "names no action": the form then keeps nothing.
 
 A change to an app that shipped. Right: the change asks for a grand total, so the page keeps its totals for each
@@ -115,7 +116,7 @@ M.rules = [[
   step or page needs: keep every step and function that passes as it is.
 - Every step checks real behaviour with test.eq or test.ok; never leave a body empty.
 - Use only the commands help lists, and the APIs the knowledge base shows (db.open for data, test.step for steps,
-  .lui for pages); never write a stand-in for one. Read an error's file and line before changing anything.
+  org pages, ui/*.org, built with ui); never write a stand-in for one. Read an error's file and line before changing anything.
 - Never write GRANTED, CLOSED or a LOGBOOK, never edit org/procedures/, and never change a feature the person
   agreed to without their agreeing again.
 ]]
@@ -145,22 +146,6 @@ A scenario starts with every table empty: it adds through the page what it then 
 ]]
 
 -- an org-pages run (run.pages "org", arock issue #2): the same examples and rules, its pages ui/*.org in org and Lua
-local ORG = {
-  { "ui/index.lui (served at /", "ui/index.org (served at /" },
-  { 'A form that adds. Right: <form post="add"> and function post.add(req)',
-    'A form that adds. Right: ui.form{ post = "add", ... } in the * Page and function post.add(req) in the * Code' },
-  { ".lui for pages", "org pages, ui/*.org, built with ui" },
-}
-
-function M.pages(run, text)
-  if not (run and run.pages == "org") then return text end
-  for _, r in ipairs(ORG) do
-    local i, j = string.find(text, r[1], 1, true)
-    if i then text = string.sub(text, 1, i - 1) .. r[2] .. string.sub(text, j + 1) end
-  end
-  return (string.gsub(text, "ui/%*%.lui", "ui/*.org"))
-end
-
 function M.system(run)
   return table.concat({
     "<persona>",
@@ -170,8 +155,8 @@ function M.system(run)
     "</persona>",
     "<knowledge_base>", run.help, "</knowledge_base>",
     "<procedures>", run.procedures, "</procedures>",
-    "<examples>", M.pages(run, run.steps == "page" and M.page_examples .. M.examples or M.examples), "</examples>",
-    "<critical_rules>", M.pages(run, M.rules), "</critical_rules>",
+    "<examples>", run.steps == "page" and M.page_examples .. M.examples or M.examples, "</examples>",
+    "<critical_rules>", M.rules, "</critical_rules>",
   }, "\n")
 end
 

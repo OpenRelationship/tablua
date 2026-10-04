@@ -19,10 +19,10 @@ defmodule Moss.KindsTest do
     assert {:error, :enoent} = Disk.read(disk(c), "/home/run.sh")
   end
 
-  test "Scenario: a file in the wrong folder is refused, saying a page goes in ui/ as .org or .lui" do
+  test "Scenario: a file in the wrong folder is refused, saying a page goes in ui/ as .org" do
     c = id()
     assert {:error, why} = Disk.write(disk(c), "/home/apps/plants/ui/index.lua", "return {}")
-    assert why =~ "a page goes in ui/ as .org (org and Lua) or .lui"
+    assert why =~ "a page goes in ui/ as .org (org and Lua)"
     assert why =~ "index.lua is code and goes in code/"
   end
 
@@ -48,7 +48,7 @@ defmodule Moss.KindsTest do
 
     assert %{code: 0} = sh(c, "mkdir -p apps/plants/ui files/old")
 
-    assert %{out: "nil\ta page goes in ui/ as .org (org and Lua) or .lui; x.lua is code and goes in code/\n"} =
+    assert %{out: "nil\ta page goes in ui/ as .org (org and Lua); x.lua is code and goes in code/\n"} =
              sh(c, ~s|lua -e 'print(fs.write("ui/x.lua", "return 1"))'|)
   end
 

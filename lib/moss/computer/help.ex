@@ -11,7 +11,7 @@ defmodule Moss.Computer.Help do
 
     features/*.feature   the spec and the test           help feature
     code/*.lua           the work, in Lua                help code    (help lua <module>: one module)
-    ui/*.lui             pages: HTML with Lua in it      help page    (help kit, help classes)
+    ui/*.org             pages: org and Lua, with ui     help page    (help kit, help classes)
     data/*.dbl           databases                       help data
     org/*.org            tasks, notes, plans             help org     (help org task|note|letter|manifest)
     files/**             every other format              help files
@@ -40,7 +40,8 @@ defmodule Moss.Computer.Help do
   @files """
   files/: every other format, data and binary alike (a CSV, a PDF, an image, a downloaded page). Read and written
   with fs.read and fs.write, never run. csv, json and date read them in Lua: csv.parse(s), json.decode(s).
-  Anything that is a kind of its own goes in its folder instead: .lua in code/, .lui in ui/, .org in org/.
+  Anything that is a kind of its own goes in its folder instead: .lua in code/, a page (.org) in ui/, any other
+  .org in org/.
   """
 
   @topics ~w(feature code page kit classes data org files manifest tools loop new test check status publish mail)
@@ -53,30 +54,14 @@ defmodule Moss.Computer.Help do
   def run(["code" | _]), do: Script.prelude_help() <> "\n" <> String.replace(modules(), ~r/^  orgpage .*\n/m, "")
   def run(["lua", name | _]), do: module(name)
   def run(["lua" | _]), do: modules()
-  # pages in org and Lua (arock issue #2): each topic as an org-pages run's agent reads it (Agent's `pages: "org"`),
-  # its pages ui/*.org built with ui; without it, no topic names org pages
-  def run(["org-pages", "page" | _]), do: module("orgpage") <> "\n" <> module("shroomi") <> App.org_help()
+  # pages are org and Lua (arock issue #2): a page's * Code and * Page, built with ui; .lui is no longer taught
+  def run(["page" | _]), do: module("orgpage") <> "\n" <> module("shroomi") <> App.help()
 
-  def run(["org-pages", "kit" | _]) do
-    "In an org page each component is a ui call: <card title=\"x\">...</card> below is ui.card{ title = \"x\", ... }.\n" <>
+  def run(["kit" | _]) do
+    "In a page each component is a ui call: <card title=\"x\">...</card> below is ui.card{ title = \"x\", ... }.\n" <>
       String.replace(module("shroomi.components"), "In a .lui page each is a tag;", "Below each is shown as a tag;")
   end
 
-  def run(["org-pages" | rest]) do
-    run(rest)
-    |> String.replace(
-      "ui/*.lui             pages: HTML with Lua in it      help page",
-      "ui/*.org             pages: org and Lua, with ui     help page"
-    )
-    |> String.replace(".lui in ui/, .org in org/", "a page (.org) in ui/, any other .org in org/")
-    |> String.replace("Pages are ui/*.lui (`help page`)", "Pages are ui/*.org, org and Lua (`help page`)")
-    |> String.replace("new page|code|", "new orgpage|code|")
-    |> String.replace(~r/^.*new page index .*\n/m, "")
-    |> String.replace(~r/^  shroomi\.lui .*\n/m, "")
-  end
-
-  def run(["page" | _]), do: module("shroomi.lui") <> App.help()
-  def run(["kit" | _]), do: module("shroomi.components")
   def run(["classes" | _]), do: module("shroomi.css")
   def run(["data" | _]), do: @data
   def run(["files" | _]), do: @files
@@ -99,7 +84,7 @@ defmodule Moss.Computer.Help do
   # each module of the library with the first line it says about itself
   defp modules do
     lines =
-      for {name, first} <- Script.module_index(),
+      for {name, first} <- Script.module_index(), name != "shroomi.lui",
           do: "  #{String.pad_trailing(name, 20)} #{first}\n"
 
     "The library's modules (require(name); date, csv and test are at hand), help lua <module> for one:\n" <>

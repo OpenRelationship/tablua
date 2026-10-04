@@ -5,7 +5,7 @@ defmodule Moss.Computer.Kinds do
   each app, laid out the same way.
 
       features/*.feature   the spec and the test       code/*.lua    the work
-      ui/*.org, ui/*.lui   pages                       data/*.dbl    databases (db.open), never a file's bytes
+      ui/*.org             pages                       data/*.dbl    databases (db.open), never a file's bytes
       org/*.org            tasks, notes, plans         files/**      every other format, data and binary
       manifest.org         what the computer or app offers (feature manifest)
 
@@ -23,7 +23,7 @@ defmodule Moss.Computer.Kinds do
   @what %{
     "features" => "a feature goes in features/ as .feature",
     "code" => "code goes in code/ as .lua",
-    "ui" => "a page goes in ui/ as .org (org and Lua) or .lui",
+    "ui" => "a page goes in ui/ as .org (org and Lua)",
     "org" => "an org file goes in org/ as .org",
     "data" => "a database goes in data/ as .dbl, opened with db.open"
   }

@@ -12,7 +12,7 @@
 --   db.open("data/plants.dbl") -> d; d:exec(sql, ...), d:query(sql, ...) -> rows, d:one(sql, ...) (`help data`)
 --   date, csv and test are at hand; require("name"): the library's modules (`help lua`), then name.lua or
 --     name/init.lua in the working folder, then the app's code/, then /home/code/
---   Pages are ui/*.lui (`help page`); a tool is code named in manifest.org (`help manifest`).
+--   Pages are ui/*.org, org and Lua (`help page`); a tool is code named in manifest.org (`help manifest`).
 -- A failure returns nil and why, as Lua's own io does; a database statement that fails raises, with its file and line.
 
 -- (Moss.Computer.Script binds __sys, the host's functions; everything here is plain Lua over them.)

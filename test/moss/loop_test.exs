@@ -170,7 +170,7 @@ defmodule Moss.LoopTest do
   end
 
   test "new writes the smallest working file of each kind, never over one", %{c: c} do
-    assert %{code: 0, out: "wrote apps/notes/ui/index.lui\nlisted in manifest.org\n"} =
+    assert %{code: 0, out: "wrote apps/notes/ui/index.org\nlisted in manifest.org\n"} =
              sh(c, "new app notes")
 
     assert {200, _, _, _} = Computer.serve(c, %{"method" => "GET", "path" => "/notes/"})
