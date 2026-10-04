@@ -151,7 +151,9 @@ function M.new(host, run)
     -- the same failure through M.repeats changes: fixing it again waits on thinking it through, and then one fix
     -- is offered; thinking does not wipe the count (a plants run went fix, think, fix, think thirty times over when
     -- it did); through M.dead_end, neither is offered, and through M.give_up only a rewrite, the feature or stopping
-    local repeats = req.repeats or 0
+    -- the stall gates hold only while something is failing: a green app's stalls (a page looked at again and again)
+    -- once kept publishing from ever being offered (Tablua issue #1, M5's no-deadlock test)
+    local repeats = M.failing(req.facts or {}) ~= "" and (req.repeats or 0) or 0
     local stuck = repeats >= M.repeats and not (last and last.verb == "think" and repeats < M.dead_end)
     local last_resort = { rewrite = true, write_feature = true, blocked = true }
     local options = {}

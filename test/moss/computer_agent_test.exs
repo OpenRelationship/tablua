@@ -454,6 +454,44 @@ defmodule Moss.ComputerAgentTest do
     assert options.("{}", 1) == "read_help think write_code write_feature write_page write_steps"
   end
 
+  # Tablua issue #1, M5: no deadlock class. A green app (every scenario passing, every page answering, no empty
+  # step) always has a way on, whatever the stalls, the last move or the run: to publish (or first to use the app,
+  # when it changed since it was used), or, while checks use steps of the app's own, to write the feature
+  test "a green app can always reach publish, using the app, or the feature" do
+    stuck =
+      Lua.eval!(Moss.Lua.base(), """
+      local world = require("moss.world")
+      local stuck = {}
+      for _, steps in ipairs({ "page", false }) do
+        for _, own in ipairs({ true, false }) do
+          for _, looked in ipairs({ true, false }) do
+            for repeats = 0, 10 do
+              for _, last in ipairs({ "think", "look_at_app", "write_code", "undo", "fix_failure" }) do
+                local host = { facts = function() return { features = { { path = "features/a.feature", stage = "agreed" } },
+                  pages = { { path = "/", status = 200 } }, empty_steps = 0,
+                  tests = { passed = 2, total = 2, failing = {}, undefined = {}, checked = own and { "x is done" } or {} } } end }
+                local req = { steps = { { n = 1, verb = last, outcome = "complete" } }, repeats = repeats, looked = looked }
+                local q = world.new(host, { steps = steps or nil }).question({ req = req })
+                local o = q.options or {}
+                local way = o.write_feature or o.publish or (not looked and o.look_at_app)
+                if steps == "page" and own then way = o.write_feature end
+                if not way then
+                  stuck[#stuck + 1] = ("%s own=%s looked=%s repeats=%d last=%s stage=%s"):format(tostring(steps),
+                    tostring(own), tostring(looked), repeats, last, tostring(req.stage))
+                end
+              end
+            end
+          end
+        end
+      end
+      return table.concat(stuck, " / ")
+      """)
+      |> elem(0)
+      |> hd()
+
+    assert stuck == ""
+  end
+
   test "a page-steps run is not ready while a check uses a step of the app's own" do
     stage = fn run ->
       Lua.eval!(Moss.Lua.base(), """
