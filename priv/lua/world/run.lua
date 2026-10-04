@@ -75,6 +75,8 @@ function M.step(saved_json, ctx)
     memory = mem,
     -- rank mode (ctx.learn "rank"): TabPFN ranks the allowed moves at every building decision and may take the step
     rank = ctx.learn == "rank" or nil,
+    -- shadow mode (ctx.learn "shadow"): the same ranking, only recorded (Tablua's p_progress); Jev never reads it
+    shadow = ctx.learn == "shadow" or nil,
   }
   env.learn = learn.new({ memory = mem, tabpfn = models.tabpfn and counted(models.tabpfn, "tabpfn", counts) })
   local function at(n) return ctx.at .. "/step/" .. n end

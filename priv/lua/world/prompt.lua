@@ -163,7 +163,7 @@ function M.state(a, req, for_jev, facts)
   local parts = require("agent.parts").render(req)
   if parts then out[#out + 1] = parts end
   if req.guidance then out[#out + 1] = "Guidance: " .. req.guidance end
-  local card = for_jev and require("agent.checkpoint").card(req)
+  local card = for_jev and require("agent.checkpoint").card(req, a.env)
   if card then out[#out + 1] = card end
   out[#out + 1] = ("This is step %d."):format(#req.steps + 1)
   out[#out + 1] = "</current_state>"
