@@ -175,4 +175,24 @@ defmodule Moss.BrowseTest do
     assert %{code: 1, out: out} = Computer.run(c, "test")
     assert out =~ ~s|nothing on the page shows "Fern", so it has no "Water" for it: each scenario starts from an empty app|
   end
+
+  test "Scenario: a check on what only an earlier scenario typed says each scenario starts empty", %{c: c} do
+    write(c, "/home/apps/plants/ui/index.lui", @page)
+
+    write(c, "/home/apps/plants/features/plants.feature", """
+    Feature: plants
+      Scenario: one plant
+        When I type "Fern" into "Plant name"
+        And I press "Add"
+        Then I see "Fern"
+      Scenario: in order
+        When I type "Aloe" into "Plant name"
+        And I press "Add"
+        Then I see "Aloe" before "Fern"
+    """)
+
+    assert %{code: 1, out: out} = Computer.run(c, "test")
+    assert out =~ ~s|I see "Fern"    PASS|
+    assert out =~ ~s|"Fern" was typed only in an earlier scenario, and each scenario starts from an empty app|
+  end
 end

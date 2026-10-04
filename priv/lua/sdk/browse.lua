@@ -141,6 +141,20 @@ end
 
 -- the steps, for the features of scope (/home, or /home/apps/<app>), whose pages are its ui/
 function M.install(test, at)
+  -- what the run's scenarios typed so far, and what this scenario typed (w.mine): a check that misses a value only an
+  -- earlier scenario typed is told so, since each scenario starts from an empty app (the notes and birthdays evals,
+  -- 2026-10-04: two runs of 150 steps rewrote right pages against scenarios that used what another one made)
+  local ever = {}
+  local function unmade(w, ...)
+    for _, v in ipairs({ ... }) do
+      v = value(v)
+      if ever[v] and not (w.mine or {})[v] then
+        return ('; "%s" was typed only in an earlier scenario, and each scenario starts from an empty app, so this '
+          .. 'one adds it itself'):format(v)
+      end
+    end
+    return ""
+  end
   scope = at or "/home"
   test.step("I open the page", function(w) open(w, "/") end)
   test.step("I open the app", function(w) open(w, "/") end)
@@ -158,6 +172,8 @@ function M.install(test, at)
           if (low(s) == want or string.find(low(s), want, 1, true)) then
             w.typed[fi] = w.typed[fi] or {}
             w.typed[fi][f.name] = value(v)
+            ever[value(v)], w.mine = true, w.mine or {}
+            w.mine[value(v)] = true
             return
           end
         end
@@ -229,7 +245,8 @@ function M.install(test, at)
     for _, b in ipairs(w.page.buttons) do all[#all + 1] = '"' .. b.text .. '"' end
     if row and not shown then
       error(('nothing on the page shows "%s", so it has no "%s" for it: each scenario starts from an empty app, so '
-        .. 'the scenario makes "%s" itself before it uses it; the page shows: %s'):format(row, label, row, shows(w)), 0)
+        .. 'the scenario makes "%s" itself before it uses it%s; the page shows: %s'):format(row, label, row,
+        unmade(w, row), shows(w)), 0)
     end
     error(('no button "%s"%s on the page; its buttons: %s'):format(label, row and (' for "' .. row .. '"') or "",
       #all > 0 and table.concat(all, ", ") or "none"), 0)
@@ -239,7 +256,7 @@ function M.install(test, at)
 
   test.step("I see {string}", function(w, s)
     if not string.find(seen(w), value(s), 1, true) then
-      error(('the page does not show "%s"; it shows: %s'):format(value(s), shows(w)), 0)
+      error(('the page does not show "%s"%s; it shows: %s'):format(value(s), unmade(w, s), shows(w)), 0)
     end
   end)
   -- the row (a table row, list item, paragraph or card) that shows `row` also shows `s`
@@ -251,7 +268,7 @@ function M.install(test, at)
       if string.find(t, want, 1, true) then return end
       error(('the row of "%s" does not show "%s"; it shows: %s'):format(row, want, (string.gsub(t, "^%s+", ""))), 0)
     end
-    error(('no row shows "%s"; the page shows: %s'):format(row, shows(w)), 0)
+    error(('no row shows "%s"%s; the page shows: %s'):format(row, unmade(w, row), shows(w)), 0)
   end)
   -- the same check in the words a feature often has
   local function see(w, s)
@@ -267,7 +284,9 @@ function M.install(test, at)
   test.step("I see {string} before {string}", function(w, a, b)
     local t = seen(w)
     local i, j = string.find(t, a, 1, true), string.find(t, b, 1, true)
-    if not i or not j then error(('the page does not show both "%s" and "%s"; it shows: %s'):format(a, b, shows(w)), 0) end
+    if not i or not j then
+      error(('the page does not show both "%s" and "%s"%s; it shows: %s'):format(a, b, unmade(w, a, b), shows(w)), 0)
+    end
     if i > j then error(('"%s" comes after "%s" on the page: %s'):format(a, b, shows(w)), 0) end
   end)
 end
