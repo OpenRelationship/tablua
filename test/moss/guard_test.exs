@@ -139,10 +139,8 @@ defmodule Moss.GuardTest do
 
   # Arock's feature file-kinds, goal 10: what the kinds replaced is gone, from the code and the help alike
   test "no old path remains: no app.lua, no long help, no JSON tasks" do
-    shroomi =
-      Path.expand("../../submodules/shroomi", Path.expand("..", @lib) |> Path.join("../.."))
-
-    rockmail = Path.join(Path.dirname(shroomi), "uspx")
+    shroomi = Moss.Lua.Sources.shroomi()
+    rockmail = Path.join(Moss.Lua.Sources.core(), "submodules/uspx")
 
     files =
       Path.wildcard(Path.join(@lib, "**/*.ex")) ++

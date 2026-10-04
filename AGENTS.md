@@ -1,11 +1,14 @@
-This is VMOSS (Moss), the agent's own computer for Arock (see README.md), an Elixir library.
+This is Tablua (see README.md): an embeddable agent and its own computer, Moss (VMOSS), an Elixir library, with
+Shroomi folded in (owner, 2026-10-04: Tablua is the core; Arock is its desktop app, designs and server).
 
-## VMOSS rules
+## Tablua rules
 
-- VMOSS lives in the Arock repository at `submodules/vmoss`. Arock Core (`library/` there) is read, never edited
-  from here; a change the core needs is made in the Arock repository.
-- `lua/` (moss-lua) and `browser/` (moss-browser) are folders of this repository with rules of their own in
-  their AGENTS.md; read it before editing there.
+- Tablua is attached to the Arock repository at `submodules/vmoss`. The core Lua still in Arock (`library/` there)
+  is read, never edited from here; a change it needs is made in the Arock repository until it moves here.
+- `lua/` (moss-lua), `browser/` (moss-browser) and `shroomi/` (Shroomi) are folders of this repository with rules
+  of their own in their AGENTS.md; read it before editing there.
+- `site/` is tablua.com, the one place TypeScript, React and Node tooling are allowed (owner, 2026-10-04). Nothing
+  an agent runs reaches it: the computer stays Elixir and Lua.
 - VMOSS knows no server. What a computer needs from whoever runs it goes through `Moss.Host`; the node's side of
   it (object store, post, names, keys) lives in Arock's `app/server`.
 - The core runs in moss-lua from the base state in `Moss.Lua`; every call starts from that state and

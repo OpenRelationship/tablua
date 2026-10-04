@@ -1,4 +1,22 @@
-# 🌿 VMOSS
+# Tablua
+
+An embeddable agent and its own computer. Tablua keeps everything an agent is and does as tables in one SQLite
+file: where the work stands, every move it could make with each model's numbers, the move taken and by whom, how
+the step turned out, and every run's ending. A TabPFN model learns from those rows which moves make progress;
+Jev's probabilities are its features; Mercury writes the cells that need prose or code. Policy is data too: the
+gates and moves are rows. The host that runs an agent is a stateless stepper over its file.
+
+Tablua is three parts, in this repository:
+
+- **the harness**, the Continual Tabular Agent Harness: the `tablua_*` tables and the agent's step loop
+  (`priv/lua/world/`; the table library and the agent core are moving in from Arock's `library/`);
+- **🌿 Moss** (VMOSS), the agent's personal computer, below;
+- **🍄 Shroomi** (`shroomi/`), how the agent publishes its work on that computer: pages and apps a person opens.
+
+Arock (the Mac and iPhone apps, and the server that runs thousands of computers) is built on Tablua.
+The site is at [tablua.com](https://tablua.com) (`site/`). Licensed under Apache-2.0.
+
+## 🌿 Moss, the computer
 
 The agent's own computer, its operating system on the BEAM (Arock PROJECT.md §14). Every agent gets a computer
 of its own: a process per agent, its disk one SQLite file, a shell of VMOSS's own, a headless browser, a mailbox,
@@ -12,8 +30,9 @@ computer sleeps where it is, has no post and takes its model keys from the envir
 (`app/server` in the Arock repository, `ArockServer.Host`) keeps them in its object store, carries their mail
 and serves the pages a person watches them on.
 
-VMOSS is attached to the Arock repository at `submodules/vmoss`, and reads Arock Core's Lua from that repository: the Jev port and
-arock-log from its `library/`, uspx and Shroomi from its submodules; `AROCK_ROOT` names another checkout.
+For now Tablua is attached to the Arock repository at `submodules/vmoss`, and reads the rest of the core's Lua
+from that repository: the model ports and arock-log from its `library/`, uspx from its submodules; `AROCK_ROOT`
+names another checkout. Shroomi is this repository's own `shroomi/`.
 
 ```
 mix setup
@@ -30,3 +49,5 @@ mix moss.look                             # fetch moss-browser's look module, th
 - `lib/moss/computer/session.ex`: the session kept after every command.
 - `lua/`: moss-lua, our fork of tv-labs `lua`, the Lua VM on the BEAM (its own AGENTS.md).
 - `browser/`: moss-browser, the browser engine (its own AGENTS.md).
+- `shroomi/`: Shroomi, pages and apps as `.lui` files (its own README and AGENTS.md).
+- `site/`: tablua.com.

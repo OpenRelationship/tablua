@@ -71,7 +71,7 @@ defmodule Moss.Computer.Look do
     case :persistent_term.get({__MODULE__, :css}, nil) do
       nil ->
         "/shroomi/" <> file = Moss.Computer.Clean.policy().css
-        dir = Path.join(Moss.Lua.Sources.core(), "submodules/shroomi/assets")
+        dir = Path.join(Moss.Lua.Sources.shroomi(), "assets")
         css = File.read!(Path.join(dir, file))
         :persistent_term.put({__MODULE__, :css}, css)
         css

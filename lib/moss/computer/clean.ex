@@ -1,6 +1,6 @@
 defmodule Moss.Computer.Clean do
   @moduledoc """
-  A page held to Shroomi's policy (`submodules/shroomi/policy.lua`, Arock
+  A page held to Shroomi's policy (`shroomi/policy.lua`, Arock
   PROJECT.md §16) as it leaves the computer, outside the agent's own run, so a
   page written without Shroomi is held to it too.
 
@@ -34,7 +34,7 @@ defmodule Moss.Computer.Clean do
   end
 
   defp read_policy do
-    src = File.read!(Path.join(Moss.Lua.Sources.core(), "submodules/shroomi/policy.lua"))
+    src = File.read!(Path.join(Moss.Lua.Sources.shroomi(), "policy.lua"))
     {[t], _lua} = Lua.eval!(Lua.new(), src)
     p = deep(t)
 

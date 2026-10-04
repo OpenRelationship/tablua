@@ -428,7 +428,7 @@ defmodule Moss.Computer.Script do
       (fn ->
          own = Path.wildcard(Path.join(:code.priv_dir(:moss), "lua/sdk/*.lua"))
          m = Map.new(own, &{Path.basename(&1, ".lua"), File.read!(&1)})
-         shroomi = Path.join(Moss.Lua.Sources.core(), "submodules/shroomi")
+         shroomi = Moss.Lua.Sources.shroomi()
 
          m =
            for f <- Path.wildcard(shroomi <> "/*.lua"),

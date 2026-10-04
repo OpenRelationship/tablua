@@ -9,10 +9,10 @@ defmodule Moss.Gate0Test do
   alias Moss.{Lua, LuaHost}
 
   @core Application.compile_env!(:moss, :core)
-  @files for(
-           dir <- ["library", "submodules/shroomi", "submodules/uspx"],
-           do: Path.wildcard(Path.join([@core, dir, "**/*_test.lua"]))
-         )
+  @files (for(
+            dir <- ["library", "submodules/uspx"],
+            do: Path.wildcard(Path.join([@core, dir, "**/*_test.lua"]))
+          ) ++ [Path.wildcard(Path.expand("../../shroomi/**/*_test.lua", __DIR__))])
          |> List.flatten()
          # uspx's model checks are searches over its rules (minutes on this VM); the rules' own tests and the
          # fuzzing run here, and the searches run on LuaJIT in Arock's build

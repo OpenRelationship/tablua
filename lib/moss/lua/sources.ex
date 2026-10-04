@@ -3,7 +3,7 @@ defmodule Moss.Lua.Sources do
   Arock Core's Lua modules as `name => source`, read from the Arock repository:
   its `library/` (`library/ports/jev.lua` is `ports.jev`) and arock-log, the log, at
   `library/arock-log` (`init.lua` is `arock-log`, `robot.lua` is `arock-log.robot`),
-  Shroomi at `submodules/shroomi` (`shroomi`, `shroomi.css`, ...), and
+  Shroomi from this repository's own `shroomi/` (`shroomi`, `shroomi.css`, ...), and
   uspx (once arock-mail), the post's checks and Jev's reading (PROJECT.md §18), at
   `submodules/uspx` (`checks.lua` is `uspx.checks`), and connectory's
   port at `submodules/connectory/lua` (`connectory.lua.port_http`, which
@@ -17,12 +17,15 @@ defmodule Moss.Lua.Sources do
 
   def library, do: Path.join(core(), "library")
 
+  @doc "Shroomi, a folder of this repository (Tablua): how the agent publishes its work on its computer."
+  def shroomi, do: Path.expand("../../../shroomi", __DIR__)
+
   @doc "Where core modules live, each with the prefix its module names take."
   def roots,
     do: [
       {library(), ""},
       {Path.join(core(), "library/arock-log"), "arock-log"},
-      {Path.join(core(), "submodules/shroomi"), "shroomi"},
+      {shroomi(), "shroomi"},
       {Path.join(core(), "submodules/uspx"), "uspx"},
       {Path.join(core(), "submodules/connectory/lua"), "connectory.lua"}
     ]

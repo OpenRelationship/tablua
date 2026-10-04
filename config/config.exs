@@ -1,6 +1,6 @@
 import Config
 
-# Arock Core's Lua (library/, arock-log, uspx, Shroomi, connectory's port) from the Arock checkout this moss is
+# Arock Core's Lua (library/, arock-log, uspx, connectory's port; Shroomi is this repository's shroomi/) from the Arock checkout this moss is
 # attached to (submodules/vmoss), or AROCK_ROOT. A host (arock-server) sets these for its node in its own config.
 arock = System.get_env("AROCK_ROOT") || Path.expand("../../..", __DIR__)
 
@@ -14,7 +14,7 @@ config :moss,
 # The look (Arock feature look): the module VMOSS's CI built from browser/look and released, pinned by SHA-384 and
 # fetched by mix moss.look. A new release is a new version and hash here, in the change that adopts it.
 config :moss, :look,
-  repo: "OpenRelationship/vmoss",
+  repo: "OpenRelationship/tablua",
   release: "v0.2.1",
   sha384:
     "9e02809e965487be0bd34d547ff5af30ef519373cba44193dd1eab8610b6862283b8836369a9fb40f3be95d2eb3aaaaa",
