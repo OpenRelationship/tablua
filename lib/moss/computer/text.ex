@@ -8,6 +8,7 @@ defmodule Moss.Computer.Text do
   alias Moss.Computer.{Commands, Disk}
 
   @names ~w(grep head tail wc sort uniq cut tr tee seq base64 sha256sum)
+  @seq 1_000_000
   def names, do: @names
 
   def run("grep", args, stdin, state) do
@@ -171,6 +172,12 @@ defmodule Moss.Computer.Text do
         [f, s, l] -> {f, s, l}
       end
 
+    # a step of 0 never ends, and the list is made before it is printed: at most @seq numbers
+    count = if step == 0, do: :never, else: max(div(last - first, step) + 1, 0)
+
+    if count == :never or count > @seq,
+      do: throw({:seq, "seq: at most #{@seq} numbers, and a step that is not 0\n"})
+
     {0,
      first
      |> Stream.iterate(&(&1 + step))
@@ -178,6 +185,8 @@ defmodule Moss.Computer.Text do
      |> Enum.map_join(&"#{&1}\n"), ""}
   rescue
     _ -> {1, "", "seq: seq [first [step]] last\n"}
+  catch
+    {:seq, why} -> {1, "", why}
   end
 
   def run("base64", args, stdin, state) do

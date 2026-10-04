@@ -95,7 +95,7 @@ defmodule Moss.Computer do
     do: GenServer.call(wake!(id), {:person, :answer, [line, yes?]}, :infinity)
 
   @doc "For the computer's own agent (`Moss.Computer.Agent`): its facts, or its log read or written, in here."
-  def agent(id, fun, args) when fun in [:facts, :events, :append],
+  def agent(id, fun, args) when fun in [:facts, :events, :append, :sql],
     do: GenServer.call(wake!(id), {:agent, fun, args}, :infinity)
 
   def sleep(id), do: if(pid = whereis(id), do: GenServer.call(pid, :sleep, :infinity), else: :ok)
@@ -133,8 +133,13 @@ defmodule Moss.Computer do
 
   # -- the process -------------------------------------------------------------------------------
 
+  # the computer's own process (its shell, its state) is bounded as a Lua run is, its big strings counted: past it,
+  # this computer stops and the node goes on (the isolation review, 2026-10-04)
+  @heap_words div(512 * 1024 * 1024, :erlang.system_info(:wordsize))
+
   @impl true
   def init({id, opts}) do
+    Process.flag(:max_heap_size, %{size: @heap_words, kill: true, error_logger: true, include_shared_binaries: true})
     path =
       Path.join([Application.fetch_env!(:moss, :work_dir), "computers", id <> ".sqlite"])
 
@@ -184,7 +189,7 @@ defmodule Moss.Computer do
     ms = (System.monotonic_time(:microsecond) - started) / 1000
     log_mailed(state, "agent")
     log(state, "Run Command", [line, cwd, to_string(r.code), ms(ms), r.out, r.err], "agent", under)
-    entry = %{line: line, out: r.out, err: r.err, code: r.code, cwd: state.cwd, ms: ms}
+    entry = %{line: line, out: kept(r.out), err: kept(r.err), code: r.code, cwd: state.cwd, ms: ms}
 
     state = %{
       state
@@ -402,4 +407,9 @@ defmodule Moss.Computer do
     do: Process.send_after(self(), :snapshot, Application.fetch_env!(:moss, :snapshot_ms))
 
   defp now, do: System.monotonic_time(:millisecond)
+
+  # what the computer keeps of a line's output among its last @lines: the start of it, copied out of the whole
+  defp kept(text) when byte_size(text) > 65_536, do: :binary.copy(binary_part(text, 0, 65_536)) <> "\n…"
+  defp kept(text), do: text
+
 end

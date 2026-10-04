@@ -62,7 +62,9 @@ defmodule Moss.Sql.Printf do
 
   defp number("*" <> rest, args) do
     {v, args} = next(args)
-    {Value.to_integer(Value.to_number(v || 0)), rest, args}
+    # as a written width is: past 100,000 it is 100,000 (an argument's 2,000,000,000 once made that many spaces)
+    n = Value.to_integer(Value.to_number(v || 0))
+    {max(min(n, 100_000), -100_000), rest, args}
   end
 
   defp number(s, args) do

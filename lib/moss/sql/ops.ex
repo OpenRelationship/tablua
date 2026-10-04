@@ -13,6 +13,9 @@ defmodule Moss.Sql.Ops do
 
   def fail(msg), do: throw({:sql_error, msg})
 
+  @doc "The most bytes a text or blob may hold here."
+  def max_text, do: @max_text
+
   @doc "Text or a blob past the size SQLite allows a run here."
   def check_size(v) when is_binary(v) and byte_size(v) > @max_text,
     do: fail("string or blob too big")

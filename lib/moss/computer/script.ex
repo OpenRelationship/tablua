@@ -99,7 +99,8 @@ defmodule Moss.Computer.Script do
       spawn_monitor(fn ->
         # as a Task's: whoever stands behind the computer stands behind its run
         Process.put(:"$callers", callers)
-        Process.flag(:max_heap_size, %{size: @heap_words, kill: true, error_logger: false})
+        # strings past 64 bytes live outside the heap; they count too, or a table of big strings takes the node
+        Process.flag(:max_heap_size, %{size: @heap_words, kill: true, error_logger: false, include_shared_binaries: true})
         send(me, {ref, f.()})
       end)
 
@@ -237,7 +238,7 @@ defmodule Moss.Computer.Script do
     |> mail_fun(state)
     |> db_funs(disk, path)
     |> fun(:module, fn [n | _] -> [builtin(to_string(n))] end)
-    |> fun(:compiled, &compiled/1)
+    |> fun(:compiled, &compiled(state[:id], &1))
     |> fun(:report, fn [json | _] ->
       with {pid, ref} <- state[:report], do: send(pid, {ref, :report, json})
       [true]
@@ -344,9 +345,13 @@ defmodule Moss.Computer.Script do
     end)
   end
 
-  # compiled .lui pages, kept on the node by their name and text (computer.lua's page): the same page compiles
-  # to the same Lua for every computer, so one table serves them all; past @kept pages it starts over
+  # compiled .lui pages, kept on the node by their computer, name and text (computer.lua's page). The code kept is
+  # what that computer's own Lua handed over, and an agent's script can swap the compiler, so a page is only ever
+  # read back by the computer that kept it (the isolation review, 2026-10-04: keyed by name and text alone, one
+  # tenant's code ran in another's computer). A run with no computer keeps nothing. Past @kept pages, or a page's
+  # code past @kept_bytes, it starts over or keeps nothing.
   @kept 2000
+  @kept_bytes 256 * 1024
 
   @doc false
   def compiled_table do
@@ -356,20 +361,28 @@ defmodule Moss.Computer.Script do
     end
   end
 
-  defp compiled([name, text]) do
-    case :ets.lookup(:moss_lui, key(name, text)) do
+  defp compiled(nil, _), do: [nil]
+
+  defp compiled(computer, [name, text]) do
+    case :ets.lookup(:moss_lui, key(computer, name, text)) do
       [{_, src}] -> [src]
       [] -> [nil]
     end
   end
 
-  defp compiled([name, text, src | _]) do
-    if :ets.info(:moss_lui, :size) >= @kept, do: :ets.delete_all_objects(:moss_lui)
-    :ets.insert(:moss_lui, {key(name, text), src})
+  defp compiled(computer, [name, text, src | _]) do
+    src = to_string(src)
+
+    if byte_size(src) <= @kept_bytes do
+      if :ets.info(:moss_lui, :size) >= @kept, do: :ets.delete_all_objects(:moss_lui)
+      :ets.insert(:moss_lui, {key(computer, name, text), src})
+    end
+
     [true]
   end
 
-  defp key(name, text), do: :crypto.hash(:sha256, [to_string(name), 0, to_string(text)])
+  defp key(computer, name, text),
+    do: :crypto.hash(:sha256, [to_string(computer), 0, to_string(name), 0, to_string(text)])
 
   @doc "`help code`: Lua on this computer, as computer.lua's opening comment says it."
   def prelude_help, do: header(prelude())

@@ -124,7 +124,7 @@ defmodule Moss.Sql.Functions do
       x == nil or y == nil -> nil
       Value.to_text(y) == "" -> Value.to_text(x)
       z == nil -> nil
-      true -> Ops.check_size(String.replace(Value.to_text(x), Value.to_text(y), Value.to_text(z)))
+      true -> replace(Value.to_text(x), Value.to_text(y), Value.to_text(z))
     end
   end
 
@@ -310,4 +310,11 @@ defmodule Moss.Sql.Functions do
   defp quoted(v) when is_integer(v) or is_float(v), do: Value.to_text(v)
   defp quoted({:blob, b}), do: "X'" <> Base.encode16(b) <> "'"
   defp quoted(s), do: "'" <> String.replace(s, "'", "''") <> "'"
+
+  # the result's size is known before it is made: past the largest text it is refused, not built
+  defp replace(x, y, z) do
+    n = length(:binary.matches(x, y))
+    if byte_size(x) + n * (byte_size(z) - byte_size(y)) > Ops.max_text(), do: Ops.fail("string or blob too big")
+    String.replace(x, y, z)
+  end
 end

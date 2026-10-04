@@ -12,12 +12,20 @@ defmodule Moss.Computer.Shell do
   """
   alias Moss.Computer.{Commands, Disk}
 
+  # a command line's output past this is cut (a Lua run's is cut at 1 MB): it is kept in the computer's own process
+  @out 4 * 1024 * 1024
+
   def run(line, state) do
     case parse(line) do
       {:ok, chain} -> chain(chain, state, %{out: "", err: "", code: 0})
       {:error, why} -> {%{out: "", err: "sh: #{why}\n", code: 2}, state}
     end
   end
+
+  defp cut(%{out: out} = acc) when byte_size(out) > @out,
+    do: %{acc | out: :binary.copy(binary_part(out, 0, @out)), err: acc.err <> "sh: output cut at #{div(@out, 1_048_576)} MB\n"}
+
+  defp cut(acc), do: acc
 
   # -- running -----------------------------------------------------------------------------------
 
@@ -31,7 +39,7 @@ defmodule Moss.Computer.Shell do
     if go do
       {r, state} = pipeline(pipeline, state)
       state = %{state | last_code: r.code}
-      chain(rest, state, %{out: acc.out <> r.out, err: acc.err <> r.err, code: r.code})
+      chain(rest, state, cut(%{out: acc.out <> r.out, err: acc.err <> r.err, code: r.code}))
     else
       chain(rest, state, acc)
     end
