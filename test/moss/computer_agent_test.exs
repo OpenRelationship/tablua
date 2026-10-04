@@ -427,6 +427,20 @@ defmodule Moss.ComputerAgentTest do
       |> hd()
     end
 
+    # what rank mode ranks: the moves the question offers, and the share passing, kept with each step
+    assert Lua.eval!(Moss.Lua.base(), """
+           local world = require("moss.world")
+           local host = { facts = function() return { features = { { path = "features/a.feature", stage = "agreed" } },
+             pages = { { path = "/", status = 200 } }, empty_steps = 0,
+             tests = { passed = 1, total = 4, failing = { 'x' }, undefined = {} } } end }
+           local w, req = world.new(host, {}), { steps = {} }
+           local names = w.allowed({ req = req })
+           return table.concat(names, " ") .. " " .. req.pass
+           """)
+           |> elem(0)
+           |> hd() ==
+             "blocked fix_failure look_at_app plan read_help rewrite run_check run_test think write_code write_page write_steps 0.25"
+
     assert stage.("{}") =~ "ready"
     assert stage.(~s|{ steps = "page" }|) =~ ~s|building: 1 checks use steps of the app's own, not the page's (Yoga is done)|
   end

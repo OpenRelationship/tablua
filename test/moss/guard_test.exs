@@ -42,7 +42,9 @@ defmodule Moss.GuardTest do
     "lib/moss/names.ex" =>
       "the node's org: names: fixed statements, every address and name bound (a manifest is read by arock-log's Lua)",
     "lib/moss/mail/store.ex" =>
-      "the post: fixed statements, and `set` names only its known columns"
+      "the post: fixed statements, and `set` names only its known columns",
+    "lib/moss/computer/experience.ex" =>
+      "the node's shared experience: fixed statements, every row's computer, task, keyword and arguments bound"
   }
 
   # the only terms decoded from bytes: encoded by the host itself, into a place no agent writes, and decoded

@@ -14,7 +14,7 @@ defmodule Moss.Computer.Agent do
   how many calls Jev, Mercury and TabPFN took and what they cost.
   """
   alias Moss.{Computer, Log}
-  alias Moss.Computer.{Board, Disk, Script}
+  alias Moss.Computer.{Board, Disk, Experience, Script}
 
   # the rows agent.memory folds, and the decisions
   @memory [
@@ -37,7 +37,8 @@ defmodule Moss.Computer.Agent do
   decision is joined to its outcome by; `org:<id>` by default), `between` (a function of `id`, called after each
   step: the person's part, in a test), `max_steps` (150), `filler` (an OpenRouter model to fill
   Jev's moves in Mercury's place), `decider` (a System One model in Jev's), each for a comparison, and `steps`
-  ("page": features in the page's own steps, sdk/browse.lua). Gives `%{outcome, why, steps, counts}`, outcome being
+  ("page": features in the page's own steps, sdk/browse.lua), and `learn` ("rank": TabPFN ranks the allowed moves
+  at every building decision and may take the step, agent.checkpoint). Gives `%{outcome, why, steps, counts}`, outcome being
   "done", "blocked", "waiting", "stopped" or "error".
   """
   def run(id, task, opts \\ []) do
@@ -48,7 +49,8 @@ defmodule Moss.Computer.Agent do
       "procedures" => procedures(id),
       "filler" => opts[:filler],
       "decider" => opts[:decider],
-      "steps" => opts[:steps]
+      "steps" => opts[:steps],
+      "learn" => opts[:learn]
     }
 
     loop(id, ctx, nil, opts[:between] || fn _ -> :ok end, opts[:max_steps] || 150, 0, 0, nil)
@@ -105,13 +107,13 @@ defmodule Moss.Computer.Agent do
   # ------------------------------------------------------------------------------------------------------------
   # In the computer's own process (Moss.Computer.agent/3).
 
-  @doc "The rows agent.memory folds, with their task."
-  def events(state), do: Log.rows(state.disk.conn, @memory)
+  @doc "The rows agent.memory folds, with their task: other computers' first (Moss.Computer.Experience), then its own."
+  def events(state), do: Experience.rows(state.id) ++ Log.rows(state.disk.conn, @memory)
 
   @doc "A row on the computer's log, through arock-log (which takes any keyword and checks the ones it knows)."
   def append(state, task, keyword, args, actor) do
     {:ok, _} = Log.alog(state.disk.conn, "append", [task, keyword, args, actor])
-    :ok
+    Experience.add(state.id, task, keyword, args)
   end
 
   @doc """

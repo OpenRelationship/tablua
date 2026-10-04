@@ -6,7 +6,7 @@
 -- decision is joined to how it turned out; each call to Jev, Mercury and TabPFN is counted with what it cost.
 --
 --   run.step(saved_json | nil, ctx) -> kind ("act" | "wait" | "done" | "blocked"), detail, saved_json, counts
---   ctx = { task, at, help, procedures, filler?, decider? }    host: __host.exec, agent_facts(at), agent_events(), ...
+--   ctx = { task, at, help, procedures, filler?, decider?, steps?, learn? }    host: __host.exec, agent_facts(at), agent_events(), ...
 --   filler: an OpenRouter model in Mercury's place; decider: a System One model in Jev's; each to compare
 local agent = require("agent")
 local memory = require("agent.memory")
@@ -73,6 +73,8 @@ function M.step(saved_json, ctx)
     jev = counted(assert(decider, "no Jev key"), "jev", counts),
     mercury = counted(filler, "mercury", counts),
     memory = mem,
+    -- rank mode (ctx.learn "rank"): TabPFN ranks the allowed moves at every building decision and may take the step
+    rank = ctx.learn == "rank" or nil,
   }
   env.learn = learn.new({ memory = mem, tabpfn = models.tabpfn and counted(models.tabpfn, "tabpfn", counts) })
   local function at(n) return ctx.at .. "/step/" .. n end

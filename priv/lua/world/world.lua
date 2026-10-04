@@ -314,6 +314,9 @@ function M.new(host, run)
     req.facts = host.facts()
     if req.publishes0 == nil then req.publishes0 = req.facts.publishes or 0 end
     req.stage, req.why = M.stage(req.facts, req.publishes0)
+    -- the share of scenarios passing, for what the agent learns of each step (agent.checkpoint); -1 with no run
+    local t = req.facts.tests
+    req.pass = t and t.total > 0 and t.passed / t.total or -1
     return req.facts
   end
 
@@ -355,6 +358,14 @@ function M.new(host, run)
     return { kind = "choice", options = options,
       text = "Which move should the agent make next on its computer to build what the task asks? Read the stage,"
         .. " the facts and the steps so far. Waiting is for when only the person can move it on." }
+  end
+
+  -- the moves this decision may take, for TabPFN to rank in rank mode (agent.checkpoint)
+  function w.allowed(a)
+    local names = {}
+    for name in pairs(w.question(a).options) do names[#names + 1] = name end
+    table.sort(names)
+    return names
   end
 
   function w.state(a, req, for_jev) return prompt.state(a, req, for_jev, w.facts_text(req)) end
