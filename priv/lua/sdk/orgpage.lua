@@ -37,7 +37,11 @@ function M.compile(text, name)
   if not read then return nil, name .. ": " .. why end
   local code, view = { text = "", at = {} }, nil
   for _, s in ipairs(read) do
-    if s.kind == "lua" then code = s elseif s.kind == "markup" then view = s end
+    if s.kind == "code" then code = s elseif s.kind == "markup" then view = s end
+  end
+  -- the computer runs Lua alone: a page in org may carry any language as data, but one served here is Lua
+  if code.lang and code.lang ~= "lua" then
+    return nil, name .. ": the * Code block is lua (#+begin_src lua), not " .. tostring(code.lang)
   end
   if not view or view.text == "" then
     return nil, name .. ": a page has a * Page section: a lua block that returns its nodes, built with ui"

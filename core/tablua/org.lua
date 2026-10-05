@@ -4,7 +4,8 @@
 --
 --   * Notes                 prose (its own headings one level down)
 --   * Feature               #+begin_src feature: the header, then a ** Scenario: heading per scenario
---   * Steps / * Code        a ** heading per top-level statement, :kind: and :name: in its drawer, #+begin_src lua
+--   * Steps / * Code        a ** heading per unit, :kind: and :name: in its drawer, #+begin_src <lang> (a Lua block
+--                           cut into its top-level statements; a block in another language is one unit)
 --   * Page                  #+begin_src lua (a page as Lua), or lui (a markup page, until Shroomi goes)
 --
 -- The subset is headings, property drawers, source blocks and prose. Inside a block a line that org would read as
@@ -12,7 +13,7 @@
 -- drawer is a view of the row: reading takes a section's text from its blocks alone, joined in order.
 local M = {}
 
-M.heading = { notes = "Notes", feature = "Feature", steps = "Steps", lua = "Code", markup = "Page" }
+M.heading = { notes = "Notes", feature = "Feature", steps = "Steps", code = "Code", markup = "Page" }
 local KIND = {}
 for kind, h in pairs(M.heading) do KIND[h] = kind end
 
@@ -55,7 +56,7 @@ function M.write(sections)
       for _, u in ipairs(s.units) do
         out[#out + 1] = "** " .. (u.name ~= "" and title(u.name) or u.kind) .. "\n"
         out[#out + 1] = drawer({ { "kind", u.kind }, { "name", u.name } })
-        out[#out + 1] = block("lua", u.source)
+        out[#out + 1] = block(s.lang or "lua", u.source)
       end
     elseif s.scenarios then
       if s.head ~= "" then out[#out + 1] = block("feature", s.head) end

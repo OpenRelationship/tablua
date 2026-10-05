@@ -184,15 +184,19 @@ for the hand-written rules to shrink as the learned model takes over.
 ## The program as rows
 
 Tablua's agent writes apps as [org](https://orgmode.org) files with five kinds of section: Notes, Feature, Steps,
-Code and Page. The harness keeps each file as rows: its sections, each top-level Lua statement, each scenario and
-each of its lines, plus the links between them. Mercury edits one unit at a time, each edit is an action row, and
+Code and Page. Each code block carries its language, so the output can be any language the agent's computer runs.
+The harness keeps each file as rows: its sections, its code's units, each scenario and each of its lines, plus
+the links between them. A Lua block is cut into its top-level statements and its calls are linked; a block in
+another language is kept whole until a scanner for it is added. On Moss, which runs Lua alone, the output is Lua. Mercury edits one unit at a time, each edit is an action row, and
 the compiled file is what runs and is tested. A step that refers to a missing definition shows up in
 `tablua_break` before any test runs.
 
 ## Embedding it
 
-The harness is portable Lua. The same code runs on LuaJIT, Lua 5.4/5.5 and Lua on the BEAM. It reaches SQLite
-and the models only through ports the host supplies.
+Tablua is native Lua and nothing else. A host embeds it with whatever Lua VM it has: moss-lua on the BEAM,
+LuaJIT, or Lua 5.4/5.5. It reaches the world only through ports the host supplies: SQLite, the models, and a
+computer that runs the agent's code. So an adopter's agents can write any language their computer runs. Moss runs
+Lua only (moss-lua, a Lua VM in Elixir, no NIFs), so Arock's agents write Lua.
 
 ```lua
 local tablua = require("tablua")

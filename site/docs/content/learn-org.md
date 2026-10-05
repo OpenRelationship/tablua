@@ -69,7 +69,7 @@ Here is where the tables come back. Tablua cuts the file into pieces and keeps e
 | `tablua_line` | line of a scenario | `And I press "Add"` |
 | `tablua_link` | reference between pieces | the form's `post = "add"` points at `post.add` |
 
-A **unit** is one complete piece you could edit on its own: a function, an action, a test step, a scenario. Reading a file into rows and writing it back gives exactly the same file, byte for byte.
+A **unit** is one complete piece you could edit on its own: a function, an action, a test step, a scenario. A Lua block is cut into units this way; a code block in another language is kept as one unit until Tablua has a scanner for it. Reading a file into rows and writing it back gives exactly the same file, byte for byte.
 
 ## Why cut it up
 

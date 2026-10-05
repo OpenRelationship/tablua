@@ -101,7 +101,7 @@ spec.test("a program kept as rows compiles back to the same org, and a file put 
   local rows = src.from_files({
     notes = "Plants, watered on time.\n",
     feature = "Feature: Plants\n\n  Scenario: one\n    When I open the page\n    Then I see \"Plants\"\n",
-    lua = 'local d = db.open("data/plants.dbl")\nfunction post.water(req) end\n',
+    code = 'local d = db.open("data/plants.dbl")\nfunction post.water(req) end\n',
   })
   t:put_program("ui/index.org", rows)
   spec.eq(t:compile("ui/index.org"), src.compile(rows))
@@ -109,7 +109,7 @@ spec.test("a program kept as rows compiles back to the same org, and a file put 
   spec.eq(t:count("line"), 2)
   local line = t.db:exec("select keyword, text from tablua_line where file = 'ui/index.org' and n = 2")[1]
   spec.same(line, { keyword = "Then", text = 'I see "Plants"' })
-  t:put_program("ui/index.org", src.from_files({ lua = "print(1)\n" }))
+  t:put_program("ui/index.org", src.from_files({ code = "print(1)\n" }))
   spec.eq(t:count("unit"), 1)
   spec.eq(t:count("scenario"), 0)
   spec.same(t:files(), { "ui/index.org" })
@@ -132,11 +132,35 @@ spec.test("links with nothing at their end are breaks, and a step written later 
     .. "function(w, n) end)\n" }))
   spec.eq(#t:breaks(), 2)
   -- an action nothing posts to is an orphan; one the page calls to read what it shows is reached
-  t:put_program("code/more.lua", src.from_files({ lua = "function post.extra(req) end\nfunction get.view() end\n" }))
+  t:put_program("code/more.lua", src.from_files({ code = "function post.extra(req) end\nfunction get.view() end\n" }))
   t:put_program("ui/list.org", src.decode("* Page\n#+begin_src lua\nreturn ui.ul{ get.view() }\n#+end_src\n"))
   local orphans = {}
   for _, b in ipairs(t:breaks()) do if b.kind == "orphan" then orphans[#orphans + 1] = b.target end end
   spec.same(orphans, { "post.extra" })
+end)
+
+-- Lua is the harness's language, not the output's (owner, 2026-10-05): another language gives no code links
+spec.test("a program in another language puts its rows and gives no links and no breaks", function()
+  local src = require("tablua.source")
+  local t = fresh()
+  t:put_program("app.org", src.from_files({ lang = "python",
+    feature = "Feature: Add\n  Scenario: sums\n    Then the sum of 2 and 3 is 5\n",
+    steps = "@then(\"the sum of {a} and {b} is {c}\")\ndef sums(ctx, a, b, c):\n    assert add(a, b) == c\n",
+    code = "import plants\ndef add(a, b):\n    return plants.total(a, b)\n" }))
+  spec.eq(#t.db:exec("select * from tablua_link"), 0)
+  spec.eq(#t:breaks(), 0)
+  spec.eq(t.db:exec("select lang from tablua_section where kind = 'code'")[1].lang, "python")
+  spec.ok(t:compile("app.org"):find("#%+begin_src python"))
+end)
+
+spec.test("schema 9 renames a Lua section kept before it to kind code", function()
+  local db = sqlite.open(":memory:")
+  local t = tablua.open(db, { clock = function() return "t" end })
+  db:exec("insert into tablua_section (file, n, kind, lang, body) values ('old.org', 1, 'lua', '', '')")
+  tablua.open(db, { clock = function() return "t" end })
+  local r = db:exec("select kind, lang from tablua_section where file = 'old.org'")[1]
+  spec.eq(r.kind .. " " .. r.lang, "code lua")
+  spec.eq(t.db:exec("select value from tablua_meta where key = 'version'")[1].value, "9")
 end)
 
 spec.test("Jev's hindsight labels each step once, in batches, and contrib trains on the labelled steps only", function()

@@ -313,5 +313,10 @@ defmodule Moss.BrowseTest do
     body = IO.iodata_to_binary(body)
     assert body =~ "<title>Plants</title>" and body =~ ~s|placeholder="Plant name"|
     refute body =~ "&lt;!doctype"
+
+    # the org format carries any language, but the computer runs Lua alone: a page's code in another is refused
+    write(c, "/home/ui/index.org", "* Code\n#+begin_src python\nx = 1\n#+end_src\n* Page\n#+begin_src lua\nreturn ui.h1\"x\"\n#+end_src\n")
+    assert {500, _, why, _} = Computer.serve(c, %{"method" => "GET", "path" => "/"})
+    assert IO.iodata_to_binary(why) =~ "the * Code block is lua (#+begin_src lua), not python"
   end
 end

@@ -65,7 +65,7 @@ spec.test("a page's rows compile to org, which decodes to the same rows and comp
   local rows = src.from_lui(PAGE)
   local names = {}
   for i, s in ipairs(rows.sections) do names[i] = s.kind end
-  spec.same(names, { "notes", "feature", "steps", "lua", "markup" })
+  spec.same(names, { "notes", "feature", "steps", "code", "markup" })
   local text = src.compile(rows)
   local again = assert(src.decode(text))
   spec.eq(src.compile(again), text)
@@ -73,7 +73,7 @@ spec.test("a page's rows compile to org, which decodes to the same rows and comp
 end)
 
 spec.test("a Lua section is its top-level statements, each with the comments above it", function()
-  local lua = section(src.from_lui(PAGE), "lua")
+  local lua = section(src.from_lui(PAGE), "code")
   spec.same(kinds(lua.units), { "local:d", "stmt:d:exec", "stmt:page.title", "action:post.add", "action:post.delete" })
   spec.ok(lua.units[4].source:find("^\n%-%- a note from the form\nfunction post.add"))
   spec.ok(lua.units[4].source:find("end\nend\n$"))
@@ -102,7 +102,7 @@ spec.test("each row is an org heading with its columns in a drawer and its text 
   local text = src.compile(src.from_files({
     feature = "Feature: Plants\n\n  Scenario: one\n    When I open the page\n",
     steps = 'test.step("a plant {string}", function(w, n) end)\n',
-    lua = 'local d = db.open("data/plants.dbl")\nfunction post.water(req) end',
+    code = 'local d = db.open("data/plants.dbl")\nfunction post.water(req) end',
     markup = "<h1>Plants</h1>\n",
   }))
   spec.ok(text:find("^%* Feature\n#%+begin_src feature\nFeature: Plants\n\n#%+end_src\n%*%* Scenario: one\n"))
@@ -111,17 +111,17 @@ spec.test("each row is an org heading with its columns in a drawer and its text 
   spec.ok(text:find("\n%* Page\n#%+begin_src lui\n<h1>Plants</h1>\n#%+end_src\n$"))
   local again = assert(src.decode(text))
   spec.same(kinds(section(again, "steps").units), { "step:a plant {string}" })
-  spec.same(kinds(section(again, "lua").units), { "local:d", "action:post.water" })
+  spec.same(kinds(section(again, "code").units), { "local:d", "action:post.water" })
 end)
 
 spec.test("a line org would read as a heading or keyword is escaped with a comma, and notes keep their headings", function()
   local lua = "local doc = [[\n* a list\n  #+not org\n,* already\n]]\n"
   local notes = "* Notes\n  Jot notes.\n** Later\n*bold* text\n"
-  local text = src.compile(src.from_files({ notes = notes, lua = lua }))
+  local text = src.compile(src.from_files({ notes = notes, code = lua }))
   spec.ok(text:find("\n,%* a list\n  ,#%+not org\n,,%* already\n"))
   spec.ok(text:find("^%* Notes\n%*%* Notes\n  Jot notes.\n%*%*%* Later\n%*bold%* text\n"))
   local again = assert(src.decode(text))
-  spec.eq(src.body(section(again, "lua")), lua)
+  spec.eq(src.body(section(again, "code")), lua)
   spec.eq(src.body(section(again, "notes")), notes)
 end)
 
@@ -130,6 +130,21 @@ spec.test("org that is not the program's file is refused with why", function()
   spec.ok(why:find("one of Notes, Feature, Steps, Code, Page"))
   _, why = src.decode("* Code\n#+begin_src lua\nlocal x = 1\n")
   spec.ok(why:find("never closed"))
+end)
+
+-- Lua is the harness's language, not the output's (owner, 2026-10-05): a block in another language is kept whole
+spec.test("a code block in another language is one unit, kept with its language, and comes back byte for byte", function()
+  local py = "def add(a, b):\n    return a + b\n\n\nclass Plant:\n    pass\n"
+  local org = "* Code\n** block\n:PROPERTIES:\n:kind: block\n:END:\n#+begin_src python\n" .. py .. "#+end_src\n"
+  local rows = assert(src.decode(org))
+  local code = section(rows, "code")
+  spec.eq(code.lang, "python")
+  spec.eq(#code.units, 1)
+  spec.eq(code.units[1].kind, "block")
+  spec.eq(src.body(code), py)
+  spec.eq(src.compile(rows), org)
+  -- and from files, given the language
+  spec.eq(src.compile(src.from_files({ code = py, lang = "python" })), org)
 end)
 
 spec.run()

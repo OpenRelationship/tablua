@@ -40,11 +40,11 @@ function M.program(files)
   for _, path in ipairs(names) do
     -- a page in org and Lua is read as it is; a .lui one by its tagged sections
     local page = path:match("%.org$") and (src.decode(pages[path]) or { sections = {} }) or src.from_lui(pages[path])
-    local lua, markup, lang = "", "", "lui"
+    local code, markup, lang = "", "", "lui"
     for _, s in ipairs(page.sections) do
-      if s.kind == "lua" then lua = src.body(s) elseif s.kind == "markup" then markup, lang = src.body(s), s.lang end
+      if s.kind == "code" then code = src.body(s) elseif s.kind == "markup" then markup, lang = src.body(s), s.lang end
     end
-    local f = { lua = lua, markup = markup }
+    local f = { code = code, markup = markup }
     -- the app's features and steps go with its first page
     if first then f.feature, f.steps, first = joined(features), joined(steps), false end
     local rows = src.from_files(f)
@@ -55,7 +55,7 @@ function M.program(files)
   for path in pairs(modules) do mods[#mods + 1] = path end
   table.sort(mods)
   for _, path in ipairs(mods) do
-    out[#out + 1] = { name = path, rows = src.from_files({ lua = modules[path] }), want = { lua = modules[path] } }
+    out[#out + 1] = { name = path, rows = src.from_files({ code = modules[path] }), want = { code = modules[path] } }
   end
   return out
 end

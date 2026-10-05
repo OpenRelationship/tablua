@@ -14,6 +14,10 @@
 --   links.found(link, text, steps) -> whether the program's text (lowercased) or its steps answer a line's link
 --   links.pattern(step) -> the Lua pattern a step's text compiles to (Moss's sdk/test.lua, test.step)
 --   links.step(text, patterns) -> the step pattern a line's text matches, or nil
+--
+-- The code links (posts, sends, reads, calls, modules, exports) are read from Lua alone: a section in another
+-- language (its lang) gives none, and with step definitions in another language a scenario's own words are not
+-- checked against them (owner, 2026-10-05: Lua is the harness's language, not the output's).
 local effects = require("tablua.effects")
 
 local M = {}
@@ -66,12 +70,19 @@ local function page(out, seen, text, where)
   end
 end
 
--- the whole of a file's Lua: its units' sources and its pages' bodies
+-- a section whose text is Lua (or a Lua or .lui page): its lang, Lua when none is given
+local function lua(s)
+  return s.lang == nil or s.lang == "" or s.lang == "lua" or (s.kind == "markup" and s.lang == "lui")
+end
+
+-- the whole of a file's Lua: its Lua units' sources and its pages' bodies
 local function lua_of(rows)
   local parts = {}
   for _, s in ipairs(rows.sections or {}) do
-    for _, u in ipairs(s.units or {}) do parts[#parts + 1] = u.source end
-    if s.kind == "markup" then parts[#parts + 1] = s.body or s.text or "" end
+    if lua(s) then
+      for _, u in ipairs(s.units or {}) do parts[#parts + 1] = u.source end
+      if s.kind == "markup" then parts[#parts + 1] = s.body or s.text or "" end
+    end
   end
   return "\n" .. table.concat(parts, "\n")
 end
@@ -99,12 +110,13 @@ local function modules(out, seen, text, file)
 end
 
 function M.scan(rows, file)
-  local out, seen = {}, {}
+  local out, seen, steps_lua = {}, {}, true
+  for _, s in ipairs(rows.sections or {}) do if s.kind == "steps" and not lua(s) then steps_lua = false end end
   modules(out, seen, lua_of(rows), file)
   for n, s in ipairs(rows.sections or {}) do
-    if s.kind == "markup" then page(out, seen, s.body or s.text or "", "page " .. n) end
+    if s.kind == "markup" and lua(s) then page(out, seen, s.body or s.text or "", "page " .. n) end
     for _, u in ipairs(s.units or {}) do
-      if s.kind == "lua" then
+      if s.kind == "code" and lua(s) then
         if u.kind == "action" then
           for name in u.source:gmatch("req%.form%.([%a_][%w_]*)") do add(out, seen, "reads", u.name, name) end
           for name in u.source:gmatch("req%.form%[[\"']([%w_]+)[\"']%]") do add(out, seen, "reads", u.name, name) end
@@ -118,7 +130,7 @@ function M.scan(rows, file)
         local quoted = {}
         for q in l.text:gmatch('"([^"]*)"') do quoted[#quoted + 1] = q end
         -- only the app's own words need a step of its own; the page's step shapes are the computer's
-        if kind == "own" then add(out, seen, "line", at, l.text)
+        if kind == "own" then if steps_lua then add(out, seen, "line", at, l.text) end
         elseif kind == "press" or kind == "press_for" then add(out, seen, "press", at, quoted[1] or "")
         elseif kind == "type" and quoted[2] then add(out, seen, "field", at, quoted[2])
         elseif kind == "see" or kind == "see_for" or kind == "see_before" then

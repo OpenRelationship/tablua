@@ -62,7 +62,7 @@ function M.apply(path, text, unit, source)
   if not rows then return nil, path .. " does not read as org: " .. tostring(why) end
   local code, page
   for _, s in ipairs(rows.sections) do
-    if s.kind == "lua" then code = s elseif s.kind == "markup" then page = s end
+    if s.kind == "code" then code = s elseif s.kind == "markup" then page = s end
   end
   if unit == "page" then
     if not page then
@@ -72,7 +72,7 @@ function M.apply(path, text, unit, source)
     page.body = source
   else
     if not code then
-      code = { kind = "lua", units = {} }
+      code = { kind = "code", units = {} }
       rows.sections[#rows.sections + 1] = code
     end
     code.units = splice(code.units or src.units(src.body(code)), unit, source)
@@ -93,7 +93,7 @@ function M.index(path, text)
   end
   local rows = src.decode(text)
   for _, s in ipairs(rows and rows.sections or {}) do
-    if s.kind == "lua" then
+    if s.kind == "code" then
       for _, u in ipairs(s.units or {}) do if u.name ~= "" then out[#out + 1] = u.name end end
     elseif s.kind == "markup" then
       out[#out + 1] = "page"

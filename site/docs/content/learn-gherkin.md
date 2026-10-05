@@ -87,4 +87,4 @@ Scenarios give every step an honest score that doesn't depend on any model's opi
 
 ## Next
 
-Step definitions are Lua. So is everything else the agent writes. [Module 4: Lua](/learn/lua)
+On Moss, step definitions are Lua, as is everything else the agent writes there. [Module 4: Lua](/learn/lua)

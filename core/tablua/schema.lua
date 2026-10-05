@@ -12,9 +12,11 @@
 -- tablua.control): the Mac's "control" checkpoint, which one the request means. Schema 8 adds the rankings a run
 -- paid TabPFN for (tablua_ranking), so a stateless stepper keeps a run's budget and reuses a ranking across steps,
 -- and calls into the app's own modules that nothing defines to tablua_break (dropped and made again at open).
+-- Schema 9: a code section is kind code with its language in lang (owner, 2026-10-05: Lua is the harness, not the
+-- output); a file kept before it has its Lua sections renamed at open.
 local M = {}
 
-M.version = 8
+M.version = 9
 
 M.ddl = [[
 create table if not exists tablua_meta (key text primary key, value text);
@@ -59,6 +61,7 @@ create table if not exists tablua_feature (
 create table if not exists tablua_section (
   file text not null, n integer not null, kind text not null, lang text not null default '',
   body text not null default '', primary key (file, n));
+update tablua_section set kind = 'code', lang = case lang when '' then 'lua' else lang end where kind = 'lua';
 create table if not exists tablua_unit (
   file text not null, section integer not null, n integer not null, kind text not null,
   name text not null default '', source text not null, primary key (file, section, n));

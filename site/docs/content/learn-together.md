@@ -40,7 +40,7 @@ Every table name starts with `tablua_`, and the harness writes only to those. Th
 - An **agent** is a model in a loop; a **harness** runs the loop and keeps the record.
 - Tablua keeps the record as **typed rows** in one SQLite file per agent.
 - **Gherkin** scenarios say what done means and give every step an honest score.
-- **Lua** is the one language: the harness, and everything the agent writes.
+- **Lua** is the harness's language, and Moss's: what the agent writes is any language its computer runs, and on Moss that is Lua.
 - **Org** holds an app in one readable file, cut into rows the harness can check and edit.
 - **Jev** decides, **Mercury** writes, **TabPFN** learns, and the **host** checks.
 - **Learning** is a SQL query plus a tabular model, scored against what happened.

@@ -22,7 +22,7 @@ export const sections: Section[] = [
       { slug: "learn/loop", file: "learn-loop", title: "1. An agent is a loop" },
       { slug: "learn/rows", file: "learn-rows", title: "2. Writing it down as rows" },
       { slug: "learn/gherkin", file: "learn-gherkin", title: "3. Gherkin: saying what \"done\" means" },
-      { slug: "learn/lua", file: "learn-lua", title: "4. Lua: the one language" },
+      { slug: "learn/lua", file: "learn-lua", title: "4. Lua: the harness's language" },
       { slug: "learn/org", file: "learn-org", title: "5. Org: one file holds it all" },
       { slug: "learn/models", file: "learn-models", title: "6. Three models, three jobs" },
       { slug: "learn/learning", file: "learn-learning", title: "7. Learning from the past" },
