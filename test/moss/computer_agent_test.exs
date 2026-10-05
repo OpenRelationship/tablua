@@ -345,6 +345,41 @@ defmodule Moss.ComputerAgentTest do
              ["write_steps:0", "undo:1", "write_steps:1", "undo:2", "write_steps:2"]
   end
 
+  # a plants run rewrote nineteen times, each rewrite writing the feature and refused as write_feature's, while the
+  # note both minds read said only that the failure stood (2026-10-05)
+  test "a call the computer would not run is named in the step's note", %{id: id} do
+    Computer.run(id, "help")
+    disk = :sys.get_state(Computer.wake!(id)).disk
+    :ok = Moss.Computer.Disk.write(disk, "/home/features/hello.feature",
+      "Feature: Hello\n  Scenario: Hi\n    Given the page says hello\n")
+    :ok = Moss.Computer.Disk.write(disk, "/home/code/steps/hello.lua",
+      ~s|test.step("the page says hello", function(w) test.ok(false, "no hello") end)\n|)
+    :ok = Computer.agree(id, "/home/features/hello.feature")
+    Computer.run(id, "test")
+
+    Req.Test.stub(Moss.Fetch, fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      sent = Jason.decode!(body)
+
+      case conn.request_path do
+        "/api/alpha/decisions" ->
+          answers = %{"next" => %{"choice" => "rewrite", "probabilities" => %{"rewrite" => 0.9}}}
+          answers = if sent["questions"]["cause"], do: Map.put(answers, "cause", %{"choice" => "the_feature"}), else: answers
+          Req.Test.json(conn, %{"answers" => answers})
+
+        "/v1/chat/completions" ->
+          call = %{"cmd" => "test", "files" => %{"features/hello.feature" => "Feature: Hello\n  Scenario: Hi\n    Given nothing\n"}}
+          Req.Test.json(conn, %{"usage" => %{}, "choices" => [%{"message" => %{"tool_calls" => [%{"id" => "c",
+            "type" => "function", "function" => %{"name" => "computer", "arguments" => Jason.encode!(call)}}]}}]})
+      end
+    end)
+
+    Moss.Computer.Agent.run(id, "Make me a hello page.", max_steps: 1)
+    rows = Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Outcome"])
+    assert [note] = for(%{"args" => [at, _, note | _]} <- rows, String.contains?(at, "/step/"), do: note)
+    assert note =~ "Not run: writing features/hello.feature belongs to the write_feature move"
+  end
+
   # looking is using: a look that only opened the page did nothing, and publishing still waits on a real one
   test "a look that never submits the form is no look", %{id: id} do
     Computer.run(id, "help")

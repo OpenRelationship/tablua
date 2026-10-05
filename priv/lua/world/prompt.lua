@@ -193,16 +193,19 @@ local function sure_note(req)
   return note
 end
 
-local function cause_note(req, causes)
+local function cause_note(req, causes, move)
   local c = req.cause
   if not c or not causes[c.choice] then return "" end
-  return ("\nThe decider places the failure's cause in %s%s: %s"):format(c.choice,
-    c.p and (" (%.2f)"):format(c.p) or "", causes[c.choice])
+  -- the feature is write_feature's alone: told the cause was there, a rewrite wrote it nineteen times and was refused
+  local own = (c.choice == "the_feature" and move ~= "write_feature")
+    and " Only write_feature changes the feature: this move changes the code, steps or page." or ""
+  return ("\nThe decider places the failure's cause in %s%s: %s%s"):format(c.choice,
+    c.p and (" (%.2f)"):format(c.p) or "", causes[c.choice], own)
 end
 
 function M.fill(a, req, move, what, run, causes)
   local turn = M.state(a, req, false, a.world.facts_text(req)) .. "\n<next_move>\n" .. move .. ": " .. what
-    .. sure_note(req) .. cause_note(req, causes or {}) .. "\n</next_move>\nMake the tool calls for this move now, in order."
+    .. sure_note(req) .. cause_note(req, causes or {}, move) .. "\n</next_move>\nMake the tool calls for this move now, in order."
   local ok, _, record = pcall(a.env.mercury.chat, a.env.mercury, { kind = "fill", reasoning_effort = "medium",
     temperature = 0.6, max_tokens = 8000, tool_choice = "required",
     tools = { require("moss.world.edits").on(run) and require("moss.world.edits").tool(M.tool) or M.tool },

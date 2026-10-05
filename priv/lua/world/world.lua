@@ -296,9 +296,10 @@ function M.new(host, run)
       end
     end
     local kept = M.changes[verb] and undo.keep(host, calls) or nil
-    local failed, seen = 0, look.new()
+    local failed, seen, refused = 0, look.new(), {}
     for _, c in ipairs(calls) do
       local no = c.edit_refused or M.refused(verb, c)
+      if no then refused[#refused + 1] = no end
       local r = no and { code = 1, stdout = "", stderr = "not run: " .. no .. "\n" } or host.exec(c)
       if r.code ~= 0 then failed = failed + 1 end
       look.read(seen, c, r)
@@ -321,6 +322,11 @@ function M.new(host, run)
         .. M.after(req, req.facts, now)
       -- what using the app found, which the tests may not: the step's note is what both minds read of it
       if step.verdict then step.note = step.note .. " Using the app: " .. step.verdict end
+      -- a call the computer would not run, and why: a plants run rewrote nineteen times, each rewrite writing the
+      -- feature (the cause it was given) and refused as write_feature's, and the note said only that the failure stood
+      if #refused > 0 then
+        step.note = step.note .. (" Not run: %s (the move that does it is the one to choose)."):format(clip(refused[1], 200))
+      end
       -- only the last change can be undone, and only when it broke what passed
       req.undo = req.regressed and kept or nil
       -- publish answers 3 when it has asked the person: that is it done
