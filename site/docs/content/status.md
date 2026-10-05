@@ -19,13 +19,13 @@ Tablua is in active development. This page says what works today, what has been 
 
 ## Measured so far
 
-- **Progress is predictable from the rows.** An offline study of 4,515 steps of app building found whether a step makes progress predictable from the move and where the work stood: AUROC 0.82 on tasks the model hadn't seen. The same study found Jev overconfident in the building stage. Rank mode is the test of acting on that.
+- **Progress is predictable from the rows.** An offline study of 4,515 steps of app building found whether a step makes progress predictable from the move and where the work stood: AUROC 0.82 on todos the model hadn't seen. The same study found Jev overconfident in the building stage. Rank mode is the test of acting on that.
 - **Gates checked against the record.** Of the first eight gates measured, one held (undo after a regression), one didn't (thinking before fixing again after two stalls: 44% against a 38% base rate), and the rest had too few steps to tell or no effect that speaks to their reason.
 - **Model speed.** Median call times from 368 traced calls: Jev 0.20 s, Mercury 0.77 s, a TabPFN prediction 3.0 s.
 
 ## Being measured
 
-- **The evaluation protocol.** Twelve tasks, four held out, several seeds and rephrasings each, with the code frozen. It reports whether apps ship, work and do what was asked, how many steps they took, what they cost, and the gain from shared experience with its confidence interval.
+- **The evaluation protocol.** Twelve todos, four held out, several seeds and rephrasings each, with the code frozen. It reports whether apps ship, work and do what was asked, how many steps they took, what they cost, and the gain from shared experience with its confidence interval.
 - **TabPFN deciding.** Rank mode against Jev alone: as many apps shipped and working, in fewer steps.
 - **Unit edits.** Editing one unit at a time against writing whole files: fewer rewrites and steps, with outcomes no worse.
 - **Breaks.** How many failed runs the break views catch before tests run. So far, fewer than the target.

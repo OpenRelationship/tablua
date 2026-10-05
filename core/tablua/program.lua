@@ -8,7 +8,7 @@
 --   t:put_program(file, rows)     the file's rows, replacing what was kept for it
 --   t:program(file) -> rows | nil t:compile(file) -> org | nil      t:files() -> { file, ... }
 --   t:breaks() -> { { file, kind, source, target } }   the links with nothing at their end (tablua_break)
---   t:change(task, n, ops)        a change's operation rows (tablua.change), as step n of task made them
+--   t:change(todo, n, ops)        a change's operation rows (tablua.change), as step n of todo made them
 --
 -- Putting a file's rows also puts its links (tablua.links), and settles every call's link against every keyword
 -- the program defines, in whichever file (a Lua keyword unit or a user keyword), and BuiltIn's and the host's
@@ -86,10 +86,10 @@ return function(T, put)
     db:exec("commit")
   end
 
-  function T:change(task, n, ops)
+  function T:change(todo, n, ops)
     for i, o in ipairs(ops) do
-      put(self.db, "tablua_change", { "task", "n", "i", "op", "kind", "name", "lines", "named_by", "breaks" },
-        { task = task, n = n, i = i, op = o.op, kind = o.kind, name = o.name, lines = o.lines, named_by = o.named_by,
+      put(self.db, "tablua_change", { "todo", "n", "i", "op", "kind", "name", "lines", "named_by", "breaks" },
+        { todo = todo, n = n, i = i, op = o.op, kind = o.kind, name = o.name, lines = o.lines, named_by = o.named_by,
           breaks = o.breaks })
     end
   end

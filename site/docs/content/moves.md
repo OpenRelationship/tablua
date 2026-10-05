@@ -12,9 +12,9 @@ The stage is worked out by code, from facts, in this order:
 
 | Stage | When |
 | --- | --- |
-| `answered` | the task has been answered |
-| `changing` | the app shipped before this task, which asks to change it |
-| `shipped` | the app is published, the task not yet answered |
+| `answered` | the todo has been answered |
+| `changing` | the app shipped before this todo, which asks to change it |
+| `shipped` | the app is published, the todo not yet answered |
 | `awaiting_yes` | publishing waits for the person's yes |
 | `no_tests` | no tests have been written yet |
 | `awaiting_agreement` | the tests are written and the person hasn't agreed to them |
@@ -54,10 +54,10 @@ Gates can hold some of these back in particular situations ([Policy as data](/co
 | `read_help` | reads the computer's help on a kind of file or a command |
 | `publish` | publishes the app, for the person's yes |
 | `wait_for_yes` | waits for that yes |
-| `answer_task` | answers the task with a letter naming what shipped and where |
-| `answer` | the task is answered; the run ends |
-| `think` | goes over the task and the steps so far, and says what is wrong and what to do next |
-| `plan`, `next_part` | splits a larger task into parts, and moves to the next |
+| `answer_task` | answers the todo with a letter naming what shipped and where |
+| `answer` | the todo is answered; the run ends |
+| `think` | goes over the todo and the steps so far, and says what is wrong and what to do next |
+| `plan`, `next_part` | splits a larger todo into parts, and moves to the next |
 | `blocked` | stops and reports that the agent's own tools keep failing |
 
 ## Causes

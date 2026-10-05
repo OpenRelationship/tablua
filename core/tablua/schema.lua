@@ -1,5 +1,5 @@
 -- Three parts, told apart by their key (site/docs/content/log-and-build.md): the log, what the agent did, keyed by
--- (task, n) and only ever added to (state, candidate, decision, action, change, outcome, effect, feature, label,
+-- (todo, n) and only ever added to (state, candidate, decision, action, change, outcome, effect, feature, label,
 -- prediction, control, run, result); the build, what it is making, keyed by file and replaced as files change
 -- (section, unit, shape, element, test, keyword, call, link, the break view); and the policy, keyed by neither
 -- (gate, fit, ranking).
@@ -35,50 +35,53 @@
 -- task's name is what Robot knows it by): how often it ran and passed, and the keyword it fails at most (the
 -- deepest, when a user keyword fails with the one inside it).
 -- A file kept before it has the kind column added at open (M.migrate).
+-- Schema 14 (owner, 2026-10-05): what the agent is asked to do is a todo, org's word for a thing to be done, so
+-- that task means one thing, a Robot task. Every log table's key is (todo, n), not (task, n); a file kept before it
+-- has the column renamed at open (M.migrate).
 local M = {}
 
-M.version = 13
+M.version = 14
 
 M.ddl = [[
 create table if not exists tablua_meta (key text primary key, value text);
 create table if not exists tablua_state (
-  task text not null, n integer not null,
+  todo text not null, n integer not null,
   stage text not null default '', passed integer, total integer, pass real,
   stalls integer not null default 0, last_verb text not null default '', last_outcome text not null default '',
   cause text not null default '', pages_ok integer, own_checks integer not null default 0,
   ask text not null default '', versions text not null default '{}', at text,
-  primary key (task, n));
+  primary key (todo, n));
 create table if not exists tablua_candidate (
-  task text not null, n integer not null, move text not null,
+  todo text not null, n integer not null, move text not null,
   jev_p real, jev_conf real, jev_margin real, jev_form text not null default 'choice',
   p_progress real, p_ship real, cost_q50 real, cost_q90 real, explored integer not null default 0,
-  primary key (task, n, move));
+  primary key (todo, n, move));
 create table if not exists tablua_decision (
-  task text not null, n integer not null, chosen text not null, by text not null,
+  todo text not null, n integer not null, chosen text not null, by text not null,
   propensity real, policy text not null default '', at text,
-  primary key (task, n));
+  primary key (todo, n));
 create table if not exists tablua_action (
-  task text not null, n integer not null, i integer not null,
+  todo text not null, n integer not null, i integer not null,
   cmd text not null default '', file_kind text not null default '', op text not null default '',
   target text not null default '', bytes integer, exit integer, duration_ms real,
-  primary key (task, n, i));
+  primary key (todo, n, i));
 create table if not exists tablua_outcome (
-  task text not null, n integer not null, verb text not null, outcome text not null,
+  todo text not null, n integer not null, verb text not null, outcome text not null,
   progress integer not null, regressed integer not null default 0, same_failure integer not null default 0,
   passed integer, total integer, failing text not null default '[]', note text not null default '',
-  primary key (task, n));
+  primary key (todo, n));
 create table if not exists tablua_run (
-  task text primary key, shipped integer, answered integer, works integer, right integer,
+  todo text primary key, shipped integer, answered integer, works integer, right integer,
   changed integer, steps integer, cost real, at text);
 create table if not exists tablua_fit (
   head text not null, schema text not null, id text not null, rows integer not null, at text,
   primary key (head, schema));
 create table if not exists tablua_prediction (
-  task text not null, n integer not null, head text not null, move text not null, p real not null,
-  primary key (task, n, head, move));
+  todo text not null, n integer not null, head text not null, move text not null, p real not null,
+  primary key (todo, n, head, move));
 create table if not exists tablua_feature (
-  task text not null, n integer not null, name text not null, value real, form text not null default '',
-  primary key (task, n, name));
+  todo text not null, n integer not null, name text not null, value real, form text not null default '',
+  primary key (todo, n, name));
 create table if not exists tablua_section (
   file text not null, n integer not null, kind text not null, lang text not null default '',
   body text not null default '', primary key (file, n));
@@ -97,25 +100,25 @@ create table if not exists tablua_call (
   file text not null, item integer not null, path text not null, keyword text not null,
   args text not null default '', primary key (file, item, path));
 create table if not exists tablua_result (
-  task text not null, n integer not null, run integer not null, file text not null default '', test text not null,
+  todo text not null, n integer not null, run integer not null, file text not null default '', test text not null,
   path text not null, parent text not null default '', depth integer not null default 0, type text not null,
   keyword text not null default '', args text not null default '', status text not null,
   message text not null default '', ms real, line integer,
-  primary key (task, n, run, file, test, path));
+  primary key (todo, n, run, file, test, path));
 drop view if exists tablua_task_record;
 create view if not exists tablua_task_record as select r.test as name, count(*) as runs,
   sum(r.status = 'PASS') as passed,
-  (select f.keyword from tablua_result f join tablua_result o on o.task = f.task and o.n = f.n and o.run = f.run
+  (select f.keyword from tablua_result f join tablua_result o on o.todo = f.todo and o.n = f.n and o.run = f.run
       and o.file = f.file and o.test = f.test and o.path = '' and o.type = 'task'
     where f.test = r.test and f.type = 'keyword' and f.status = 'FAIL'
     group by f.keyword order by count(*) desc, max(f.depth) desc, f.keyword limit 1) as fails_at
   from tablua_result r where r.type = 'task' and r.path = '' group by r.test;
 create table if not exists tablua_label (
-  task text not null, n integer not null, head text not null, value real not null, source text not null,
-  at text, primary key (task, n, head, source));
+  todo text not null, n integer not null, head text not null, value real not null, source text not null,
+  at text, primary key (todo, n, head, source));
 create table if not exists tablua_effect (
-  task text not null, n integer not null, keyword text not null, arg text not null default '',
-  primary key (task, n, keyword, arg));
+  todo text not null, n integer not null, keyword text not null, arg text not null default '',
+  primary key (todo, n, keyword, arg));
 create table if not exists tablua_link (
   file text not null, kind text not null, source text not null, target text not null,
   found integer not null default 0, primary key (file, kind, source, target));
@@ -133,16 +136,16 @@ union all select file, 'orphan', name, name from tablua_unit u where kind = 'act
 union all select file, 'orphan', target, target from tablua_link d where kind = 'defines'
   and not exists (select 1 from tablua_link p where p.kind = 'post' and p.target = d.target);
 create table if not exists tablua_control (
-  task text not null, n integer not null, i integer not null, id text not null, app text not null default '',
+  todo text not null, n integer not null, i integer not null, id text not null, app text not null default '',
   verb text not null default '', role text not null default '', label text not null default '', ord integer,
-  chosen integer not null default 0, primary key (task, n, i));
+  chosen integer not null default 0, primary key (todo, n, i));
 create table if not exists tablua_ranking (
-  task text not null, head text not null, key text not null, n integer, ps text not null,
-  primary key (task, head, key));
+  todo text not null, head text not null, key text not null, n integer, ps text not null,
+  primary key (todo, head, key));
 create table if not exists tablua_change (
-  task text not null, n integer not null, i integer not null, op text not null, kind text not null default '',
+  todo text not null, n integer not null, i integer not null, op text not null, kind text not null default '',
   name text not null default '', lines integer not null default 0, named_by integer not null default 0,
-  breaks integer not null default 0, primary key (task, n, i));
+  breaks integer not null default 0, primary key (todo, n, i));
 create table if not exists tablua_shape (
   file text not null, section integer not null, n integer not null, lines integer not null default 0,
   arity integer not null default 0, depth integer not null default 0, names integer not null default 0,
@@ -156,11 +159,26 @@ create table if not exists tablua_gate (
   retired_by text);
 ]]
 
--- what a file kept before this schema needs that create table if not exists does not give it
+-- the log's tables, each keyed by the todo (schema 14 renamed its column from task)
+M.log = { "state", "candidate", "decision", "action", "outcome", "run", "prediction", "feature", "result", "label",
+  "effect", "control", "ranking", "change" }
+
+local function columns(db, tbl)
+  local out = {}
+  for _, c in ipairs(db:exec("pragma table_info(" .. tbl .. ")")) do out[c.name] = true end
+  return out
+end
+
+-- what a file kept before this schema needs that create table if not exists does not give it; run before the ddl,
+-- on whichever tables the file already has
 function M.migrate(db)
-  local has = false
-  for _, c in ipairs(db:exec("pragma table_info(tablua_test)")) do if c.name == "kind" then has = true end end
-  if not has then db:exec("alter table tablua_test add column kind text not null default 'test'") end
+  db:exec("drop view if exists tablua_task_record")
+  for _, name in ipairs(M.log) do
+    local cols = columns(db, "tablua_" .. name)
+    if cols.task and not cols.todo then db:exec("alter table tablua_" .. name .. " rename column task to todo") end
+  end
+  local test = columns(db, "tablua_test")
+  if next(test) and not test.kind then db:exec("alter table tablua_test add column kind text not null default 'test'") end
 end
 
 return M

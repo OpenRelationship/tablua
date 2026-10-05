@@ -36,8 +36,8 @@ end
 
 function M.steps(t)
   return t.db:exec([[select c.jev_p as p, o.outcome from tablua_decision d
-    join tablua_candidate c on c.task = d.task and c.n = d.n and c.move = d.chosen
-    join tablua_outcome o on o.task = d.task and o.n = d.n where c.jev_p is not null order by d.rowid]])
+    join tablua_candidate c on c.todo = d.todo and c.n = d.n and c.move = d.chosen
+    join tablua_outcome o on o.todo = d.todo and o.n = d.n where c.jev_p is not null order by d.rowid]])
 end
 
 function M.label(b) return ("%.1f-%.1f"):format(b.lo, b.hi) end

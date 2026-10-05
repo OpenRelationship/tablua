@@ -41,7 +41,7 @@ local world = {
       options = { run_test = "Run the tests.", write_code = "Change the code.", answer = "The work is done." } }
   end,
   state = function(_, req, for_jev) return "Task: " .. req.text .. "\n" .. my_facts() end,
-  think = function(_, req) return { system = "Think the task through.", user = req.text } end,
+  think = function(_, req) return { system = "Think the todo through.", user = req.text } end,
   ask = function(_, req) return { system = "Write one question for the person.", user = req.text } end,
   form = function(written) return { question = written } end,
   act = function(_, req, verb, step)

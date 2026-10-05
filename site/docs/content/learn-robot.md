@@ -48,7 +48,7 @@ Tablua used Gherkin before schema 12 and moved to Robot (owner, 2026-10-05) beca
 
 ## How the agent uses it
 
-The agent's first move on any task is `write_tests`: it turns the person's words into tests like the ones above. Then it **waits for the person to agree**. Only after they agree does building start.
+The agent's first move on any todo is `write_tests`: it turns the person's words into tests like the ones above. Then it **waits for the person to agree**. Only after they agree does building start.
 
 From then on, the tests are the definition of done:
 

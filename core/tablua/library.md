@@ -1,7 +1,7 @@
 ---
 name: tablua
 description: Tablua, the continual tabular agent harness (owner 2026-10-04) — the agent's work as typed rows in its own SQLite file (state, candidates with Jev's and TabPFN's numbers, decisions, actions, outcomes, runs, fits, predictions, gates) and TabPFN's training rows as a query over them; use when changing what the agent records of its work, how it learns from it, or how decisions are taken from the rows.
-summary: tablua.open(db) -> t; t:state, t:candidates, t:decision, t:action, t:outcome (-> progress), t:run, t:prediction, t:fit/fitted, t:attach(name, path), t:training(head) -> {columns, rows}, labels; tablua.progress(outcome, before). db is the host log's port, db:exec(sql, params) -> rows. The program as rows: tablua.source decode(org) -> rows, compile(rows) -> org, from_files, from_lui, units, tests, calls; tablua.org write/read; t:results(task, n, res, file?) keeps a test or task run's keyword tree (robot.run) as rows; t:tasks() -> the program's tasks (tablua_test kind task) with each one's record (tablua_task_record). Hindsight (M2): t:label(task, n, head, value, source); tablua.hindsight.label(t, jev, task) asks Jev, after a run, whether each step contributed; t:training("contrib") trains on those labels. Effects (M2): t:effects(task, n, list); tablua.effects.compare(before, after, step, commands); tablua.telemetry.derive(t, task); t:training("effect:<Keyword>").
+summary: tablua.open(db) -> t; t:state, t:candidates, t:decision, t:action, t:outcome (-> progress), t:run, t:prediction, t:fit/fitted, t:attach(name, path), t:training(head) -> {columns, rows}, labels; tablua.progress(outcome, before). db is the host log's port, db:exec(sql, params) -> rows. The program as rows: tablua.source decode(org) -> rows, compile(rows) -> org, from_files, from_lui, units, tests, calls; tablua.org write/read; t:results(todo, n, res, file?) keeps a test or task run's keyword tree (robot.run) as rows; t:tasks() -> the program's tasks (tablua_test kind task) with each one's record (tablua_task_record). Hindsight (M2): t:label(todo, n, head, value, source); tablua.hindsight.label(t, jev, todo) asks Jev, after a run, whether each step contributed; t:training("contrib") trains on those labels. Effects (M2): t:effects(todo, n, list); tablua.effects.compare(before, after, step, commands); tablua.telemetry.derive(t, todo); t:training("effect:<Keyword>").
 do:
   - Keep every fact a typed column; never a sentence to be parsed back.
   - Name every table tablua_; a host can let the harness reach no other.
@@ -43,6 +43,10 @@ Schema 13 makes tasks Tablua's own (owner, 2026-10-05): a task is a test that do
 `robot.run(suite, { rpa = true })` and kept by `t:results` like a test run. `robot.record(test)` writes a passing
 test's run as one, to do again with no model deciding; `tablua_task_record` (and `t:tasks()`) is each task's record
 over every run: runs, passed, and the keyword it fails at most.
+
+Schema 14 calls what the agent is asked to do a todo (owner, 2026-10-05: org's word for a thing to be done): every
+log table is keyed by (`todo`, `n`), so "task" means only a Robot task. A file kept before it has its `task` column
+renamed at open.
 
 Schema 4 adds labels given after the fact (`tablua_label`). `hindsight.lua` gives Jev a finished run, its ask,
 how it ended and every step, and keeps its chance that each step contributed to the app built as head `contrib`

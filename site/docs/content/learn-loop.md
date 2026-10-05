@@ -6,7 +6,7 @@ description: Module 1. What an AI agent actually does, step by step, and what a 
 
 ## What an agent is
 
-A language model on its own answers one message and stops. An **agent** is a language model put in a loop, with tools it can use, so it can work on a task over many steps until the task is done.
+A language model on its own answers one message and stops. An **agent** is a language model put in a loop, with tools it can use, so it can work on a todo over many steps until the todo is done.
 
 Every agent, however it is built, repeats the same five things:
 
@@ -16,7 +16,7 @@ Every agent, however it is built, repeats the same five things:
 4. **Check.** Did that help?
 5. **Remember.** Keep what happened, so the next step knows.
 
-Then it goes back to step 1. The loop ends when the task is done, when the agent is stuck and says so, or when it runs out of steps.
+Then it goes back to step 1. The loop ends when the todo is done, when the agent is stuck and says so, or when it runs out of steps.
 
 ## What a harness is
 

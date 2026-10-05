@@ -11,7 +11,7 @@ A new agent has no record of its own, so it has nothing to learn from. Shared ex
 ## How it works
 
 1. **An agent works as usual**, writing its rows into its own file.
-2. **When the run ends**, its Tablua rows are copied into the node's shared experience file. Each task is renamed `<computer>|<task>`, so one agent's tasks can never be mistaken for another's.
+2. **When the run ends**, its Tablua rows are copied into the node's shared experience file. Each todo is renamed `<computer>|<todo>`, so one agent's todos can never be mistaken for another's.
 3. **Every agent attaches the shared file** when it starts a run. When TabPFN is fitted, it reads the shared rows first, then the agent's own.
 
 The copy happens only at the end of a run. An agent never reads its own run back from the shared file, so nothing is counted twice, and no agent learns from a run that hasn't finished.
@@ -33,12 +33,12 @@ local train, labels = t:training("progress", { before = true })   -- shared rows
 
 ## Measuring whether it helps
 
-Sharing should help, but that is a claim to measure, not assume. Tablua's evaluation compares two ways of running the same ordered list of tasks:
+Sharing should help, but that is a claim to measure, not assume. Tablua's evaluation compares two ways of running the same ordered list of todos:
 
 - **stream**: each run reads the shared experience left by the runs before it;
 - **reset**: each run learns from its own steps alone.
 
-The difference in outcomes between the two is the *gain* from experience, reported with a confidence interval over several seeds and rephrasings of each task. Tasks are run as dependent streams (variations of one kind of app) and independent ones, to check both that experience helps where it should and that it does no harm where it shouldn't.
+The difference in outcomes between the two is the *gain* from experience, reported with a confidence interval over several seeds and rephrasings of each todo. Todos are run as dependent streams (variations of one kind of app) and independent ones, to check both that experience helps where it should and that it does no harm where it shouldn't.
 
 ## Next
 

@@ -10,7 +10,7 @@ Left alone, agents fall into loops. They fix the same failure again and again, r
 
 ## Gates
 
-In Tablua a rule is a **gate**: it holds one move back in one situation. Gates are written once, as tasks in Robot Framework's syntax, each with its **reason**:
+In Tablua a rule is a **gate**: it holds one move back in one situation. Gates are written once, as tests in Robot Framework's syntax, each with its **reason**:
 
 ```robot
 *** Test Cases ***
@@ -45,7 +45,7 @@ Many gates count **stalls**: steps in a row that changed nothing. A step stalls 
 
 ## Retiring a gate
 
-Every gate but the fixed ones can be turned off for a run. To find out whether a gate still earns its place, Tablua runs an **A/B test**: the same tasks with the gate on and with it off. If turning it off doesn't make things worse, the gate is retired.
+Every gate but the fixed ones can be turned off for a run. To find out whether a gate still earns its place, Tablua runs an **A/B test**: the same todos with the gate on and with it off. If turning it off doesn't make things worse, the gate is retired.
 
 The evaluation also checks every gate's `because` line against the effects recorded across all runs. A gate whose reason doesn't hold is the first candidate for retiring.
 

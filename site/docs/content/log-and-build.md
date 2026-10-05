@@ -8,7 +8,7 @@ An agent's file holds three kinds of rows. Every table belongs to exactly one of
 
 | Part | What it holds | Keyed by | Changes by |
 | --- | --- | --- | --- |
-| **The log** | what the agent did: each state it decided in, the moves it could have made, the move it took, the calls that move made, how the step turned out, how the run ended | `(task, n)`: the run and the step | adding rows; nothing is ever edited |
+| **The log** | what the agent did: each state it decided in, the moves it could have made, the move it took, the calls that move made, how the step turned out, how the run ended | `(todo, n)`: the run and the step | adding rows; nothing is ever edited |
 | **The build** | what the agent is making: the files of the app, cut into sections, units, tests, keywords, their calls and the links between them | the file | replacing rows as the files change |
 | **The policy** | how the next decision is made: the gates in force, the fits TabPFN has made, the rankings a run paid for | neither | refitting, and retiring gates through an A/B |
 

@@ -8,7 +8,7 @@ An agent that keeps its history as text can only use that history by reading it 
 
 ## The usual way: history as text
 
-Most agents work like this. A language model reads a prompt that describes the task and what has happened so far. It writes the next action. The result is added to the prompt, and the loop repeats. When the prompt gets too long, older parts are summarised or moved into a vector store to be searched later.
+Most agents work like this. A language model reads a prompt that describes the todo and what has happened so far. It writes the next action. The result is added to the prompt, and the loop repeats. When the prompt gets too long, older parts are summarised or moved into a vector store to be searched later.
 
 This works, and it is simple. But it leaves some questions hard to answer:
 

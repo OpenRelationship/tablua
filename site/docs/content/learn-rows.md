@@ -17,13 +17,13 @@ All of these tables live in **one SQLite file per agent**. SQLite is a small dat
 Here is step 3 from the plants example, written the way Tablua writes it. Every value is a column with a name and a type:
 
 ```text
-tablua_state      task=plants n=3  stage=building  passed=1 total=3  stalls=0  cause=the_page
-tablua_candidate  task=plants n=3  move=fix_failure   jev_p=0.71
-tablua_candidate  task=plants n=3  move=write_page    jev_p=0.18
-tablua_candidate  task=plants n=3  move=think         jev_p=0.11
-tablua_decision   task=plants n=3  chosen=fix_failure  by=jev
-tablua_action     task=plants n=3  i=1  op=write_file  target=ui/index.org  exit=0
-tablua_outcome    task=plants n=3  outcome=complete  passed=3 total=3  progress=1
+tablua_state      todo=plants n=3  stage=building  passed=1 total=3  stalls=0  cause=the_page
+tablua_candidate  todo=plants n=3  move=fix_failure   jev_p=0.71
+tablua_candidate  todo=plants n=3  move=write_page    jev_p=0.18
+tablua_candidate  todo=plants n=3  move=think         jev_p=0.11
+tablua_decision   todo=plants n=3  chosen=fix_failure  by=jev
+tablua_action     todo=plants n=3  i=1  op=write_file  target=ui/index.org  exit=0
+tablua_outcome    todo=plants n=3  outcome=complete  passed=3 total=3  progress=1
 ```
 
 Read it top to bottom and it tells the story of the step:
@@ -34,7 +34,7 @@ Read it top to bottom and it tells the story of the step:
 - **action**: each thing the move actually did (here, it wrote one file).
 - **outcome**: how it turned out. All 3 tests now pass, so this step made progress.
 
-Two more tables close the picture: `tablua_run` holds one row per whole task (did it ship, how many steps, what it cost), and the `task` and `n` columns join everything together.
+Two more tables close the picture: `tablua_run` holds one row per whole todo (did it ship, how many steps, what it cost), and the `todo` and `n` columns join everything together.
 
 ## Why rows beat a transcript
 
@@ -43,8 +43,8 @@ Two more tables close the picture: `tablua_run` holds one row per whole task (di
 ```sql
 select d.chosen, avg(o.progress)
 from tablua_state s
-join tablua_decision d using (task, n)
-join tablua_outcome  o using (task, n)
+join tablua_decision d using (todo, n)
+join tablua_outcome  o using (todo, n)
 where s.stalls >= 2
 group by d.chosen;
 ```

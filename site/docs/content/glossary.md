@@ -8,7 +8,7 @@ description: Plain definitions of the words used across Tablua's docs.
 
 **Agent.** A program that works toward a goal in steps, choosing what to do at each one. In Tablua, an agent is its rows and its computer, in one file.
 
-**A/B.** Running the same tasks two ways, for example with a gate on and with it off, and comparing the outcomes.
+**A/B.** Running the same todos two ways, for example with a gate on and with it off, and comparing the outcomes.
 
 **Build, the.** What the agent is making: the files of the app, as rows keyed by file (`tablua_section`, `tablua_unit`, `tablua_test` and the rest). Rows are replaced as the files change. One of the three parts of an agent's file, with the log and the policy ([The log and the build](/concepts/log-and-build)).
 
@@ -75,7 +75,7 @@ description: Plain definitions of the words used across Tablua's docs.
 
 **Row.** One record in a table, with fixed columns.
 
-**Run.** One task, from the first step to the end. Its ending is a `tablua_run` row.
+**Run.** One todo, from the first step to the end. Its ending is a `tablua_run` row.
 
 **Shadow mode.** TabPFN's estimates are recorded at every decision but never used.
 
@@ -85,10 +85,10 @@ description: Plain definitions of the words used across Tablua's docs.
 
 **TabPFN.** A tabular foundation model from Prior Labs. It learns from a table of examples in one pass, with no training run.
 
-**Task.** What the agent was asked to do. The key that joins a run's rows (the `task` column).
-
-**Task (Robot).** A test that does a job rather than checks one, written under `*** Tasks ***`: the same keyword calls, run the same way, its run kept as `tablua_result` rows. A `tablua_test` row of kind `task`; its record over every run is `tablua_task_record`.
+**Task.** A test that does a job rather than checks one, written under `*** Tasks ***`: the same keyword calls, run the same way, its run kept as `tablua_result` rows. A `tablua_test` row of kind `task`; its record over every run is `tablua_task_record`.
 
 **Test.** One test case in Robot Framework's syntax: a name and the keyword calls it makes. The tests say what done means; how many pass is the state's `passed`. A `tablua_test` row.
+
+**Todo.** What the agent was asked to do: org's word for a thing to be done. The key that joins a run's rows (the `todo` column), so that "task" means only a Robot task.
 
 **Unit.** One top-level piece of a program: a function, an action, a Lua keyword, a page.

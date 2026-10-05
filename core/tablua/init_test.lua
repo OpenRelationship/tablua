@@ -6,22 +6,22 @@ local sqlite = require("ports.sqlite")
 
 local function fresh(path) return tablua.open(sqlite.open(path or ":memory:"), { clock = function() return "t" end }) end
 
-local function step(t, task, n, verb, before, after, outcome)
-  t:state{ task = task, n = n, stage = "building", passed = before, total = 2 }
-  t:candidates(task, n, { { move = verb, jev_p = 0.5, jev_margin = 0.1 } })
-  t:decision{ task = task, n = n, chosen = verb, by = "jev" }
-  return t:outcome{ task = task, n = n, verb = verb, outcome = outcome, passed = after, total = 2 }
+local function step(t, todo, n, verb, before, after, outcome)
+  t:state{ todo = todo, n = n, stage = "building", passed = before, total = 2 }
+  t:candidates(todo, n, { { move = verb, jev_p = 0.5, jev_margin = 0.1 } })
+  t:decision{ todo = todo, n = n, chosen = verb, by = "jev" }
+  return t:outcome{ todo = todo, n = n, verb = verb, outcome = outcome, passed = after, total = 2 }
 end
 
 spec.test("a decision's state, candidates and choice are typed rows", function()
   local t = fresh()
-  t:state{ task = "r1", n = 1, stage = "building", passed = 1, total = 2, last_verb = "write_steps" }
+  t:state{ todo = "r1", n = 1, stage = "building", passed = 1, total = 2, last_verb = "write_steps" }
   t:candidates("r1", 1, { { move = "rewrite", jev_p = 0.6 }, { move = "write_page", jev_p = 0.3 } })
-  t:decision{ task = "r1", n = 1, chosen = "rewrite", by = "jev", propensity = 1 }
+  t:decision{ todo = "r1", n = 1, chosen = "rewrite", by = "jev", propensity = 1 }
   spec.eq(t:count("state"), 1)
   spec.eq(t:count("candidate"), 2)
   spec.eq(t:count("decision"), 1)
-  local s = t.db:exec("select stage, pass from tablua_state where task = 'r1'")[1]
+  local s = t.db:exec("select stage, pass from tablua_state where todo = 'r1'")[1]
   spec.eq(s.stage, "building")
   spec.eq(s.pass, 0.5)
 end)
@@ -45,7 +45,7 @@ spec.test("training rows are a query: progress per step, and ship from the run's
   spec.eq(#train.columns, #train.rows[1])
   local _, none = t:training("ship")
   spec.same(none, {})
-  t:run{ task = "r1", shipped = true, answered = true, works = true }
+  t:run{ todo = "r1", shipped = true, answered = true, works = true }
   local _, ship = t:training("ship")
   spec.same(ship, { 1, 1 })
 end)
@@ -116,7 +116,7 @@ spec.test("a program kept as rows compiles back to the same org, and a file put 
   local change = require("tablua.change")
   local done = assert(change.apply(rows, "%% rename post.water post.feed\n"))
   t:change("r1", 3, done.ops)
-  spec.same(t.db:exec("select op, kind, name, lines, named_by, breaks from tablua_change where task = 'r1' and n = 3"),
+  spec.same(t.db:exec("select op, kind, name, lines, named_by, breaks from tablua_change where todo = 'r1' and n = 3"),
     { { op = "rename", kind = "action", name = "post.water", lines = 0, named_by = 0, breaks = 0 } })
   t:put_program("ui/index.org", src.from_files({ code = "print(1)\n" }))
   spec.eq(t:count("unit"), 1)
@@ -137,7 +137,7 @@ spec.test("a test run's keyword tree is kept as rows of its step, numbered by ru
   spec.same({ s.passed, s.total, s.failing[1].test, s.failing[1].path, s.failing[1].reach }, { 1, 2, "Broken", "2", 1 })
   t:results("r1", 4, robot.run(suite, { libraries = { lib } }))
   spec.eq(t:count("result"), 12)
-  local rows = t.db:exec("select path, keyword, status, message from tablua_result where task = 'r1' and n = 4 "
+  local rows = t.db:exec("select path, keyword, status, message from tablua_result where todo = 'r1' and n = 4 "
     .. "and run = 1 and test = 'Broken' order by path")
   spec.same(rows, { { path = "", keyword = "Broken", status = "FAIL", message = "no db" },
     { path = "1", keyword = "Add Plant", status = "PASS", message = "" },
@@ -227,6 +227,17 @@ spec.test("schema 13 adds a test's kind to a file kept before it", function()
   spec.same(t:tasks(), {})
 end)
 
+spec.test("schema 14 renames a file's task column to todo, its rows kept", function()
+  local db = sqlite.open(":memory:")
+  db:exec("create table tablua_outcome (task text not null, n integer not null, verb text not null, "
+    .. "outcome text not null, progress integer not null, primary key (task, n))")
+  db:exec("insert into tablua_outcome (task, n, verb, outcome, progress) values ('r1', 1, 'think', 'complete', 1)")
+  local t = tablua.open(db, { clock = function() return "t" end })
+  spec.same(t.db:exec("select todo, n, verb from tablua_outcome"), { { todo = "r1", n = 1, verb = "think" } })
+  tablua.open(db, { clock = function() return "t" end })
+  spec.eq(t:count("outcome"), 1)
+end)
+
 spec.test("schema 9 renames a Lua section kept before it to kind code", function()
   local db = sqlite.open(":memory:")
   local t = tablua.open(db, { clock = function() return "t" end })
@@ -242,7 +253,7 @@ spec.test("Jev's hindsight labels each step once, in batches, and contrib trains
   local hindsight = require("tablua.hindsight")
   local t = fresh()
   for n = 1, 3 do step(t, "r1", n, n == 2 and "undo" or "write_page", 0, 1, "complete") end
-  t:run{ task = "r1", shipped = true, answered = true, works = true }
+  t:run{ todo = "r1", shipped = true, answered = true, works = true }
   local asked = {}
   local jev = { decide = function(_, state, q)
     asked[#asked + 1] = { state = state, q = q }
@@ -261,7 +272,7 @@ spec.test("Jev's hindsight labels each step once, in batches, and contrib trains
   local train, labels = t:training("contrib")
   spec.eq(#train.rows, 3)
   spec.same(labels, { 1, 0, 1 })
-  spec.same(train.keys[2], { task = "r1", n = 2 })
+  spec.same(train.keys[2], { todo = "r1", n = 2 })
   local _, none = fresh():training("contrib")
   spec.same(none, {})
   hindsight.batch = 25
@@ -292,12 +303,12 @@ spec.test("the log's step windows become each step's effects, and an effect is a
   spec.eq(telemetry.derive(t, "r1"), 2)
   spec.eq(telemetry.derive(t, "r1"), 0)
   local e = {}
-  for _, r in ipairs(t.db:exec("select keyword, arg from tablua_effect where task = 'r1' and n = 2")) do e[r.keyword] = r.arg end
+  for _, r in ipairs(t.db:exec("select keyword, arg from tablua_effect where todo = 'r1' and n = 2")) do e[r.keyword] = r.arg end
   spec.eq(e["Test Turned Green"], "add")
   spec.eq(e["Keyword Fixed"], "open")
   spec.ok(e["All Green"] and e["More Passing"])
   local first = {}
-  for _, r in ipairs(t.db:exec("select keyword, arg from tablua_effect where task = 'r1' and n = 1")) do first[r.keyword] = r.arg end
+  for _, r in ipairs(t.db:exec("select keyword, arg from tablua_effect where todo = 'r1' and n = 1")) do first[r.keyword] = r.arg end
   spec.ok(first["Tests First Ran"] and first["Command Failed"] == "test")
   local _, labels = t:training("effect:All Green")
   spec.same(labels, { 0, 1 })

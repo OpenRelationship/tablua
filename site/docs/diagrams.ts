@@ -59,7 +59,7 @@ export const diagrams: Record<string, string> = {
       <div class="box"><span class="mono">computer b</span><small>agent.sqlite</small></div>
       <div class="box"><span class="mono">computer c</span><small>agent.sqlite</small></div>
     </div>
-    <div class="arrow"><span>a run ends: its rows are copied, each task as <code>computer|task</code></span></div>
+    <div class="arrow"><span>a run ends: its rows are copied, each todo as <code>computer|todo</code></span></div>
     <div class="box box-hi"><span class="mono">shared experience</span><small>one SQLite file per node</small></div>
     <div class="arrow"><span>attached and read beside the agent's own rows</span></div>
     <div class="box"><span class="mono">computer d</span><small>its next decision</small></div>

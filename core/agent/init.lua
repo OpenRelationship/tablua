@@ -155,14 +155,14 @@ function A:stepping(phase, step) if self.env.stepping then pcall(self.env.steppi
 
 -- A row in the request's memory and in the trace, where there are.
 function A:rows(keyword, args)
-  local task = self.req and self.req.task
-  if self.env.memory and task then pcall(self.env.memory.log, self.env.memory, task, keyword, args, "agent") end
+  local todo = self.req and self.req.todo
+  if self.env.memory and todo then pcall(self.env.memory.log, self.env.memory, todo, keyword, args, "agent") end
   if self.env.trace then self.env.trace:row(keyword, args) end
 end
 
 function A:begin(text)
   local req = { text = text, steps = {} }
-  req.task = self.env.memory and self.env.memory:begin(text)
+  req.todo = self.env.memory and self.env.memory:begin(text)
   self.req = req
   self.history:begin()
   self.history:person(text)

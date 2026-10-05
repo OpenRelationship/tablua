@@ -56,7 +56,7 @@ function M.before(a, req)
   if not every then for _, t in ipairs(a.world.tools) do names[#names + 1] = t.name end end
   local ranked, why = learn:rank("step", { request = req.text, app = last and last.app or "", n = #req.steps + 1,
     fails = M.fails(req), last_verb = last and last.verb or "", last_outcome = last and last.outcome or "",
-    stage = req.standing.stage, pass = req.standing.pass, task = req.task, at = #req.steps + 1,
+    stage = req.standing.stage, pass = req.standing.pass, todo = req.todo, at = #req.steps + 1,
     -- what a world that keeps them knows besides (Tablua's columns before Jev answers, learn's rows)
     stalls = req.repeats or 0, cause = req.cause and req.cause.choice or "",
     own_checks = req.facts and req.facts.tests and #(req.facts.tests.checked or {}) or 0 }, names)
@@ -83,19 +83,19 @@ end
 -- the work stood, how sure Jev was of the move, the move, and how it ended; what TabPFN learns from (learn.lua).
 local function rows(a, req, step, prev)
   local t, s = a.env.tablua, req.standing or {}
-  t:state{ task = req.task, n = step.n, stage = s.stage, stalls = req.repeats, last_verb = prev and prev.verb,
+  t:state{ todo = req.todo, n = step.n, stage = s.stage, stalls = req.repeats, last_verb = prev and prev.verb,
     last_outcome = prev and prev.outcome, cause = req.cause and req.cause.choice }
-  t:candidates(req.task, step.n, { { move = step.verb, jev_p = step.sure and step.sure.p,
+  t:candidates(req.todo, step.n, { { move = step.verb, jev_p = step.sure and step.sure.p,
     jev_conf = step.sure and step.sure.confidence } })
-  t:decision{ task = req.task, n = step.n, chosen = step.verb, by = step.by or "jev" }
-  t:outcome{ task = req.task, n = step.n, verb = step.verb, outcome = step.outcome, note = step.note }
+  t:decision{ todo = req.todo, n = step.n, chosen = step.verb, by = step.by or "jev" }
+  t:outcome{ todo = req.todo, n = step.n, verb = step.verb, outcome = step.outcome, note = step.note }
 end
 
 function M.after(a, req, step)
   local m = a.env.memory
-  if not m or not req.task or not step.outcome then return end
+  if not m or not req.todo or not step.outcome then return end
   local prev = req.steps[step.n - 1]
-  m:step(req.task, { n = step.n, verb = step.verb, app = step.app or "", fails = M.fails(req) - ((step.outcome == "broken"
+  m:step(req.todo, { n = step.n, verb = step.verb, app = step.app or "", fails = M.fails(req) - ((step.outcome == "broken"
     or step.outcome == "no_effect") and 1 or 0), last_verb = prev and prev.verb or "", last_outcome = prev and
     prev.outcome or "", outcome = step.outcome, evidence = step.note or "",
     stage = req.standing and req.standing.stage, pass = req.standing and req.standing.pass })
@@ -114,7 +114,7 @@ function M.judge(a)
     text = "How did this request end? Read the steps and what was said at the end." } })
   if not ok then note(a, "Jev could not judge how the request ended: " .. tostring(answers)) return end
   local label = answers.ended and answers.ended.choice
-  if M.judgements[label] then a.env.memory:outcome(j.req.task, label, "judged by Jev") end
+  if M.judgements[label] then a.env.memory:outcome(j.req.todo, label, "judged by Jev") end
   if M.judgements[label] and a.world.judged then a.world.judged(a, j.req, label) end
 end
 

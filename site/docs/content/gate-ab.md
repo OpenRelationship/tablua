@@ -4,7 +4,7 @@ description: Test whether one of the agent's rules still earns its place, by run
 
 # Retire a gate with an A/B
 
-A gate is a rule that holds a move back in some situation. This guide shows how to test whether a gate still earns its place: run the same tasks with it on and with it off, and compare.
+A gate is a rule that holds a move back in some situation. This guide shows how to test whether a gate still earns its place: run the same todos with it on and with it off, and compare.
 
 ## 1. Pick a gate
 
@@ -16,20 +16,20 @@ Fixed gates, which describe what a move can do at all (like `undo` needing a cha
 
 ## 2. Run both arms
 
-Run the same tasks twice: once as usual (arm A) and once with the gate off (arm B). Use a fresh computer for each run so neither arm learns from the other.
+Run the same todos twice: once as usual (arm A) and once with the gate off (arm B). Use a fresh computer for each run so neither arm learns from the other.
 
 ```lua
-for _, task in ipairs(tasks) do
+for _, todo in ipairs(todos) do
   for seed = 1, 3 do
-    run(task, { computer = "a-" .. task.id .. "-" .. seed })                         -- arm A: as usual
-    run(task, { computer = "b-" .. task.id .. "-" .. seed, gates_off = { stuck_fix = true } })   -- arm B
+    run(todo, { computer = "a-" .. todo.id .. "-" .. seed })                         -- arm A: as usual
+    run(todo, { computer = "b-" .. todo.id .. "-" .. seed, gates_off = { stuck_fix = true } })   -- arm B
   end
 end
 ```
 
 `run` is your host's: it drives the loop as [Run an agent in your host](/guides/run-agent) shows, on a fresh computer, with your world leaving the switched-off gate's move open.
 
-Several tasks, several runs each. Agents vary from run to run, so one pair of runs tells you very little.
+Several todos, several runs each. Agents vary from run to run, so one pair of runs tells you very little.
 
 Record the gates each run ran under with `t:gate{ name, predicate, retired_by? }`. In arm B, give the switched-off gate's row `retired_by`.
 
@@ -55,6 +55,6 @@ select count(*) from tablua_effect where keyword = 'Same Keyword Failing';
 
 - **Arm B no worse**: same share shipped and working, no more steps. The gate isn't pulling its weight. Retire it.
 - **Arm B worse**: keep the gate, and update its reason if the measurement showed a different cause.
-- **Too close to call**: run more tasks before deciding.
+- **Too close to call**: run more todos before deciding.
 
 Retire gates one at a time. Switching off several at once makes it impossible to tell which one mattered.

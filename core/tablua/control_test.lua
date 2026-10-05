@@ -12,9 +12,9 @@ local function reading(n, send_at)
   return out
 end
 
-local function choice(t, task, chosen, outcome)
-  t:controls(task, 1, "press", "Mail", reading(30, 17), chosen)
-  t:outcome{ task = task, n = 1, verb = "press", outcome = outcome }
+local function choice(t, todo, chosen, outcome)
+  t:controls(todo, 1, "press", "Mail", reading(30, 17), chosen)
+  t:outcome{ todo = todo, n = 1, verb = "press", outcome = outcome }
 end
 
 spec.test("a choice that worked: the chosen control was the one, a sample of the others were not", function()
@@ -44,12 +44,12 @@ end)
 
 spec.test("a prediction is scored once its step took that move or chose that control", function()
   local t = fresh()
-  t:state{ task = "r1", n = 1 }
-  t:decision{ task = "r1", n = 1, chosen = "menu", by = "jev" }
+  t:state{ todo = "r1", n = 1 }
+  t:decision{ todo = "r1", n = 1, chosen = "menu", by = "jev" }
   t:prediction("r1", 1, "progress", "menu", 0.8)
   t:prediction("r1", 1, "progress", "press", 0.3)
   spec.eq(t:scored("progress").n, 0)
-  t:outcome{ task = "r1", n = 1, verb = "menu", outcome = "complete" }
+  t:outcome{ todo = "r1", n = 1, verb = "menu", outcome = "complete" }
   spec.same(t:scored("progress"), { n = 1, right = 1, brier = (0.8 - 1) ^ 2 })
   choice(t, "r2", "c17", "broken")
   t:prediction("r2", 1, "control", "c17", 0.9)

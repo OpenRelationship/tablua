@@ -6,7 +6,7 @@ description: Follow one agent through a few steps of building a small app, and s
 
 This page follows an agent building a small app, step by step, and shows each row it writes. You don't need to run anything. The values are illustrative, but the shape of every row is exactly Tablua's.
 
-## The task
+## The todo
 
 A person asks: *"I'd like a little app for my house plants. It should list each plant with when I last watered it, let me add a plant, and let me mark one as watered today."*
 

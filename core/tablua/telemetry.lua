@@ -1,19 +1,19 @@
 -- The behaviour model from the log : a run's log events, keyword rows in the manner of Robot
--- Framework's, cut into one window per step (from Decide <task>/step/<n> to its Outcome) and turned into each
+-- Framework's, cut into one window per step (from Decide <todo>/step/<n> to its Outcome) and turned into each
 -- step's effects (tablua.effects): every test file's latest run (Outcome <file>.robot red|green {json}, the json
 -- robot.summary's), every page
 -- served (Serve Request), every command (Run Command) and the stage at each decision. Reads the log, so it runs
 -- where the whole file is open (an eval's tools, a desktop host), never in the agent's harness, which reaches only
 -- Tablua's tables; the harness records the same effects from its facts as it goes (in the host's world).
 --
---   telemetry.windows(db, task) -> { [n] = { { keyword, args } } }
---   telemetry.derive(t, task) -> steps given effects (steps already given them are left as they are)
+--   telemetry.windows(db, todo) -> { [n] = { { keyword, args } } }
+--   telemetry.derive(t, todo) -> steps given effects (steps already given them are left as they are)
 local json = require("ports.json")
 local effects = require("tablua.effects")
 
 local M = {}
 
-function M.windows(db, task)
+function M.windows(db, todo)
   local rows = db:exec([[select e.seq, e.keyword, a.pos, a.value from events e left join args a on a.seq = e.seq
     order by e.seq, a.pos]])
   local events, last = {}, nil
@@ -22,7 +22,7 @@ function M.windows(db, task)
     if r.pos then last.args[tonumber(r.pos)] = r.value end
   end
   local out, n = {}, nil
-  local prefix = task .. "/step/"
+  local prefix = todo .. "/step/"
   for _, e in ipairs(events) do
     local a1 = e.args[1] or ""
     if e.keyword == "Decide" and a1:sub(1, #prefix) == prefix then
@@ -50,15 +50,15 @@ local function merged(suites)
   return any and t or nil
 end
 
-function M.derive(t, task)
+function M.derive(t, todo)
   local db = t.db
   local done = {}
-  for _, r in ipairs(db:exec("select distinct n from tablua_effect where task = ?", { task })) do done[r.n] = true end
+  for _, r in ipairs(db:exec("select distinct n from tablua_effect where todo = ?", { todo })) do done[r.n] = true end
   local stage, step = {}, {}
-  for _, r in ipairs(db:exec("select n, stage from tablua_state where task = ?", { task })) do stage[r.n] = r.stage end
-  for _, r in ipairs(db:exec("select n, verb, outcome, regressed, same_failure from tablua_outcome where task = ?",
-    { task })) do step[r.n] = r end
-  local windows = M.windows(db, task)
+  for _, r in ipairs(db:exec("select n, stage from tablua_state where todo = ?", { todo })) do stage[r.n] = r.stage end
+  for _, r in ipairs(db:exec("select n, verb, outcome, regressed, same_failure from tablua_outcome where todo = ?",
+    { todo })) do step[r.n] = r end
+  local windows = M.windows(db, todo)
   local ns = {}
   for n in pairs(windows) do ns[#ns + 1] = n end
   table.sort(ns)
@@ -86,7 +86,7 @@ function M.derive(t, task)
       local list = effects.compare(before, snap(stage[n + 1]), { verb = s.verb, outcome = s.outcome,
         regressed = s.regressed == 1, same_failure = s.same_failure == 1 }, commands)
       if step[n + 1] and step[n + 1].verb == "undo" then list[#list + 1] = { keyword = "Undone Next", arg = "" } end
-      t:effects(task, n, list)
+      t:effects(todo, n, list)
       given = given + 1
     end
   end

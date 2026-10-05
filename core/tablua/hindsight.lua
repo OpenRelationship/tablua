@@ -5,18 +5,18 @@
 -- (t:label). It is a training target only: it knows what happened after the step, so it is never an input at
 -- decision time, and never the ship label. Whether it helps is judged against real outcomes on held-out runs.
 --
---   hindsight.steps(t, task) -> { { n, verb, outcome, note, stage, passed, total } }
---   hindsight.state(task, run, steps) -> text       hindsight.questions(steps, from, to) -> { s<n> = question }
---   hindsight.label(t, jev, task) -> labelled, cost   asks in batches of hindsight.batch steps
+--   hindsight.steps(t, todo) -> { { n, verb, outcome, note, stage, passed, total } }
+--   hindsight.state(todo, run, steps) -> text       hindsight.questions(steps, from, to) -> { s<n> = question }
+--   hindsight.label(t, jev, todo) -> labelled, cost   asks in batches of hindsight.batch steps
 local M = {}
 
 M.batch = 25
 M.source = "jev_hindsight"
 
-function M.steps(t, task)
+function M.steps(t, todo)
   return t.db:exec([[select o.n, o.verb, o.outcome, o.note, o.passed, o.total, coalesce(s.stage, '') as stage
-    from tablua_outcome o left join tablua_state s on s.task = o.task and s.n = o.n
-    where o.task = ? order by o.n]], { task })
+    from tablua_outcome o left join tablua_state s on s.todo = o.todo and s.n = o.n
+    where o.todo = ? order by o.n]], { todo })
 end
 
 local function ended(run)
@@ -27,9 +27,9 @@ local function ended(run)
 end
 
 -- the trajectory as Jev reads it: the ask, how the run ended, then every step, one line each
-function M.state(task, run, steps)
+function M.state(todo, run, steps)
   local out = { "A run of an agent that built a small app on its own computer, read after it ended.",
-    "Task: " .. task, ended(run), "Its steps:" }
+    "Todo: " .. todo, ended(run), "Its steps:" }
   for _, s in ipairs(steps) do
     local tests = s.total and s.total ~= "" and (" (%s of %s scenarios passing after)"):format(s.passed or 0, s.total) or ""
     local note = (s.note or ""):gsub("%s+", " "):sub(1, 160)
@@ -51,18 +51,18 @@ function M.questions(steps, from, to)
   return q
 end
 
--- labels every step of `task` not yet labelled, from its rows in t; jev is ports.jev (or anything with :decide)
-function M.label(t, jev, task)
+-- labels every step of `todo` not yet labelled, from its rows in t; jev is ports.jev (or anything with :decide)
+function M.label(t, jev, todo)
   local done = {}
-  for _, r in ipairs(t.db:exec("select n from tablua_label where task = ? and head = 'contrib' and source = ?",
-    { task, M.source })) do done[r.n] = true end
+  for _, r in ipairs(t.db:exec("select n from tablua_label where todo = ? and head = 'contrib' and source = ?",
+    { todo, M.source })) do done[r.n] = true end
   local steps = {}
-  for _, s in ipairs(M.steps(t, task)) do steps[#steps + 1] = s end
+  for _, s in ipairs(M.steps(t, todo)) do steps[#steps + 1] = s end
   if #steps == 0 then return 0, 0 end
-  local run = t.db:exec("select shipped, works, right from tablua_run where task = ?", { task })[1]
-  -- the person's words when the state kept them, else the task's address
-  local ask = t.db:exec("select ask from tablua_state where task = ? and ask != '' limit 1", { task })[1]
-  local state, labelled, cost = M.state(ask and ask.ask or task, run, steps), 0, 0
+  local run = t.db:exec("select shipped, works, right from tablua_run where todo = ?", { todo })[1]
+  -- the person's words when the state kept them, else the todo's address
+  local ask = t.db:exec("select ask from tablua_state where todo = ? and ask != '' limit 1", { todo })[1]
+  local state, labelled, cost = M.state(ask and ask.ask or todo, run, steps), 0, 0
   for from = 1, #steps, M.batch do
     local q = M.questions(steps, from, from + M.batch - 1)
     for id in pairs(q) do if done[tonumber(id:sub(2))] then q[id] = nil end end
@@ -70,7 +70,7 @@ function M.label(t, jev, task)
       local answers, record = jev:decide(state, q)
       cost = cost + (record and tonumber(record.cost) or 0)
       for id, a in pairs(answers) do
-        t:label(task, tonumber(id:sub(2)), "contrib", a.noul, M.source)
+        t:label(todo, tonumber(id:sub(2)), "contrib", a.noul, M.source)
         labelled = labelled + 1
       end
     end

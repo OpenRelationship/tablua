@@ -50,7 +50,7 @@ Each prediction is saved (`tablua_prediction`). When the step it was for finishe
 
 ## Shared experience
 
-One agent's past is small. Many agents' pasts are big. When a run ends, its rows are copied into a **shared file** on the machine, with each task renamed so runs don't mix. The next agent attaches that file and learns from every agent before it. A brand-new agent with no history of its own still starts with one.
+One agent's past is small. Many agents' pasts are big. When a run ends, its rows are copied into a **shared file** on the machine, with each todo renamed so runs don't mix. The next agent attaches that file and learns from every agent before it. A brand-new agent with no history of its own still starts with one.
 
 ## Other things it learns
 

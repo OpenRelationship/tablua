@@ -36,12 +36,12 @@ local t = tablua.open(sqlite.open("agent.sqlite"))
 For every step, write four things: where the work stood, the options, the choice and the outcome.
 
 ```lua
-local function record(task, n, state, options, chosen, by, result)
-  state.task, state.n = task, n
+local function record(todo, n, state, options, chosen, by, result)
+  state.todo, state.n = todo, n
   t:state(state)
-  t:candidates(task, n, options)
-  t:decision{ task = task, n = n, chosen = chosen, by = by }
-  return t:outcome{ task = task, n = n, verb = chosen, outcome = result.outcome,
+  t:candidates(todo, n, options)
+  t:decision{ todo = todo, n = n, chosen = chosen, by = by }
+  return t:outcome{ todo = todo, n = n, verb = chosen, outcome = result.outcome,
     passed = result.passed, total = result.total }
 end
 
@@ -57,7 +57,7 @@ record("ticket-1", 1,
 When a run ends, record how it went:
 
 ```lua
-t:run{ task = "ticket-1", shipped = true, works = true, steps = 6 }
+t:run{ todo = "ticket-1", shipped = true, works = true, steps = 6 }
 ```
 
 > [!TIP]
@@ -75,7 +75,7 @@ local learn = require("agent.learn").new{ tablua = t, tabpfn = tabpfn }
 
 local ranked, why = learn:rank("step",
   { stage = "building", pass = 1/3, stalls = 0, last_verb = "write_code", last_outcome = "complete", n = 2,
-    task = "ticket-1", at = 2 },
+    todo = "ticket-1", at = 2 },
   { "write_code", "run_test", "write_page" })
 
 if ranked then
@@ -86,7 +86,7 @@ end
 ```
 
 - With fewer than 12 labelled rows, or fewer than 3 of either label, `rank` returns `nil` and says why. Keep going and record more steps.
-- Each ranking is logged as `tablua_prediction` rows when you pass `task` and `at`. `learn:record("step")` scores them once their outcomes land.
+- Each ranking is logged as `tablua_prediction` rows when you pass `todo` and `at`. `learn:record("step")` scores them once their outcomes land.
 - One fit serves many rankings. A new fit happens after 25 new outcomes.
 
 ## 4. Use the ranking

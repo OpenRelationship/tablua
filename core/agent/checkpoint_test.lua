@@ -17,7 +17,7 @@ end
 
 spec.test("a step's outcome goes to memory, then the world", function()
   local a, log = agent({})
-  local req = { task = "t", steps = {} }
+  local req = { todo = "t", steps = {} }
   local step = { n = 1, verb = "run", outcome = "complete", sure = { p = 0.8 } }
   req.steps[1] = step
   checkpoint.after(a, req, step)
@@ -29,14 +29,14 @@ spec.test("with env.tablua the step is Tablua's rows too: where it stood, Jev's 
   local a = agent({})
   local t = require("tablua").open(require("ports.sqlite").open(":memory:"))
   a.env.tablua = t
-  local req = { task = "t", steps = { { n = 1, verb = "look", outcome = "broken" } }, standing = { stage = "" },
+  local req = { todo = "t", steps = { { n = 1, verb = "look", outcome = "broken" } }, standing = { stage = "" },
     repeats = 1 }
   local step = { n = 2, verb = "run", outcome = "complete", sure = { p = 0.8, confidence = 0.6 } }
   req.steps[2] = step
   checkpoint.after(a, req, step)
   local r = t.db:exec([[select s.last_verb, s.last_outcome, s.stalls, c.jev_p, c.jev_conf, d.chosen, d.by, o.progress
-    from tablua_state s join tablua_candidate c using (task, n) join tablua_decision d using (task, n)
-    join tablua_outcome o using (task, n)]])
+    from tablua_state s join tablua_candidate c using (todo, n) join tablua_decision d using (todo, n)
+    join tablua_outcome o using (todo, n)]])
   spec.same(r, { { last_verb = "look", last_outcome = "broken", stalls = 1, jev_p = 0.8, jev_conf = 0.6, chosen = "run",
     by = "jev", progress = 1 } })
 end)
@@ -62,7 +62,7 @@ spec.test("in rank mode every building decision ranks the allowed moves, and the
   local a, log = agent({ learn = learn })
   a.env.rank = true
   a.world.allowed = function() return { "write_steps", "rewrite" } end
-  local req = { task = "t", text = "x", steps = {}, stage = "building", pass = 0.5 }
+  local req = { todo = "t", text = "x", steps = {}, stage = "building", pass = 0.5 }
   checkpoint.before(a, req)
   spec.same(seen.names, { "write_steps", "rewrite" })
   spec.eq(seen.ctx.stage, "building")
@@ -89,7 +89,7 @@ spec.test("shadow mode ranks every building decision for the record, and Jev nev
   local a = agent({ learn = learn })
   a.env.shadow = true
   a.world.allowed = function() return { "write_steps", "rewrite" } end
-  local req = { task = "t", text = "x", steps = {}, stage = "building" }
+  local req = { todo = "t", text = "x", steps = {}, stage = "building" }
   checkpoint.before(a, req)
   spec.eq(req.ranking[1].name, "rewrite")
   spec.ok(req.ranked_all)
@@ -99,7 +99,7 @@ end)
 
 spec.test("Jev judges a finished request, and the world hears the label", function()
   local a, log = agent({ jev = { decide = function() return { ended = { choice = "complete" } } end } })
-  a.judging = { req = { task = "t", steps = {} }, said = "Done." }
+  a.judging = { req = { todo = "t", steps = {} }, said = "Done." }
   checkpoint.judge(a)
   spec.same(log, { "outcome complete", "judged complete" })
 end)

@@ -38,13 +38,13 @@ After enough runs, compare TabPFN's estimates with what happened:
 ```sql
 select round(c.p_progress, 1) as tabpfn_said, count(*) as steps, round(avg(o.progress), 2) as helped
 from tablua_candidate c
-join tablua_decision d on d.task = c.task and d.n = c.n and d.chosen = c.move
-join tablua_outcome o on o.task = c.task and o.n = c.n
+join tablua_decision d on d.todo = c.todo and d.n = c.n and d.chosen = c.move
+join tablua_outcome o on o.todo = c.todo and o.n = c.n
 where c.p_progress is not null
 group by 1 order by 1;
 ```
 
-Run the same query with `c.jev_p` in place of `c.p_progress` to put Jev's confidence beside it. Whichever predicts `helped` better, on tasks it hasn't seen, deserves more weight.
+Run the same query with `c.jev_p` in place of `c.p_progress` to put Jev's confidence beside it. Whichever predicts `helped` better, on todos it hasn't seen, deserves more weight.
 
 ## 4. Rank mode: let it decide
 
@@ -60,11 +60,11 @@ Rank mode only overrides Jev where Jev is unsure and TabPFN is clearly ahead. Ev
 
 ```sql
 select d.by, count(*) as steps, round(avg(o.progress), 2) as helped
-from tablua_decision d join tablua_outcome o using (task, n)
+from tablua_decision d join tablua_outcome o using (todo, n)
 group by d.by;
 ```
 
-And compare whole runs with and without rank mode: did as many ship and work, in fewer steps? A single run says little. Compare several runs per task, and tasks the agent hasn't seen before.
+And compare whole runs with and without rank mode: did as many ship and work, in fewer steps? A single run says little. Compare several runs per todo, and todos the agent hasn't seen before.
 
 ## Next
 

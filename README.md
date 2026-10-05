@@ -28,8 +28,8 @@ by changing rows.
 ```sql
 select s.stage, d.chosen, d.by, o.progress
 from tablua_state s
-join tablua_decision d using (task, n)
-join tablua_outcome  o using (task, n)
+join tablua_decision d using (todo, n)
+join tablua_outcome  o using (todo, n)
 where s.stalls >= 2;          -- what does the agent do when it is stuck, and does it work?
 ```
 
@@ -101,7 +101,7 @@ erDiagram
   tablua_state ||--o{ tablua_label : "hindsight"
 
   tablua_state {
-    text task PK
+    text todo PK
     int n PK
     text stage
     real pass
@@ -128,7 +128,7 @@ erDiagram
     int same_failure
   }
   tablua_run {
-    text task PK
+    text todo PK
     int shipped
     int works
     int steps
@@ -159,8 +159,8 @@ known before Jev answers:
 | `contrib` | Did it contribute to the app finally built? | Jev, reading the whole run afterwards (never an input at decision time) |
 | `effect:<Keyword>` | Did this effect follow? (`Test Turned Green`, `Same Keyword Failing`, `Reached Further`…) | The harness's own telemetry |
 
-**Shared experience.** When a run ends, its rows are copied into one shared file on the node, with each task
-renamed to `<computer>|<task>` so no run joins another's. The next agent attaches that file and learns from every
+**Shared experience.** When a run ends, its rows are copied into one shared file on the node, with each todo
+renamed to `<computer>|<todo>` so no run joins another's. The next agent attaches that file and learns from every
 agent before it. An agent with no past of its own still starts with one.
 
 ```mermaid
@@ -175,7 +175,7 @@ state it has already ranked is ranked again without a call. The day's tokens are
 
 ## Policy as data
 
-The rules that hold a move back are written once as Robot Framework tasks, which a host keeps beside its moves.
+The rules that hold a move back are written once as Robot Framework tests, which a host keeps beside its moves.
 Each is tagged with its gate's name and has a reason the harness can check against recorded runs:
 
 ```robot
@@ -231,10 +231,10 @@ local tablua = require("tablua")
 local t = tablua.open(require("ports.sqlite").open("agent.sqlite"))
 
 -- where the work stands, what could be done, what was done, how it went
-t:state{ task = "r1", n = 1, stage = "building", passed = 0, total = 4 }
+t:state{ todo = "r1", n = 1, stage = "building", passed = 0, total = 4 }
 t:candidates("r1", 1, { { move = "write_keywords", jev_p = 0.61 }, { move = "write_page", jev_p = 0.27 } })
-t:decision{ task = "r1", n = 1, chosen = "write_keywords", by = "jev" }
-t:outcome{ task = "r1", n = 1, verb = "write_keywords", outcome = "complete", passed = 2, total = 4 }
+t:decision{ todo = "r1", n = 1, chosen = "write_keywords", by = "jev" }
+t:outcome{ todo = "r1", n = 1, verb = "write_keywords", outcome = "complete", passed = 2, total = 4 }
 
 -- learn from every past step, and from other agents' runs
 t:attach("shared", "experience.sqlite")

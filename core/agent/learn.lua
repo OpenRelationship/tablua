@@ -14,7 +14,7 @@
 -- M.refit more outcomes are known. TabPFN is not asked every turn (the free tier's 5M tokens a day are the
 -- account's, and a stalled run once spent them): a run asks at most per_run times (M.per_run unless given), and a
 -- state it ranked before (the same row but for its step number, and the same options) gets the same ranking again
--- without a call. Both are kept as Tablua's rows (tablua_ranking) for a run with a task, so a host that builds a
+-- without a call. Both are kept as Tablua's rows (tablua_ranking) for a run with a todo, so a host that builds a
 -- learn for every step (a stateless stepper) holds a run to them as one that keeps it does. With
 -- too little history, learning off, the run's or the day's predictions used up, or TabPFN unreachable, it gives nil
 -- and why, and the agent goes on as it would without it.
@@ -40,11 +40,11 @@ end
 
 local function tokens_today(self) return self.memory and self.memory:tokens_today() or 0 end
 
--- the run's rankings so far, and one made before for this state: Tablua's rows when the run has a task
-local function kept(self, task) return task and self.tablua ~= nil end
-local function asked(self, task) return kept(self, task) and self.tablua:rankings(task) or self.asked end
-local function seen(self, task, checkpoint, key)
-  if kept(self, task) then return self.tablua:ranking(task, M.head[checkpoint], key) end
+-- the run's rankings so far, and one made before for this state: Tablua's rows when the run has a todo
+local function kept(self, todo) return todo and self.tablua ~= nil end
+local function asked(self, todo) return kept(self, todo) and self.tablua:rankings(todo) or self.asked end
+local function seen(self, todo, checkpoint, key)
+  if kept(self, todo) then return self.tablua:ranking(todo, M.head[checkpoint], key) end
   return self.seen[key]
 end
 
@@ -89,7 +89,7 @@ local function test_set(self, checkpoint, ctx, candidates)
 end
 
 -- ctx: for "step", where the work stands (stage, pass, stalls, last verb and outcome, cause, own checks, the step
--- number n); for "control", the app and the verb; with task and at, the step a prediction is logged for.
+-- number n); for "control", the app and the verb; with todo and at, the step a prediction is logged for.
 -- candidates: move names ("step") or { id, role, label, order } controls ("control").
 function L:rank(checkpoint, ctx, candidates)
   if not self.on() then return nil, "learning from past outcomes is turned off" end
@@ -108,8 +108,8 @@ function L:rank(checkpoint, ctx, candidates)
     end
   end
   local key = table.concat(parts, "\31")
-  local ps = seen(self, ctx.task, checkpoint, key)
-  if not ps and asked(self, ctx.task) >= (self.per_run or M.per_run) then
+  local ps = seen(self, ctx.todo, checkpoint, key)
+  if not ps and asked(self, ctx.todo) >= (self.per_run or M.per_run) then
     return nil, "this run's TabPFN predictions are used up"
   end
   if not ps then
@@ -132,15 +132,15 @@ function L:rank(checkpoint, ctx, candidates)
     ps = {}
     for i, p in ipairs(probas) do ps[i] = p[#p] end
     self.asked, self.seen[key] = self.asked + 1, ps
-    if kept(self, ctx.task) then self.tablua:ranked(ctx.task, M.head[checkpoint], key, ctx.at, ps) end
+    if kept(self, ctx.todo) then self.tablua:ranked(ctx.todo, M.head[checkpoint], key, ctx.at, ps) end
   end
   local ranked = {}
   for i, c in ipairs(candidates) do
     ranked[i] = { name = checkpoint == "step" and c or tostring(c.id), p = ps[i], control = c }
   end
   table.sort(ranked, function(a, b) return a.p > b.p end)
-  if ctx.task then
-    for _, r in ipairs(ranked) do self.tablua:prediction(ctx.task, ctx.at or 0, M.head[checkpoint], r.name, r.p) end
+  if ctx.todo then
+    for _, r in ipairs(ranked) do self.tablua:prediction(ctx.todo, ctx.at or 0, M.head[checkpoint], r.name, r.p) end
   end
   return ranked
 end

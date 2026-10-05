@@ -8,6 +8,8 @@ it reaches the world through; nothing here names one.
   the harness (`tablua`, `agent`, `robot`) and the model ports (`ports`); read `core/AGENTS.md` before editing there.
 - A program is org plus Robot Framework (owner, 2026-10-05): org holds the plan and the code, Robot the tests and
   tasks; both cut into rows, and the tests run in Lua (`core/robot`), every keyword's result kept as rows. No Gherkin.
+- What the agent is asked to do is a todo (owner, 2026-10-05: org's word for a thing to be done), the key of every
+  log table (`todo`, `n`). "Task" means only a Robot task: a test that does a job rather than checks one.
 - Lua is the harness, not the output (owner, 2026-10-05): the agent's work may be in any language its computer
   runs. The harness itself is portable Lua, embedded through whatever Lua VM a host has, and reaches the world only
   through the ports the host supplies. No WebAssembly, no native code.

@@ -8,7 +8,7 @@ Every table Tablua keeps in an agent's file, and what each column means. All nam
 
 The tables fall into three parts ([The log and the build](/concepts/log-and-build)), told apart by their key:
 
-- **The log**: what the agent did. Keyed by `(task, n)`, the run's task and the step number. Rows are only ever added.
+- **The log**: what the agent did. Keyed by `(todo, n)`, the run's todo and the step number. Rows are only ever added.
 - **The build**: what the agent is making. Keyed by file. Rows are replaced as the files change.
 - **The policy**: how the next decision is made. Keyed by neither.
 
@@ -20,7 +20,7 @@ Where the work stood when a decision was made. Written by the host, from facts.
 
 | Column | Meaning |
 | --- | --- |
-| `task`, `n` | the run and the step (key) |
+| `todo`, `n` | the run and the step (key) |
 | `stage` | the stage, worked out from facts ([Stages and moves](/reference/moves)) |
 | `passed`, `total`, `pass` | tests passing, tests in all, and their ratio |
 | `stalls` | steps in a row that made no progress |
@@ -38,7 +38,7 @@ Every move that could have been made, one row each, with each model's number for
 
 | Column | Meaning |
 | --- | --- |
-| `task`, `n`, `move` | the step and the move (key) |
+| `todo`, `n`, `move` | the step and the move (key) |
 | `jev_p`, `jev_conf`, `jev_margin` | Jev's probability for the move, its confidence, and the gap to its next best |
 | `jev_form` | the form of question Jev was asked (`choice`) |
 | `p_progress`, `p_ship` | TabPFN's chance the move makes progress; that the run ships |
@@ -51,7 +51,7 @@ The move taken, and who took it.
 
 | Column | Meaning |
 | --- | --- |
-| `task`, `n` | the step (key) |
+| `todo`, `n` | the step (key) |
 | `chosen` | the move |
 | `by` | who decided: `jev`, `tabpfn`, `arbiter` |
 | `propensity` | how likely the choice was under the policy that made it |
@@ -64,7 +64,7 @@ Each call the move made.
 
 | Column | Meaning |
 | --- | --- |
-| `task`, `n`, `i` | the step and the call's place in it (key) |
+| `todo`, `n`, `i` | the step and the call's place in it (key) |
 | `cmd` | the command |
 | `file_kind`, `op`, `target` | the kind of file, what was done to it, and its path or unit |
 | `bytes`, `exit`, `duration_ms` | size written, exit code, time taken |
@@ -75,7 +75,7 @@ How the step turned out. Written by the host.
 
 | Column | Meaning |
 | --- | --- |
-| `task`, `n` | the step (key) |
+| `todo`, `n` | the step (key) |
 | `verb` | the move |
 | `outcome` | `complete`, `broken`, `no_effect`, or `denied` (the person said no) |
 | `progress` | 1 if the step helped ([the rule](/concepts/step-loop#progress-worked-out-from-the-rows)), else 0 |
@@ -91,9 +91,9 @@ How a run ended.
 
 | Column | Meaning |
 | --- | --- |
-| `task` | the run (key) |
+| `todo` | the run (key) |
 | `shipped` | the app was published |
-| `answered` | the task was answered |
+| `answered` | the todo was answered |
 | `works` | the published app works when checked |
 | `right` | it does what was asked, by a hidden check |
 | `changed` | a change asked after shipping was made |
@@ -101,15 +101,15 @@ How a run ended.
 
 ### tablua_change
 
-Each operation of a change block a step made ([The program as rows](/concepts/program-as-rows#change-blocks)): where the log meets the build. Key: `task`, `n`, `i`; also `op` (`add`, `replace`, `delete`, `rename`, `test`, `task`, `keyword`, or on a page's elements `set`, `put`, `drop`, `move`, `wrap`, `unwrap`), `kind` (the unit's kind, or the element's call), `name` (the unit's name, or the element's path), `lines` (code lines added, negative when taken away), `named_by` (units that named the target before; 0 for an element) and `breaks` (units left naming something no unit defines; for an element, posts and form reads left with nothing at their end).
+Each operation of a change block a step made ([The program as rows](/concepts/program-as-rows#change-blocks)): where the log meets the build. Key: `todo`, `n`, `i`; also `op` (`add`, `replace`, `delete`, `rename`, `test`, `todo`, `keyword`, or on a page's elements `set`, `put`, `drop`, `move`, `wrap`, `unwrap`), `kind` (the unit's kind, or the element's call), `name` (the unit's name, or the element's path), `lines` (code lines added, negative when taken away), `named_by` (units that named the target before; 0 for an element) and `breaks` (units left naming something no unit defines; for an element, posts and form reads left with nothing at their end).
 
 ### tablua_result
 
-Every keyword of every test run a step made, one row each: the tree Tablua's Robot runner (`core/robot`) gives back, kept by `t:results(task, n, res, file)`.
+Every keyword of every test run a step made, one row each: the tree Tablua's Robot runner (`core/robot`) gives back, kept by `t:results(todo, n, res, file)`.
 
 | Column | Meaning |
 | --- | --- |
-| `task`, `n`, `run`, `file`, `test`, `path` | the step, which of its test runs, the test file, the test, and the keyword's place in the test (key). `path` is `""` for the test's own row; `2.1.3` is the 3rd call of the 1st call of the test's 2nd; `s` and `t` lead its setup and teardown |
+| `todo`, `n`, `run`, `file`, `test`, `path` | the step, which of its test runs, the test file, the test, and the keyword's place in the test (key). `path` is `""` for the test's own row; `2.1.3` is the 3rd call of the 1st call of the test's 2nd; `s` and `t` lead its setup and teardown |
 | `parent`, `depth` | the path of the keyword that called it, and how deep it sits |
 | `type` | `test` (or `task`, for a task's own row), `keyword`, `for`, `iteration`, `if`, `branch` or `return` |
 | `keyword`, `args` | the keyword's name, and its arguments joined by tabs |
@@ -121,23 +121,23 @@ Every keyword of every test run a step made, one row each: the tree Tablua's Rob
 
 ### tablua_effect
 
-What each step changed, as keywords ([Effects vocabulary](/reference/effects)). Key: `task`, `n`, `keyword`, `arg`.
+What each step changed, as keywords ([Effects vocabulary](/reference/effects)). Key: `todo`, `n`, `keyword`, `arg`.
 
 ### tablua_feature
 
-Jev's answers to extra questions about a step, as numbers. Key: `task`, `n`, `name`; also `value` and `form`. Names include `ask_dates`, `ask_counts`, `ask_groups`, `ask_delete`, `ask_edit` and `done`.
+Jev's answers to extra questions about a step, as numbers. Key: `todo`, `n`, `name`; also `value` and `form`. Names include `ask_dates`, `ask_counts`, `ask_groups`, `ask_delete`, `ask_edit` and `done`.
 
 ### tablua_label
 
-Labels given after the fact, such as Jev's hindsight. Key: `task`, `n`, `head`, `source`; also `value` and `at`. Head `contrib`, source `jev_hindsight`.
+Labels given after the fact, such as Jev's hindsight. Key: `todo`, `n`, `head`, `source`; also `value` and `at`. Head `contrib`, source `jev_hindsight`.
 
 ### tablua_prediction
 
-Every prediction made, scored once its outcome lands. Key: `task`, `n`, `head`, `move`; also `p`.
+Every prediction made, scored once its outcome lands. Key: `todo`, `n`, `head`, `move`; also `p`.
 
 ### tablua_control
 
-The controls a step chose among on a screen (Tablua's Mac app). Key: `task`, `n`, `i`; also `id`, `app`, `verb`, `role`, `label`, `ord` and `chosen`.
+The controls a step chose among on a screen (Tablua's Mac app). Key: `todo`, `n`, `i`; also `id`, `app`, `verb`, `role`, `label`, `ord` and `chosen`.
 
 ## The build
 
@@ -162,5 +162,5 @@ Link kinds: `post` (page to action), `defines`, `sends` (page to field), `reads`
 | --- | --- |
 | `tablua_gate` | the gates a run ran under: `name`, `predicate`, `version`, `retired_by` |
 | `tablua_fit` | TabPFN fits kept for reuse: `head`, `schema` (key), `id` (the fit's id at Prior Labs), `rows`, `at` |
-| `tablua_ranking` | rankings a run paid TabPFN for, reused across steps: `task`, `head`, `key` (key), `n`, `ps` |
+| `tablua_ranking` | rankings a run paid TabPFN for, reused across steps: `todo`, `head`, `key` (key), `n`, `ps` |
 | `tablua_meta` | `key`, `value`; `version` is the schema version |

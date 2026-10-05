@@ -37,7 +37,7 @@ local tablua = require("tablua")
 local t = tablua.open(sqlite.open("agent.sqlite"))
 
 -- where the work stood when the agent decided
-t:state{ task = "plants", n = 1, stage = "building", passed = 0, total = 4 }
+t:state{ todo = "plants", n = 1, stage = "building", passed = 0, total = 4 }
 
 -- every move it could have made, with Jev's probability for each
 t:candidates("plants", 1, {
@@ -46,10 +46,10 @@ t:candidates("plants", 1, {
 })
 
 -- the move it took, and who took it
-t:decision{ task = "plants", n = 1, chosen = "write_keywords", by = "jev" }
+t:decision{ todo = "plants", n = 1, chosen = "write_keywords", by = "jev" }
 
 -- how it turned out: two of four tests pass now
-local progress = t:outcome{ task = "plants", n = 1, verb = "write_keywords",
+local progress = t:outcome{ todo = "plants", n = 1, verb = "write_keywords",
   outcome = "complete", passed = 2, total = 4 }
 print("progress:", progress)
 
@@ -85,7 +85,7 @@ Three things happened:
 ## 4. Look at the file
 
 ```sh
-sqlite3 agent.sqlite "select task, n, chosen, by from tablua_decision"
+sqlite3 agent.sqlite "select todo, n, chosen, by from tablua_decision"
 ```
 
 ```text

@@ -19,17 +19,17 @@ local t = tablua.open(db, { clock = fn })
 
 | Function | Writes |
 | --- | --- |
-| `t:state{ task, n, stage, passed, total, stalls?, last_verb?, last_outcome?, cause?, pages_ok?, own_checks?, ask?, versions? }` | where the work stood |
-| `t:candidates(task, n, { { move, jev_p?, jev_conf?, jev_margin?, p_progress?, p_ship?, cost_q50?, cost_q90?, explored? }, ... })` | every move that could be made |
-| `t:decision{ task, n, chosen, by, propensity?, policy? }` | the move taken, and by whom |
-| `t:action{ task, n, i, cmd, file_kind?, op?, target?, bytes?, exit?, duration_ms? }` | a call the move made |
-| `t:outcome{ task, n, verb, outcome, passed?, total?, regressed?, same_failure?, failing?, note? } -> progress` | how it turned out; returns 1 or 0 |
-| `t:run{ task, shipped, answered, works, right?, changed?, steps?, cost? }` | how the run ended |
-| `t:features(task, n, { name = number }, form)` | Jev's answers as feature values |
-| `t:results(task, n, res, file?) -> summary` | a test run's keyword tree (`robot.run`'s result), one `tablua_result` row per keyword; returns `robot.summary(res)` |
+| `t:state{ todo, n, stage, passed, total, stalls?, last_verb?, last_outcome?, cause?, pages_ok?, own_checks?, ask?, versions? }` | where the work stood |
+| `t:candidates(todo, n, { { move, jev_p?, jev_conf?, jev_margin?, p_progress?, p_ship?, cost_q50?, cost_q90?, explored? }, ... })` | every move that could be made |
+| `t:decision{ todo, n, chosen, by, propensity?, policy? }` | the move taken, and by whom |
+| `t:action{ todo, n, i, cmd, file_kind?, op?, target?, bytes?, exit?, duration_ms? }` | a call the move made |
+| `t:outcome{ todo, n, verb, outcome, passed?, total?, regressed?, same_failure?, failing?, note? } -> progress` | how it turned out; returns 1 or 0 |
+| `t:run{ todo, shipped, answered, works, right?, changed?, steps?, cost? }` | how the run ended |
+| `t:features(todo, n, { name = number }, form)` | Jev's answers as feature values |
+| `t:results(todo, n, res, file?) -> summary` | a test run's keyword tree (`robot.run`'s result), one `tablua_result` row per keyword; returns `robot.summary(res)` |
 | `t:tasks() -> { { file, name, text, runs, passed, fails_at } }` | the program's tasks, each with its record over every run (`tablua_task_record`) |
-| `t:effects(task, n, { { keyword, arg }, ... })` | the step's effects |
-| `t:label(task, n, head, value, source)` | a label given after the fact |
+| `t:effects(todo, n, { { keyword, arg }, ... })` | the step's effects |
+| `t:label(todo, n, head, value, source)` | a label given after the fact |
 | `t:gate{ name, predicate, version?, retired_by? }` | a gate the run ran under |
 
 ### Reading for learning
@@ -38,7 +38,7 @@ local t = tablua.open(db, { clock = fn })
 | --- | --- |
 | `t:training(head, { before = true }?)` | `{ columns, rows, keys }, labels`: one row per decided step, oldest first. `head` is `"progress"`, `"ship"`, `"contrib"` or `"effect:<Keyword>"`. With `before`, only the columns known before Jev answers. |
 | `t:attach(name, path)` | reads another file's rows beside this one's; attached files come first in training |
-| `t:prediction(task, n, head, move, p)` | logs a prediction |
+| `t:prediction(todo, n, head, move, p)` | logs a prediction |
 | `t:scored(head) -> { n, right, brier }` | how logged predictions have done |
 | `t:fit(head, schema, id, rows)`, `t:fitted(head, schema)` | keeps and finds a fit |
 | `t:count(table) -> n` | rows in a table, by short name (`"state"`, `"outcome"`, ...) |
@@ -61,7 +61,7 @@ local learn = require("agent.learn").new{ tablua = t, tabpfn = port, memory = m?
 
 | Function | Does |
 | --- | --- |
-| `learn:rank(checkpoint, ctx, candidates)` | `{ { name, p }, ... }` best first, or `nil, why`. `checkpoint` is `"step"` (candidates are move names) or `"control"`. For `"step"`, `ctx` holds `stage`, `pass`, `stalls`, `last_verb`, `last_outcome`, `cause`, `own_checks` and `n`; with `task` and `at` the predictions are logged. |
+| `learn:rank(checkpoint, ctx, candidates)` | `{ { name, p }, ... }` best first, or `nil, why`. `checkpoint` is `"step"` (candidates are move names) or `"control"`. For `"step"`, `ctx` holds `stage`, `pass`, `stalls`, `last_verb`, `last_outcome`, `cause`, `own_checks` and `n`; with `todo` and `at` the predictions are logged. |
 | `learn:training(checkpoint)` | the training set and labels it would fit on |
 | `learn:record(checkpoint)` | `{ n, right, brier }` |
 | `learn:record_line(checkpoint)` | the record as one line, for a decision model to read |

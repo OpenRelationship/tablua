@@ -4,30 +4,30 @@
 -- file).
 --
 --   local t = tablua.open(db, { clock? })
---   t:state{ task, n, stage, passed, total, stalls?, last_verb?, last_outcome?, cause?, pages_ok?, own_checks?, ask?,
+--   t:state{ todo, n, stage, passed, total, stalls?, last_verb?, last_outcome?, cause?, pages_ok?, own_checks?, ask?,
 --            versions? }                                  where the work stood as a decision was made
---   t:candidates(task, n, { { move, jev_p?, jev_conf?, jev_margin?, jev_form?, p_progress?, p_ship?, cost_q50?,
+--   t:candidates(todo, n, { { move, jev_p?, jev_conf?, jev_margin?, jev_form?, p_progress?, p_ship?, cost_q50?,
 --                cost_q90?, explored? }, ... })           every move that could have been made, and what was said of it
---   t:decision{ task, n, chosen, by, propensity?, policy? }  the move taken, and by whom (jev, tabpfn, mercury)
---   t:action{ task, n, i, cmd, file_kind?, op?, target?, bytes?, exit?, duration_ms? }   a call the move made
---   t:outcome{ task, n, verb, outcome, passed?, total?, regressed?, same_failure?, failing?, note? } -> progress (1|0)
---   t:results(task, n, res, file?) -> summary   a test run's keyword tree (robot.run) as rows of step n (tablua_result);
+--   t:decision{ todo, n, chosen, by, propensity?, policy? }  the move taken, and by whom (jev, tabpfn, mercury)
+--   t:action{ todo, n, i, cmd, file_kind?, op?, target?, bytes?, exit?, duration_ms? }   a call the move made
+--   t:outcome{ todo, n, verb, outcome, passed?, total?, regressed?, same_failure?, failing?, note? } -> progress (1|0)
+--   t:results(todo, n, res, file?) -> summary   a test run's keyword tree (robot.run) as rows of step n (tablua_result);
 --                                               a task run's the same (robot.run with rpa)
 --   t:tasks() -> { { file, name, text, runs, passed, fails_at } }   the program's tasks and each one's record
---   t:run{ task, shipped, answered, works, right?, changed?, steps?, cost? }   how the run ended
---   t:prediction(task, n, head, move, p)   t:fit(head, schema, id, rows)   t:fitted(head, schema) -> { id, rows } | nil
+--   t:run{ todo, shipped, answered, works, right?, changed?, steps?, cost? }   how the run ended
+--   t:prediction(todo, n, head, move, p)   t:fit(head, schema, id, rows)   t:fitted(head, schema) -> { id, rows } | nil
 --   t:attach(name, path)                   another file's rows (shared experience) read with this one's
---   t:features(task, n, { done = 0.6, ask_dates = 1 }, form)    Jev's fan-out answers as feature rows
---   t:label(task, n, head, value, source)      a label given after the fact (Jev's hindsight, head "contrib")
---   t:effects(task, n, { { keyword, arg } })   the step's effects, from the harness's telemetry (tablua.effects)
+--   t:features(todo, n, { done = 0.6, ask_dates = 1 }, form)    Jev's fan-out answers as feature rows
+--   t:label(todo, n, head, value, source)      a label given after the fact (Jev's hindsight, head "contrib")
+--   t:effects(todo, n, { { keyword, arg } })   the step's effects, from the harness's telemetry (tablua.effects)
 --   t:gate{ name, predicate, version?, retired_by? }   a harness gate, and what turned it off if anything did
 --   t:training(head[, { before = true }]) -> { columns, rows }, labels   head "progress" (did the step help), "ship" (did its run ship
 --                                                   and work) or "contrib" (did the step contribute to the app built,
 --                                                   in hindsight: steps so labelled only) or "effect:<Keyword>" (did
 --                                                   the effect follow: steps given effects only), one row per step,
---                                                   oldest first; keys[i] is row i's { task, n }
+--                                                   oldest first; keys[i] is row i's { todo, n }
 --   t:count(table) -> n
---   t:controls(task, n, verb, app, controls, chosen), t:control_training(), t:control_rows(ctx, candidates),
+--   t:controls(todo, n, verb, app, controls, chosen), t:control_training(), t:control_rows(ctx, candidates),
 --   t:scored(head)                                  a desktop world's control checkpoint, and the predictions' record
 --                                                   (tablua.control)
 --   t:put_app(files) -> breaks                     an app's files as the program's rows (tablua.app)
@@ -67,8 +67,8 @@ end
 local function now() return os.date("!%Y-%m-%dT%H:%M:%SZ") end
 
 function M.open(db, opts)
-  db:exec(schema.ddl)
   schema.migrate(db)
+  db:exec(schema.ddl)
   db:exec("insert or replace into tablua_meta (key, value) values ('version', ?)", { tostring(schema.version) })
   return setmetatable({ db = db, clock = opts and opts.clock or now, sources = { "main" } }, T)
 end
@@ -91,14 +91,14 @@ function T:state(s)
   row.stage, row.last_verb, row.last_outcome = s.stage or "", s.last_verb or "", s.last_outcome or ""
   row.cause, row.ask, row.versions, row.at = s.cause or "", s.ask or "", s.versions or "{}", self.clock()
   row.pages_ok = s.pages_ok ~= nil and flag(s.pages_ok) or nil
-  put(self.db, "tablua_state", { "task", "n", "stage", "passed", "total", "pass", "stalls", "last_verb",
+  put(self.db, "tablua_state", { "todo", "n", "stage", "passed", "total", "pass", "stalls", "last_verb",
     "last_outcome", "cause", "pages_ok", "own_checks", "ask", "versions", "at" }, row)
 end
 
-function T:candidates(task, n, list)
+function T:candidates(todo, n, list)
   for _, c in ipairs(list) do
-    put(self.db, "tablua_candidate", { "task", "n", "move", "jev_p", "jev_conf", "jev_margin", "jev_form",
-      "p_progress", "p_ship", "cost_q50", "cost_q90", "explored" }, { task = task, n = n, move = c.move,
+    put(self.db, "tablua_candidate", { "todo", "n", "move", "jev_p", "jev_conf", "jev_margin", "jev_form",
+      "p_progress", "p_ship", "cost_q50", "cost_q90", "explored" }, { todo = todo, n = n, move = c.move,
       jev_p = c.jev_p, jev_conf = c.jev_conf, jev_margin = c.jev_margin, jev_form = c.jev_form or "choice",
       p_progress = c.p_progress, p_ship = c.p_ship, cost_q50 = c.cost_q50, cost_q90 = c.cost_q90,
       explored = c.explored and 1 or 0 })
@@ -106,22 +106,22 @@ function T:candidates(task, n, list)
 end
 
 -- Feature values of a step: a map of name to a number (a yes/no as 1 or 0), each with the question form it came from.
-function T:features(task, n, map, form)
+function T:features(todo, n, map, form)
   for name, v in pairs(map or {}) do
-    put(self.db, "tablua_feature", { "task", "n", "name", "value", "form" },
-      { task = task, n = n, name = name, value = tonumber(v), form = form or "" })
+    put(self.db, "tablua_feature", { "todo", "n", "name", "value", "form" },
+      { todo = todo, n = n, name = name, value = tonumber(v), form = form or "" })
   end
 end
 
 function T:decision(d)
-  put(self.db, "tablua_decision", { "task", "n", "chosen", "by", "propensity", "policy", "at" },
-    { task = d.task, n = d.n, chosen = d.chosen, by = d.by, propensity = d.propensity, policy = d.policy or "",
+  put(self.db, "tablua_decision", { "todo", "n", "chosen", "by", "propensity", "policy", "at" },
+    { todo = d.todo, n = d.n, chosen = d.chosen, by = d.by, propensity = d.propensity, policy = d.policy or "",
       at = self.clock() })
 end
 
 function T:action(a)
-  put(self.db, "tablua_action", { "task", "n", "i", "cmd", "file_kind", "op", "target", "bytes", "exit",
-    "duration_ms" }, { task = a.task, n = a.n, i = a.i, cmd = a.cmd or "", file_kind = a.file_kind or "",
+  put(self.db, "tablua_action", { "todo", "n", "i", "cmd", "file_kind", "op", "target", "bytes", "exit",
+    "duration_ms" }, { todo = a.todo, n = a.n, i = a.i, cmd = a.cmd or "", file_kind = a.file_kind or "",
     op = a.op or "", target = a.target or "", bytes = a.bytes, exit = a.exit, duration_ms = a.duration_ms })
 end
 
@@ -136,14 +136,14 @@ function M.progress(o, before)
   return 1
 end
 
-function T:before(task, n)
-  return self.db:exec("select passed, total, stage from tablua_state where task = ? and n = ?", { task, n })[1]
+function T:before(todo, n)
+  return self.db:exec("select passed, total, stage from tablua_state where todo = ? and n = ?", { todo, n })[1]
 end
 
 function T:outcome(o)
-  local progress = M.progress(o, self:before(o.task, o.n))
-  put(self.db, "tablua_outcome", { "task", "n", "verb", "outcome", "progress", "regressed", "same_failure",
-    "passed", "total", "failing", "note" }, { task = o.task, n = o.n, verb = o.verb, outcome = o.outcome,
+  local progress = M.progress(o, self:before(o.todo, o.n))
+  put(self.db, "tablua_outcome", { "todo", "n", "verb", "outcome", "progress", "regressed", "same_failure",
+    "passed", "total", "failing", "note" }, { todo = o.todo, n = o.n, verb = o.verb, outcome = o.outcome,
     progress = progress, regressed = o.regressed and 1 or 0, same_failure = o.same_failure and 1 or 0,
     passed = o.passed, total = o.total, failing = o.failing or "[]", note = o.note or "" })
   return progress
@@ -152,14 +152,14 @@ end
 -- A test run's keyword tree (robot.run's result) kept as rows of step n: each keyword, its arguments, whether it
 -- passed, failed or never ran, and why. A step may run the tests more than once; each run is numbered. Gives back
 -- robot.summary's, for the outcome (its passed, total and failing) and the effects.
-function T:results(task, n, res, file)
+function T:results(todo, n, res, file)
   local db = self.db
-  local run = (db:exec("select coalesce(max(run), 0) + 1 as r from tablua_result where task = ? and n = ?",
-    { task, n })[1] or {}).r or 1
+  local run = (db:exec("select coalesce(max(run), 0) + 1 as r from tablua_result where todo = ? and n = ?",
+    { todo, n })[1] or {}).r or 1
   db:exec("begin")
   for _, r in ipairs(robot.rows(res)) do
-    put(db, "tablua_result", { "task", "n", "run", "file", "test", "path", "parent", "depth", "type", "keyword", "args",
-      "status", "message", "ms", "line" }, { task = task, n = n, run = run, file = file or "", test = r.test,
+    put(db, "tablua_result", { "todo", "n", "run", "file", "test", "path", "parent", "depth", "type", "keyword", "args",
+      "status", "message", "ms", "line" }, { todo = todo, n = n, run = run, file = file or "", test = r.test,
       path = r.path, parent = r.parent, depth = r.depth, type = r.type, keyword = r.keyword, args = r.args,
       status = r.status, message = r.message, ms = r.ms, line = r.line })
   end
@@ -177,15 +177,15 @@ function T:tasks()
 end
 
 function T:run(r)
-  put(self.db, "tablua_run", { "task", "shipped", "answered", "works", "right", "changed", "steps", "cost", "at" },
-    { task = r.task, shipped = flag(r.shipped), answered = flag(r.answered), works = flag(r.works),
+  put(self.db, "tablua_run", { "todo", "shipped", "answered", "works", "right", "changed", "steps", "cost", "at" },
+    { todo = r.todo, shipped = flag(r.shipped), answered = flag(r.answered), works = flag(r.works),
       right = r.right ~= nil and flag(r.right) or nil, changed = r.changed ~= nil and flag(r.changed) or nil,
       steps = r.steps, cost = r.cost, at = self.clock() })
 end
 
-function T:prediction(task, n, head, move, p)
-  put(self.db, "tablua_prediction", { "task", "n", "head", "move", "p" },
-    { task = task, n = n, head = head, move = move, p = p })
+function T:prediction(todo, n, head, move, p)
+  put(self.db, "tablua_prediction", { "todo", "n", "head", "move", "p" },
+    { todo = todo, n = n, head = head, move = move, p = p })
 end
 
 function T:fit(head, version, id, rows)
@@ -212,27 +212,27 @@ local function decided(src, featured, labelled, effect)
   local fs = {}
   for _, f in ipairs(M.features) do
     -- a file from before schema 2 has no feature table: its features are missing
-    fs[#fs + 1] = featured and ("(select value from %s.tablua_feature f where f.task = s.task and f.n = s.n"
+    fs[#fs + 1] = featured and ("(select value from %s.tablua_feature f where f.todo = s.todo and f.n = s.n"
       .. " and f.name = '%s') as f_%s"):format(src, f, f) or ("null as f_%s"):format(f)
   end
-  return ([[select s.task, s.n, d.chosen as move, s.stage, s.pass, s.stalls, s.last_verb, s.last_outcome, s.cause,
+  return ([[select s.todo, s.n, d.chosen as move, s.stage, s.pass, s.stalls, s.last_verb, s.last_outcome, s.cause,
     s.own_checks, c.jev_p, c.jev_margin, o.progress, r.shipped, r.works, ]] .. table.concat(fs, ", ")
     .. (labelled and ", l.value as contrib" or "")
-    .. (effect and ((", exists (select 1 from %s.tablua_effect e where e.task = s.task and e.n = s.n) as e_given,"
-      .. " exists (select 1 from %s.tablua_effect e where e.task = s.task and e.n = s.n and e.keyword = '%s') as e_has")
+    .. (effect and ((", exists (select 1 from %s.tablua_effect e where e.todo = s.todo and e.n = s.n) as e_given,"
+      .. " exists (select 1 from %s.tablua_effect e where e.todo = s.todo and e.n = s.n and e.keyword = '%s') as e_has")
       :format(src, src, effect)) or "") .. [[
     from %s.tablua_state s
-    join %s.tablua_decision d on d.task = s.task and d.n = s.n
-    join %s.tablua_outcome o on o.task = s.task and o.n = s.n
-    left join %s.tablua_candidate c on c.task = s.task and c.n = s.n and c.move = d.chosen
-    left join %s.tablua_run r on r.task = s.task]]):format(src, src, src, src, src)
-    .. (labelled and (" left join %s.tablua_label l on l.task = s.task and l.n = s.n and l.head = 'contrib'"
+    join %s.tablua_decision d on d.todo = s.todo and d.n = s.n
+    join %s.tablua_outcome o on o.todo = s.todo and o.n = s.n
+    left join %s.tablua_candidate c on c.todo = s.todo and c.n = s.n and c.move = d.chosen
+    left join %s.tablua_run r on r.todo = s.todo]]):format(src, src, src, src, src)
+    .. (labelled and (" left join %s.tablua_label l on l.todo = s.todo and l.n = s.n and l.head = 'contrib'"
       .. " and l.source = 'jev_hindsight'"):format(src) or "")
 end
 
-function T:label(task, n, head, value, source)
-  put(self.db, "tablua_label", { "task", "n", "head", "value", "source", "at" },
-    { task = task, n = n, head = head, value = value, source = source, at = self.clock() })
+function T:label(todo, n, head, value, source)
+  put(self.db, "tablua_label", { "todo", "n", "head", "value", "source", "at" },
+    { todo = todo, n = n, head = head, value = value, source = source, at = self.clock() })
 end
 
 -- a gate of the harness and whether it holds in this file's runs (retired_by names what turned it off)
@@ -241,13 +241,13 @@ function T:gate(g)
     { name = g.name, predicate = g.predicate or "", version = g.version or 1, retired_by = g.retired_by })
 end
 
-function T:effects(task, n, list)
-  self.db:exec("delete from tablua_effect where task = ? and n = ?", { task, n })
+function T:effects(todo, n, list)
+  self.db:exec("delete from tablua_effect where todo = ? and n = ?", { todo, n })
   for _, e in ipairs(list) do
-    put(self.db, "tablua_effect", { "task", "n", "keyword", "arg" }, { task = task, n = n, keyword = e.keyword, arg = e.arg or "" })
+    put(self.db, "tablua_effect", { "todo", "n", "keyword", "arg" }, { todo = todo, n = n, keyword = e.keyword, arg = e.arg or "" })
   end
   -- a step with no effect at all is still a step given its effects (every effect head reads it as 0)
-  if #list == 0 then put(self.db, "tablua_effect", { "task", "n", "keyword", "arg" }, { task = task, n = n, keyword = "", arg = "" }) end
+  if #list == 0 then put(self.db, "tablua_effect", { "todo", "n", "keyword", "arg" }, { todo = todo, n = n, keyword = "", arg = "" }) end
 end
 
 local HEADS = { progress = true, ship = true, contrib = true }
@@ -267,17 +267,17 @@ function T:training(head, opts)
     local effected = effect
       and #self.db:exec(("select 1 from %s.sqlite_master where name = 'tablua_effect'"):format(src)) > 0
     local sql = decided(src, featured, labelled, effected and effect:gsub("'", "''"))
-    if head == "ship" then sql = sql .. " where r.task is not null"
+    if head == "ship" then sql = sql .. " where r.todo is not null"
     elseif head == "contrib" then sql = sql .. (labelled and " where l.value is not null" or " where 0")
     elseif effect then sql = sql .. (effected and " where e_given = 1" or " where 0") end
-    sql = sql .. " order by s.task, s.n"
+    sql = sql .. " order by s.todo, s.n"
     for _, r in ipairs(self.db:exec(sql)) do
       local row = { r.move, r.stage, r.pass or -1, r.stalls or 0, r.last_verb or "", r.last_outcome or "",
         r.cause or "", r.own_checks or 0, r.n, r.jev_p or -1, r.jev_margin or -1 }
       for _, f in ipairs(M.features) do row[#row + 1] = r["f_" .. f] or -1 end
       if opts and opts.before then for j = #row, M.before + 1, -1 do row[j] = nil end end
       rows[#rows + 1] = row
-      keys[#keys + 1] = { task = r.task, n = r.n }
+      keys[#keys + 1] = { todo = r.todo, n = r.n }
       if head == "progress" then labels[#labels + 1] = r.progress
       elseif head == "contrib" then labels[#labels + 1] = r.contrib >= 0.5 and 1 or 0
       elseif effect then labels[#labels + 1] = r.e_has

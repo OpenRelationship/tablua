@@ -16,10 +16,10 @@ local function fresh() return tablua.open(sqlite.open(":memory:"), { clock = fun
 -- past steps: "run" helped, "look" did not
 local function past(t, k)
   for i = 1, k do
-    local task, verb = "request-" .. i, i % 2 == 0 and "run" or "look"
-    t:state{ task = task, n = 1, stage = "building" }
-    t:decision{ task = task, n = 1, chosen = verb, by = "jev" }
-    t:outcome{ task = task, n = 1, verb = verb, outcome = verb == "run" and "complete" or "broken" }
+    local todo, verb = "request-" .. i, i % 2 == 0 and "run" or "look"
+    t:state{ todo = todo, n = 1, stage = "building" }
+    t:decision{ todo = todo, n = 1, chosen = verb, by = "jev" }
+    t:outcome{ todo = todo, n = 1, verb = verb, outcome = verb == "run" and "complete" or "broken" }
   end
 end
 
@@ -54,7 +54,7 @@ spec.test("enough outcomes: fitted once on Tablua's rows, each option given its 
   past(t, 14)
   local m = ledger()
   local l = learn.new({ memory = m, tablua = t, tabpfn = tab })
-  local ranked = l:rank("step", { stage = "building", stalls = 2, n = 2, task = "request-15", at = 2 }, { "look", "run" })
+  local ranked = l:rank("step", { stage = "building", stalls = 2, n = 2, todo = "request-15", at = 2 }, { "look", "run" })
   spec.eq(ranked[1].name, "run")
   spec.eq(ranked[1].p, 0.8)
   spec.eq(tab.fits, 1)
@@ -68,7 +68,7 @@ spec.test("enough outcomes: fitted once on Tablua's rows, each option given its 
   -- the same state at a later step is ranked again without a call; a run asks at most learn.per_run times
   local calls, predict = 0, tab.predict
   tab.predict = function(...) calls = calls + 1; return predict(...) end
-  spec.eq(l:rank("step", { stage = "building", stalls = 2, n = 3, task = "request-15", at = 3 }, { "look", "run" })[1].name, "run")
+  spec.eq(l:rank("step", { stage = "building", stalls = 2, n = 3, todo = "request-15", at = 3 }, { "look", "run" })[1].name, "run")
   spec.eq(calls, 0)
   local was = learn.per_run
   learn.per_run = 2
@@ -87,7 +87,7 @@ spec.test("a learn made fresh for every step still holds the run to its budget a
   tab.predict = function(...) calls = calls + 1; return predict(...) end
   local function step(n, stalls)
     return learn.new({ tablua = t, tabpfn = tab, per_run = 2 }):rank("step",
-      { stage = "building", stalls = stalls, n = n, task = "request-15", at = n }, { "look", "run" })
+      { stage = "building", stalls = stalls, n = n, todo = "request-15", at = n }, { "look", "run" })
   end
   spec.ok(step(1, 0))
   spec.ok(step(2, 0))            -- the same state at a later step: no call
@@ -100,7 +100,7 @@ spec.test("a learn made fresh for every step still holds the run to its budget a
   spec.eq(t:count("ranking"), 2)
   -- another run has its own budget
   spec.ok(learn.new({ tablua = t, tabpfn = tab, per_run = 2 }):rank("step",
-    { stage = "building", stalls = 2, n = 1, task = "request-16", at = 1 }, { "look", "run" }))
+    { stage = "building", stalls = 2, n = 1, todo = "request-16", at = 1 }, { "look", "run" }))
 end)
 
 spec.test("a logged prediction is scored once its step took that move", function()
@@ -108,9 +108,9 @@ spec.test("a logged prediction is scored once its step took that move", function
   past(t, 14)
   local l = learn.new({ tablua = t, tabpfn = tab })
   spec.eq(l:record_line("step"), "its predictions here are not scored yet")
-  l:rank("step", { stage = "building", n = 1, task = "request-15", at = 1 }, { "look", "run" })
-  t:decision{ task = "request-15", n = 1, chosen = "run", by = "jev" }
-  t:outcome{ task = "request-15", n = 1, verb = "run", outcome = "complete" }
+  l:rank("step", { stage = "building", n = 1, todo = "request-15", at = 1 }, { "look", "run" })
+  t:decision{ todo = "request-15", n = 1, chosen = "run", by = "jev" }
+  t:outcome{ todo = "request-15", n = 1, verb = "run", outcome = "complete" }
   spec.eq(l:record_line("step"), "right on 1 of 1 scored predictions here, Brier 0.04")
 end)
 
@@ -120,7 +120,7 @@ spec.test("the control checkpoint learns from the controls past steps chose amon
     local list = {}
     for j = 1, 3 do list[j] = { id = "c" .. j, role = "button", label = j == 2 and "Send" or ("Item " .. j), order = j } end
     t:controls("r" .. i, 1, "press", "Mail", list, "c2")
-    t:outcome{ task = "r" .. i, n = 1, verb = "press", outcome = "complete" }
+    t:outcome{ todo = "r" .. i, n = 1, verb = "press", outcome = "complete" }
   end
   tab.predict = function(_, _, test)
     tab.test = test
@@ -129,7 +129,7 @@ spec.test("the control checkpoint learns from the controls past steps chose amon
     return out
   end
   local l = learn.new({ tablua = t, tabpfn = tab })
-  local ranked = l:rank("control", { app = "Mail", verb = "press", task = "r13", at = 1 },
+  local ranked = l:rank("control", { app = "Mail", verb = "press", todo = "r13", at = 1 },
     { { id = "x1", role = "button", label = "Item 1", order = 1 }, { id = "x2", role = "button", label = "Send", order = 2 } })
   spec.eq(ranked[1].name, "x2")
   spec.same(tab.set.columns, { "app", "verb", "role", "label", "order", "seen_ok" })

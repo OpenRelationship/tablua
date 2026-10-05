@@ -30,8 +30,8 @@ This split keeps the agent's progress measurable. A model can be wrong about wha
 | `ready` | Every test passes and every page answers | `publish`, `look_at_app`, `fix_failure` |
 | `awaiting_yes` | Publishing waits for the person's yes | `wait_for_yes` |
 | `shipped` | The app is published | `answer_task` |
-| `answered` | The task is done | `answer` |
-| `changing` | The task asks to change an app that already shipped | `write_tests`, `write_code`, `write_page` |
+| `answered` | The todo is done | `answer` |
+| `changing` | The todo asks to change an app that already shipped | `write_tests`, `write_code`, `write_page` |
 
 The full list is in [Stages and moves](/reference/moves).
 
