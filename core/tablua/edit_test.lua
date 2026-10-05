@@ -11,7 +11,7 @@ spec.test("a Lua file's unit is replaced in place, or added at the end, the rest
   local text = "local M = {}\n\nfunction M.add(x) return x end\n\nreturn M\n"
   local out = assert(edit.apply("code/items.lua", text, "M.add", "function M.add(x) return x + 1 end"))
   spec.eq(out, "local M = {}\n\nfunction M.add(x) return x + 1 end\n\nreturn M\n")
-  spec.same(edit.index("code/items.lua", out), { "M", "M.add" })
+  spec.same(edit.index("code/items.lua", out), { "M", "M.add", "return" })
   local added = assert(edit.apply("code/steps/items.lua", nil, 'there are {int} items',
     'test.step("there are {int} items", function(w, n) end)'))
   spec.eq(added, 'test.step("there are {int} items", function(w, n) end)\n')

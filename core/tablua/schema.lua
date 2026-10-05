@@ -14,9 +14,11 @@
 -- and calls into the app's own modules that nothing defines to tablua_break (dropped and made again at open).
 -- Schema 9: a code section is kind code with its language in lang (owner, 2026-10-05: Lua is the harness, not the
 -- output); a file kept before it has its Lua sections renamed at open.
+-- Schema 10 adds change blocks (tablua.change): each operation of a change a step made (tablua_change), and each
+-- unit's columns (tablua_shape: code lines, parameters, deepest block, the file's units it names).
 local M = {}
 
-M.version = 9
+M.version = 10
 
 M.ddl = [[
 create table if not exists tablua_meta (key text primary key, value text);
@@ -99,6 +101,14 @@ create table if not exists tablua_control (
 create table if not exists tablua_ranking (
   task text not null, head text not null, key text not null, n integer, ps text not null,
   primary key (task, head, key));
+create table if not exists tablua_change (
+  task text not null, n integer not null, i integer not null, op text not null, kind text not null default '',
+  name text not null default '', lines integer not null default 0, named_by integer not null default 0,
+  breaks integer not null default 0, primary key (task, n, i));
+create table if not exists tablua_shape (
+  file text not null, section integer not null, n integer not null, lines integer not null default 0,
+  arity integer not null default 0, depth integer not null default 0, names integer not null default 0,
+  primary key (file, section, n));
 create table if not exists tablua_gate (
   name text primary key, predicate text not null, version integer not null default 1,
   retired_by text);

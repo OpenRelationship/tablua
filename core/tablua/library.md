@@ -66,3 +66,11 @@ Over the eval history (`just tool eval build breaks`, 2026-10-04), breaks were f
 - 1 of the 17 runs the harness stopped with a working app;
 - 10 of the 122 runs that worked, mostly leftover actions nothing needed.
 
+
+Schema 10 adds change blocks (`change.lua`, context/projects/arock/features/change-blocks; owner, 2026-10-04): an
+edit is a short script of operations on the program's rows (`%% add`, `replace`, `delete`, `rename`, `scenario`),
+applied all or nothing like a migration, with the change that undoes it given back. Each operation is a row
+(`tablua_change`: op, kind, name, code lines added, units naming it, units left naming nothing, via `t:change`),
+and each unit has columns of its own (`tablua_shape`: code lines, parameters, deepest block, the units it names),
+put with the program. `lexer.lua` is the Lua tokenizer under both: a rename reaches references and never a string or
+a comment. Colm's model (a grammar, a tree, transformations over it) in portable Lua, not Colm's binary.

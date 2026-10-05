@@ -7,15 +7,19 @@
 --   t:put_program(file, rows)     the file's rows, replacing what was kept for it
 --   t:program(file) -> rows | nil t:compile(file) -> org | nil      t:files() -> { file, ... }
 --   t:breaks() -> { { file, kind, source, target } }   the links with nothing at their end (tablua_break)
+--   t:change(task, n, ops)        a change's operation rows (tablua.change), as step n of task made them
 --
 -- Putting a file's rows also puts its links (tablua.links), and settles every scenario line's link against every
 -- step the program defines, in whichever file: a step written later mends a line written earlier.
+-- It also puts each unit's columns (tablua_shape).
 local src = require("tablua.source")
 local links = require("tablua.links")
+local change = require("tablua.change")
 
 return function(T, put)
   local function clear(db, file)
-    for _, tbl in ipairs({ "tablua_section", "tablua_unit", "tablua_scenario", "tablua_line", "tablua_link" }) do
+    for _, tbl in ipairs({ "tablua_section", "tablua_unit", "tablua_scenario", "tablua_line", "tablua_link",
+      "tablua_shape" }) do
       db:exec("delete from " .. tbl .. " where file = ?", { file })
     end
   end
@@ -40,6 +44,10 @@ return function(T, put)
         end
       end
     end
+    for _, c in ipairs(change.shape(rows)) do
+      c.file = file
+      put(db, "tablua_shape", { "file", "section", "n", "lines", "arity", "depth", "names" }, c)
+    end
     for _, l in ipairs(links.scan(rows, file)) do
       put(db, "tablua_link", { "file", "kind", "source", "target" },
         { file = file, kind = l.kind, source = l.source, target = l.target })
@@ -57,6 +65,14 @@ return function(T, put)
         { links.found(l, text, steps) and 1 or 0, l.file, l.kind, l.source, l.target })
     end
     db:exec("commit")
+  end
+
+  function T:change(task, n, ops)
+    for i, o in ipairs(ops) do
+      put(self.db, "tablua_change", { "task", "n", "i", "op", "kind", "name", "lines", "named_by", "breaks" },
+        { task = task, n = n, i = i, op = o.op, kind = o.kind, name = o.name, lines = o.lines, named_by = o.named_by,
+          breaks = o.breaks })
+    end
   end
 
   function T:breaks()

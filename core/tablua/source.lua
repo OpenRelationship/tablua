@@ -80,6 +80,7 @@ function M.classify(code)
   if name then return "step", name end
   name = s:match("^local%s+([%w_]+)")
   if name then return "local", name end
+  if s == "return" or s:match("^return[^%w_]") then return "stmt", "return" end
   name = s:match("^([%w_%.]+)%s*=") or s:match("^([%w_%.:]+)%s*%(")
   return "stmt", name or ""
 end

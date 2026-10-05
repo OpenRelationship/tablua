@@ -109,6 +109,13 @@ spec.test("a program kept as rows compiles back to the same org, and a file put 
   spec.eq(t:count("line"), 2)
   local line = t.db:exec("select keyword, text from tablua_line where file = 'ui/index.org' and n = 2")[1]
   spec.same(line, { keyword = "Then", text = 'I see "Plants"' })
+  local shape = t.db:exec("select n, lines, arity, depth from tablua_shape where file = 'ui/index.org' order by n")
+  spec.same(shape[2], { n = 2, lines = 1, arity = 1, depth = 1 })
+  local change = require("tablua.change")
+  local done = assert(change.apply(rows, "%% rename post.water post.feed\n"))
+  t:change("r1", 3, done.ops)
+  spec.same(t.db:exec("select op, kind, name, lines, named_by, breaks from tablua_change where task = 'r1' and n = 3"),
+    { { op = "rename", kind = "action", name = "post.water", lines = 0, named_by = 0, breaks = 0 } })
   t:put_program("ui/index.org", src.from_files({ code = "print(1)\n" }))
   spec.eq(t:count("unit"), 1)
   spec.eq(t:count("scenario"), 0)
@@ -160,7 +167,8 @@ spec.test("schema 9 renames a Lua section kept before it to kind code", function
   tablua.open(db, { clock = function() return "t" end })
   local r = db:exec("select kind, lang from tablua_section where file = 'old.org'")[1]
   spec.eq(r.kind .. " " .. r.lang, "code lua")
-  spec.eq(t.db:exec("select value from tablua_meta where key = 'version'")[1].value, "9")
+  spec.eq(t.db:exec("select value from tablua_meta where key = 'version'")[1].value,
+    tostring(require("tablua.schema").version))
 end)
 
 spec.test("Jev's hindsight labels each step once, in batches, and contrib trains on the labelled steps only", function()

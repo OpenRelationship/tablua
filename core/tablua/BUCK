@@ -4,7 +4,8 @@ load("@nomimono//rules/lua:defs.bzl", "lua_library", "lua_test")
 # and what TabPFN learns from as a query over them.
 lua_library(
     name = "tablua",
-    srcs = ["app.lua", "control.lua", "edit.lua", "effects.lua", "hindsight.lua", "init.lua", "links.lua", "org.lua", "program.lua",
+    srcs = ["app.lua", "change.lua", "control.lua", "edit.lua", "effects.lua", "hindsight.lua", "init.lua", "lexer.lua",
+        "links.lua", "org.lua", "program.lua",
         "schema.lua", "source.lua", "telemetry.lua"],
     prefix = "tablua",
     deps = ["//submodules/tablua/core/ports:ports"],
@@ -32,6 +33,18 @@ lua_test(
 lua_test(
     name = "links_test",
     src = "links_test.lua",
+    deps = [":tablua"],
+)
+
+lua_test(
+    name = "lexer_test",
+    src = "lexer_test.lua",
+    deps = [":tablua"],
+)
+
+lua_test(
+    name = "change_test",
+    src = "change_test.lua",
     deps = [":tablua"],
 )
 
