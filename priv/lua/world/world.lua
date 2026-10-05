@@ -143,6 +143,11 @@ function M.new(host, run)
   -- a run whose features use the page's own steps (run.steps "page") holds every check to them
   -- (until its own-word checks are let go, below: every read of the facts after that holds them no longer)
   local waived = {}
+  -- a module asked for (run.kind "module"): code and its steps, no page to have or to use before publishing
+  if run and run.kind == "module" then
+    local read = host.facts
+    host = setmetatable({ facts = function(...) local f = read(...); f.module = true; return f end }, { __index = host })
+  end
   if run and run.steps == "page" then
     local read = host.facts
     host = setmetatable({ facts = function(...) local f = read(...); f.page_steps = not waived.yes or nil; return f end },

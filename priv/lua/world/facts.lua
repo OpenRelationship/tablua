@@ -39,7 +39,8 @@ function M.stage(f, since)
       .. table.concat(some, "; ")
       .. (#t.checked > 2 and "; ..." or "") .. ")"
   end
-  if #f.pages == 0 then why[#why + 1] = "the app has no page" end
+  -- (a module asked for, run.kind "module", is code and its steps alone: an Exercism exercise has no page)
+  if #f.pages == 0 and not f.module then why[#why + 1] = "the app has no page" end
   for _, p in ipairs(f.pages) do
     if p.status ~= 200 then why[#why + 1] = ("the page %s answers %d"):format(p.path, p.status) end
   end

@@ -13,7 +13,7 @@ M.list = {
   { name = "stuck_fix", what = "fixing the same failure again waits on thinking it through",
     blocks = function(c) return c.stuck and c.move == "fix_failure" end },
   { name = "publish_looked", what = "publishing waits on the app having been used since it changed",
-    blocks = function(c) return c.move == "publish" and not c.req.looked end },
+    blocks = function(c) return c.move == "publish" and not c.req.looked and not (c.req.facts or {}).module end },
   { name = "think_twice", what = "thinking twice running changes nothing",
     blocks = function(c) return c.move == "think" and c.last and c.last.verb == "think" end },
   -- (a packing run read the help seven times running, every scenario passing, then blocked)

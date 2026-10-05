@@ -676,6 +676,26 @@ defmodule Moss.ComputerAgentTest do
     assert out == "building/false ready/true ready false true"
   end
 
+  # an external benchmark's exercise (Exercism's Lua track) is a module, not an app: code and its steps, no page
+  test "a module run is ready with no page, and publishing does not wait on using one" do
+    out =
+      Lua.eval!(Moss.Lua.base(), """
+      local world = require("moss.world")
+      local host = { facts = function() return { features = { { path = "features/leap.feature", stage = "agreed" } },
+        pages = {}, empty_steps = 0, tests = { passed = 3, total = 3, failing = {}, undefined = {}, checked = {} } } end }
+      local function asked(run)
+        local req = { steps = { { n = 1, verb = "run_test", outcome = "complete" } } }
+        local q = world.new(host, run).question({ req = req })
+        return req.stage .. "/" .. tostring(q.options and q.options.publish ~= nil)
+      end
+      return asked({}) .. " " .. asked({ kind = "module" })
+      """)
+      |> elem(0)
+      |> hd()
+
+    assert out == "building/false ready/true"
+  end
+
   # M6c: what is broken in the program reaches both minds before a test does (a rows run rewrote a page five times,
   # its call to plants.list() never defined in code/plants.lua)
   test "a break in the program is named in the facts, with the side to fix" do
