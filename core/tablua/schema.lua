@@ -1,4 +1,9 @@
--- Tablua's tables: the agent's work as typed rows in its own SQLite file, beside the host's own log and
+-- Three parts, told apart by their key (site/docs/content/log-and-build.md): the log, what the agent did, keyed by
+-- (task, n) and only ever added to (state, candidate, decision, action, change, outcome, effect, feature, label,
+-- prediction, control, run); the build, what it is making, keyed by file and replaced as files change (section,
+-- unit, shape, scenario, line, link, the break view); and the policy, keyed by neither (gate, fit, ranking).
+--
+-- Tablua's tables: the agent's work as typed rows in its own SQLite file, beside the host's own tables and
 -- never in them. One row per state decided in, per move that could have been made (with what Jev and TabPFN said
 -- of it), per decision, per call a move made, per step's outcome and per run's ending; TabPFN's fits and
 -- predictions; and the hand-written gates still live. Every name starts tablua_, so a host can let the

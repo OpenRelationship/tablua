@@ -4,9 +4,15 @@ description: Every table Tablua keeps in an agent's SQLite file, with every colu
 
 # Tables
 
-Every table Tablua keeps in an agent's file, and what each column means. All names start with `tablua_`. Most tables are keyed by `(task, n)`: the run's task and the step number. The schema is at version 7 (`tablua_meta`).
+Every table Tablua keeps in an agent's file, and what each column means. All names start with `tablua_`. The schema is at version 10 (`tablua_meta`).
 
-## The work
+The tables fall into three parts ([The log and the build](/concepts/log-and-build)), told apart by their key:
+
+- **The log**: what the agent did. Keyed by `(task, n)`, the run's task and the step number. Rows are only ever added.
+- **The build**: what the agent is making. Keyed by file. Rows are replaced as the files change.
+- **The policy**: how the next decision is made. Keyed by neither.
+
+## The log
 
 ### tablua_state
 
@@ -93,7 +99,9 @@ How a run ended.
 | `changed` | a change asked after shipping was made |
 | `steps`, `cost`, `at` | steps taken, cost in US dollars, when |
 
-## What it learns from
+### tablua_change
+
+Each operation of a change block a step made ([The program as rows](/concepts/program-as-rows)): where the log meets the build. Key: `task`, `n`, `i`; also `op` (`add`, `replace`, `delete`, `rename`, `scenario`), `kind` (the unit's kind), `name`, `lines` (code lines added, negative when taken away), `named_by` (units that named the target before) and `breaks` (units left naming something no unit defines).
 
 ### tablua_effect
 
@@ -107,10 +115,6 @@ Jev's answers to extra questions about a step, as numbers. Key: `task`, `n`, `na
 
 Labels given after the fact, such as Jev's hindsight. Key: `task`, `n`, `head`, `source`; also `value` and `at`. Head `contrib`, source `jev_hindsight`.
 
-### tablua_fit
-
-TabPFN fits kept for reuse. Key: `head`, `schema`; also `id` (the fit's id at Prior Labs), `rows` and `at`.
-
 ### tablua_prediction
 
 Every prediction made, scored once its outcome lands. Key: `task`, `n`, `head`, `move`; also `p`.
@@ -119,12 +123,13 @@ Every prediction made, scored once its outcome lands. Key: `task`, `n`, `head`, 
 
 The controls a step chose among on a screen (Tablua's Mac app). Key: `task`, `n`, `i`; also `id`, `app`, `verb`, `role`, `label`, `ord` and `chosen`.
 
-## The program
+## The build
 
 | Table | Key | Holds |
 | --- | --- | --- |
 | `tablua_section` | `file`, `n` | a file's sections: `kind`, `lang`, `body` |
 | `tablua_unit` | `file`, `section`, `n` | top-level units: `kind`, `name`, `source` |
+| `tablua_shape` | `file`, `section`, `n` | each unit's columns: `lines` (code lines), `arity` (a function's parameters), `depth` (deepest block), `names` (other units it names) |
 | `tablua_scenario` | `file`, `n` | scenarios: `name`, `text` |
 | `tablua_line` | `file`, `scenario`, `n` | scenario lines: `keyword`, `text` |
 | `tablua_link` | `file`, `kind`, `source`, `target` | links between units, with `found` |
@@ -132,9 +137,11 @@ The controls a step chose among on a screen (Tablua's Mac app). Key: `task`, `n`
 
 Link kinds: `post` (page to action), `defines`, `sends` (page to field), `reads` (action to field), `line`, `press`, `field` and `see` (scenario line to what must answer it).
 
-## Policy and metadata
+## The policy, and metadata
 
 | Table | Holds |
 | --- | --- |
 | `tablua_gate` | the gates a run ran under: `name`, `predicate`, `version`, `retired_by` |
+| `tablua_fit` | TabPFN fits kept for reuse: `head`, `schema` (key), `id` (the fit's id at Prior Labs), `rows`, `at` |
+| `tablua_ranking` | rankings a run paid TabPFN for, reused across steps: `task`, `head`, `key` (key), `n`, `ps` |
 | `tablua_meta` | `key`, `value`; `version` is the schema version |

@@ -79,7 +79,14 @@ to watch a run at those speeds.*
 ## The tables
 
 The agent's file is ordinary SQLite. Every table is named `tablua_*`, and the harness writes only to these
-tables. These are the core ones:
+tables. They fall into three parts, told apart by their key:
+
+- **The log**: what the agent did, keyed by run and step. Rows are only ever added.
+- **The build**: what the agent is making, the app's files as rows, keyed by file. Rows are replaced as files change.
+- **The policy**: how the next decision is made: gates, fits, rankings. Keyed by neither.
+
+They meet in `tablua_change`: each operation a step made on the build, kept in the log with columns that describe
+the build. The log's core tables:
 
 ```mermaid
 erDiagram

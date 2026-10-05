@@ -33,6 +33,7 @@ export const sections: Section[] = [
   {
     name: "Concepts",
     pages: [
+      { slug: "concepts/log-and-build", file: "log-and-build", title: "The log and the build" },
       { slug: "concepts/step-loop", file: "step-loop", title: "The step loop" },
       { slug: "concepts/three-models", file: "three-models", title: "Three models, one table" },
       { slug: "concepts/learning", file: "learning", title: "How Tablua learns" },

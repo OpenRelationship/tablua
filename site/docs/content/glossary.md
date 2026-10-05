@@ -10,6 +10,10 @@ description: Plain definitions of the words used across Tablua's docs.
 
 **A/B.** Running the same tasks two ways, for example with a gate on and with it off, and comparing the outcomes.
 
+**Build, the.** What the agent is making: the files of the app, as rows keyed by file (`tablua_section`, `tablua_unit`, `tablua_scenario` and the rest). Rows are replaced as the files change. One of the three parts of an agent's file, with the log and the policy ([The log and the build](/concepts/log-and-build)).
+
+**Change block.** An edit as a short script of operations on the build (`%% add`, `replace`, `delete`, `rename`, `scenario`), made all or none, with the change that undoes it. Each operation is a `tablua_change` row in the log.
+
 **Candidate.** A move that could be made at a step. Every candidate is recorded, not only the one taken.
 
 **Cause.** Where Jev judged the last failure to be: the steps, the app's code, the page, a library call, the feature, or unclear.
@@ -42,6 +46,8 @@ description: Plain definitions of the words used across Tablua's docs.
 
 **Label.** The answer a training row carries, such as whether the step made progress.
 
+**Log, the.** What the agent did: every state, candidate, decision, action, change and outcome, as rows keyed by run and step. Rows are only ever added. One of the three parts of an agent's file ([The log and the build](/concepts/log-and-build)).
+
 **Mercury.** The writing model. It fills in a chosen move: code, test steps, pages.
 
 
@@ -50,6 +56,8 @@ description: Plain definitions of the words used across Tablua's docs.
 **Org.** A plain-text file format with headings, drawers and source blocks. An app's file in Tablua is org.
 
 **Outcome.** How a step turned out: `complete`, `broken`, `no_effect` or `denied`, with its progress label.
+
+**Policy, the.** How the next decision is made: the gates in force, TabPFN's fits and the rankings a run paid for. Keyed by neither step nor file. One of the three parts of an agent's file.
 
 **Progress.** A step's label: 1 if it helped, by a fixed rule over the rows, else 0.
 
