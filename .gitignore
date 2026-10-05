@@ -1,7 +1,5 @@
 # The databases a quickstart or a test leaves behind
 *.sqlite
 
-# Impeccable working files (screenshots, decision pages); the surface briefs and design.json are kept
-/.impeccable/review/
-/.impeccable/questions/
-/.impeccable/mocks/
+# The Impeccable design skill's working files stay local (owner, 2026-10-05)
+.impeccable/
