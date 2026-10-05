@@ -4,8 +4,10 @@
 -- only fetch is required. req = { method, url, headers, body, timeout };
 -- res = { status, body }. fetch may raise for a network failure or timeout.
 --
--- A transient failure (network, 429, 5xx) is retried once; any other status
--- is final. The record returned is what the log may keep: service, url,
+-- A transient failure (network, 429, 5xx) is retried; any other status is
+-- final, and so is a 429 that says a daily or plan limit is spent (retrying it
+-- only waits: a protocol's steps took 20 s each against TabPFN's spent daily
+-- limit, 2026-10-05). Its error carries spent = true. The record returned is what the log may keep: service, url,
 -- status, tries and seconds, never the headers, so never the key.
 local json = require("ports.json")
 
@@ -29,6 +31,13 @@ local function reason(body)
     if e ~= nil then return tostring(e):sub(1, 300) end
   end
   return (body or ""):sub(1, 200)
+end
+
+-- whether a 429's body says a limit is spent until later (a daily or plan limit, a quota), not a moment's load
+function M.spent(body)
+  local r = reason(body):lower()
+  return (r:find("limit reached", 1, true) or r:find("quota", 1, true) or r:find("usage limit", 1, true)
+    or r:find("resets at", 1, true)) ~= nil
 end
 
 -- key is sent as a Bearer token, or in its own header when given as
@@ -61,11 +70,13 @@ function M.post(host, service, url, key, payload, timeout, on_data)
     end
     last = ok and (service .. " answered " .. status .. ": " .. reason(res.body))
       or (service .. " unreachable: " .. tostring(res))
+    if status == 429 and M.spent(res.body) then record.spent = true break end
     if not transient(status) then break end
     if waits[try] and host.sleep then host.sleep(waits[try]) end
   end
   if t0 then record.seconds = host.now() - t0 end
-  error(setmetatable({ message = last, record = record }, { __tostring = function(e) return e.message end }), 0)
+  error(setmetatable({ message = last, record = record, spent = record.spent },
+    { __tostring = function(e) return e.message end }), 0)
 end
 
 return M

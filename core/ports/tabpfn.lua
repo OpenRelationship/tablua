@@ -75,8 +75,15 @@ end
 
 local function now(host) return host.now and host.now() end
 
+-- Once the API says a limit is spent (call.spent), every later call of this port fails at once with what it said,
+-- never asking again: the limit resets on its own clock, not within a run.
 function TabPFN:post(step, path, payload, timeout, steps)
-  local body, record = call.post(self.host, "tabpfn", self.url .. path, self.key, payload, timeout)
+  if self.spent then error(self.spent, 0) end
+  local ok, body, record = pcall(call.post, self.host, "tabpfn", self.url .. path, self.key, payload, timeout)
+  if not ok then
+    if type(body) == "table" and body.spent then self.spent = body end
+    error(body, 0)
+  end
   record.step = step
   steps[#steps + 1] = record
   return body

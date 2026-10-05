@@ -74,4 +74,31 @@ spec.test("limits is a GET with the key; an estimate prices each checkpoint's ow
 end)
 
 
+spec.test("a spent daily limit is asked once, never retried, and the port asks no more", function()
+  local calls, slept = 0, 0
+  local host = { sleep = function(n) slept = slept + n end, fetch = function()
+    calls = calls + 1
+    return { status = 429, body = json.encode({ message = "Daily usage limit reached. Resets at 2026-10-06 00:00:00 UTC." }) }
+  end }
+  local t = tabpfn.new(host, { key = "k" })
+  local ok, err = pcall(t.estimate, t, { train_rows = 10, raw_columns = 3 })
+  spec.ok(not ok and err.spent)
+  spec.eq(calls, 1)
+  spec.eq(slept, 0)
+  ok = pcall(t.estimate, t, { train_rows = 10, raw_columns = 3 })
+  spec.ok(not ok)
+  spec.eq(calls, 1)
+end)
+
+spec.test("a moment's 429 is still retried", function()
+  local calls = 0
+  local host = { sleep = function() end, fetch = function()
+    calls = calls + 1
+    if calls < 3 then return { status = 429, body = json.encode({ message = "too many requests" }) } end
+    return { status = 200, body = json.encode({ estimated_cost = 5 }) }
+  end }
+  spec.eq(tabpfn.new(host, { key = "k" }):estimate({ train_rows = 1, raw_columns = 1 }), 5)
+  spec.eq(calls, 3)
+end)
+
 spec.run()
