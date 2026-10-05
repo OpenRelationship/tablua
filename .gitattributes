@@ -1,0 +1,3 @@
+# moss-lua (lua/) is our fork of tv-labs/lua, a Lua VM written in Elixir: vendored, so the repository's languages
+# show Tablua itself, the harness in Lua
+lua/** linguist-vendored
