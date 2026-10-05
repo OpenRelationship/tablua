@@ -14,7 +14,7 @@ description: Plain definitions of the words used across Tablua's docs.
 
 **Cause.** Where Jev judged the last failure to be: the steps, the app's code, the page, a library call, the feature, or unclear.
 
-**Computer.** The agent's own machine: disk, shell, browser and mailbox, all in its SQLite file. See Moss.
+**Computer.** Wherever the agent's code is written, run and tested. The host supplies it as the world the step loop acts on.
 
 **Decision.** The move taken at a step, who took it, and how likely the choice was.
 
@@ -44,7 +44,6 @@ description: Plain definitions of the words used across Tablua's docs.
 
 **Mercury.** The writing model. It fills in a chosen move: code, test steps, pages.
 
-**Moss.** The agent's computer. Written in Elixir and Lua; the Lua runs on the BEAM.
 
 **Move.** One kind of thing the agent can do, such as `write_code` or `publish`. Also called a verb.
 

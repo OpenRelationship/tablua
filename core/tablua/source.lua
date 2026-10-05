@@ -10,7 +10,7 @@
 --   local rows = src.decode(org)        -> { sections = { { kind, body, units?, scenarios? }, ... } }
 --   local org = src.compile(rows)
 --   local rows = src.from_files{ feature = f, steps = s, code = c, markup = m, notes = n, lang? }
---   local rows = src.from_lui(text)     -- a .lui page in Shroomi's tagged sections, until Shroomi goes
+--   local rows = src.from_lui(text)     -- a .lui page in tagged sections
 local org = require("tablua.org")
 
 local M = {}

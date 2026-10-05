@@ -1,7 +1,7 @@
 load("@nomimono//rules/lua:defs.bzl", "lua_library", "lua_test")
 
 # Arock's agent harness (PROJECT.md §1, §11): Jev decides, Mercury fills, TabPFN narrows; the loop as an explicit
-# state machine over a world (the person's Mac in app/desktop/agent, the agent's own computer in Moss).
+# state machine over a world (the person's Mac in app/desktop/agent, the agent's own computer a host gives it).
 lua_library(
     name = "agent",
     srcs = ["init.lua", "clip.lua", "history.lua", "parts.lua", "checkpoint.lua", "learn.lua", "memory.lua",

@@ -20,7 +20,7 @@ export default function App() {
         <section className="close">
           <div className="wrap">
             <h2>Read the source.</h2>
-            <p className="intro">Two languages, Elixir and Lua. No WebAssembly, and no native code an agent can reach.</p>
+            <p className="intro">Portable Lua, embedded in any host's Lua VM. No WebAssembly, no native code.</p>
             <div className="actions">
               <a className="btn btn-primary" href={REPO}>
                 <GitHub /> OpenRelationship/tablua

@@ -48,7 +48,7 @@ export const sections: Section[] = [
       { slug: "guides/embed", file: "embed", title: "Embed the harness in Lua" },
       { slug: "guides/query", file: "query", title: "Read an agent's file with SQL" },
       { slug: "guides/learning-modes", file: "learning-modes", title: "Turn learning on" },
-      { slug: "guides/run-agent", file: "run-agent", title: "Run an agent on its computer" },
+      { slug: "guides/run-agent", file: "run-agent", title: "Run an agent in your host" },
       { slug: "guides/gate-ab", file: "gate-ab", title: "Retire a gate with an A/B" },
     ],
   },

@@ -1,6 +1,6 @@
 -- ports.sqlite, the database port on a LuaJIT host: LuaJIT's FFI over the system SQLite.
 -- This is host code, not the harness: Tablua itself never touches the FFI, and
--- any host that can run SQL (Moss's Exqlite, a platform binding) can stand in.
+-- any host that can run SQL (its own database binding) can stand in.
 --
 --   local db = require("ports.sqlite").open(":memory:")
 --   db:exec(sql, params) -> rows, each { column = value } (nil for NULL)

@@ -24,21 +24,7 @@ This is also why the agent's vocabulary is kept small and fixed. A few dozen mov
 
 ## Turning it on
 
-Shared experience is a file path. For agents on Moss, set it once for the node:
-
-```sh
-export MOSS_EXPERIENCE=/var/lib/tablua/experience.sqlite
-```
-
-or in your Elixir config:
-
-```elixir
-config :moss, :experience, "/var/lib/tablua/experience.sqlite"
-```
-
-With neither set, each agent learns from its own rows alone.
-
-If you embed the harness yourself, attach any file of Tablua rows:
+Shared experience is a file path. Attach any file of Tablua rows to an agent's file before it learns; without one, each agent learns from its own rows alone:
 
 ```lua
 t:attach("shared", "/var/lib/tablua/experience.sqlite")

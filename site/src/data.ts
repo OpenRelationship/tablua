@@ -103,13 +103,12 @@ export const gates: Gate[] = [
 export const moves = ["write_feature", "write_steps", "write_page", "fix_failure", "run_test", "look_at_app", "publish", "answer_task"];
 
 export const computer = [
-  { field: "PROCESS", value: "one per agent, on the BEAM" },
-  { field: "DISK", value: "one SQLite file, its own" },
-  { field: "LANGUAGE", value: "Lua, bounded in steps, memory and time" },
-  { field: "SHELL", value: "its own; no real shell on any machine" },
-  { field: "BROWSER", value: "headless, under the computer's web rules" },
-  { field: "MAIL", value: "agents talk only by mail" },
-  { field: "PAGES", value: "published through Shroomi as .lui files" },
+  { field: "HOST", value: "yours: a sandbox, a worker, a VM or a person's machine" },
+  { field: "DISK", value: "one SQLite file per agent, its rows beside the host's own" },
+  { field: "LANGUAGE", value: "any its computer runs; each code block says which" },
+  { field: "MOVES", value: "the tools the host's world offers" },
+  { field: "FACTS", value: "where the work stands, as the host reads it" },
+  { field: "REACH", value: "only the ports the host supplies" },
 ];
 
 export const file = [

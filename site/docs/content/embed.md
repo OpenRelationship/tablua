@@ -17,7 +17,7 @@ You'll need the [Quickstart](/start/quickstart) set up, and for the ranking, a P
 | `ports.tabpfn` | talks to Prior Labs' TabPFN API |
 | `ports.sqlite` | SQLite for LuaJIT; on other Lua runtimes, supply any object with `db:exec(sql, params) -> rows` |
 
-The harness is portable Lua: it runs unchanged on LuaJIT, Lua 5.4 and 5.5, and on the BEAM. Only the SQLite binding and the HTTP client are specific to where it runs, and you can supply your own.
+The harness is portable Lua: it runs unchanged on LuaJIT, Lua 5.4 and 5.5, and any other Lua VM. Only the SQLite binding and the HTTP client are specific to where it runs, and you can supply your own.
 
 ## 1. Open the agent's file
 
@@ -91,7 +91,7 @@ end
 
 ## 4. Use the ranking
 
-How much weight to give the ranking is up to you. The pattern Tablua's own agent uses:
+How much weight to give the ranking is up to you. The pattern the harness's own checkpoints follow:
 
 - show it to your decision model as evidence, after a couple of failed steps;
 - record it without using it (shadow mode) until you have measured how good it is;

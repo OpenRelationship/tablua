@@ -4,7 +4,7 @@ description: The stages of Tablua's app-building agent, the moves allowed in eac
 
 # Stages and moves
 
-The stages and moves of Tablua's own agent, which builds small apps on its computer. If you embed the harness, you can use your own.
+The stages and moves of the app-building agent Tablua is measured with. If you embed the harness, you can use your own.
 
 ## Stages
 

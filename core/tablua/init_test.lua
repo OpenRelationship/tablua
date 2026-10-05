@@ -66,8 +66,8 @@ spec.test("before Jev answers, a step is its first columns alone, and a move's r
 end)
 
 spec.test("another file's rows are read first, then this one's", function()
-  -- Moss's test host keeps the files it opens in a folder of its own, which an attach by path does not reach;
-  -- Moss attaches the node's real shared file (Moss.Computer.Tablua), tested there
+  -- a host whose test runner keeps the files it opens in a folder of its own cannot attach by path; it tests
+  -- attaching its own shared file itself
   if rawget(_G, "__test") then return end
   local shared = os.tmpname()
   os.remove(shared)

@@ -42,7 +42,7 @@ end
 -- CSV ------------------------------------------------------------------------
 
 local function cell(v)
-  -- v ~= v is NaN (checked before its type: tv-labs lua, in Moss, calls NaN userdata)
+  -- v ~= v is NaN (checked before its type: some Lua VMs call NaN userdata)
   if v == nil or v == json.null or v ~= v then return "" end
   if type(v) == "boolean" then return v and "1" or "0" end
   if type(v) == "number" then

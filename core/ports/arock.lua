@@ -134,7 +134,7 @@ end
 
 function P:account() return asked(self, { method = "GET", url = self.base .. "/v1/account", timeout = 15 }) end
 
--- One command on one of the person's computers, its moss (features/screen, PROJECT.md §14), through the front door
+-- One command on one of the person's computers (features/screen, PROJECT.md §14), through the front door
 -- to their node, as the computer page's terminal runs one: -> { code, out, err, cwd }. The node says no to a
 -- computer of someone else's.
 function P:run(computer, line) return self:run_all(computer, { line })[1] end

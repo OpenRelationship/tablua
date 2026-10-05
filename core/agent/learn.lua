@@ -15,7 +15,7 @@
 -- account's, and a stalled run once spent them): a run asks at most per_run times (M.per_run unless given), and a
 -- state it ranked before (the same row but for its step number, and the same options) gets the same ranking again
 -- without a call. Both are kept as Tablua's rows (tablua_ranking) for a run with a task, so a host that builds a
--- learn for every step (Moss's stateless stepper) holds a run to them as one that keeps it does. With
+-- learn for every step (a stateless stepper) holds a run to them as one that keeps it does. With
 -- too little history, learning off, the run's or the day's predictions used up, or TabPFN unreachable, it gives nil
 -- and why, and the agent goes on as it would without it.
 local tablua = require("tablua")

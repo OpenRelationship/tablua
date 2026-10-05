@@ -14,8 +14,8 @@ Most agents keep their history as text: a long prompt, a chat log, or notes in a
 
 Tablua has two parts that work together:
 
-- **The harness.** The part that runs the agent: its tables, its step loop, and the code that decides when each model is asked what. The harness is portable Lua. You can embed it in your own program, and it runs unchanged on LuaJIT, standard Lua and the BEAM.
-- **The computer.** Each agent gets a computer of its own, called Moss. It has a disk, a shell, a browser and a mailbox, and all of it lives in the same SQLite file as the agent's tables. Moss is written in Elixir and Lua.
+- **The harness.** The part that runs the agent: its tables, its step loop, and the code that decides when each model is asked what. The harness is portable Lua. You can embed it in your own program, and it runs unchanged on LuaJIT, standard Lua and any other Lua VM.
+- **The computer.** Wherever the agent's code is written, run and tested. The host that embeds the harness supplies it, and can keep it in the same SQLite file as the agent's tables.
 
 These docs are mostly about the harness, because that is where Tablua differs most from other agents.
 

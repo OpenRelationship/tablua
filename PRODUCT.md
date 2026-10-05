@@ -10,7 +10,7 @@ web
 
 tablua.com (`site/`): React with Framer Motion (owner, 2026-10-04), built with Vite to static files and served
 by a Cloudflare Worker's static assets on tablua.com (owner chose Workers static assets). TypeScript and Node
-tooling live only in `site/`; the product itself is Elixir and Lua.
+tooling live only in `site/`; the product itself is Lua.
 
 ## Users
 
@@ -19,7 +19,7 @@ its idea and its mechanism, then read the code.
 
 ## Product Purpose
 
-Tablua is an embeddable agent and its own computer. Everything the agent is and does is kept as typed tables in
+Tablua is an embeddable agent harness. Everything the agent is and does is kept as typed tables in
 one SQLite file: where the work stands, every move it could make with each model's numbers, the move taken and by
 whom, how each step turned out, and how each run ended. A tabular foundation model (TabPFN) learns from those rows
 which moves make progress; a language model's probabilities (Jev) are its features; another model (Mercury)
@@ -29,8 +29,8 @@ the GitHub repository.
 ## Positioning
 
 The agent's memory, state and policy are rows, not a prompt or a vector store: continual learning by a tabular
-model over the agent's own typed history, with the agent's computer (Moss) inside the same file. The host that
-runs an agent is a stateless stepper over that file.
+model over the agent's own typed history, all in one file. The host that runs an agent is a stateless stepper
+over that file.
 
 ## Operating Context
 
@@ -39,18 +39,17 @@ to https://github.com/OpenRelationship/tablua (public, Apache-2.0).
 
 ## Capabilities and Constraints
 
-- Parts: the harness (the `tablua_*` tables and the step loop), Moss (the agent's computer on the BEAM: a process
-  per agent, its disk one SQLite file, its own shell, browser and mailbox, Lua as its language), Shroomi (how the
-  agent publishes pages and apps, `.lui` files).
+- Parts: the harness (the `tablua_*` tables and the step loop) and the model ports. A host supplies the computer
+  the agent's code runs on, the database and the rest of the ports.
 - Tables today: tablua_state, tablua_candidate, tablua_decision, tablua_action, tablua_outcome, tablua_run,
   tablua_fit, tablua_prediction, tablua_gate.
-- No WebAssembly, no native code an agent can reach; Elixir and Lua.
+- No WebAssembly, no native code; portable Lua embedded in any host's Lua VM.
 - Arock (Mac and iPhone apps, and a server for thousands of computers) is built on Tablua.
 - Undecided: docs site, hosted offering, waitlist. None exists; the site must not imply one.
 
 ## Brand Commitments
 
-- Name: Tablua (table + Lua). Moss (🌿) and Shroomi (🍄) keep their names as parts.
+- Name: Tablua (table + Lua).
 - Visual brief pinned by the owner: blue primary, light and white theme, spreadsheets and graph paper, animated.
 - Owner, 2026-10-04, after rejecting a dense coding-form grid design as ugly: clean, minimalist, white and light.
   Tables and graph paper are accents in one or two places, never the texture of the page. Never dark.

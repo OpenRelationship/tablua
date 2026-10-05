@@ -1,18 +1,15 @@
 ---
-description: Run Tablua's own agent on a Moss computer from Elixir - give it a task, play the person's part, and read what it did.
+description: Drive Tablua's step loop from your own Lua host - give it a world, the models, and play the person's part.
 ---
 
-# Run an agent on its computer
+# Run an agent in your host
 
-This guide runs Tablua's own agent, the one that builds small apps, on a Moss computer, with all three models.
-
-> [!IMPORTANT]
-> Moss is its own repository, [OpenRelationship/moss](https://github.com/OpenRelationship/moss), which holds the computer, its world and uspx, the post between agents. It is not public yet. Until it is, the harness itself runs from a public clone of Tablua (see the [Quickstart](/start/quickstart) and [Embed the harness in Lua](/guides/embed)), and this guide describes the run for when Moss is published or for those who have it. [Status and roadmap](/reference/status) tracks it.
+This guide drives the whole step loop (`core/agent`) from your own Lua program: Jev decides each step, Mercury writes what a step needs, and your world does the work. For recording rows and ranking moves without the loop, see [Embed the harness in Lua](/guides/embed).
 
 ## What you need
 
-- **Elixir 1.15 or newer**, with Erlang/OTP
-- API keys for the three models:
+- The [Quickstart](/start/quickstart) set up, and a Lua VM: LuaJIT, Lua 5.4 or 5.5, or another.
+- API keys for the models:
 
 | Model | Variable | Where to get it |
 | --- | --- | --- |
@@ -20,91 +17,70 @@ This guide runs Tablua's own agent, the one that builds small apps, on a Moss co
 | Mercury | `INCEPTION_API_KEY` | [inceptionlabs.ai](https://www.inceptionlabs.ai) |
 | TabPFN (optional) | `PRIORLABS_API_KEY` | [priorlabs.ai](https://priorlabs.ai) |
 
-## 1. Set up
+## 1. The ports
 
-```sh
-git clone --recursive https://github.com/OpenRelationship/moss.git   # Tablua comes with it, at tablua/
-cd moss
-mix setup
-mix moss.look          # fetches the browser's page-reading module
+The ports reach the models through an HTTP client the host supplies. `ports.curl` is one for LuaJIT; on another runtime, pass any `{ fetch, now }` of your own.
+
+```lua
+package.path = "core/?.lua;core/?/init.lua;" .. package.path
+local curl = require("ports.curl")
+local host = { fetch = curl.fetch, now = curl.now }
+local jev = require("ports.jev").new(host, { key = os.getenv("OPENROUTER_API_KEY") })
+local mercury = require("ports.mercury").new(host, { key = os.getenv("INCEPTION_API_KEY") })
 ```
 
-## 2. Start a computer
+## 2. A world
 
-```sh
-iex -S mix
+A world is a table. It lists the tools, asks Jev's question, says what both models read, and does a tool's verb on your computer:
+
+```lua
+local world = {
+  tools = { { name = "run_test", what = "Run the tests." }, { name = "write_code", what = "Change the code." } },
+  question = function()
+    return { kind = "choice", text = "What should the agent do next?",
+      options = { run_test = "Run the tests.", write_code = "Change the code.", answer = "The work is done." } }
+  end,
+  state = function(_, req, for_jev) return "Task: " .. req.text .. "\n" .. my_facts() end,
+  think = function(_, req) return { system = "Think the task through.", user = req.text } end,
+  ask = function(_, req) return { system = "Write one question for the person.", user = req.text } end,
+  form = function(written) return { question = written } end,
+  act = function(_, req, verb, step)
+    local result = my_computer(verb)          -- your computer does the move
+    step.lines[#step.lines + 1] = result.summary
+    step.outcome = result.outcome             -- "complete", "broken" or "no_effect"
+  end,
+}
 ```
 
-```elixir
-Moss.Computer.run("plants", "ls")
+`my_facts` and `my_computer` are yours: the facts as text, and the move done on whatever computer you run.
+
+## 3. Drive the loop
+
+The loop is a state machine you step. Nothing in it yields, so the same code runs on a Lua with no coroutines.
+
+```lua
+local agent = require("agent")
+local a = agent.new({ jev = jev, mercury = mercury }, world)
+local req = a:begin("Make a page that lists my plants.")
+
+while true do
+  local next = a:step(req)                   -- Jev decides
+  if next[1] == "done" then print(next[2] or "done") break end
+  local step = next[2]
+  local out = a:perform(req, step)           -- the agent's own verb, or the world's act
+  if out and out[1] == "ask" then
+    a:answered(step, out[2], { value = io.read() })   -- the person's part
+  end
+  a:close(req, step)                         -- recorded, and learned from
+  if out and out[1] == "done" then break end
+end
 ```
 
-A computer named `plants` now exists, with its own SQLite file. Its name can be lower-case letters, digits and dashes.
+`perform` returns `nil` when the step is over, `{ "ask", form }` when the agent asks the person, `{ "wait", what }` when it waits on the world, and `{ "done", said }` to end the request.
 
-## 3. Give the agent a task
+## 4. Record and learn
 
-```elixir
-ask = "I'd like a little app for my house plants. It should list each plant with when I last " <>
-      "watered it, let me add a plant, and let me mark one as watered today."
-
-Moss.Computer.Agent.run("plants", ask)
-```
-
-The agent takes steps until it finishes, stops, or needs you. It returns a map:
-
-```elixir
-%{outcome: "waiting", why: "waiting for ...", steps: 2, counts: %{"jev" => 2, "mercury" => 1, ...}}
-```
-
-`outcome` is one of `done`, `blocked`, `waiting`, `stopped` or `error`.
-
-## 4. Play the person's part
-
-The agent never agrees to its own feature or approves its own publish. Those are yours.
-
-**Agree to the feature** it wrote, after reading it:
-
-```elixir
-Moss.Computer.run("plants", "cat features/plants.feature").out |> IO.puts()
-Moss.Computer.agree("plants", "features/plants.feature")
-```
-
-Then run the agent again. It picks up where it stopped:
-
-```elixir
-Moss.Computer.Agent.run("plants", ask)
-```
-
-**Say yes to publishing** when it asks. The log shows the request the agent made; answer it with the same line:
-
-```elixir
-Moss.Computer.answer("plants", line, true)
-```
-
-To automate the person's part, for example in a test, pass a function as `between:`. It is called with the computer's id after every step.
-
-## 5. Read what it did
-
-Every step is in the computer's file as Tablua rows. In a local Moss checkout, a computer's file is `priv/work/computers/<id>.sqlite`:
-
-```sh
-sqlite3 priv/work/computers/plants.sqlite "select n, chosen, by from tablua_decision"
-```
-
-The queries in [Read an agent's file with SQL](/guides/query) work on it directly.
-
-## Options
-
-`Moss.Computer.Agent.run/3` takes these options:
-
-| Option | What it does |
-| --- | --- |
-| `learn: "shadow"` or `"rank"` | how TabPFN's estimates are used ([Turn learning on](/guides/learning-modes)) |
-| `gates_off: "stuck_fix,give_up"` | switch gates off for this run ([Retire a gate](/guides/gate-ab)) |
-| `edits: "rows"` | Mercury changes one unit of a file at a time ([The program as rows](/concepts/program-as-rows)) |
-| `max_steps: 150` | stop after this many steps |
-| `between: fn id -> ... end` | called after each step: the person's part, in a test |
-| `filler:` / `decider:` | another model in Mercury's or Jev's place, for a comparison |
+Give the agent a `learn` (from `agent.learn`, over a `tablua` file) in the first argument to `agent.new`, and each step's TabPFN ranking reaches Jev after failed steps. Write each step's rows as [Embed the harness in Lua](/guides/embed) shows, from your world's `act`, so the next run has them to learn from.
 
 ## Next
 

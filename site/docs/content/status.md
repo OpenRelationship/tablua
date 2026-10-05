@@ -8,17 +8,13 @@ Tablua is in active development. This page says what works today, what has been 
 
 ## Works today
 
-- **The harness** (`core/`): the tables, the step loop, the learning (`agent.learn`), the program as rows and unit edits. It runs from a public clone on LuaJIT, Lua 5.4 and 5.5, and on the BEAM, and it has its own tests.
+- **The harness** (`core/`): the tables, the step loop, the learning (`agent.learn`), the program as rows and unit edits. It runs from a public clone on LuaJIT, Lua 5.4 and 5.5, and on any Lua VM a host embeds, and it has its own tests.
 - **Recording every step** as typed rows, with no text parsing: state, candidates, decision, actions, outcome, effects and the run's ending.
 - **Learning from the rows** with TabPFN, in evidence, shadow and rank modes, under a daily budget.
 - **Shared experience** between the agents on one node.
 - **Gates as named rows**, each stated as a scenario with a measurable reason, switchable for an A/B.
 - **The program as rows**: org files that round-trip byte for byte, edits to one unit, and links and breaks as data.
-- **Moss**, the agent's computer, which Tablua's own agent builds apps on. Arock, a Mac app built on Tablua, records its steps the same way.
-
-## Not yet public
-
-- **Moss**, the agent's computer, is its own repository ([OpenRelationship/moss](https://github.com/OpenRelationship/moss)), with uspx, the post between agents, folded in. It is still private, so today a public clone can use the harness but not run the whole agent on its computer.
+- **Hosts that drive the loop.** Arock, a Mac and iPhone app with a server, is built on Tablua and records its steps the same way.
 
 ## Measured so far
 
@@ -38,7 +34,7 @@ Tablua is in active development. This page says what works today, what has been 
 - Retire gates one at a time through A/Bs, and move behaviour that was hand-written to what was learned.
 - Use the ship head to stop runs early once it has been shown to hold over time.
 - Decoders for other file formats (CSV, JSON, Markdown, SQL), so more of an app is rows.
-- Retire Shroomi, the older page format, once pages written as Lua hold up in the evaluation.
+- Retire the older tagged page format (`.lui`) once pages written as Lua hold up in the evaluation.
 
 ## Following along
 

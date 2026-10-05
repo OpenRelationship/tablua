@@ -1,10 +1,10 @@
 This is Tablua (see README.md): the embeddable agent harness, in native Lua. Tablua is the harness and nothing else
-(owner, 2026-10-04): the agent's own computer, Moss, is its own repository (OpenRelationship/moss, with moss-lua,
-moss-browser, Shroomi, uspx and arock-log), and Arock is the app of Moss and Tablua.
+(owner, 2026-10-04): it knows no host. A host embeds it in its own Lua VM and gives it a computer and the ports
+it reaches the world through; nothing here names one.
 
 ## Tablua rules
 
-- Tablua is attached to the Arock repository at `submodules/tablua` and to Moss at `tablua/`. Its Lua is `core/`:
+- Tablua is attached to the Arock repository at `submodules/tablua`. Its Lua is `core/`:
   the harness (`tablua`, `agent`) and the model ports (`ports`); read `core/AGENTS.md` before editing there.
 - Lua is the harness, not the output (owner, 2026-10-05): the agent's work may be in any language its computer
   runs. The harness itself is portable Lua, embedded through whatever Lua VM a host has, and reaches the world only

@@ -3,7 +3,7 @@
 -- careful Mercury; TabPFN's ranking from past outcomes reaches Jev after failed steps (checkpoint.lua). The world
 -- (the person's Mac, or the agent's own computer) does what a tool verb means and says how it went.
 --
--- The loop is an explicit state machine, not a coroutine, so it runs on every Lua Arock targets (Moss's has no
+-- The loop is an explicit state machine, not a coroutine, so it runs on every Lua a host may embed (some have no
 -- coroutines): the host calls step() and does what it returns.
 --
 --   local agent = require("agent")

@@ -4,7 +4,7 @@ description: The Lua API of Tablua's harness - the tablua module, agent.learn, a
 
 # Lua API
 
-The harness's main Lua modules, in `core/`. Everything here is portable Lua: it runs on LuaJIT, Lua 5.4 and 5.5, and on the BEAM.
+The harness's main Lua modules, in `core/`. Everything here is portable Lua: it runs on LuaJIT, Lua 5.4 and 5.5, and any other Lua VM.
 
 ## tablua
 

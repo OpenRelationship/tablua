@@ -3,7 +3,7 @@
 -- step's effects (tablua.effects): every feature's latest run (Outcome <feature> red|green {json}), every page
 -- served (Serve Request), every command (Run Command) and the stage at each decision. Reads the log, so it runs
 -- where the whole file is open (the eval's tools, the Mac), never in the agent's harness, which reaches only
--- Tablua's tables; the harness records the same effects from its facts as it goes (Moss's world/record.lua).
+-- Tablua's tables; the harness records the same effects from its facts as it goes (in the host's world).
 --
 --   telemetry.windows(db, task) -> { [n] = { { keyword, args } } }
 --   telemetry.derive(t, task) -> steps given effects (steps already given them are left as they are)

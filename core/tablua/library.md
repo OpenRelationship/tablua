@@ -4,12 +4,12 @@ description: Tablua, the continual tabular agent harness (issue #1, owner 2026-1
 summary: tablua.open(db) -> t; t:state, t:candidates, t:decision, t:action, t:outcome (-> progress), t:run, t:prediction, t:fit/fitted, t:attach(name, path), t:training(head) -> {columns, rows}, labels; tablua.progress(outcome, before). db is arock-log's port, db:exec(sql, params) -> rows. The program as rows (issue #2): tablua.source decode(org) -> rows, compile(rows) -> org, from_files, from_lui, units, scenarios; tablua.org write/read. Hindsight (issue #1, M2): t:label(task, n, head, value, source); tablua.hindsight.label(t, jev, task) asks Jev, after a run, whether each step contributed; t:training("contrib") trains on those labels. Effects (M2): t:effects(task, n, list); tablua.effects.compare(before, after, step, commands); tablua.telemetry.derive(t, task); t:training("effect:<Keyword>").
 do:
   - Keep every fact a typed column; never a sentence to be parsed back.
-  - Name every table tablua_; Moss lets the agent's harness reach no other.
+  - Name every table tablua_; a host can let the harness reach no other.
   - Read training rows with a query over the tables, other files' first, oldest first.
   - Label with what the agent cannot write: tests, the page, the person's check.
 dont:
   - Touch arock-log's events or its schema; Tablua's tables sit beside them in the same file.
-  - Use goto, //, utf8 or FFI: this runs on LuaJIT, Lua 5.4/5.5, Luerl and Moss's Lua.
+  - Use goto, //, utf8 or FFI: this runs on LuaJIT, Lua 5.4/5.5, Luerl and any Lua VM a host embeds.
 ---
 
 # core/tablua
@@ -43,7 +43,7 @@ Schema 5 adds the harness's own behaviour model (`tablua_effect`). Each step is 
 move) and Then (its effects), keywords from a closed vocabulary that the harness writes from its telemetry, never
 the writer. The effects cover tests (a scenario turned green or red, a Gherkin line fixed, by the kind of line),
 pages, commands, the stage and how the step was judged. `effects.lua` compares snapshots before and after a step,
-`telemetry.lua` builds them from arock-log's keyword rows (where the whole file is open), and Moss's harness records
+`telemetry.lua` builds them from arock-log's keyword rows (where the whole file is open), and a host's harness records
 them from its facts as it goes. Each frequent effect is a head: `t:training("effect:<Keyword>")`.
 
 Modules: `init.lua`, `schema.lua`, `source.lua`, `org.lua`, `program.lua`, `hindsight.lua`, `effects.lua`,

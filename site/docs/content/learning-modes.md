@@ -14,7 +14,7 @@ TabPFN runs as an API from Prior Labs. Create an account at [priorlabs.ai](https
 export PRIORLABS_API_KEY=...
 ```
 
-On Moss, that is all. When you embed the harness, pass the key to `ports.tabpfn` yourself (see [Embed the harness in Lua](/guides/embed)).
+Pass it to `ports.tabpfn`, and the TabPFN port to `agent.learn` (see [Embed the harness in Lua](/guides/embed)); give that `learn` to the agent as `env.learn` (see [Run an agent in your host](/guides/run-agent)).
 
 > [!NOTE]
 > The free tier allows 5 million tokens a day per account. Tablua stays under 4 million, prices every prediction before making it, and carries on without TabPFN when the day's budget is spent.
@@ -29,8 +29,8 @@ TabPFN needs at least 12 labelled steps (and 3 of each label) before it is asked
 
 In shadow mode, TabPFN ranks the moves at every decision in the `building` stage, and its estimate is written to each candidate as `p_progress`. Jev never sees it. Nothing about the agent's behaviour changes; you only gain a measurement.
 
-```elixir
-Moss.Computer.Agent.run("plants", ask, learn: "shadow")
+```lua
+local a = agent.new({ jev = jev, mercury = mercury, learn = learn, shadow = true }, world)
 ```
 
 After enough runs, compare TabPFN's estimates with what happened:
@@ -50,8 +50,8 @@ Run the same query with `c.jev_p` in place of `c.p_progress` to put Jev's confid
 
 In rank mode, TabPFN ranks the moves at every `building` decision, as in shadow mode. When its best move leads Jev's pick by a clear margin, and Jev gave its own pick less than a set confidence, TabPFN's move is taken. The decision row records `by=tabpfn`.
 
-```elixir
-Moss.Computer.Agent.run("plants", ask, learn: "rank")
+```lua
+local a = agent.new({ jev = jev, mercury = mercury, learn = learn, rank = true }, world)
 ```
 
 Rank mode only overrides Jev where Jev is unsure and TabPFN is clearly ahead. Everywhere else, Jev decides as before.

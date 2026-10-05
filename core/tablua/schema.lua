@@ -1,8 +1,8 @@
 -- Tablua's tables (issue #1): the agent's work as typed rows in its own SQLite file, beside arock-log's events and
 -- never in them. One row per state decided in, per move that could have been made (with what Jev and TabPFN said
 -- of it), per decision, per call a move made, per step's outcome and per run's ending; TabPFN's fits and
--- predictions; and the hand-written gates still live. Every name starts tablua_, the only tables Moss lets the
--- agent's harness write (Moss.Computer.Agent.sql). Schema 3 adds the program as rows (issue #2): each file's
+-- predictions; and the hand-written gates still live. Every name starts tablua_, so a host can let the
+-- agent's harness write those tables and no others. Schema 3 adds the program as rows (issue #2): each file's
 -- sections, its top-level Lua statements, its scenarios and their step lines (tablua.program). Schema 4 adds
 -- labels given after the fact (tablua_label): Jev's hindsight on each step, never an input at decision time.
 -- Schema 5 adds the harness's behaviour model (tablua_effect): each step's effects, keywords from the harness's

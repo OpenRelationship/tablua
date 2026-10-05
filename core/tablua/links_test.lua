@@ -1,5 +1,5 @@
 -- Unit cases for tablua.links: what a page posts to and sends, what an action reads, which scenario lines need a
--- step of the app's own, and a step's text compiled as Moss's test.step compiles it.
+-- step of the app's own, and a step's text compiled as test.step compiles it.
 local spec = require("mono.spec")
 local links = require("tablua.links")
 local src = require("tablua.source")

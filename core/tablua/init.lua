@@ -1,7 +1,7 @@
 -- Tablua, the continual tabular agent harness (issue #1): the agent's work as typed rows in its own SQLite file.
 -- The harness writes what it decided in and on; TabPFN learns from a query over it. db is arock-log's port,
--- db:exec(sql, params) -> rows (Moss gives the agent's harness one over its computer's file that reaches only the
--- tablua_ tables; the Mac, its arock-log connection).
+-- db:exec(sql, params) -> rows (a host may give the harness one that reaches only the tablua_ tables of its
+-- file).
 --
 --   local t = tablua.open(db, { clock? })
 --   t:state{ task, n, stage, passed, total, stalls?, last_verb?, last_outcome?, cause?, pages_ok?, own_checks?, ask?,
@@ -167,10 +167,10 @@ function T:fitted(head, version)
   return r and { id = r.id, rows = r.rows } or nil
 end
 
--- Another file's rows, read with this one's (Moss's shared experience): attached once under `name`.
+-- Another file's rows, read with this one's (a shared experience file): attached once under `name`.
 function T:attach(name, path)
   assert(name:match("^[%a_][%w_]*$"), "tablua: not a name: " .. tostring(name))
-  -- a connection kept across steps (Moss's, where Tablua is opened again each step) may hold it already
+  -- a connection kept across steps (a host that opens Tablua again each step) may hold it already
   local ok, why = pcall(self.db.exec, self.db, "attach database ? as " .. name, { path })
   if not ok and not tostring(why):find("already in use", 1, true) then error(why, 0) end
   self.db:exec((schema.ddl:gsub("exists tablua_", "exists " .. name .. ".tablua_")))

@@ -164,8 +164,8 @@ state it has already ranked is ranked again without a call. The day's tokens are
 
 ## Policy as data
 
-The rules that hold a move back are written once as keyword scenarios (Moss's [`priv/gates.org`](https://github.com/OpenRelationship/moss/blob/main/priv/gates.org)). Each has a reason the
-harness can check against recorded runs:
+The rules that hold a move back are written once as keyword scenarios, which a host keeps beside its moves. Each
+has a reason the harness can check against recorded runs:
 
 ```gherkin
 Scenario: fixing the same failure again waits on thinking it through
@@ -186,16 +186,15 @@ Tablua's agent writes apps as [org](https://orgmode.org) files with five kinds o
 Code and Page. Each code block carries its language, so the output can be any language the agent's computer runs.
 The harness keeps each file as rows: its sections, its code's units, each scenario and each of its lines, plus
 the links between them. A Lua block is cut into its top-level statements and its calls are linked; a block in
-another language is kept whole until a scanner for it is added. On Moss, which runs Lua alone, the output is Lua. Mercury edits one unit at a time, each edit is an action row, and
+another language is kept whole until a scanner for it is added. Mercury edits one unit at a time, each edit is an action row, and
 the compiled file is what runs and is tested. A step that refers to a missing definition shows up in
 `tablua_break` before any test runs.
 
 ## Embedding it
 
-Tablua is native Lua and nothing else. A host embeds it with whatever Lua VM it has: moss-lua on the BEAM,
-LuaJIT, or Lua 5.4/5.5. It reaches the world only through ports the host supplies: SQLite, the models, and a
-computer that runs the agent's code. So an adopter's agents can write any language their computer runs. Moss runs
-Lua only (moss-lua, a Lua VM in Elixir, no NIFs), so Arock's agents write Lua.
+Tablua is native Lua and nothing else. A host embeds it with whatever Lua VM it has: LuaJIT,
+Lua 5.4/5.5, Luerl or another. It reaches the world only through ports the host supplies: SQLite, the models, and a
+computer that runs the agent's code. So an adopter's agents can write any language their computer runs.
 
 ```lua
 local tablua = require("tablua")
@@ -235,16 +234,11 @@ asks (four held out), several seeds and paraphrases, a page arm against a contro
 - ⏳ Next: TabPFN deciding during building through A/B tests, retiring gates one at a time, and Gain with its
   confidence interval.
 
-## It runs on Moss
+## What a host gives it
 
-Tablua is the harness and nothing else. Every Tablua agent in Arock has its own computer,
-**🌿 [Moss](https://github.com/OpenRelationship/moss)**: a process on the BEAM, its disk one SQLite file (the same
-file its rows live in), a shell of its own, a headless browser, a mailbox, and Lua as its one language. Moss holds
-the agent's world on its computer (the moves, the gates, the facts), moss-lua, moss-browser, Shroomi, uspx and
-arock-log; it reads this repository as its `tablua/`.
-
-Arock, the Mac and iPhone apps and the server that runs thousands of agents' computers, is the app of Moss and
-Tablua.
+Tablua is the harness and nothing else. A host embeds it and gives each agent a computer to build on, a SQLite
+file for its rows, and the ports to the models. The harness never names its host: what it knows of the computer
+is the facts and the moves the host hands it, and what it keeps is the rows.
 
 ## Repository
 
@@ -255,8 +249,7 @@ Tablua.
 | `core/ports` | Jev, Mercury, TabPFN and the other model ports, and `ports.sqlite` for a LuaJIT host |
 | `site/` | tablua.com and docs.tablua.com |
 
-Every module has a unit test (`*_test.lua`). They run in Arock's build on LuaJIT, and in Moss, where `mix test`
-runs each one in moss-lua.
+Every module has a unit test (`*_test.lua`). They run on LuaJIT and on Lua 5.5.
 
 ## License
 

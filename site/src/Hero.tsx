@@ -44,7 +44,7 @@ export function Hero() {
           An agent is a table<span className="dot">.</span>
         </h1>
         <p className="lede">
-          Tablua is an embeddable agent and its own computer. Everything it is and does is a typed row in one
+          Tablua is an embeddable agent harness. Everything its agent is and does is a typed row in one
           SQLite file, and a tabular model learns from those rows which moves make progress.
         </p>
         <div className="actions">

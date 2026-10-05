@@ -12,7 +12,7 @@
 --     file calls: local m = require("mod") ... m.fn(), as "mod.fn"), module (code/<mod>.lua is module mod) and
 --     exports (each function the module returns, "mod.fn")
 --   links.found(link, text, steps) -> whether the program's text (lowercased) or its steps answer a line's link
---   links.pattern(step) -> the Lua pattern a step's text compiles to (Moss's sdk/test.lua, test.step)
+--   links.pattern(step) -> the Lua pattern a step's text compiles to (test.step in the computer's test library)
 --   links.step(text, patterns) -> the step pattern a line's text matches, or nil
 --
 -- The code links (posts, sends, reads, calls, modules, exports) are read from Lua alone: a section in another

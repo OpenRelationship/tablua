@@ -8,7 +8,7 @@ A gate is a rule that holds a move back in some situation. This guide shows how 
 
 ## 1. Pick a gate
 
-Start with a gate whose stated reason doesn't hold in the record (see [Policy as data](/concepts/policy-as-data)). The gates and their reasons are in Moss's [`priv/gates.org`](https://github.com/OpenRelationship/moss/blob/main/priv/gates.org); each scenario's `# gate:` line gives the name to switch off.
+Start with a gate whose stated reason doesn't hold in the record (see [Policy as data](/concepts/policy-as-data)). A host keeps its gates and their reasons as keyword scenarios beside its moves; each scenario's `# gate:` line gives the name to switch off.
 
 To see which gates the record says least about, count how often each gate's situation came up. Gates that are rarely tested, or that hide their own evidence, are also good candidates, because switching them off is the only way to learn what they do.
 
@@ -18,20 +18,24 @@ Fixed gates, which describe what a move can do at all (like `undo` needing a cha
 
 Run the same tasks twice: once as usual (arm A) and once with the gate off (arm B). Use a fresh computer for each run so neither arm learns from the other.
 
-```elixir
-for {task, ask} <- tasks, seed <- 1..3 do
-  Moss.Computer.Agent.run("a-#{task}-#{seed}", ask, between: &person/1)
-  Moss.Computer.Agent.run("b-#{task}-#{seed}", ask, between: &person/1, gates_off: "stuck_fix")
+```lua
+for _, task in ipairs(tasks) do
+  for seed = 1, 3 do
+    run(task, { computer = "a-" .. task.id .. "-" .. seed })                         -- arm A: as usual
+    run(task, { computer = "b-" .. task.id .. "-" .. seed, gates_off = { stuck_fix = true } })   -- arm B
+  end
 end
 ```
 
+`run` is your host's: it drives the loop as [Run an agent in your host](/guides/run-agent) shows, on a fresh computer, with your world leaving the switched-off gate's move open.
+
 Several tasks, several runs each. Agents vary from run to run, so one pair of runs tells you very little.
 
-Each run records the gates it ran under as `tablua_gate` rows. In arm B, the switched-off gate's row has `retired_by` set.
+Record the gates each run ran under with `t:gate{ name, predicate, retired_by? }`. In arm B, give the switched-off gate's row `retired_by`.
 
 ## 3. Compare
 
-Each run's rows are in its own computer's file (`priv/work/computers/<id>.sqlite` in a local Moss checkout). Attach the files of one arm to a single SQLite session, or copy their `tablua_run` and `tablua_effect` rows into one file, to compare the arms side by side.
+Each run's rows are in its own file. Attach the files of one arm to a single SQLite session, or copy their `tablua_run` and `tablua_effect` rows into one file, to compare the arms side by side.
 
 For each arm, look at the runs' endings:
 

@@ -15,7 +15,7 @@ If you already know what Tablua is and want to use it, the [Quickstart](/start/q
 | 1 | [An agent is a loop](/learn/loop) | What an AI agent does, and what a harness adds around it |
 | 2 | [Writing it down as rows](/learn/rows) | Why Tablua records every step as rows in tables, and the tables for one step |
 | 3 | [Gherkin: saying what "done" means](/learn/gherkin) | How the agent turns a person's words into tests before it builds anything |
-| 4 | [Lua: the harness's language](/learn/lua) | Tablua is native Lua and embeds in any Lua VM; what the agent writes is any language its computer runs (on Moss, Lua) |
+| 4 | [Lua: the harness's language](/learn/lua) | Tablua is native Lua and embeds in any Lua VM; what the agent writes is any language its computer runs |
 | 5 | [Org: one file holds it all](/learn/org) | How an app lives in one readable file, and how that file becomes rows |
 | 6 | [Three models, three jobs](/learn/models) | Who decides, who writes and who learns, and why each is a different model |
 | 7 | [Learning from the past](/learn/learning) | How past rows become training data, and how predictions guide the next step |

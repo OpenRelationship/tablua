@@ -105,4 +105,4 @@ These are ordinary SQLite tables. Any tool that reads SQLite can read an agent's
 - [A tour of one step](/start/tour) shows a full run, row by row.
 - [Embed the harness in Lua](/guides/embed) adds the learning: TabPFN ranking the moves from rows like these.
 - [Read an agent's file with SQL](/guides/query) has useful queries for a real agent's file.
-- [Run an agent on its computer](/guides/run-agent) runs the whole agent, models and all.
+- [Run an agent in your host](/guides/run-agent) drives the whole loop from your own Lua, models and all.

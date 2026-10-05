@@ -1,5 +1,5 @@
 ---
-description: Module 4. Tablua is written in Lua and embeds in any Lua VM. What the agent writes can be any language its computer runs; on Moss, that's Lua.
+description: Module 4. Tablua is written in Lua and embeds in any Lua VM. What the agent writes can be any language its computer runs.
 ---
 
 # 4. Lua: the harness's language
@@ -27,9 +27,9 @@ The only unusual thing is the **table**: Lua's single data structure, used for l
 
 The harness, meaning the code that runs the loop and writes the rows, is plain, portable Lua and nothing else. A host embeds it with whatever Lua VM it already has:
 
-- **moss-lua**, a Lua VM written in Elixir that runs on Erlang's virtual machine (the BEAM)
 - **LuaJIT**
 - standard **Lua 5.4 or 5.5**
+- any other Lua VM a host runs, such as one inside a larger runtime
 
 The harness never reaches the world directly. It goes through small **ports** the host supplies: one for SQLite, one for each model, and one for the computer that runs the agent's code. That is what makes it embeddable almost anywhere.
 
@@ -47,9 +47,9 @@ def add(a, b):
 
 The rows keep that language as data. Whatever the agent's computer can run, the agent can write. Tablua reads Lua code more closely than other languages today: it cuts a Lua block into its top-level statements and finds which functions call which. A block in any other language is kept whole, as one unit. Adding the same close reading for another language means writing a small scanner for it.
 
-## On Moss, the output is Lua
+## When the computer runs Lua
 
-Arock's agents run on **Moss**, a small computer for each agent whose disk is the same SQLite file its rows live in. Moss runs Lua and only Lua: moss-lua, with no native code an agent can reach. So an agent on Moss writes its code, its test steps and its pages in Lua:
+A host may give its agents a computer that runs Lua and nothing else. Then the agent writes its code, its test steps and its pages in Lua, and the harness reads all of it closely:
 
 | What | Example |
 | --- | --- |
@@ -69,7 +69,7 @@ return ui.main{
 
 `post = "add"` means submitting the form calls the action `post.add`, which the Code part defines.
 
-Why Moss keeps to one language:
+Why a host might keep its computer to one language:
 
 - **Safe to run.** The agent has no shell on any machine. Its Lua runs inside its own computer, against its own files, with only the modules it was given.
 - **A small, closed vocabulary.** The computer gives the agent a short list of modules (files, a database, HTTP, JSON, mail, the page kit, the test kit). A model that only ever sees this small world can get very good at it.
@@ -77,10 +77,10 @@ Why Moss keeps to one language:
 
 ## Remember
 
-- Tablua is native Lua and embeds in any Lua VM: moss-lua on the BEAM, LuaJIT, or Lua 5.4/5.5.
+- Tablua is native Lua and embeds in any Lua VM: LuaJIT, Lua 5.4/5.5, or another.
 - It reaches SQLite, the models and the agent's computer only through ports the host supplies.
 - What the agent writes can be any language its computer runs; each code block carries its language.
-- On Moss, the computer Arock uses, the output is Lua.
+- On a computer that runs only Lua, the output is Lua, read as closely as the harness itself.
 
 ## Next
 

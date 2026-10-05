@@ -6,7 +6,7 @@
 --   * Feature               #+begin_src feature: the header, then a ** Scenario: heading per scenario
 --   * Steps / * Code        a ** heading per unit, :kind: and :name: in its drawer, #+begin_src <lang> (a Lua block
 --                           cut into its top-level statements; a block in another language is one unit)
---   * Page                  #+begin_src lua (a page as Lua), or lui (a markup page, until Shroomi goes)
+--   * Page                  #+begin_src lua (a page as Lua), or lui (a markup page in tagged sections)
 --
 -- The subset is headings, property drawers, source blocks and prose. Inside a block a line that org would read as
 -- a heading or a keyword (* or #+ after its indent) carries a comma before it, as org itself escapes it. The

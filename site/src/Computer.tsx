@@ -1,20 +1,20 @@
 import { computer, file } from "./data";
 
-// Moss, the agent's own computer, and the tables of its one file.
+// The computer a host gives the agent, and the tables of its one file.
 export function Computer() {
   return (
     <section className="block" id="computer">
       <div className="wrap split">
         <div className="stack">
           <div>
-            <h2>Each agent has a computer of its own.</h2>
+            <h2>The host gives it a computer.</h2>
             <p className="intro">
-              Moss is the agent's computer, an operating system on the BEAM where it works, tests what it builds and
-              keeps its files. Shroomi is how it shows its work: pages and apps a person can open.
+              Tablua decides and records; the work happens on whatever computer the host embeds it in. The host
+              hands the harness the facts and the moves, does each move, and keeps the rows.
             </p>
             <p className="intro" style={{ marginTop: -36 }}>
-              Embeddable by default: it works inside its own computer, in Lua. Give it an API or a sandbox and it can
-              reach anything else.
+              Embeddable by default: it reaches nothing but the ports it is given. Give it an API or a sandbox and it
+              can reach anything else.
             </p>
           </div>
           <ul className="facts">
