@@ -143,6 +143,36 @@ defmodule Moss.BrowseTest do
              [~s|apps/plants/features/plants.feature: the list has "Fern"|]
   end
 
+  test "Scenario: a row's check reads the whole row, not the name's own cell in it", %{c: c} do
+    write(c, "/home/apps/plants/ui/index.org", """
+    * Page
+    #+begin_src lua
+    return ui.main{ ui.div{ ui.p"Fern", ui.p"Watered today" }, ui.div{ ui.p"Aloe", ui.p"Not watered" } }
+    #+end_src
+    """)
+
+    write(c, "/home/apps/plants/features/plants.feature", """
+    Feature: plants
+      Scenario: rows
+        When I open the page
+        Then I see "Watered today" for "Fern"
+        And I see "Not watered" for "Aloe"
+    """)
+
+    assert %{code: 0} = Computer.run(c, "test")
+
+    # and a miss names what the row shows, not the name alone
+    write(c, "/home/apps/plants/features/plants.feature", """
+    Feature: plants
+      Scenario: rows
+        When I open the page
+        Then I see "Watered today" for "Aloe"
+    """)
+
+    assert %{code: 1, out: out} = Computer.run(c, "test")
+    assert out =~ ~s|the row of "Aloe" does not show "Watered today"; it shows: Aloe Not watered|
+  end
+
   test "Scenario: a button the page lacks names the buttons it has", %{c: c} do
     write(c, "/home/apps/plants/ui/index.lui", @page)
 

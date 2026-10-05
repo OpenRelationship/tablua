@@ -268,10 +268,18 @@ function M.install(test, at)
   test.step("I see {string} for {string}", function(w, s, row)
     if not w.html then open(w) end
     local want = value(s)
+    -- the first block that shows more than the name: a name in a <p> of its own inside its row's <div> is its cell,
+    -- not its row (a plants run rewrote a right page seventy steps against "the row of Fern shows: Fern", 2026-10-05)
+    local found, cell
     for _, block in ipairs(rows(w.html, row)) do
-      local t = M.text(block)
-      if string.find(t, want, 1, true) then return end
-      error(('the row of "%s" does not show "%s"; it shows: %s'):format(row, want, (string.gsub(t, "^%s+", ""))), 0)
+      local t = (string.gsub(string.gsub(M.text(block), "^%s+", ""), "%s+$", ""))
+      if t ~= row then found = t; break end
+      cell = cell or t
+    end
+    found = found or cell
+    if found then
+      if string.find(found, want, 1, true) then return end
+      error(('the row of "%s" does not show "%s"; it shows: %s'):format(row, want, found), 0)
     end
     error(('no row shows "%s"%s; the page shows: %s'):format(row, unmade(w, row), shows(w)), 0)
   end)
