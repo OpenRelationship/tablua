@@ -551,8 +551,9 @@ defmodule Moss.ComputerAgentTest do
                 local q = world.new(host, { steps = steps or nil }).question({ req = req })
                 local o = q.options or {}
                 local way = o.write_feature or o.publish or (not looked and o.look_at_app)
-                -- and only that: looking, thinking, testing or stopping changes no check (own_checks_first)
-                if steps == "page" and own then
+                -- and only that: looking, thinking, testing or stopping changes no check (own_checks_first), until
+                -- the feature has been rewritten through give_up idle steps: then the checks are let go, and it ships
+                if steps == "page" and own and repeats < world.give_up then
                   way = o.write_feature and not (o.look_at_app or o.think or o.run_test or o.blocked)
                 end
                 if not way then
@@ -596,6 +597,42 @@ defmodule Moss.ComputerAgentTest do
       |> hd()
 
     assert counts == "1 2 3 0 0"
+  end
+
+  # two plants runs passed every scenario and never shipped (2026-10-05): one rewrote the feature for sixty steps, an
+  # own-word check left in a file it never named; the other broke its own feature write and blocked twice, untested
+  test "own-word checks are let go after give_up idle steps, and blocked waits on a test after a change" do
+    out =
+      Lua.eval!(Moss.Lua.base(), """
+      local world = require("moss.world")
+      local tests = { passed = 2, total = 2, failing = {}, undefined = {}, checked = { "features/b.feature: x holds 1 item" } }
+      local host = { facts = function() return { features = { { path = "features/a.feature", stage = "agreed" } },
+        pages = { { path = "/", status = 200 } }, empty_steps = 0, tests = tests } end }
+      local out = {}
+      for _, repeats in ipairs({ world.give_up - 1, world.give_up }) do
+        local req = { steps = { { n = 1, verb = "write_feature", outcome = "complete" } }, repeats = repeats, looked = true }
+        local q = world.new(host, { steps = "page" }).question({ req = req })
+        out[#out + 1] = req.stage .. "/" .. tostring(q.options.publish ~= nil)
+        -- once let go, it stays so: a later step's facts (repeats back to 0) hold the checks no longer
+        if req.own_waived then
+          req.repeats = 0
+          world.new(host, { steps = "page" }).question({ req = req })
+          out[#out + 1] = req.stage
+        end
+      end
+      -- the facts not tested since a change: stopping waits on one test run, whatever the last step's outcome
+      tests = nil
+      local function offers(last)
+        local req = { steps = { { n = 1, verb = last, outcome = "broken" } } }
+        return tostring(world.new(host, {}).question({ req = req }).options.blocked ~= nil)
+      end
+      out[#out + 1] = offers("write_feature") .. " " .. offers("run_test")
+      return table.concat(out, " ")
+      """)
+      |> elem(0)
+      |> hd()
+
+    assert out == "building/false ready/true ready false true"
   end
 
   # M6c: what is broken in the program reaches both minds before a test does (a rows run rewrote a page five times,
@@ -667,7 +704,7 @@ defmodule Moss.ComputerAgentTest do
              "blocked fix_failure look_at_app plan read_help rewrite run_check run_test think write_code write_page write_steps 0.25"
 
     assert stage.("{}") =~ "ready"
-    assert stage.(~s|{ steps = "page" }|) =~ ~s|building: 1 checks use steps of the app's own, not the page's: write_feature rewrites each as I see "x" or I see "x" for "row", in the words the page shows (Yoga is done)|
+    assert stage.(~s|{ steps = "page" }|) =~ ~s|building: 1 checks use steps of the app's own, not the page's: write_feature rewrites each in its file as I see "x", I see "x" for "row" or I do not see "x", in the words the page shows (Yoga is done)|
 
     # and writing the feature, the one move that can change them, is offered at once
     offered =

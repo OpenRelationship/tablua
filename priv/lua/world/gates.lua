@@ -45,8 +45,15 @@ M.list = {
       return c.repeats >= c.w.give_up
         and not (c.move == "rewrite" or c.move == "write_feature" or c.move == "blocked" or c.move == "publish")
     end },
-  { name = "blocked_trouble", what = "blocked is offered only when the work is in trouble",
-    blocks = function(c) return c.move == "blocked" and not c.w.troubled(c.req, c.repeats) end },
+  -- (and never on facts no test has checked since the last change: a plants run, green, broke its own feature
+  -- write and blocked twice saying the app was ready, when one test run would have shown it was, 2026-10-05)
+  { name = "blocked_trouble", what = "blocked is offered only when the work is in trouble, and tested since it changed",
+    blocks = function(c)
+      local tested = c.last and (c.last.verb == "run_test" or c.last.verb == "run_check")
+      local testable = c.req.stage == "building" or c.req.stage == "ready"
+      return c.move == "blocked" and (not c.w.troubled(c.req, c.repeats)
+        or (testable and c.w.untested(c.req.facts) and not tested))
+    end },
 }
 
 function M.off(run)

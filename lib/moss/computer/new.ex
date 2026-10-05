@@ -17,12 +17,15 @@ defmodule Moss.Computer.New do
 
   def run([kind | rest], state) when kind in @kinds do
     name = List.first(rest) || if(kind == "manifest", do: "manifest")
-    # recipe_box or Recipe_Box is recipe-box: the name a file can have, not a refusal (a recipes run blocked on it)
-    name = name && name |> String.downcase() |> String.replace(~r/[_\s]+/, "-")
+    # Recipe Box is recipe-box: the name a file can have, not a refusal (a recipes run blocked on it). A file keeps its
+    # underscores: house_plants made house-plants.feature, the agent then wrote house_plants.feature beside it, and
+    # the template left behind held a run green and unshipped for sixty steps (2026-10-05)
+    name = name && name |> String.downcase() |> String.replace(~r/\s+/, "-")
+    name = if kind in ~w(feature page code), do: name, else: name && String.replace(name, "_", "-")
 
     cond do
-      name == nil or not Regex.match?(~r/\A[a-z0-9][a-z0-9-]{0,63}\z/, name) ->
-        {2, "", "new #{kind}: give a name of lower-case letters, digits and dashes\n", state}
+      name == nil or not Regex.match?(~r/\A[a-z0-9][a-z0-9_-]{0,63}\z/, name) ->
+        {2, "", "new #{kind}: give a name of lower-case letters, digits, dashes and underscores\n", state}
 
       true ->
         scope = Board.scope_of(state.cwd)

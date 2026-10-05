@@ -176,7 +176,10 @@ defmodule Moss.LoopTest do
     assert {200, _, _, _} = Computer.serve(c, %{"method" => "GET", "path" => "/notes/"})
 
     assert %{code: 0, out: "wrote features/water.feature\n"} = sh(c, "new feature water")
-    assert %{code: 0, out: "wrote features/water-log.feature\n"} = sh(c, "new feature Water_log")
+    # a file keeps its underscores, so the agent writing house_plants.feature after it changes this one
+    assert %{code: 0, out: "wrote features/water_log.feature\n"} = sh(c, "new feature Water_log")
+    assert %{code: 0, out: "wrote features/water-day.feature\n"} = sh(c, "new feature \"Water day\"")
+    assert %{code: 0, out: "wrote org/sow-seeds.org\n"} = sh(c, "new task sow_seeds")
 
     assert %{code: 1, err: "new: features/water.feature is there already" <> _} =
              sh(c, "new feature water")

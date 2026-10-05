@@ -134,6 +134,13 @@ defmodule Moss.BrowseTest do
     assert %{code: 0} = Computer.run(c, "test")
     [{_, _, [_, "green", detail | _]} | _] = Moss.Log.events(disk(c).conn, ["Outcome"])
     assert Jason.decode!(detail)["checked"] == [~s|the list has "Fern"|]
+
+    # and the agent's facts name the file each is in, so the feature it rewrites is the one that holds it
+    :ok = Computer.agree(c, "/home/apps/plants/features/plants.feature")
+    Computer.run(c, "test")
+
+    assert Computer.agent(c, :facts, ["org:x"])["tests"]["checked"] ==
+             [~s|apps/plants/features/plants.feature: the list has "Fern"|]
   end
 
   test "Scenario: a button the page lacks names the buttons it has", %{c: c} do
@@ -265,6 +272,16 @@ defmodule Moss.BrowseTest do
     assert {200, _, body, _} = Computer.serve(c, %{"method" => "GET", "path" => "/"})
     body = IO.iodata_to_binary(body)
     assert body =~ "<title>Hello</title>" and body =~ "<h1>Hi there</h1>"
+    refute body =~ "&lt;!doctype"
+
+    # and so when the page takes ui by name: require("shroomi") in a page is the page's own ui
+    page = "* Code\n#+begin_src lua\nfunction post.add(r) end\n#+end_src\n* Page\n#+begin_src lua\nlocal ui = require(\"shroomi\")\nreturn ui.page{ title = \"Plants\"," <>
+             " ui.form{ post = \"add\", ui.input{ name = \"name\", placeholder = \"Plant name\" } } }\n#+end_src\n"
+
+    write(c, "/home/ui/index.org", page)
+    assert {200, _, body, _} = Computer.serve(c, %{"method" => "GET", "path" => "/"})
+    body = IO.iodata_to_binary(body)
+    assert body =~ "<title>Plants</title>" and body =~ ~s|placeholder="Plant name"|
     refute body =~ "&lt;!doctype"
   end
 end

@@ -33,8 +33,10 @@ function M.stage(f, since)
     -- and runs whose tests were green blocked instead of changing the feature
     local some = {}
     for i = 1, math.min(2, #t.checked) do some[i] = t.checked[i] end
+    -- (an empty list's check had no page form here, and a run rewrote the same feature unchanged until it blocked)
     why[#why + 1] = #t.checked .. ' checks use steps of the app\'s own, not the page\'s: write_feature rewrites each'
-      .. ' as I see "x" or I see "x" for "row", in the words the page shows (' .. table.concat(some, "; ")
+      .. ' in its file as I see "x", I see "x" for "row" or I do not see "x", in the words the page shows ('
+      .. table.concat(some, "; ")
       .. (#t.checked > 2 and "; ..." or "") .. ")"
   end
   if #f.pages == 0 then why[#why + 1] = "the app has no page" end
@@ -50,6 +52,12 @@ end
 function M.checks_own(f)
   local t = f and f.tests
   return f and f.page_steps and t and #(t.checked or {}) > 0 or false
+end
+
+-- No test has run since the last change (or none could): what is failing is not known yet
+function M.untested(f)
+  local t = f and f.tests
+  return not t or (t.total or 0) == 0
 end
 
 -- What is failing, as one string: the same string after a change means the change fixed nothing.

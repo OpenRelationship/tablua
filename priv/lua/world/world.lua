@@ -141,9 +141,11 @@ end
 
 function M.new(host, run)
   -- a run whose features use the page's own steps (run.steps "page") holds every check to them
+  -- (until its own-word checks are let go, below: every read of the facts after that holds them no longer)
+  local waived = {}
   if run and run.steps == "page" then
     local read = host.facts
-    host = setmetatable({ facts = function(...) local f = read(...); f.page_steps = true; return f end },
+    host = setmetatable({ facts = function(...) local f = read(...); f.page_steps = not waived.yes or nil; return f end },
       { __index = host })
   end
   local w = { tools = {}, host = host, run = run }
@@ -154,8 +156,15 @@ function M.new(host, run)
 
   -- the facts are read again before every decision, so what the person did between steps is seen
   local function facts(req)
+    waived.yes = req.own_waived
     req.facts = host.facts()
     if req.publishes0 == nil then req.publishes0 = req.facts.publishes or 0 end
+    -- checks in the app's own words, rewritten through M.give_up idle steps and still there, are let go for the run:
+    -- a green app is never held from shipping for good by how its checks are worded (two plants runs passed every
+    -- scenario and never shipped, one rewriting the feature for sixty steps, 2026-10-05)
+    if M.checks_own(req.facts) and M.failing(req.facts) == "" and (req.repeats or 0) >= M.give_up then
+      req.own_waived, waived.yes, req.facts.page_steps = true, true, nil
+    end
     req.stage, req.why = M.stage(req.facts, req.publishes0)
     -- the share of scenarios passing, for what the agent learns of each step (agent.checkpoint); -1 with no run
     local t = req.facts.tests

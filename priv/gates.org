@@ -91,11 +91,11 @@ Feature: the harness's gates
     Then only write_feature and read_help are offered
     # because: unmeasured: the checks in the app's own words are not yet an effect the harness records
 #+end_src
-** Scenario: blocked is offered only when the work is in trouble
+** Scenario: blocked is offered only when the work is in trouble, and tested since it changed
 #+begin_src feature
-  Scenario: blocked is offered only when the work is in trouble
+  Scenario: blocked is offered only when the work is in trouble, and tested since it changed
     # gate: blocked_trouble
-    Given nothing is failing and fewer than 2 changes ran into the same failure
+    Given nothing is failing and fewer than 2 changes ran into the same failure, or while building no test has run since the last change and the last move was not a test
     Then blocked is not offered
     # because: unmeasured: what the agent would have done instead of saying it was blocked is not seen
 #+end_src

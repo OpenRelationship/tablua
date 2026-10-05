@@ -178,8 +178,9 @@ defmodule Moss.Computer.Agent do
               do: "#{Board.rel(r.path)} has no scenarios: write them in it (Scenario: and its steps)"
             ),
         "undefined" => Enum.flat_map(runs, &(&1["undefined"] || [])),
-        # checks answered by the app's own steps, not the page's (sdk/browse.lua): a page-steps run's gate
-        "checked" => Enum.flat_map(runs, &list(&1["checked"]))
+        # checks answered by the app's own steps, not the page's (sdk/browse.lua): a page-steps run's gate, each with
+        # its file (a run rewrote its one clean feature for sixty steps, the check in a second file it never named)
+        "checked" => for(r <- board, c <- list(r.run["checked"]), do: "#{Board.rel(r.path)}: #{c}")
       }
     end
   end

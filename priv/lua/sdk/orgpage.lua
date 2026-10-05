@@ -45,7 +45,10 @@ function M.compile(text, name)
   if view.lang ~= "lua" then return nil, name .. ": the * Page block is lua (#+begin_src lua), not " .. tostring(view.lang) end
   -- the header shares code's first line, and the render's opening shares the page's, so each line of the chunk is
   -- one line of the file
-  local src = "local req, post, get, page, ui = ... " .. code.text .. "return function(result) " .. view.text .. "end"
+  -- and require("shroomi") or require("ui") in a page is the page's own ui: a plants page took the module's, whose
+  -- ui.page is a whole document, served escaped inside the page; no field showed, and fifty rewrites never saw why
+  local src = "local req, post, get, page, ui = ... local require = function(m) if m == 'shroomi' or m == 'ui' then"
+    .. " return ui end return require(m) end " .. code.text .. "return function(result) " .. view.text .. "end"
   local lines, nc = {}, count(code.text)
   for i = 1, nc do lines[i] = code.at[i] end
   for i, at in ipairs(view.at) do lines[nc + i] = at end
