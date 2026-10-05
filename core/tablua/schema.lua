@@ -1,7 +1,7 @@
 -- Three parts, told apart by their key (site/docs/content/log-and-build.md): the log, what the agent did, keyed by
 -- (task, n) and only ever added to (state, candidate, decision, action, change, outcome, effect, feature, label,
 -- prediction, control, run); the build, what it is making, keyed by file and replaced as files change (section,
--- unit, shape, scenario, line, link, the break view); and the policy, keyed by neither (gate, fit, ranking).
+-- unit, shape, element, scenario, line, link, the break view); and the policy, keyed by neither (gate, fit, ranking).
 --
 -- Tablua's tables: the agent's work as typed rows in its own SQLite file, beside the host's own tables and
 -- never in them. One row per state decided in, per move that could have been made (with what Jev and TabPFN said
@@ -21,9 +21,11 @@
 -- output); a file kept before it has its Lua sections renamed at open.
 -- Schema 10 adds change blocks (tablua.change): each operation of a change a step made (tablua_change), and each
 -- unit's columns (tablua_shape: code lines, parameters, deepest block, the file's units it names).
+-- Schema 11 adds a page's elements (tablua_element, tablua.tree): each nested call of a page written in Lua, by its
+-- path, so a change names one (tablua.element) and TabPFN reads what a page holds.
 local M = {}
 
-M.version = 10
+M.version = 11
 
 M.ddl = [[
 create table if not exists tablua_meta (key text primary key, value text);
@@ -114,6 +116,10 @@ create table if not exists tablua_shape (
   file text not null, section integer not null, n integer not null, lines integer not null default 0,
   arity integer not null default 0, depth integer not null default 0, names integer not null default 0,
   primary key (file, section, n));
+create table if not exists tablua_element (
+  file text not null, n integer not null, path text not null, call text not null, parent text not null default '',
+  depth integer not null default 1, children integer not null default 0, props text not null default '',
+  text text not null default '', primary key (file, n));
 create table if not exists tablua_gate (
   name text primary key, predicate text not null, version integer not null default 1,
   retired_by text);

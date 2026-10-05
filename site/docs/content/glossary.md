@@ -12,7 +12,7 @@ description: Plain definitions of the words used across Tablua's docs.
 
 **Build, the.** What the agent is making: the files of the app, as rows keyed by file (`tablua_section`, `tablua_unit`, `tablua_scenario` and the rest). Rows are replaced as the files change. One of the three parts of an agent's file, with the log and the policy ([The log and the build](/concepts/log-and-build)).
 
-**Change block.** An edit as a short script of operations on the build (`%% add`, `replace`, `delete`, `rename`, `scenario`), made all or none, with the change that undoes it. Each operation is a `tablua_change` row in the log.
+**Change block.** An edit as a short script of operations on the build (`%% add`, `replace`, `delete`, `rename`, `scenario`, and on a page's elements `set`, `put`, `drop`, `move`, `wrap`, `unwrap`), made all or none, with the change that undoes it. Each operation is a `tablua_change` row in the log ([Change blocks](/concepts/program-as-rows#change-blocks)).
 
 **Candidate.** A move that could be made at a step. Every candidate is recorded, not only the one taken.
 
@@ -23,6 +23,8 @@ description: Plain definitions of the words used across Tablua's docs.
 **Decision.** The move taken at a step, who took it, and how likely the choice was.
 
 **Effect.** A keyword for something a step changed, such as `More Passing` or `Page Broke`, from a closed list.
+
+**Element.** One nested call of a page written as Lua (`ui.form{ ... }`), named by its path (`page/card/form`, `button[2]` for the second of a name). A change block can set, put, drop, move, wrap and unwrap elements; each is a `tablua_element` row in the build ([Page elements](/concepts/program-as-rows#page-elements)).
 
 **Experience, shared.** A file of Tablua rows from many agents' finished runs, which each agent reads beside its own.
 

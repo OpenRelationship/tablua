@@ -18,7 +18,8 @@ spec.test("a change block parses into numbered operations with their bodies", fu
   spec.same({ ops[2].name, ops[2].to }, { "sum", "plus" })
   spec.ok(ops[3].first and ops[3].body == "")
   spec.eq(select(2, change.parse("local x = 1\n")), "a change starts with an operation: a line beginning %% and its verb")
-  spec.eq(select(2, change.parse("%% move x\n")), 'operation 1: there is no "move" (add, replace, delete, rename, scenario)')
+  spec.eq(select(2, change.parse("%% shove x\n")),
+    'operation 1: there is no "shove" (add, replace, delete, rename, scenario; a page\'s set, put, drop, move, wrap, unwrap)')
   spec.eq(select(2, change.parse("%% delete x\nlocal x\n")), "operation 1: delete takes nothing under it")
   spec.eq(select(2, change.parse("%% replace x\n")), "operation 1: replace needs the unit's source under it")
   spec.eq(select(2, change.parse("")), "the change has no operations")

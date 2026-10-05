@@ -30,10 +30,10 @@ The build's state at any earlier step is not stored, and does not need to be: ev
 | `tablua_candidate` | `tablua_unit` | `tablua_fit` |
 | `tablua_decision` | `tablua_shape` | `tablua_ranking` |
 | `tablua_action` | `tablua_scenario` | |
-| `tablua_change` | `tablua_line` | |
-| `tablua_outcome` | `tablua_link` | |
-| `tablua_effect` | `tablua_break` (a view) | |
-| `tablua_feature` | | |
+| `tablua_change` | `tablua_element` | |
+| `tablua_outcome` | `tablua_line` | |
+| `tablua_effect` | `tablua_link` | |
+| `tablua_feature` | `tablua_break` (a view) | |
 | `tablua_label` | | |
 | `tablua_prediction` | | |
 | `tablua_control` | | |

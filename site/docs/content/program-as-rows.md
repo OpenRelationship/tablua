@@ -61,6 +61,72 @@ The new unit must compile, or the edit is refused with the reason, and nothing i
 
 Small edits mean smaller mistakes. A rewrite of a whole file can break things far from what it meant to change; an edit to one unit can't.
 
+## Change blocks
+
+A **change block** is an edit written as a short script of operations, the way a database migration is. Each operation starts on a line beginning `%%`, with the text it needs under it:
+
+```text
+%% replace sum
+local function sum(a, b) return (a or 0) + (b or 0) end
+%% add difference after sum
+local function difference(a, b) return a - b end
+%% rename sum plus
+%% scenario Subtracting
+  Scenario: Subtracting
+    When I subtract 2 from 5
+    Then I see "3"
+```
+
+| Operation | Does |
+| --- | --- |
+| `add <name> [after <unit> \| first]` | adds a unit; refused when the name is taken |
+| `replace <name>` | replaces a unit's source |
+| `delete <name>` | removes a unit |
+| `rename <old> <new>` | renames a unit and every reference to it in the file's Lua, never a string or a comment |
+| `scenario <name> [after <other> \| first]` | adds or replaces a scenario, or removes it when nothing is under it |
+
+A block is applied all or nothing: if one operation names nothing, or leaves Lua that does not compile, none of them happens and the refusal names the operation by number. Every block comes back with the block that undoes it, so the build can always be walked back. `!` after a verb takes the text under it verbatim, which is how the undoing block is written.
+
+Each operation is a `tablua_change` row in the log: what it did, to what kind of unit, how many code lines it added, how many units named what it touched, and how many it left naming something that no longer exists. A model learns from what an edit does, not from its text.
+
+```lua
+local change = require("tablua.change")
+local done, why = change.apply(rows, block)   --> { rows, reverse, ops } or nil, "operation 2 names no unit ..."
+```
+
+## Page elements
+
+A page written as Lua is one expression of nested calls, so cut only into top-level units it is a single unit, and the agent rewrites the whole page to move one button. Tablua cuts it further, as a tree. Every call through a dotted name given a table or a string (`ui.card{ ... }`, `ui.h2"Plants"`, `ui.button("Add")`) is an **element**, and its children are the elements in its arguments. The cut knows Lua's calls, not any host's `ui` module; Lua's own libraries (`string.format(...)`) are not elements.
+
+An element is named by a path of its calls' last names, from the root down, with `[2]` for the second of a name among its siblings:
+
+```lua
+return ui.page{                                   -- page
+  title = "Plants",
+  ui.card{                                        -- page/card
+    ui.form{ post = "add",                        -- page/card/form
+      ui.input{ name = "name" },                  -- page/card/form/input
+      ui.input{ name = "count" },                 -- page/card/form/input[2]
+      ui.button("Add") },                         -- page/card/form/button
+  },
+}
+```
+
+A change block names elements as it names units:
+
+| Operation | Does |
+| --- | --- |
+| `set <path> <prop>` | sets a prop to the value under it, adds it, or takes it away when nothing is under it |
+| `put before\|after <path>`, `put in <path> [at <k>]`, `put first in <path>` | puts in the element under it |
+| `drop <path>` | removes an element |
+| `move <path> before\|after\|in <path>` | moves an element, its lines indented for where it lands |
+| `wrap <path>` | wraps an element in the call under it, written with `...` where the element goes |
+| `unwrap <path>` | replaces a wrapper that holds one element with that element |
+
+The rest of the page stays byte for byte, and every element operation is undone exactly by its reverse. An element operation's `tablua_change` row has the element's call as its kind and its path as its name, and counts as breaks the posts and form reads it left with nothing at their end.
+
+Each element is a `tablua_element` row in the build: its path, call, parent, depth, number of children, prop names and text.
+
 ## Links and breaks
 
 Units refer to each other. A page's button posts to an action. An action reads a field the form sends. A scenario's line needs a test step whose pattern matches it. Tablua records each of these as a `tablua_link` row.

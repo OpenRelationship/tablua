@@ -82,7 +82,8 @@ The agent's file is ordinary SQLite. Every table is named `tablua_*`, and the ha
 tables. They fall into three parts, told apart by their key:
 
 - **The log**: what the agent did, keyed by run and step. Rows are only ever added.
-- **The build**: what the agent is making, the app's files as rows, keyed by file. Rows are replaced as files change.
+- **The build**: what the agent is making, the app's files as rows, keyed by file: sections, units, scenarios and
+  a Lua page's elements. Rows are replaced as files change.
 - **The policy**: how the next decision is made: gates, fits, rankings. Keyed by neither.
 
 They meet in `tablua_change`: each operation a step made on the build, kept in the log with columns that describe

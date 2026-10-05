@@ -123,6 +123,16 @@ spec.test("a program kept as rows compiles back to the same org, and a file put 
   spec.eq(t:compile("ui/none.org"), nil)
 end)
 
+spec.test("a page written in Lua is kept as its elements too", function()
+  local t = fresh()
+  t:put_program("ui/index.org", { sections = { { kind = "markup", lang = "lua",
+    body = 'return ui.page{ title = "P", ui.form{ post = "add", ui.button"Add" } }\n' } } })
+  spec.same(t.db:exec("select path, parent, children, props, text from tablua_element where file = 'ui/index.org' order by n"), {
+    { path = "page", parent = "", children = 1, props = "title", text = "" },
+    { path = "page/form", parent = "page", children = 1, props = "post", text = "" },
+    { path = "page/form/button", parent = "page/form", children = 0, props = "", text = "Add" } })
+end)
+
 spec.test("links with nothing at their end are breaks, and a step written later in another file mends a line", function()
   local src = require("tablua.source")
   local t = fresh()

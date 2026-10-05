@@ -4,7 +4,7 @@ description: Every table Tablua keeps in an agent's SQLite file, with every colu
 
 # Tables
 
-Every table Tablua keeps in an agent's file, and what each column means. All names start with `tablua_`. The schema is at version 10 (`tablua_meta`).
+Every table Tablua keeps in an agent's file, and what each column means. All names start with `tablua_`. The schema is at version 11 (`tablua_meta`).
 
 The tables fall into three parts ([The log and the build](/concepts/log-and-build)), told apart by their key:
 
@@ -101,7 +101,7 @@ How a run ended.
 
 ### tablua_change
 
-Each operation of a change block a step made ([The program as rows](/concepts/program-as-rows)): where the log meets the build. Key: `task`, `n`, `i`; also `op` (`add`, `replace`, `delete`, `rename`, `scenario`), `kind` (the unit's kind), `name`, `lines` (code lines added, negative when taken away), `named_by` (units that named the target before) and `breaks` (units left naming something no unit defines).
+Each operation of a change block a step made ([The program as rows](/concepts/program-as-rows#change-blocks)): where the log meets the build. Key: `task`, `n`, `i`; also `op` (`add`, `replace`, `delete`, `rename`, `scenario`, or on a page's elements `set`, `put`, `drop`, `move`, `wrap`, `unwrap`), `kind` (the unit's kind, or the element's call), `name` (the unit's name, or the element's path), `lines` (code lines added, negative when taken away), `named_by` (units that named the target before; 0 for an element) and `breaks` (units left naming something no unit defines; for an element, posts and form reads left with nothing at their end).
 
 ### tablua_effect
 
@@ -130,6 +130,7 @@ The controls a step chose among on a screen (Tablua's Mac app). Key: `task`, `n`
 | `tablua_section` | `file`, `n` | a file's sections: `kind`, `lang`, `body` |
 | `tablua_unit` | `file`, `section`, `n` | top-level units: `kind`, `name`, `source` |
 | `tablua_shape` | `file`, `section`, `n` | each unit's columns: `lines` (code lines), `arity` (a function's parameters), `depth` (deepest block), `names` (other units it names) |
+| `tablua_element` | `file`, `n` | a Lua page's elements ([Page elements](/concepts/program-as-rows#page-elements)): `path`, `call`, `parent` (its path), `depth`, `children`, `props` (the prop names), `text` (its strings) |
 | `tablua_scenario` | `file`, `n` | scenarios: `name`, `text` |
 | `tablua_line` | `file`, `scenario`, `n` | scenario lines: `keyword`, `text` |
 | `tablua_link` | `file`, `kind`, `source`, `target` | links between units, with `found` |

@@ -13,19 +13,25 @@
 --   %% delete <name>
 --   %% rename <old> <new>                    every reference in the file's Lua, never a string or a comment
 --   %% scenario <name> [after <other> | first]   the scenario's text, or none to remove it
+--   %% set, put, drop, move, wrap, unwrap ...    a page's elements by path (tablua.element)
 --
 --   local change = require("tablua.change")
 --   change.parse(text) -> ops | nil, why
 --   change.apply(rows, text) -> { rows, reverse, ops = { { op, kind, name, lines, named_by, breaks } } } | nil, why
+--                                     (an element's op: its kind is its call, its name its path, named_by 0, and
+--                                     breaks the posts and reads it left with nothing at their end)
 --   change.shape(rows) -> { { section, n, kind, name, lines, arity, depth, names } }     a column row per unit
 --   change.file(path, text, block) -> text, result | nil, why   one file changed: a .feature, a step file (a
 --                                     steps/ path), a .lua module, or an org page; text nil when it is new
 local src = require("tablua.source")
 local lexer = require("tablua.lexer")
+local element = require("tablua.element")
+local links = require("tablua.links")
 
 local M = {}
 
 M.verbs = { add = true, replace = true, delete = true, rename = true, scenario = true }
+for verb in pairs(element.verbs) do M.verbs[verb] = true end
 
 -- Parsing ----------------------------------------------------------------------------------------------------------
 
@@ -44,7 +50,7 @@ function M.parse(text)
     if verb then
       local n = #ops + 1
       if not M.verbs[verb] then
-        return nil, ("operation %d: there is no %q (add, replace, delete, rename, scenario)"):format(n, verb)
+        return nil, ("operation %d: there is no %q (add, replace, delete, rename, scenario; a page's set, put, drop, move, wrap, unwrap)"):format(n, verb)
       end
       cur = { op = verb, n = n, exact = bang == "!", lines = {} }
       if verb == "add" or verb == "scenario" then place(cur, rest)
@@ -260,19 +266,52 @@ end
 
 -- Applying ------------------------------------------------------------------------------------------------------------
 
+-- the posts to no action and the reads of no field sent, as a set
+local function dangling(rows)
+  local out, actions, have = {}, {}, {}
+  for _, s in ipairs(rows.sections) do
+    for _, u in ipairs(s.units or {}) do if u.kind == "action" then actions[u.name] = true end end
+  end
+  local found = links.scan(rows)
+  for _, l in ipairs(found) do have[l.kind .. " " .. l.target] = true end
+  for _, l in ipairs(found) do
+    if (l.kind == "post" and not actions[l.target] and not have["defines " .. l.target])
+      or (l.kind == "reads" and not have["sends " .. l.target]) then
+      out[l.kind .. " " .. l.target] = true
+    end
+  end
+  return out
+end
+
+-- an operation on the page's elements, as apply records it
+local function on_element(rows, op)
+  local was = dangling(rows)
+  local back, kind, name, before, after = element.apply(rows, op)
+  if not back then return nil, kind end
+  local breaks = 0
+  for k in pairs(dangling(rows)) do if not was[k] then breaks = breaks + 1 end end
+  return back, { op = op.op, kind = kind, name = name, lines = after - before, named_by = 0, breaks = breaks }
+end
+
 function M.apply(rows, text)
   local ops, why = M.parse(text)
   if not ops then return nil, why end
   rows = copy(rows)
   local undo, out = {}, {}
   for i, op in ipairs(ops) do
-    local by = op.op == "scenario" and 0 or named_by(rows, op.name)
-    local back, kind, before, after = DO[op.op](rows, op)
-    if not back then return nil, kind end
-    local breaks = 0
-    if op.op ~= "scenario" and not find(rows, op.name) then breaks = named_by(rows, op.name) end
-    undo[#ops - i + 1] = back
-    out[i] = { op = op.op, kind = kind, name = op.name, lines = after - before, named_by = by, breaks = breaks }
+    if element.verbs[op.op] then
+      local back, row = on_element(rows, op)
+      if not back then return nil, row end
+      undo[#ops - i + 1], out[i] = back, row
+    else
+      local by = op.op == "scenario" and 0 or named_by(rows, op.name)
+      local back, kind, before, after = DO[op.op](rows, op)
+      if not back then return nil, kind end
+      local breaks = 0
+      if op.op ~= "scenario" and not find(rows, op.name) then breaks = named_by(rows, op.name) end
+      undo[#ops - i + 1] = back
+      out[i] = { op = op.op, kind = kind, name = op.name, lines = after - before, named_by = by, breaks = breaks }
+    end
   end
   for _, x in ipairs(lua_sections(rows)) do
     local bad = select(2, load(src.body(x.s), "=" .. x.s.kind, "t"))

@@ -11,15 +11,16 @@
 --
 -- Putting a file's rows also puts its links (tablua.links), and settles every scenario line's link against every
 -- step the program defines, in whichever file: a step written later mends a line written earlier.
--- It also puts each unit's columns (tablua_shape).
+-- It also puts each unit's columns (tablua_shape), and the elements of a page written in Lua (tablua_element).
 local src = require("tablua.source")
 local links = require("tablua.links")
 local change = require("tablua.change")
+local tree = require("tablua.tree")
 
 return function(T, put)
   local function clear(db, file)
     for _, tbl in ipairs({ "tablua_section", "tablua_unit", "tablua_scenario", "tablua_line", "tablua_link",
-      "tablua_shape" }) do
+      "tablua_shape", "tablua_element" }) do
       db:exec("delete from " .. tbl .. " where file = ?", { file })
     end
   end
@@ -47,6 +48,16 @@ return function(T, put)
     for _, c in ipairs(change.shape(rows)) do
       c.file = file
       put(db, "tablua_shape", { "file", "section", "n", "lines", "arity", "depth", "names" }, c)
+    end
+    local e = 0
+    for _, s in ipairs(rows.sections) do
+      if s.kind == "markup" and s.lang == "lua" then
+        for _, r in ipairs(tree.rows(src.body(s))) do
+          e = e + 1
+          r.file, r.n = file, e
+          put(db, "tablua_element", { "file", "n", "path", "call", "parent", "depth", "children", "props", "text" }, r)
+        end
+      end
     end
     for _, l in ipairs(links.scan(rows, file)) do
       put(db, "tablua_link", { "file", "kind", "source", "target" },
