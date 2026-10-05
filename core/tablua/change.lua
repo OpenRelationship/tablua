@@ -12,7 +12,8 @@
 --   %% replace <name>                        its new source          refused when nothing has the name
 --   %% delete <name>
 --   %% rename <old> <new>                    every reference in the file's Lua, never a string or a comment
---   %% scenario <name> [after <other> | first]   the scenario's text, or none to remove it
+--   %% test <name> [after <other> | first]       the test's text (Robot), or none to remove it
+--   %% keyword <name> [after <other> | first]    a user keyword's text (Robot), or none to remove it
 --   %% set, put, drop, move, wrap, unwrap ...    a page's elements by path (tablua.element)
 --
 --   local change = require("tablua.change")
@@ -21,8 +22,8 @@
 --                                     (an element's op: its kind is its call, its name its path, named_by 0, and
 --                                     breaks the posts and reads it left with nothing at their end)
 --   change.shape(rows) -> { { section, n, kind, name, lines, arity, depth, names } }     a column row per unit
---   change.file(path, text, block) -> text, result | nil, why   one file changed: a .feature, a step file (a
---                                     steps/ path), a .lua module, or an org page; text nil when it is new
+--   change.file(path, text, block) -> text, result | nil, why   one file changed: a .robot test file, a keyword
+--                                     file (a keywords/ path), a .lua module, or an org page; text nil when new
 local src = require("tablua.source")
 local lexer = require("tablua.lexer")
 local element = require("tablua.element")
@@ -30,7 +31,8 @@ local links = require("tablua.links")
 
 local M = {}
 
-M.verbs = { add = true, replace = true, delete = true, rename = true, scenario = true }
+M.verbs = { add = true, replace = true, delete = true, rename = true, test = true, keyword = true }
+local ITEM = { test = true, keyword = true }
 for verb in pairs(element.verbs) do M.verbs[verb] = true end
 
 -- Parsing ----------------------------------------------------------------------------------------------------------
@@ -50,10 +52,10 @@ function M.parse(text)
     if verb then
       local n = #ops + 1
       if not M.verbs[verb] then
-        return nil, ("operation %d: there is no %q (add, replace, delete, rename, scenario; a page's set, put, drop, move, wrap, unwrap)"):format(n, verb)
+        return nil, ("operation %d: there is no %q (add, replace, delete, rename, test, keyword; a page's set, put, drop, move, wrap, unwrap)"):format(n, verb)
       end
       cur = { op = verb, n = n, exact = bang == "!", lines = {} }
-      if verb == "add" or verb == "scenario" then place(cur, rest)
+      if verb == "add" or ITEM[verb] then place(cur, rest)
       elseif verb == "rename" then cur.name, cur.to = rest:match("^(%S+)%s+(%S+)$")
       else cur.name = rest end
       if not cur.name or cur.name == "" then
@@ -110,7 +112,7 @@ end
 local function recut(s)
   s.body = src.body(s)
   if s.units then s.units = src.units(s.body) end
-  if s.scenarios then s.head, s.scenarios = src.scenarios(s.body) end
+  if s.items then s.head, s.items = src.tests(s.body) end
 end
 
 local function code_lines(source) return source and lexer.columns(source).lines or 0 end
@@ -165,7 +167,7 @@ function DO.add(rows, op)
   if find(rows, op.name) then return nil, ("operation %d: there is already a unit %s"):format(op.n, op.name) end
   local unit, why = one_unit(op)
   if not unit then return nil, why end
-  local kind = unit.kind == "step" and "steps" or "code"
+  local kind = unit.kind == "keyword" and "keywords" or "code"
   local s, k
   if op.after then
     s, k = find(rows, op.after)
@@ -177,7 +179,7 @@ function DO.add(rows, op)
       s = { kind = kind, units = {} }
       local at = #rows.sections + 1
       for i, other in ipairs(rows.sections) do
-        if other.kind == "markup" or (kind == "steps" and other.kind == "code") then at = i break end
+        if other.kind == "markup" or (kind == "keywords" and other.kind == "code") then at = i break end
       end
       table.insert(rows.sections, at, s)
     end
@@ -229,40 +231,7 @@ function DO.rename(rows, op)
   return op_line("rename", op.to .. " " .. op.name), kind, 0, 0
 end
 
-function DO.scenario(rows, op)
-  local s
-  for _, x in ipairs(rows.sections) do if x.kind == "feature" then s = x end end
-  if not s then return nil, ("operation %d: the program has no feature"):format(op.n) end
-  local k
-  for i, sc in ipairs(s.scenarios) do if sc.name == op.name then k = i end end
-  local old = k and s.scenarios[k]
-  if op.body == "" then
-    if not old then return nil, ("operation %d names no scenario %q"):format(op.n, op.name) end
-    table.remove(s.scenarios, k)
-    recut(s)
-    return op_line("scenario!", op.name, where(s.scenarios, k, "name")) .. old.text, "scenario", #old.lines, 0
-  end
-  local _, list = src.scenarios(op.body)
-  if #list ~= 1 or list[1].name ~= op.name then
-    return nil, ("operation %d: its text should be the one scenario %q"):format(op.n, op.name)
-  end
-  local new = list[1]
-  if old then
-    s.scenarios[k] = new
-  else
-    local at = #s.scenarios + 1
-    if op.first then at = 1 end
-    if op.after then
-      at = nil
-      for i, sc in ipairs(s.scenarios) do if sc.name == op.after then at = i + 1 end end
-      if not at then return nil, ("operation %d names no scenario %q"):format(op.n, op.after) end
-    end
-    table.insert(s.scenarios, at, new)
-  end
-  recut(s)
-  local undo = old and op_line("scenario!", op.name) .. old.text or op_line("scenario", op.name)
-  return undo, "scenario", old and #old.lines or 0, #new.lines
-end
+require("tablua.change_tests")(DO, { recut = recut, op_line = op_line })
 
 -- Applying ------------------------------------------------------------------------------------------------------------
 
@@ -304,11 +273,11 @@ function M.apply(rows, text)
       if not back then return nil, row end
       undo[#ops - i + 1], out[i] = back, row
     else
-      local by = op.op == "scenario" and 0 or named_by(rows, op.name)
+      local by = ITEM[op.op] and 0 or named_by(rows, op.name)
       local back, kind, before, after = DO[op.op](rows, op)
       if not back then return nil, kind end
       local breaks = 0
-      if op.op ~= "scenario" and not find(rows, op.name) then breaks = named_by(rows, op.name) end
+      if not ITEM[op.op] and not find(rows, op.name) then breaks = named_by(rows, op.name) end
       undo[#ops - i + 1] = back
       out[i] = { op = op.op, kind = kind, name = op.name, lines = after - before, named_by = by, breaks = breaks }
     end
@@ -322,8 +291,8 @@ end
 
 -- a file's text as rows, and back: the kind of section its path holds, or org
 local function kind_of(path)
-  if path:match("%.feature$") then return "feature" end
-  if path:match("%.lua$") then return path:match("steps/") and "steps" or "code" end
+  if path:match("%.robot$") then return "tests" end
+  if path:match("%.lua$") then return path:match("keywords/") and "keywords" or "code" end
 end
 
 function M.file(path, text, block)
@@ -335,15 +304,12 @@ function M.file(path, text, block)
     rows, why = src.decode(text)
     if not rows then return nil, path .. " does not read as org: " .. tostring(why) end
   else
-    return nil, "a change is to a .feature, a .lua file or an org page: " .. path
-  end
-  if kind == "feature" and #rows.sections == 0 then
-    return nil, path .. " has no feature yet: write it whole"
+    return nil, "a change is to a .robot file, a .lua file or an org page: " .. path
   end
   local done, err = M.apply(rows, block)
   if not done then return nil, err end
   if not kind then return src.compile(done.rows), done end
-  -- a plain file is its sections' text: a step file's helper lands in a code section of its own
+  -- a plain file is its sections' text: a keyword file's helper lands in a code section of its own
   local parts = {}
   for _, s in ipairs(done.rows.sections) do parts[#parts + 1] = src.body(s) end
   return table.concat(parts), done

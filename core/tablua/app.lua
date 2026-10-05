@@ -1,16 +1,16 @@
--- An app's files as the program's rows (M6c): its features, step files, modules and pages become org files
--- (tablua.source), a page with the app's features and steps, each module one of its own, so the harness can put
+-- An app's files as the program's rows (M6c): its tests, keyword files, modules and pages become org files
+-- (tablua.source), a page with the app's tests and keywords, each module one of its own, so the harness can put
 -- them (t:put_app) and read what is broken in them (tablua_break) while the agent works, not only after.
 --
---   app.program(files) -> { { name, rows, want }, ... }   files: path -> text (paths ending features/*.feature,
---                                                          code/steps/*.lua, code/*.lua, ui/*.org or ui/*.lui);
+--   app.program(files) -> { { name, rows, want }, ... }   files: path -> text (paths ending tests/*.robot,
+--                                                          code/keywords/*.lua, code/*.lua, ui/*.org or ui/*.lui);
 --                                                          want: each section's text, for a round-trip check
 --   t:put_app(files) -> breaks                             every file's rows put, then t:breaks()
 local src = require("tablua.source")
 
 local M = {}
 
--- each file ends its line before the next begins ("...it was written" ran into "Feature: Note Jotter")
+-- each file ends its line before the next begins (a file's last line would run into the next one's first)
 local function joined(t)
   local out = {}
   for i, x in ipairs(t) do out[i] = (x ~= "" and x:sub(-1) ~= "\n") and x .. "\n" or x end
@@ -24,15 +24,15 @@ local function index_first(a, b)
 end
 
 function M.program(files)
-  local features, steps, modules, pages = {}, {}, {}, {}
+  local tests, keywords, modules, pages = {}, {}, {}, {}
   for path, text in pairs(files) do
-    if path:match("features/.+%.feature$") then features[#features + 1] = text
-    elseif path:match("code/steps/.+%.lua$") then steps[#steps + 1] = text
+    if path:match("tests/.+%.robot$") then tests[#tests + 1] = text
+    elseif path:match("code/keywords/.+%.lua$") then keywords[#keywords + 1] = text
     elseif path:match("code/[^/]+%.lua$") then modules[path] = text
     elseif path:match("ui/.+%.lui$") or path:match("ui/.+%.org$") then pages[path] = text end
   end
-  table.sort(features)
-  table.sort(steps)
+  table.sort(tests)
+  table.sort(keywords)
   local names = {}
   for path in pairs(pages) do names[#names + 1] = path end
   table.sort(names, index_first)
@@ -45,8 +45,8 @@ function M.program(files)
       if s.kind == "code" then code = src.body(s) elseif s.kind == "markup" then markup, lang = src.body(s), s.lang end
     end
     local f = { code = code, markup = markup }
-    -- the app's features and steps go with its first page
-    if first then f.feature, f.steps, first = joined(features), joined(steps), false end
+    -- the app's tests and keywords go with its first page
+    if first then f.tests, f.keywords, first = joined(tests), joined(keywords), false end
     local rows = src.from_files(f)
     for _, s in ipairs(rows.sections) do if s.kind == "markup" then s.lang = lang end end
     out[#out + 1] = { name = path, rows = rows, want = f }

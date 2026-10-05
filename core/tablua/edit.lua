@@ -1,8 +1,8 @@
 -- An edit to one unit of a program (M6b): the agent names a file and one of its units, and gives that
 -- unit's new source; the file is read as rows (tablua.source), the unit replaced (or added when the file has none of
 -- that name) and the file written back whole from the rows. A unit is a top-level Lua statement named as the rows
--- name it (post.add, a local's or a function's name, a step's text), or "page", a page's Page section. A module or
--- step file (.lua) stays plain Lua; a page (ui/*.org) stays org. The new source must be Lua that compiles.
+-- name it (post.add, a local's or a function's name, a keyword's name), or "page", a page's Page section. A module
+-- or keyword file (.lua) stays plain Lua; a page (ui/*.org) stays org. The new source must be Lua that compiles.
 --
 --   edit.apply(path, text, unit, source) -> new text | nil, why     text nil when the file does not exist yet
 --   edit.index(path, text) -> { name... }                           the units an edit can name, in file order

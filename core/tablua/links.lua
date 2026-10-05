@@ -1,48 +1,54 @@
 -- The links between a program's rows (M6c): what one row names that another must hold. A page names the
 -- actions its forms and buttons post to (post = "add" -> function post.add); an action reads the fields a form
--- sends (req.form.name -> a field name = "name", or vals = { id = ... }); a scenario's line in the app's own words
--- needs a step whose pattern matches it (test.step), and one in the page's words a label, a field or text the page
--- holds. Kept as rows (tablua_link), so a link with nothing at its end
+-- sends (req.form.name -> a field name = "name", or vals = { id = ... }); a test's or keyword's call needs a keyword
+-- of that name (a Lua keyword unit, a user keyword, BuiltIn's or the host's), and a call of the page's own
+-- keywords (Press, Type, See) a label, a field or text the page holds. Kept as rows (tablua_link), so a link with
+-- nothing at its end
 -- is a view (tablua_break), as is an action no page posts to (an orphan: nothing can reach it), and the harness's facts, gates and TabPFN's columns read the breaks as data.
 --
 --   links.scan(rows, file?) -> { { kind, source, target } }   kinds: post (page -> action), defines (page -> action it
---     holds), sends (page -> field), reads (action -> field), and from a scenario's line "i.j": line (its text,
---     needing a step), press (a label the page must show), field (a field it must have), see (text it must show,
---     unless the scenario typed it or it holds a number); with the file's name, calls (a module's function the
---     file calls: local m = require("mod") ... m.fn(), as "mod.fn"), module (code/<mod>.lua is module mod) and
---     exports (each function the module returns, "mod.fn")
---   links.found(link, text, steps) -> whether the program's text (lowercased) or its steps answer a line's link
---   links.pattern(step) -> the Lua pattern a step's text compiles to (test.step in the computer's test library)
---   links.step(text, patterns) -> the step pattern a line's text matches, or nil
+--     holds), sends (page -> field), reads (action -> field), and from a call at "<item>.<path>": call (the keyword
+--     it names), press (a label the page must show), field (a field it must have), see (text it must show, unless a
+--     test typed it or it holds a number); with the file's name, calls (a module's function the file calls: local
+--     m = require("mod") ... m.fn(), as "mod.fn"), module (code/<mod>.lua is module mod) and exports (each function
+--     the module returns, "mod.fn")
+--   links.found(link, text, keywords) -> whether the program's text (lowercased) or its keywords answer a link
+--   links.keyword(name, keywords) -> the keyword a call names (exactly, by embedded arguments, or past a Given),
+--     among keywords, BuiltIn's and the host's, or nil
+--   links.host                         the host's keyword names (its computer's library), settable by a host
 --
 -- The code links (posts, sends, reads, calls, modules, exports) are read from Lua alone: a section in another
 -- language (its lang) gives none, and with step definitions in another language a scenario's own words are not
 -- checked against them (owner, 2026-10-05: Lua is the harness's language, not the output's).
 local effects = require("tablua.effects")
+local robot = require("robot")
+local src = require("tablua.source")
 
 local M = {}
 
-local HOLES = { ["{int}"] = "%-?%d+", ["{number}"] = "%-?%d+%.?%d*", ["{string}"] = '"[^"]*"',
-  ["{word}"] = '[^%s"]+', ["{}"] = ".-" }
+-- the keywords a host's computer gives every app (its page keywords, effects.page_keywords), by name; a host adds
+-- its own library's names here
+M.host = {}
+for _, name in ipairs(effects.page_keywords) do M.host[#M.host + 1] = name end
 
-function M.pattern(step)
-  local out, at = { "^" }, 1
-  while at <= #step do
-    local s, e = step:find("{%a*}", at)
-    out[#out + 1] = (step:sub(at, (s or #step + 1) - 1):gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
-    if not s then break end
-    out[#out + 1] = HOLES[step:sub(s, e)] or ".-"
-    at = e + 1
+local PREFIX = { given = true, ["when"] = true, ["then"] = true, ["and"] = true, but = true }
+
+local function match(name, keywords)
+  local n = robot.norm(name)
+  for _, list in ipairs({ keywords, M.host }) do
+    for _, k in ipairs(list) do
+      local pat = robot.embedded(k)
+      if (pat and robot.captures(pat, name)) or (not pat and robot.norm(k) == n) then return k end
+    end
   end
-  out[#out + 1] = "$"
-  return table.concat(out)
+  if robot.is_builtin(name) then return name end
 end
 
-function M.step(text, patterns)
-  for _, p in ipairs(patterns) do
-    if text:find(M.pattern(p)) then return p end
-  end
-  return nil
+function M.keyword(name, keywords)
+  local k = match(name, keywords)
+  if k then return k end
+  local first, rest = name:match("^(%a+)%s+(.+)$")
+  if first and PREFIX[first:lower()] then return match(rest, keywords) end
 end
 
 local function add(out, seen, kind, source, target)
@@ -110,8 +116,8 @@ local function modules(out, seen, text, file)
 end
 
 function M.scan(rows, file)
-  local out, seen, steps_lua = {}, {}, true
-  for _, s in ipairs(rows.sections or {}) do if s.kind == "steps" and not lua(s) then steps_lua = false end end
+  local out, seen, keywords_lua = {}, {}, true
+  for _, s in ipairs(rows.sections or {}) do if s.kind == "keywords" and not lua(s) then keywords_lua = false end end
   modules(out, seen, lua_of(rows), file)
   for n, s in ipairs(rows.sections or {}) do
     if s.kind == "markup" and lua(s) then page(out, seen, s.body or s.text or "", "page " .. n) end
@@ -123,23 +129,24 @@ function M.scan(rows, file)
         end
       end
     end
-    for i, sc in ipairs(s.scenarios or {}) do
-      local data = {}   -- what the scenario's earlier lines put in: a page shows it without naming it
-      for j, l in ipairs(sc.lines or {}) do
-        local at, kind = ("%d.%d"):format(i, j), effects.line_kind(l.keyword .. " " .. l.text)
-        local quoted = {}
-        for q in l.text:gmatch('"([^"]*)"') do quoted[#quoted + 1] = q end
-        -- only the app's own words need a step of its own; the page's step shapes are the computer's
-        if kind == "own" then if steps_lua then add(out, seen, "line", at, l.text) end
-        elseif kind == "press" or kind == "press_for" then add(out, seen, "press", at, quoted[1] or "")
-        elseif kind == "type" and quoted[2] then add(out, seen, "field", at, quoted[2])
+    for i, it in ipairs(s.items or {}) do
+      local typed = {}   -- what the tests typed in: a page shows it without naming it
+      for _, c in ipairs(src.calls(it)) do
+        local at, kind, args = ("%d.%s"):format(i, c.path), effects.keyword_kind(c.keyword), c.args or {}
+        -- a keyword in another language than Lua is not checked against the calls (owner, 2026-10-05)
+        if kind == "own" then if keywords_lua then add(out, seen, "call", at, c.keyword) end
+        elseif kind == "press" or kind == "press_for" then
+          -- a label in a variable is known only when the test runs
+          if args[1] and not args[1]:find("%${") then add(out, seen, "press", at, args[1]) end
+        elseif kind == "type" then
+          if args[1] and not args[1]:find("%${") then add(out, seen, "field", at, args[1]) end
+          if args[2] then typed[args[2]:lower()] = true end
         elseif kind == "see" or kind == "see_for" or kind == "see_before" then
-          for _, q in ipairs(quoted) do
-            -- a number is worked out by the code, and what the scenario typed is the person's
-            if q ~= "" and not q:find("%d") and not data[q:lower()] then add(out, seen, "see", at, q) end
+          for _, q in ipairs(args) do
+            -- a number is worked out by the code, and what a test typed is the person's
+            if q ~= "" and not q:find("%d") and not q:find("%${") and not typed[q:lower()] then add(out, seen, "see", at, q) end
           end
         end
-        for _, q in ipairs(quoted) do data[q:lower()] = true end
       end
     end
   end
@@ -147,9 +154,9 @@ function M.scan(rows, file)
 end
 
 -- whether a link a page must answer is answered by the program's pages and code (their text, lowercased: what a
--- page shows or names is written in it) or, for a scenario line, by one of its steps
-function M.found(l, text, steps)
-  if l.kind == "line" then return M.step(l.target, steps) ~= nil end
+-- page shows or names is written in it) or, for a call, by a keyword
+function M.found(l, text, keywords)
+  if l.kind == "call" then return M.keyword(l.target, keywords) ~= nil end
   return text:find(l.target:lower(), 1, true) ~= nil
 end
 

@@ -11,6 +11,7 @@
 --   t:decision{ task, n, chosen, by, propensity?, policy? }  the move taken, and by whom (jev, tabpfn, mercury)
 --   t:action{ task, n, i, cmd, file_kind?, op?, target?, bytes?, exit?, duration_ms? }   a call the move made
 --   t:outcome{ task, n, verb, outcome, passed?, total?, regressed?, same_failure?, failing?, note? } -> progress (1|0)
+--   t:results(task, n, res, file?) -> summary   a test run's keyword tree (robot.run) as rows of step n (tablua_result)
 --   t:run{ task, shipped, answered, works, right?, changed?, steps?, cost? }   how the run ended
 --   t:prediction(task, n, head, move, p)   t:fit(head, schema, id, rows)   t:fitted(head, schema) -> { id, rows } | nil
 --   t:attach(name, path)                   another file's rows (shared experience) read with this one's
@@ -30,6 +31,7 @@
 --   t:put_app(files) -> breaks                     an app's files as the program's rows (tablua.app)
 --   t:put_program(file, rows), t:program(file), t:compile(file) -> org, t:files()   the program as rows (tablua.program)
 local schema = require("tablua.schema")
+local robot = require("robot")
 
 local M = {}
 local T = {}
@@ -37,9 +39,9 @@ T.__index = T
 
 M.schema = schema
 
--- moves that change the app: one of them taken while scenarios fail, leaving as many passing, helped nothing
+-- moves that change the app: one of them taken while tests fail, leaving as many passing, helped nothing
 M.changes = { write_steps = true, write_code = true, write_page = true, fix_failure = true, rewrite = true,
-  write_feature = true, undo = true }
+  write_feature = true, undo = true, write_tests = true, write_keywords = true }
 
 -- the columns TabPFN reads of a decided step; categorical ones by 0-based index (ports.tabpfn)
 M.columns = { "move", "stage", "pass", "stalls", "last_verb", "last_outcome", "cause", "own_checks", "n", "jev_p",
@@ -120,7 +122,7 @@ function T:action(a)
     op = a.op or "", target = a.target or "", bytes = a.bytes, exit = a.exit, duration_ms = a.duration_ms })
 end
 
--- Whether a step helped: more scenarios passing than before it; otherwise a step that did not complete, or a change
+-- Whether a step helped: more tests passing than before it; otherwise a step that did not complete, or a change
 -- that left as many passing while some failed, did not; any other complete step did.
 function M.progress(o, before)
   local b = before or {}
@@ -142,6 +144,24 @@ function T:outcome(o)
     progress = progress, regressed = o.regressed and 1 or 0, same_failure = o.same_failure and 1 or 0,
     passed = o.passed, total = o.total, failing = o.failing or "[]", note = o.note or "" })
   return progress
+end
+
+-- A test run's keyword tree (robot.run's result) kept as rows of step n: each keyword, its arguments, whether it
+-- passed, failed or never ran, and why. A step may run the tests more than once; each run is numbered. Gives back
+-- robot.summary's, for the outcome (its passed, total and failing) and the effects.
+function T:results(task, n, res, file)
+  local db = self.db
+  local run = (db:exec("select coalesce(max(run), 0) + 1 as r from tablua_result where task = ? and n = ?",
+    { task, n })[1] or {}).r or 1
+  db:exec("begin")
+  for _, r in ipairs(robot.rows(res)) do
+    put(db, "tablua_result", { "task", "n", "run", "file", "test", "path", "parent", "depth", "type", "keyword", "args",
+      "status", "message", "ms", "line" }, { task = task, n = n, run = run, file = file or "", test = r.test,
+      path = r.path, parent = r.parent, depth = r.depth, type = r.type, keyword = r.keyword, args = r.args,
+      status = r.status, message = r.message, ms = r.ms, line = r.line })
+  end
+  db:exec("commit")
+  return robot.summary(res)
 end
 
 function T:run(r)
@@ -265,8 +285,8 @@ require("tablua.control")(T, put)
 require("tablua.app").install(T)
 
 local TABLES = { state = true, candidate = true, decision = true, action = true, outcome = true, run = true,
-  fit = true, prediction = true, gate = true, feature = true, label = true, effect = true, section = true, unit = true, scenario = true, line = true,
-  control = true, ranking = true }
+  fit = true, prediction = true, gate = true, feature = true, label = true, effect = true, section = true, unit = true,
+  test = true, keyword = true, call = true, result = true, control = true, ranking = true }
 
 function T:count(name)
   assert(TABLES[name], "tablua: no table " .. tostring(name))

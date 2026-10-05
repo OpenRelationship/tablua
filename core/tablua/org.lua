@@ -1,10 +1,11 @@
 -- The program's file (M6a; owner, 2026-10-04): real org syntax, in a written subset that Emacs, GitHub and
--- pandoc read as it is. A section is a top-level heading; each of its rows (a Lua unit, a scenario) is a heading
--- under it, with a drawer for its columns and one source block for its text:
+-- pandoc read as it is. A section is a top-level heading; each of its rows (a Lua unit, a test, a keyword) is a
+-- heading under it, with a drawer for its columns and one source block for its text:
 --
 --   * Notes                 prose (its own headings one level down)
---   * Feature               #+begin_src feature: the header, then a ** Scenario: heading per scenario
---   * Steps / * Code        a ** heading per unit, :kind: and :name: in its drawer, #+begin_src <lang> (a Lua block
+--   * Tests                 #+begin_src robot: the head (settings, variables), then a ** Test: or ** Keyword:
+--                           heading per test and user keyword (Robot Framework's syntax, core/robot)
+--   * Keywords / * Code     a ** heading per unit, :kind: and :name: in its drawer, #+begin_src <lang> (a Lua block
 --                           cut into its top-level statements; a block in another language is one unit)
 --   * Page                  #+begin_src lua (a page as Lua), or lui (a markup page in tagged sections)
 --
@@ -13,7 +14,7 @@
 -- drawer is a view of the row: reading takes a section's text from its blocks alone, joined in order.
 local M = {}
 
-M.heading = { notes = "Notes", feature = "Feature", steps = "Steps", code = "Code", markup = "Page" }
+M.heading = { notes = "Notes", tests = "Tests", keywords = "Keywords", code = "Code", markup = "Page" }
 local KIND = {}
 for kind, h in pairs(M.heading) do KIND[h] = kind end
 
@@ -47,7 +48,7 @@ end
 -- one line of text for a heading
 local function title(s) return (s:gsub("%s+", " "):match("^%s*(.-)%s*$")) end
 
--- sections: { { kind, text } or { kind, units = { {kind, name, source} } } or { kind, head, scenarios } }
+-- sections: { { kind, text } or { kind, units = { {kind, name, source} } } or { kind, head, items } }
 function M.write(sections)
   local out = {}
   for _, s in ipairs(sections) do
@@ -58,11 +59,11 @@ function M.write(sections)
         out[#out + 1] = drawer({ { "kind", u.kind }, { "name", u.name } })
         out[#out + 1] = block(s.lang or "lua", u.source)
       end
-    elseif s.scenarios then
-      if s.head ~= "" then out[#out + 1] = block("feature", s.head) end
-      for _, sc in ipairs(s.scenarios) do
-        out[#out + 1] = "** Scenario: " .. title(sc.name) .. "\n"
-        out[#out + 1] = block("feature", sc.text)
+    elseif s.items then
+      if s.head ~= "" then out[#out + 1] = block("robot", s.head) end
+      for _, it in ipairs(s.items) do
+        out[#out + 1] = "** " .. (it.kind == "keyword" and "Keyword" or "Test") .. ": " .. title(it.name) .. "\n"
+        out[#out + 1] = block("robot", it.text)
       end
     elseif s.kind == "notes" then
       for _, line in ipairs(lines(s.text)) do
@@ -89,7 +90,7 @@ function M.read(text)
       else add(unescape(line), n) end
     elseif line:match("^%* ") then
       local kind = KIND[title(line:sub(3))]
-      if not kind then return nil, "an org section is one of Notes, Feature, Steps, Code, Page: " .. line end
+      if not kind then return nil, "an org section is one of Notes, Tests, Keywords, Code, Page: " .. line end
       cur = { kind = kind, parts = {}, at = {} }
       sections[#sections + 1] = cur
     elseif not cur then

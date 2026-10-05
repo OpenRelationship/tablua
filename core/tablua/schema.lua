@@ -1,7 +1,8 @@
 -- Three parts, told apart by their key (site/docs/content/log-and-build.md): the log, what the agent did, keyed by
 -- (task, n) and only ever added to (state, candidate, decision, action, change, outcome, effect, feature, label,
--- prediction, control, run); the build, what it is making, keyed by file and replaced as files change (section,
--- unit, shape, element, scenario, line, link, the break view); and the policy, keyed by neither (gate, fit, ranking).
+-- prediction, control, run, result); the build, what it is making, keyed by file and replaced as files change
+-- (section, unit, shape, element, test, keyword, call, link, the break view); and the policy, keyed by neither
+-- (gate, fit, ranking).
 --
 -- Tablua's tables: the agent's work as typed rows in its own SQLite file, beside the host's own tables and
 -- never in them. One row per state decided in, per move that could have been made (with what Jev and TabPFN said
@@ -23,9 +24,14 @@
 -- unit's columns (tablua_shape: code lines, parameters, deepest block, the file's units it names).
 -- Schema 11 adds a page's elements (tablua_element, tablua.tree): each nested call of a page written in Lua, by its
 -- path, so a change names one (tablua.element) and TabPFN reads what a page holds.
+-- Schema 12 (owner, 2026-10-05): the tests are Robot Framework's, not Gherkin (core/robot). The build keeps each
+-- test and user keyword (tablua_test, tablua_keyword) and every call either makes (tablua_call), and a call no
+-- keyword answers is a break (kind call); the log keeps every keyword each test run ran, as a tree of rows
+-- (tablua_result): what ran, with what, whether it passed, failed or never ran, and why. tablua_scenario and
+-- tablua_line are dropped.
 local M = {}
 
-M.version = 11
+M.version = 12
 
 M.ddl = [[
 create table if not exists tablua_meta (key text primary key, value text);
@@ -74,11 +80,21 @@ update tablua_section set kind = 'code', lang = case lang when '' then 'lua' els
 create table if not exists tablua_unit (
   file text not null, section integer not null, n integer not null, kind text not null,
   name text not null default '', source text not null, primary key (file, section, n));
-create table if not exists tablua_scenario (
+drop table if exists tablua_scenario;
+drop table if exists tablua_line;
+create table if not exists tablua_test (
   file text not null, n integer not null, name text not null, text text not null, primary key (file, n));
-create table if not exists tablua_line (
-  file text not null, scenario integer not null, n integer not null, keyword text not null, text text not null,
-  primary key (file, scenario, n));
+create table if not exists tablua_keyword (
+  file text not null, n integer not null, name text not null, text text not null, primary key (file, n));
+create table if not exists tablua_call (
+  file text not null, item integer not null, path text not null, keyword text not null,
+  args text not null default '', primary key (file, item, path));
+create table if not exists tablua_result (
+  task text not null, n integer not null, run integer not null, file text not null default '', test text not null,
+  path text not null, parent text not null default '', depth integer not null default 0, type text not null,
+  keyword text not null default '', args text not null default '', status text not null,
+  message text not null default '', ms real, line integer,
+  primary key (task, n, run, file, test, path));
 create table if not exists tablua_label (
   task text not null, n integer not null, head text not null, value real not null, source text not null,
   at text, primary key (task, n, head, source));
@@ -93,7 +109,7 @@ create view if not exists tablua_break as select file, kind, source, target from
   (kind = 'post' and not exists (select 1 from tablua_unit u where u.kind = 'action' and u.name = l.target)
     and not exists (select 1 from tablua_link d where d.kind = 'defines' and d.target = l.target))
   or (kind = 'reads' and not exists (select 1 from tablua_link w where w.kind = 'sends' and w.target = l.target))
-  or (kind in ('line', 'press', 'field', 'see') and found = 0)
+  or (kind in ('call', 'press', 'field', 'see') and found = 0)
   or (kind = 'calls' and exists (select 1 from tablua_link m where m.kind = 'module'
       and m.target = substr(l.target, 1, instr(l.target, '.') - 1))
     and not exists (select 1 from tablua_link e where e.kind = 'exports' and e.target = l.target))

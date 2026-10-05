@@ -12,9 +12,9 @@ spec.test("a Lua file's unit is replaced in place, or added at the end, the rest
   local out = assert(edit.apply("code/items.lua", text, "M.add", "function M.add(x) return x + 1 end"))
   spec.eq(out, "local M = {}\n\nfunction M.add(x) return x + 1 end\n\nreturn M\n")
   spec.same(edit.index("code/items.lua", out), { "M", "M.add", "return" })
-  local added = assert(edit.apply("code/steps/items.lua", nil, 'there are {int} items',
-    'test.step("there are {int} items", function(w, n) end)'))
-  spec.eq(added, 'test.step("there are {int} items", function(w, n) end)\n')
+  local added = assert(edit.apply("code/keywords/items.lua", nil, 'There are ${n} items',
+    'keyword("There are ${n} items", function(n) end)'))
+  spec.eq(added, 'keyword("There are ${n} items", function(n) end)\n')
 end)
 
 spec.test("a page's action or its Page is replaced, and the page stays org", function()
@@ -35,7 +35,7 @@ spec.test("what would break the file is refused, saying why", function()
   spec.ok(why:find("does not compile", 1, true))
   out, why = edit.apply("ui/new.org", nil, "page", "return ui.p'x'")
   spec.ok(out == nil and why:find("write_page", 1, true))
-  out, why = edit.apply("features/a.feature", "Feature: a\n", "x", "x = 1")
+  out, why = edit.apply("tests/a.robot", "*** Test Cases ***\n", "x", "x = 1")
   spec.ok(out == nil and why:find("ui/*.org", 1, true))
   spec.eq((edit.apply("code/a.lua", "x = 1\n", "", "y = 2")), nil)
 end)

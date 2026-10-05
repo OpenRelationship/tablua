@@ -100,15 +100,17 @@ spec.test("a program kept as rows compiles back to the same org, and a file put 
   local t = fresh()
   local rows = src.from_files({
     notes = "Plants, watered on time.\n",
-    feature = "Feature: Plants\n\n  Scenario: one\n    When I open the page\n    Then I see \"Plants\"\n",
+    tests = "*** Test Cases ***\nOne\n    Open    /\n    See    Plants\n\n*** Keywords ***\nWater\n    Press    Water\n",
     code = 'local d = db.open("data/plants.dbl")\nfunction post.water(req) end\n',
   })
   t:put_program("ui/index.org", rows)
   spec.eq(t:compile("ui/index.org"), src.compile(rows))
   spec.eq(t:count("unit"), 2)
-  spec.eq(t:count("line"), 2)
-  local line = t.db:exec("select keyword, text from tablua_line where file = 'ui/index.org' and n = 2")[1]
-  spec.same(line, { keyword = "Then", text = 'I see "Plants"' })
+  spec.eq(t:count("test"), 1)
+  spec.eq(t:count("keyword"), 1)
+  spec.eq(t:count("call"), 3)
+  local call = t.db:exec("select keyword, args from tablua_call where file = 'ui/index.org' and item = 1 and path = '2'")[1]
+  spec.same(call, { keyword = "See", args = "Plants" })
   local shape = t.db:exec("select n, lines, arity, depth from tablua_shape where file = 'ui/index.org' order by n")
   spec.same(shape[2], { n = 2, lines = 1, arity = 1, depth = 1 })
   local change = require("tablua.change")
@@ -118,9 +120,29 @@ spec.test("a program kept as rows compiles back to the same org, and a file put 
     { { op = "rename", kind = "action", name = "post.water", lines = 0, named_by = 0, breaks = 0 } })
   t:put_program("ui/index.org", src.from_files({ code = "print(1)\n" }))
   spec.eq(t:count("unit"), 1)
-  spec.eq(t:count("scenario"), 0)
+  spec.eq(t:count("test"), 0)
   spec.same(t:files(), { "ui/index.org" })
   spec.eq(t:compile("ui/none.org"), nil)
+end)
+
+spec.test("a test run's keyword tree is kept as rows of its step, numbered by run, and its summary given back", function()
+  local robot = require("robot")
+  local t = fresh()
+  local lib = robot.library()
+  lib:add("Add Plant", function() end)
+  lib:add("Break", function() error("no db", 0) end)
+  local suite = robot.parse("*** Test Cases ***\nOk\n    Add Plant    Fern\nBroken\n    Add Plant    Ivy\n    Break\n"
+    .. "    Add Plant    Moss\n")
+  local s = t:results("r1", 4, robot.run(suite, { libraries = { lib } }), "tests/plants.robot")
+  spec.same({ s.passed, s.total, s.failing[1].test, s.failing[1].path, s.failing[1].reach }, { 1, 2, "Broken", "2", 1 })
+  t:results("r1", 4, robot.run(suite, { libraries = { lib } }))
+  spec.eq(t:count("result"), 12)
+  local rows = t.db:exec("select path, keyword, status, message from tablua_result where task = 'r1' and n = 4 "
+    .. "and run = 1 and test = 'Broken' order by path")
+  spec.same(rows, { { path = "", keyword = "Broken", status = "FAIL", message = "no db" },
+    { path = "1", keyword = "Add Plant", status = "PASS", message = "" },
+    { path = "2", keyword = "Break", status = "FAIL", message = "no db" },
+    { path = "3", keyword = "Add Plant", status = "NOT RUN", message = "" } })
 end)
 
 spec.test("a page written in Lua is kept as its elements too", function()
@@ -133,20 +155,20 @@ spec.test("a page written in Lua is kept as its elements too", function()
     { path = "page/form/button", parent = "page/form", children = 0, props = "", text = "Add" } })
 end)
 
-spec.test("links with nothing at their end are breaks, and a step written later in another file mends a line", function()
+spec.test("links with nothing at their end are breaks, and a keyword written later in another file mends a call", function()
   local src = require("tablua.source")
   local t = fresh()
   t:put_program("ui/index.org", src.decode(table.concat({
-    "* Feature", "#+begin_src feature", "Feature: Plants", "", "  Scenario: water",
-    '    Given there is a plant named "Fern"', "    When I open the page", "#+end_src",
+    "* Tests", "#+begin_src robot", ",*** Test Cases ***", "Water",
+    "    Given there is a plant named Fern", "    When Open    /", "#+end_src",
     "* Code", "#+begin_src lua", "function post.water(req) print(req.form.plant, req.form.when) end", "#+end_src",
     "* Page", "#+begin_src lua", 'return ui.form{ post = "water", ui.input{ name = "plant" } },',
     '  ui.button{ post = "remove" }', "#+end_src", "" }, "\n")))
   local why = {}
   for _, b in ipairs(t:breaks()) do why[#why + 1] = b.kind .. " " .. b.target end
-  spec.same(why, { 'line there is a plant named "Fern"', "post post.remove", "reads when" })
-  t:put_program("code/steps/plants.lua", src.from_files({ steps = 'test.step("there is a plant named {string}", '
-    .. "function(w, n) end)\n" }))
+  spec.same(why, { "call Given there is a plant named Fern", "post post.remove", "reads when" })
+  t:put_program("code/keywords/plants.lua", src.from_files({ keywords = 'keyword("There is a plant named ${name}", '
+    .. "function(name) end)\n" }))
   spec.eq(#t:breaks(), 2)
   -- an action nothing posts to is an orphan; one the page calls to read what it shows is reached
   t:put_program("code/more.lua", src.from_files({ code = "function post.extra(req) end\nfunction get.view() end\n" }))
@@ -161,8 +183,8 @@ spec.test("a program in another language puts its rows and gives no links and no
   local src = require("tablua.source")
   local t = fresh()
   t:put_program("app.org", src.from_files({ lang = "python",
-    feature = "Feature: Add\n  Scenario: sums\n    Then the sum of 2 and 3 is 5\n",
-    steps = "@then(\"the sum of {a} and {b} is {c}\")\ndef sums(ctx, a, b, c):\n    assert add(a, b) == c\n",
+    tests = "*** Test Cases ***\nSums\n    The sum of 2 and 3 is 5\n",
+    keywords = "@keyword(\"The sum of ${a} and ${b} is ${c}\")\ndef sums(a, b, c):\n    assert add(a, b) == c\n",
     code = "import plants\ndef add(a, b):\n    return plants.total(a, b)\n" }))
   spec.eq(#t.db:exec("select * from tablua_link"), 0)
   spec.eq(#t:breaks(), 0)
@@ -221,13 +243,13 @@ spec.test("the log's step windows become each step's effects, and an effect is a
     t.db:exec("insert into events (seq, at, task, keyword) values (?, 't', 'x', ?)", { seq, keyword })
     for i, v in ipairs({ ... }) do t.db:exec("insert into args values (?, ?, ?)", { seq, i, v }) end
   end
-  local red = '{"total":1,"passed":0,"undefined":[],"failing":[{"scenario":"add","step":"When I open the page","why":"no page"}]}'
+  local red = '{"total":1,"passed":0,"undefined":[],"failing":[{"test":"add","path":"1","keyword":"Open","why":"no page","reach":0}]}'
   ev("Decide", "r1/step/1", "jev")
-  ev("Outcome", "/home/features/a.feature", "red", red)
+  ev("Outcome", "/home/tests/a.robot", "red", red)
   ev("Run Command", "cd '/home' && test", "/home", "1")
   ev("Outcome", "r1/step/1", "broken")
   ev("Decide", "r1/step/2", "jev")
-  ev("Outcome", "/home/features/a.feature", "green", '{"total":1,"passed":1,"undefined":[],"failing":[]}')
+  ev("Outcome", "/home/tests/a.robot", "green", '{"total":1,"passed":1,"undefined":[],"failing":[]}')
   ev("Serve Request", "GET", "/", "200")
   ev("Outcome", "r1/step/2", "complete")
   step(t, "r1", 1, "run_test", 0, 0, "broken")
@@ -236,8 +258,8 @@ spec.test("the log's step windows become each step's effects, and an effect is a
   spec.eq(telemetry.derive(t, "r1"), 0)
   local e = {}
   for _, r in ipairs(t.db:exec("select keyword, arg from tablua_effect where task = 'r1' and n = 2")) do e[r.keyword] = r.arg end
-  spec.eq(e["Scenario Turned Green"], "add")
-  spec.eq(e["Line Fixed"], "open")
+  spec.eq(e["Test Turned Green"], "add")
+  spec.eq(e["Keyword Fixed"], "open")
   spec.ok(e["All Green"] and e["More Passing"])
   local first = {}
   for _, r in ipairs(t.db:exec("select keyword, arg from tablua_effect where task = 'r1' and n = 1")) do first[r.keyword] = r.arg end

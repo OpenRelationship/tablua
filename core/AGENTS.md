@@ -1,6 +1,7 @@
 # Core
 
-Tablua's Lua: the harness (`tablua`, the agent's work as typed rows; `agent`, the decide-and-act loop) and the
+Tablua's Lua: the harness (`tablua`, the agent's work as typed rows; `agent`, the decide-and-act loop; `robot`,
+the agent's tests in Robot Framework's syntax, parsed and run in Lua with every keyword's result kept as rows) and the
 model ports (`ports`: Jev, Mercury, chat, see, search, TabPFN, and `ports.sqlite`, a LuaJIT host's database). A host
 reads it as Lua modules by name (`core/tablua/source.lua` is `tablua.source`).
 

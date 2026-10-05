@@ -26,7 +26,7 @@ as it likes (`begin`, `step`, `outcome`, `called`, `tokens_today`); a world with
 Rank mode (`env.rank`, 2026-10-04): at every decision of a stage in `checkpoint.ranked` (building) TabPFN ranks the
 moves the world allows now (`world.allowed`), and its best takes the step when it leads Jev's pick by `agent.margin`
 while Jev gave its pick less than `agent.jev_sure` (`A:overrule`; the decision is logged as TabPFN's). Each step's
-row keeps the stage and the share of scenarios passing it was taken at (`req.stage`, `req.pass` from the world). An
+row keeps the stage and the share of tests passing it was taken at (`req.stage`, `req.pass` from the world). An
 offline study of 4,515 build steps found progress predictable from them (AUROC 0.82 on asks it had not seen) and
 Jev overconfident in building; rank mode is the measured test of acting on it. A host can share each finished run's Tablua
 rows between computers (`t:attach`), so each learns from every other's steps.

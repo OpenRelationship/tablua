@@ -1,5 +1,5 @@
--- Unit cases for tablua.links: what a page posts to and sends, what an action reads, which scenario lines need a
--- step of the app's own, and a step's text compiled as test.step compiles it.
+-- Unit cases for tablua.links: what a page posts to and sends, what an action reads, which calls need a keyword of
+-- the app's own, and how a call finds its keyword.
 local spec = require("spec")
 local links = require("tablua.links")
 local src = require("tablua.source")
@@ -25,23 +25,26 @@ spec.test("a Lua page posts to actions and sends fields; an action reads the fie
   spec.ok(has(l, "reads", "post.add", "name") and has(l, "reads", "post.add", "qty"))
 end)
 
-spec.test("a markup page's own actions are defined by it; only a scenario's own words are lines to settle", function()
+spec.test("a markup page's own actions are defined by it; only calls of the app's own keywords need one", function()
   local rows = src.from_files({
     markup = '{% function post.water(req) end %}\n<form post="water"><input name="plant"></form>\n',
-    feature = 'Feature: Plants\n\n  Scenario: water\n    When I open the page\n'
-      .. '    And there is a plant named "Fern"\n    Then I see "Fern"\n' })
+    tests = "*** Test Cases ***\nWater\n    Open    /\n    There is a plant named Fern\n    Type    plant    Ivy\n"
+      .. "    Press    Water\n    See    Fern    Ivy\n" })
   local l = links.scan(rows)
   spec.ok(has(l, "post", nil, "post.water") and has(l, "defines", nil, "post.water"))
-  spec.ok(has(l, "line", "1.2", 'there is a plant named "Fern"'))
-  spec.ok(not has(l, "line", "1.1", "I open the page") and not has(l, "line", "1.3", 'I see "Fern"'))
+  spec.ok(has(l, "call", "1.2", "There is a plant named Fern"))
+  spec.ok(not has(l, "call", "1.1", "Open"), "the page's keywords are the computer's")
+  spec.ok(has(l, "field", "1.3", "plant") and has(l, "press", "1.4", "Water"))
+  spec.ok(has(l, "see", "1.5", "Fern") and not has(l, "see", "1.5", "Ivy"), "what a test typed is the person's")
 end)
 
-spec.test("a step's text matches as test.step's holes do", function()
-  spec.eq(links.step('there is a plant named "Fern"', { "there are {int} plants", "there is a plant named {string}" }),
-    "there is a plant named {string}")
-  spec.eq(links.step("there are 3 plants", { "there are {int} plants" }), "there are {int} plants")
-  spec.eq(links.step("there are many plants", { "there are {int} plants" }), nil)
-  spec.eq(links.step("the total is 5.50 (all)", { "the total is {number} (all)" }), "the total is {number} (all)")
+spec.test("a call names a keyword exactly, by embedded arguments, past a Given, or one of BuiltIn's", function()
+  local kws = { "There are ${n} plants", "Add Plant" }
+  spec.eq(links.keyword("there are 3 plants", kws), "There are ${n} plants")
+  spec.eq(links.keyword("Given add_plant", kws), "Add Plant")
+  spec.eq(links.keyword("Should Be Equal", kws), "Should Be Equal")
+  spec.eq(links.keyword("Press", kws), "Press")
+  spec.eq(links.keyword("Water every plant", kws), nil)
 end)
 
 spec.run()

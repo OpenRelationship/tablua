@@ -1,7 +1,7 @@
 ---
 name: tablua
 description: Tablua, the continual tabular agent harness (owner 2026-10-04) — the agent's work as typed rows in its own SQLite file (state, candidates with Jev's and TabPFN's numbers, decisions, actions, outcomes, runs, fits, predictions, gates) and TabPFN's training rows as a query over them; use when changing what the agent records of its work, how it learns from it, or how decisions are taken from the rows.
-summary: tablua.open(db) -> t; t:state, t:candidates, t:decision, t:action, t:outcome (-> progress), t:run, t:prediction, t:fit/fitted, t:attach(name, path), t:training(head) -> {columns, rows}, labels; tablua.progress(outcome, before). db is the host log's port, db:exec(sql, params) -> rows. The program as rows: tablua.source decode(org) -> rows, compile(rows) -> org, from_files, from_lui, units, scenarios; tablua.org write/read. Hindsight (M2): t:label(task, n, head, value, source); tablua.hindsight.label(t, jev, task) asks Jev, after a run, whether each step contributed; t:training("contrib") trains on those labels. Effects (M2): t:effects(task, n, list); tablua.effects.compare(before, after, step, commands); tablua.telemetry.derive(t, task); t:training("effect:<Keyword>").
+summary: tablua.open(db) -> t; t:state, t:candidates, t:decision, t:action, t:outcome (-> progress), t:run, t:prediction, t:fit/fitted, t:attach(name, path), t:training(head) -> {columns, rows}, labels; tablua.progress(outcome, before). db is the host log's port, db:exec(sql, params) -> rows. The program as rows: tablua.source decode(org) -> rows, compile(rows) -> org, from_files, from_lui, units, tests, calls; tablua.org write/read; t:results(task, n, res, file?) keeps a test run's keyword tree (robot.run) as rows. Hindsight (M2): t:label(task, n, head, value, source); tablua.hindsight.label(t, jev, task) asks Jev, after a run, whether each step contributed; t:training("contrib") trains on those labels. Effects (M2): t:effects(task, n, list); tablua.effects.compare(before, after, step, commands); tablua.telemetry.derive(t, task); t:training("effect:<Keyword>").
 do:
   - Keep every fact a typed column; never a sentence to be parsed back.
   - Name every table tablua_; a host can let the harness reach no other.
@@ -26,13 +26,17 @@ helped (`tablua.progress`); head `ship` by whether its run shipped and worked. A
 with `t:attach` is read with this one's, so a computer learns from every other's steps.
 
 Issue #2. The program is rows too, and its file is real org (owner, 2026-10-04): `source.lua` cuts a program into
-sections (notes, feature, steps, code, page), its Lua into top-level units (action, function, local, step, other
-statement) and its feature into scenarios with their step lines, and compiles the rows to org, each row a heading
+sections (notes, tests, keywords, code, page), its Lua into top-level units (action, function, local, keyword, other
+statement) and its tests, in Robot Framework's syntax (core/robot; owner, 2026-10-05: org plus Robot, no Gherkin),
+into their head and each test and user keyword with its calls, and compiles the rows to org, each row a heading
 with a drawer for its columns and a source block for its text (`org.lua`). Nothing is lost: compile(decode(org)) is
 the org, and an eval holds that over every app in its history.
 
-Schema 3 keeps a program's rows in the agent's file (`program.lua`): `tablua_section`, `tablua_unit`, `tablua_scenario` and
-`tablua_line`, keyed as the org file's headings are, and `t:compile(file)` gives its org back from them.
+Schema 3 keeps a program's rows in the agent's file (`program.lua`): `tablua_section` and `tablua_unit` (schema 12:
+`tablua_test`, `tablua_keyword` and `tablua_call` in place of Gherkin's scenarios and lines), keyed as the org
+file's headings are, and `t:compile(file)` gives its org back from them. Schema 12 also keeps every test run's
+keyword tree in the log (`tablua_result`, via `t:results`): each keyword run, its arguments, PASS, FAIL or NOT RUN,
+and why; a failing test's reach (how many keywords passed before it failed) is the effects' finest measure.
 
 Schema 4 adds labels given after the fact (`tablua_label`). `hindsight.lua` gives Jev a finished run, its ask,
 how it ended and every step, and keeps its chance that each step contributed to the app built as head `contrib`
@@ -41,7 +45,8 @@ input at decision time and never the ship label, and is judged on held-out runs.
 
 Schema 5 adds the harness's own behaviour model (`tablua_effect`). Each step is Given (the state), When (the
 move) and Then (its effects), keywords from a closed vocabulary that the harness writes from its telemetry, never
-the writer. The effects cover tests (a scenario turned green or red, a Gherkin line fixed, by the kind of line),
+the writer. The effects cover tests (a test turned green or red, its failing keyword fixed, the failure moved on,
+reached further or fell back, by the kind of keyword),
 pages, commands, the stage and how the step was judged. `effects.lua` compares snapshots before and after a step,
 `telemetry.lua` builds them from the log's keyword rows (where the whole file is open), and a host's harness records
 them from its facts as it goes. Each frequent effect is a head: `t:training("effect:<Keyword>")`.
@@ -55,11 +60,11 @@ Modules: `init.lua`, `schema.lua`, `source.lua`, `org.lua`, `program.lua`, `hind
 as `tablua_link`:
 - a page names the actions it posts to and the fields it sends;
 - an action names the fields it reads;
-- a scenario line in the app's own words needs a step;
-- a line in the page's words needs a label, a field or text the page holds, unless the scenario typed that text
-  or it holds a number.
+- a call of the app's own words needs a keyword (a Lua keyword unit, a user keyword, BuiltIn's or the host's);
+- a call of the page's keywords (Press, Type, See) needs a label, a field or text the page holds, unless a test
+  typed that text or it holds a number.
 
-A line's link is settled against every file's steps and text, so a step written later mends it. `tablua_break`
+A call's link is settled against every file's keywords and text, so a keyword written later mends it. `tablua_break`
 is the view of links with nothing at their end, plus actions no page posts to (`orphan`); `t:breaks()` reads it.
 Over an eval history of build runs (2026-10-04), breaks were found in:
 - 4 of the 21 runs whose app failed the person's check;
@@ -68,7 +73,7 @@ Over an eval history of build runs (2026-10-04), breaks were found in:
 
 
 Schema 10 adds change blocks (`change.lua`): an
-edit is a short script of operations on the program's rows (`%% add`, `replace`, `delete`, `rename`, `scenario`),
+edit is a short script of operations on the program's rows (`%% add`, `replace`, `delete`, `rename`, `test`, `keyword`),
 applied all or nothing like a migration, with the change that undoes it given back. Each operation is a row
 (`tablua_change`: op, kind, name, code lines added, units naming it, units left naming nothing, via `t:change`),
 and each unit has columns of its own (`tablua_shape`: code lines, parameters, deepest block, the units it names),

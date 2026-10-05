@@ -1,6 +1,7 @@
 -- The behaviour model from the log : a run's log events, keyword rows in the manner of Robot
 -- Framework's, cut into one window per step (from Decide <task>/step/<n> to its Outcome) and turned into each
--- step's effects (tablua.effects): every feature's latest run (Outcome <feature> red|green {json}), every page
+-- step's effects (tablua.effects): every test file's latest run (Outcome <file>.robot red|green {json}, the json
+-- robot.summary's), every page
 -- served (Serve Request), every command (Run Command) and the stage at each decision. Reads the log, so it runs
 -- where the whole file is open (an eval's tools, a desktop host), never in the agent's harness, which reaches only
 -- Tablua's tables; the harness records the same effects from its facts as it goes (in the host's world).
@@ -34,13 +35,13 @@ function M.windows(db, task)
   return out
 end
 
-local function merged(features)
+local function merged(suites)
   local t, any = { passed = 0, total = 0, undefined = 0, failing = {} }, false
   local paths = {}
-  for p in pairs(features) do paths[#paths + 1] = p end
+  for p in pairs(suites) do paths[#paths + 1] = p end
   table.sort(paths)
   for _, p in ipairs(paths) do
-    local r = features[p]
+    local r = suites[p]
     any = true
     t.passed, t.total = t.passed + (r.passed or 0), t.total + (r.total or 0)
     t.undefined = t.undefined + #(r.undefined or {})
@@ -61,19 +62,19 @@ function M.derive(t, task)
   local ns = {}
   for n in pairs(windows) do ns[#ns + 1] = n end
   table.sort(ns)
-  local features, pages, given = {}, {}, 0
+  local suites, pages, given = {}, {}, 0
   local function snap(st)
     local p = {}
     for k, v in pairs(pages) do p[k] = v end
-    return { tests = merged(features), pages = p, stage = st }
+    return { tests = merged(suites), pages = p, stage = st }
   end
   for _, n in ipairs(ns) do
     local before, commands = snap(stage[n]), {}
     for _, e in ipairs(windows[n]) do
       local a = e.args
-      if e.keyword == "Outcome" and (a[1] or ""):match("%.feature$") and (a[3] or ""):sub(1, 1) == "{" then
+      if e.keyword == "Outcome" and (a[1] or ""):match("%.robot$") and (a[3] or ""):sub(1, 1) == "{" then
         local ok, r = pcall(json.decode, a[3])
-        if ok and type(r) == "table" then features[a[1]] = r end
+        if ok and type(r) == "table" then suites[a[1]] = r end
       elseif e.keyword == "Serve Request" and a[1] == "GET" then
         pages[a[2] or "/"] = tonumber(a[3])
       elseif e.keyword == "Run Command" then

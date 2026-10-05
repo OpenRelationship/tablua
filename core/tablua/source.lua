@@ -1,23 +1,28 @@
 -- The program as rows (M6a): the rows are the program, and its file is real org (core/tablua/org.lua;
--- owner, 2026-10-04), a compile target with its sections in a fixed order: notes, feature, steps, code, page
--- (markup). Steps and code carry their language (lang; Lua when none is given): Lua is the harness's language, not
--- the output's (owner, 2026-10-05). A Lua section is cut into its top-level statements (units: an action, a function, a local, a step, any
--- other statement), each with the blank lines and comments above it; a feature into its header and its scenarios,
--- each scenario's step lines kept as rows too; a section in any other language is one unit, its whole text. Every cut falls between lines, so nothing is lost:
--- compile(decode(org)) is org, byte for byte, for a compiled file, and each section's text comes back whole.
+-- owner, 2026-10-04), a compile target with its sections in a fixed order: notes, tests, keywords, code, page
+-- (markup). Keywords and code carry their language (lang; Lua when none is given): Lua is the harness's language,
+-- not the output's (owner, 2026-10-05). A Lua section is cut into its top-level statements (units: an action, a
+-- function, a local, a keyword, any other statement), each with the blank lines and comments above it; the tests,
+-- in Robot Framework's syntax (core/robot; owner, 2026-10-05: Robot, not Gherkin, since it is the models that read
+-- them), into their head (settings, variables) and their items, each test or user keyword, whose calls are kept as
+-- rows too; a section in any other language is one unit, its whole text. Every cut falls between lines, so nothing
+-- is lost: compile(decode(org)) is org, byte for byte, for a compiled file, and each section's text comes back whole.
 --
 --   local src = require("tablua.source")
---   local rows = src.decode(org)        -> { sections = { { kind, body, units?, scenarios? }, ... } }
+--   local rows = src.decode(org)        -> { sections = { { kind, body, units?, items? }, ... } }
 --   local org = src.compile(rows)
---   local rows = src.from_files{ feature = f, steps = s, code = c, markup = m, notes = n, lang? }
+--   local rows = src.from_files{ tests = t, keywords = k, code = c, markup = m, notes = n, lang? }
 --   local rows = src.from_lui(text)     -- a .lui page in tagged sections
+--   src.tests(text) -> head, items      items { { kind = "test" | "keyword", name, text } }
+--   src.calls(item) -> { { path, keyword, args } }   an item's calls, FOR and IF bodies included ("2.1")
 local org = require("tablua.org")
+local robot = require("robot")
 
 local M = {}
 
-M.order = { "notes", "feature", "steps", "code", "markup" }
+M.order = { "notes", "tests", "keywords", "code", "markup" }
 -- a .lui page's tags, by section: its code is in <lua>
-local TAG = { notes = "notes", feature = "feature", steps = "steps", code = "lua" }
+local TAG = { notes = "notes", tests = "tests", keywords = "keywords", code = "lua" }
 
 -- whether a section's text is Lua: its lang, or none given
 function M.lua(s) return (s.lang or "lua") == "lua" end
@@ -76,8 +81,9 @@ function M.classify(code)
   if name then return "action", name end
   name = s:match("^local%s+function%s+([%w_]+)") or s:match("^function%s+([%w_%.:]+)")
   if name then return "fn", name end
-  name = s:match('^test%.step%(%s*"([^"]*)"') or s:match("^test%.step%(%s*'([^']*)'")
-  if name then return "step", name end
+  name = s:match('^keyword%(%s*"([^"]*)"') or s:match("^keyword%(%s*'([^']*)'")
+    or s:match('^test%.keyword%(%s*"([^"]*)"') or s:match("^test%.keyword%(%s*'([^']*)'")
+  if name then return "keyword", name end
   name = s:match("^local%s+([%w_]+)")
   if name then return "local", name end
   if s == "return" or s:match("^return[^%w_]") then return "stmt", "return" end
@@ -121,28 +127,38 @@ function M.units(text)
   return out
 end
 
--- Gherkin: the header, then each scenario with its step lines ----------------------------------------------------
+-- Robot: the head, then each test and user keyword, with its calls ------------------------------------------------
 
-local KEYWORDS = { Given = true, When = true, Then = true, And = true, But = true }
+function M.tests(text)
+  return robot.parse.cut(text)
+end
 
-function M.scenarios(text)
-  local head, out, cur = {}, {}, nil
-  for line in text:gmatch("[^\n]*\n?") do
-    if line == "" then break end
-    local name = line:match("^%s*Scenario[ %w]*:%s*(.-)%s*$")
-    if name then
-      cur = { name = name, text = { line }, lines = {} }
-      out[#out + 1] = cur
-    elseif cur then
-      cur.text[#cur.text + 1] = line
-      local kw, rest = line:match("^%s*(%a+)%s+(.-)%s*$")
-      if kw and KEYWORDS[kw] then cur.lines[#cur.lines + 1] = { keyword = kw, text = rest } end
-    else
-      head[#head + 1] = line
+-- the calls an item makes, in order, with their place in its body: FOR and IF bodies one level down
+function M.calls(item)
+  local suite = robot.parse(item.kind == "keyword" and ("*** Keywords ***\n" .. item.text:gsub("^%*%*%*[^\n]*\n", ""))
+    or ("*** Test Cases ***\n" .. item.text:gsub("^%*%*%*[^\n]*\n", "")))
+  local it = (suite.tests[1] or suite.keywords[1])
+  local out = {}
+  local function walk(body, prefix)
+    for i, x in ipairs(body or {}) do
+      local path = prefix == "" and tostring(i) or (prefix .. "." .. i)
+      if x.kind == "call" then
+        out[#out + 1] = { path = path, keyword = x.keyword, args = x.args }
+      elseif x.kind == "for" then
+        walk(x.body, path)
+      elseif x.kind == "if" then
+        for j, b in ipairs(x.branches) do walk(b.body, path .. "." .. j) end
+        if x.otherwise then walk(x.otherwise, path .. ".e") end
+      end
     end
   end
-  for _, s in ipairs(out) do s.text = table.concat(s.text) end
-  return table.concat(head), out
+  if it then
+    for _, f in ipairs({ it.setup, it.teardown }) do
+      if f and f.keyword then out[#out + 1] = { path = f == it.setup and "s" or "t", keyword = f.keyword, args = f.args } end
+    end
+    walk(it.body, "")
+  end
+  return out
 end
 
 -- Sections ---------------------------------------------------------------------------------------------------------
@@ -150,29 +166,29 @@ end
 local function section(kind, body, lang)
   if body ~= "" and body:sub(-1) ~= "\n" then body = body .. "\n" end
   local s = { kind = kind, body = body, lang = lang }
-  if kind == "code" or kind == "steps" then
+  if kind == "code" or kind == "keywords" then
     s.units = M.lua(s) and M.units(body) or { { kind = "block", name = "", source = body } }
   end
-  if kind == "feature" then s.head, s.scenarios = M.scenarios(body) end
+  if kind == "tests" then s.head, s.items = M.tests(body) end
   return s
 end
 
--- the body a section's rows give back: its units, or its header and scenarios, joined
+-- the body a section's rows give back: its units, or its head and items, joined
 function M.body(s)
   if s.units then
     local parts = {}
     for i, u in ipairs(s.units) do parts[i] = u.source end
     return table.concat(parts)
   end
-  if s.scenarios then
+  if s.items then
     local parts = { s.head or "" }
-    for _, sc in ipairs(s.scenarios) do parts[#parts + 1] = sc.text end
+    for _, it in ipairs(s.items) do parts[#parts + 1] = it.text end
     return table.concat(parts)
   end
   return s.body or ""
 end
 
--- a .lui page's tagged sections (<notes>, <feature>, <steps>, <lua>, then markup) as rows
+-- a .lui page's tagged sections (<notes>, <tests>, <keywords>, <lua>, then markup) as rows
 function M.from_lui(text)
   local sections, rest = {}, text
   for _, kind in ipairs(M.order) do
@@ -206,20 +222,20 @@ function M.compile(rows)
   for _, kind in ipairs(M.order) do
     local s = by[kind]
     if s then
-      out[#out + 1] = { kind = kind, units = s.units, head = s.head, scenarios = s.scenarios, text = M.body(s),
+      out[#out + 1] = { kind = kind, units = s.units, head = s.head, items = s.items, text = M.body(s),
         lang = s.lang or (kind == "markup" and "lui" or nil) }
     end
   end
   return org.write(out)
 end
 
--- today's file kinds (a feature, a step file, a module or a page's code, its markup, notes) as rows; f.lang, the
--- language of its steps and code (Lua when none is given)
+-- today's file kinds (a tests file, a keyword file, a module or a page's code, its markup, notes) as rows; f.lang,
+-- the language of its keywords and code (Lua when none is given)
 function M.from_files(f)
   local sections = {}
   for _, kind in ipairs(M.order) do
     if f[kind] and f[kind] ~= "" then
-      local lang = kind == "markup" and "lui" or (kind == "code" or kind == "steps") and f.lang or nil
+      local lang = kind == "markup" and "lui" or (kind == "code" or kind == "keywords") and f.lang or nil
       sections[#sections + 1] = section(kind, f[kind], lang)
     end
   end

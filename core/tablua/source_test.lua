@@ -1,4 +1,4 @@
--- Unit cases for the program as rows (M6a): a page decoded into sections, units and scenarios, compiled
+-- Unit cases for the program as rows (M6a): a page decoded into sections, units, tests and keywords, compiled
 -- to org, and the org decoded back to the same rows.
 local spec = require("spec")
 local src = require("tablua.source")
@@ -9,28 +9,32 @@ local PAGE = [[
   Jot notes, newest first.
 </notes>
 
-<feature>
-Feature: Notes
+<tests>
+*** Settings ***
+Test Setup    Open    /
 
-  Scenario: a note is written
-    When I open the page
-    And I type "Milk" into "Title"
-    And I press "Add"
-    Then I see "Milk"
+*** Test Cases ***
+A note is written
+    Add Note    Milk
+    See    Milk
 
-  Scenario: a note is deleted
-    When I open the page
-    And I type "Old" into "Title"
-    And I press "Add"
-    And I press "Delete" for "Old"
-    Then I do not see "Old"
-</feature>
+A note is deleted
+    Add Note    Old
+    Press For    Delete    Old
+    Do Not See    Old
 
-<steps>
-test.step("there is a note {string}", function(w, t)
-  require("notes").add(t, "")
+*** Keywords ***
+Add Note
+    [Arguments]    ${title}
+    Type    title    ${title}
+    Press    Add
+</tests>
+
+<keywords>
+keyword("There is a note ${title}", function(title)
+  require("notes").add(title, "")
 end)
-</steps>
+</keywords>
 
 <lua>
 local d = db.open("data/notes.dbl")
@@ -65,7 +69,7 @@ spec.test("a page's rows compile to org, which decodes to the same rows and comp
   local rows = src.from_lui(PAGE)
   local names = {}
   for i, s in ipairs(rows.sections) do names[i] = s.kind end
-  spec.same(names, { "notes", "feature", "steps", "code", "markup" })
+  spec.same(names, { "notes", "tests", "keywords", "code", "markup" })
   local text = src.compile(rows)
   local again = assert(src.decode(text))
   spec.eq(src.compile(again), text)
@@ -79,13 +83,24 @@ spec.test("a Lua section is its top-level statements, each with the comments abo
   spec.ok(lua.units[4].source:find("end\nend\n$"))
 end)
 
-spec.test("a feature is its header and its scenarios, each with its step lines", function()
-  local f = section(assert(src.decode(src.compile(src.from_lui(PAGE)))), "feature")
-  spec.ok(f.head:find("^Feature: Notes"))
-  spec.eq(#f.scenarios, 2)
-  spec.eq(f.scenarios[2].name, "a note is deleted")
-  spec.eq(#f.scenarios[2].lines, 5)
-  spec.same(f.scenarios[2].lines[4], { keyword = "And", text = 'I press "Delete" for "Old"' })
+spec.test("the tests are their head, then each test and user keyword with its calls", function()
+  local t = section(assert(src.decode(src.compile(src.from_lui(PAGE)))), "tests")
+  spec.ok(t.head:find("^%*%*%* Settings %*%*%*\nTest Setup"))
+  local names = {}
+  for i, it in ipairs(t.items) do names[i] = it.kind .. ":" .. it.name end
+  spec.same(names, { "test:A note is written", "test:A note is deleted", "keyword:Add Note" })
+  local calls = src.calls(t.items[2])
+  spec.eq(#calls, 3)
+  spec.same(calls[2], { path = "2", keyword = "Press For", args = { "Delete", "Old" } })
+  spec.same(src.calls(t.items[3])[1], { path = "1", keyword = "Type", args = { "title", "${title}" } })
+end)
+
+spec.test("calls inside FOR and IF are found one level down, setup and teardown by s and t", function()
+  local _, items = src.tests("*** Test Cases ***\nLoop\n    [Setup]    Open    /\n    FOR    ${x}    IN    a    b\n"
+    .. "        Add Note    ${x}\n    END\n    IF    1 > 0\n        See    a\n    ELSE\n        Fail    no\n    END\n")
+  local paths = {}
+  for i, c in ipairs(src.calls(items[1])) do paths[i] = c.path .. " " .. c.keyword end
+  spec.same(paths, { "s Open", "1.1 Add Note", "2.1.1 See", "2.e.1 Fail" })
 end)
 
 spec.test("strings, long strings and comments that say end or function do not cut a statement", function()
@@ -100,17 +115,17 @@ end)
 
 spec.test("each row is an org heading with its columns in a drawer and its text in a source block", function()
   local text = src.compile(src.from_files({
-    feature = "Feature: Plants\n\n  Scenario: one\n    When I open the page\n",
-    steps = 'test.step("a plant {string}", function(w, n) end)\n',
+    tests = "*** Test Cases ***\nOne\n    Open    /\n",
+    keywords = 'keyword("A plant ${name}", function(name) end)\n',
     code = 'local d = db.open("data/plants.dbl")\nfunction post.water(req) end',
     markup = "<h1>Plants</h1>\n",
   }))
-  spec.ok(text:find("^%* Feature\n#%+begin_src feature\nFeature: Plants\n\n#%+end_src\n%*%* Scenario: one\n"))
+  spec.ok(text:find("^%* Tests\n%*%* Test: One\n#%+begin_src robot\n,%*%*%* Test Cases %*%*%*\nOne\n    Open    /\n#%+end_src\n"))
   spec.ok(text:find("\n%* Code\n%*%* d\n:PROPERTIES:\n:kind: local\n:name: d\n:END:\n#%+begin_src lua\n"))
   spec.ok(text:find("\n%*%* post.water\n:PROPERTIES:\n:kind: action\n"))
   spec.ok(text:find("\n%* Page\n#%+begin_src lui\n<h1>Plants</h1>\n#%+end_src\n$"))
   local again = assert(src.decode(text))
-  spec.same(kinds(section(again, "steps").units), { "step:a plant {string}" })
+  spec.same(kinds(section(again, "keywords").units), { "keyword:A plant ${name}" })
   spec.same(kinds(section(again, "code").units), { "local:d", "action:post.water" })
 end)
 
@@ -127,7 +142,7 @@ end)
 
 spec.test("org that is not the program's file is refused with why", function()
   local _, why = src.decode("* Plans\nsoon\n")
-  spec.ok(why:find("one of Notes, Feature, Steps, Code, Page"))
+  spec.ok(why:find("one of Notes, Tests, Keywords, Code, Page"))
   _, why = src.decode("* Code\n#+begin_src lua\nlocal x = 1\n")
   spec.ok(why:find("never closed"))
 end)
