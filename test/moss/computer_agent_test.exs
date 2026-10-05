@@ -439,6 +439,38 @@ defmodule Moss.ComputerAgentTest do
     assert n >= 2
   end
 
+  # the harness learns through the computer's door, not a plain connection: every statement Tablua's training, a
+  # ranking and the program's rows make must pass it (the training query read sqlite_master, the door refused it,
+  # and a whole protocol of rank-mode runs went unranked without a word)
+  test "learning, ranking and the program's rows all pass the computer's door", %{id: id} do
+    Computer.run(id, "help")
+    lua = Moss.Lua.Ports.bind(Moss.Lua.base(), agent: id)
+
+    {[out], _} =
+      Lua.eval!(lua, """
+      local port = { exec = function(_, sql, params)
+        local rows, why = __host.agent_sql(sql, params or {})
+        if rows == nil then error(why or "refused", 2) end
+        return rows
+      end }
+      local t = require("tablua").open(port)
+      for i = 1, 14 do
+        local task, verb = "request-" .. i, i % 2 == 0 and "run_test" or "think"
+        t:state{ task = task, n = 1, stage = "building" }
+        t:decision{ task = task, n = 1, chosen = verb, by = "jev" }
+        t:outcome{ task = task, n = 1, verb = verb, outcome = i % 2 == 0 and "complete" or "broken" }
+      end
+      local tab = { fit = function() return "fit-1" end, estimate = function() return 10000 end,
+        predict = function(_, _, test) local o = {} for i in ipairs(test.rows) do o[i] = { 0.4, 0.6 } end return o end }
+      local ranked, why = require("agent.learn").new{ tablua = t, tabpfn = tab, per_run = 5 }:rank("step",
+        { stage = "building", n = 2, task = "request-15", at = 2 }, { "think", "run_test" })
+      local breaks = t:put_app({ ["ui/index.org"] = "* Page\\n#+begin_src lua\\nreturn ui.h1(\\"x\\")\\n#+end_src\\n" })
+      return (ranked and "ranked" or ("unranked: " .. tostring(why))) .. " " .. t:count("ranking") .. " " .. #breaks
+      """)
+
+    assert out == "ranked 1 0"
+  end
+
   # code owns the workflow: what belongs to one move is refused in another, and a page names the command that opens it
   test "a move's calls that belong to another move are not run" do
     lua = Moss.Lua.base()

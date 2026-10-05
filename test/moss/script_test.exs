@@ -47,6 +47,9 @@ defmodule Moss.ScriptTest do
   test "errors name the script; pcall catches them; JSON goes both ways" do
     c = id()
     assert %{code: 1, err: "lua: (command line):1: boom\n"} = sh(c, ~s|lua -e 'error("boom")'|)
+    # a call with named arguments, which Lua has not got, is told its remedy
+    assert %{code: 1, err: err} = sh(c, ~s|lua -e 'print(string.format(fmt = "x"))'|)
+    assert err =~ "Lua has no named arguments: pass a table in braces"
 
     assert %{code: 0, out: "caught\n"} =
              sh(c, ~s|lua -e 'print(select(2, pcall(error, "caught", 0)))'|)

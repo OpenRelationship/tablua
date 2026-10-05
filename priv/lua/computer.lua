@@ -158,6 +158,20 @@ setmetatable(_G, { __index = function(g, name)
   end
 end })
 
+-- An error in Lua's words, with the remedy for a mistake writers make again and again: a call written with named
+-- arguments, f(name = "x"), which Lua has not got (a plants run rewrote its page twenty times on that one parse
+-- error, "Expected rparen, got assign")
+local HINTS = {
+  { "rparen, got :operator::assign", "Lua has no named arguments: pass a table in braces, f{ name = value }." },
+}
+local function explained(e)
+  e = tostring(e)
+  for _, h in ipairs(HINTS) do
+    if e:find(h[1], 1, true) then return e .. "\n(" .. h[2] .. ")" end
+  end
+  return e
+end
+
 -- The run: the code under xpcall; an error is written to stderr and is status 1, os.exit(n) is status n.
 function __main(code, name)
   arg = { [0] = name }
@@ -166,7 +180,7 @@ function __main(code, name)
   for k, v in pairs(__named or {}) do arg[k] = v end
   __args, __named = nil, nil
   local function say(e)
-    sys.ewrite("lua: " .. tostring(e) .. "\n")
+    sys.ewrite("lua: " .. explained(e) .. "\n")
     return 1
   end
   local chunk, why = load(code, "@" .. name)
@@ -185,7 +199,7 @@ end
 -- its app's folder), given { method, path, query = {k = v}, form = {k = v}, headers }; it answers with HTML text,
 -- or { status, body, headers, redirect }.
 local function say(e)
-  e = tostring(e)
+  e = explained(e)
   sys.ewrite("app: " .. e .. "\n")
   return e
 end
