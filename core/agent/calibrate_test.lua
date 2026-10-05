@@ -18,7 +18,7 @@ spec.test("no probabilities yet", function()
 end)
 
 spec.test("the steps read from Tablua: Jev's probability for the move taken, and how the step ended", function()
-  local t = require("tablua").open(require("arock-log.ffi").open(":memory:"))
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"))
   t:candidates("r1", 1, { { move = "apps", jev_p = 0.8 }, { move = "press", jev_p = 0.1 } })
   t:decision{ task = "r1", n = 1, chosen = "apps", by = "jev" }
   t:outcome{ task = "r1", n = 1, verb = "apps", outcome = "complete" }

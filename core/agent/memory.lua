@@ -1,5 +1,5 @@
 -- What Arock remembers of its requests (PROJECT.md §11): every request, its steps and how each ended, as Robot
--- keyword rows in an Arock Core store (arock-log, core/arock-log) that outlives the app. The rows are the record the
+-- keyword rows in an Arock Core store (arock-log, the log in Moss) that outlives the app. The rows are the record the
 -- Mailbox, the routines and the log read; what the agent learns from is Tablua's typed rows (core/tablua,
 -- agent/learn.lua), and only the requests and the day's TabPFN tokens are folded back from these.
 --

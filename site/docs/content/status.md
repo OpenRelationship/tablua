@@ -18,7 +18,7 @@ Tablua is in active development. This page says what works today, what has been 
 
 ## Not yet public
 
-- **uspx**, the post between agents, is still a private repository. Running Tablua's full agent on Moss needs two of its Lua modules, so today a public clone can use the harness but not run the whole agent. Publishing it, or moving the two modules into Tablua, is on the list.
+- **Moss**, the agent's computer, is its own repository ([OpenRelationship/moss](https://github.com/OpenRelationship/moss)), with uspx, the post between agents, folded in. It is still private, so today a public clone can use the harness but not run the whole agent on its computer.
 
 ## Measured so far
 

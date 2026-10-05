@@ -7,14 +7,14 @@ lua_library(
     srcs = ["app.lua", "control.lua", "edit.lua", "effects.lua", "hindsight.lua", "init.lua", "links.lua", "org.lua", "program.lua",
         "schema.lua", "source.lua", "telemetry.lua"],
     prefix = "tablua",
-    deps = ["//submodules/vmoss/core/ports:ports"],
+    deps = ["//submodules/tablua/core/ports:ports"],
     visibility = ["PUBLIC"],
 )
 
 lua_test(
     name = "init_test",
     src = "init_test.lua",
-    deps = [":tablua", "//submodules/vmoss/core/arock-log:ffi"],
+    deps = [":tablua", "//submodules/tablua/core/ports:sqlite"],
 )
 
 lua_test(
@@ -44,11 +44,11 @@ lua_test(
 lua_test(
     name = "control_test",
     src = "control_test.lua",
-    deps = [":tablua", "//submodules/vmoss/core/arock-log:ffi"],
+    deps = [":tablua", "//submodules/tablua/core/ports:sqlite"],
 )
 
 lua_test(
     name = "app_test",
     src = "app_test.lua",
-    deps = [":tablua", "//submodules/vmoss/core/arock-log:ffi"],
+    deps = [":tablua", "//submodules/tablua/core/ports:sqlite"],
 )

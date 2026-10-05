@@ -1,8 +1,0 @@
-# Computers start empty on every test run: the app is stopped first, so nothing holds a file while they go.
-Application.stop(:moss)
-File.rm_rf!(Application.fetch_env!(:moss, :work_dir))
-{:ok, _} = Application.ensure_all_started(:moss)
-
-# the look's tests run where its module is (mix moss.look) and the node started its look node
-exclude = [:service, :agent, :bench, :build] ++ if(Process.whereis(MossBrowser.Look.Node), do: [], else: [:look])
-ExUnit.start(exclude: exclude)

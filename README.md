@@ -7,7 +7,6 @@
   <img alt="Lua" src="https://img.shields.io/badge/Lua-portable-2152e8?logo=lua&logoColor=white">
   <img alt="SQLite" src="https://img.shields.io/badge/SQLite-one%20file-2152e8?logo=sqlite&logoColor=white">
   <img alt="TabPFN" src="https://img.shields.io/badge/TabPFN-3.5-2152e8">
-  <img alt="Elixir" src="https://img.shields.io/badge/Elixir-BEAM-2152e8?logo=elixir&logoColor=white">
   <a href="https://tablua.com"><img alt="tablua.com" src="https://img.shields.io/badge/site-tablua.com-0c0e13"></a>
   <a href="https://docs.tablua.com"><img alt="docs.tablua.com" src="https://img.shields.io/badge/docs-docs.tablua.com-0c0e13"></a>
 </p>
@@ -165,7 +164,7 @@ state it has already ranked is ranked again without a call. The day's tokens are
 
 ## Policy as data
 
-The rules that hold a move back are written once as keyword scenarios (`priv/gates.org`). Each has a reason the
+The rules that hold a move back are written once as keyword scenarios (Moss's [`priv/gates.org`](https://github.com/OpenRelationship/moss/blob/main/priv/gates.org)). Each has a reason the
 harness can check against recorded runs:
 
 ```gherkin
@@ -200,7 +199,7 @@ Lua only (moss-lua, a Lua VM in Elixir, no NIFs), so Arock's agents write Lua.
 
 ```lua
 local tablua = require("tablua")
-local t = tablua.open(require("arock-log.ffi").open("agent.sqlite"))
+local t = tablua.open(require("ports.sqlite").open("agent.sqlite"))
 
 -- where the work stands, what could be done, what was done, how it went
 t:state{ task = "r1", n = 1, stage = "building", passed = 0, total = 4 }
@@ -238,13 +237,14 @@ asks (four held out), several seeds and paraphrases, a page arm against a contro
 
 ## It runs on Moss
 
-Every Tablua agent has its own computer, **🌿 Moss**: a process on the BEAM, its disk one SQLite file (the same
-file its rows live in), a shell of its own, a headless browser, a mailbox, and Lua as its one language. It is
-written in Elixir and Lua, with no WebAssembly and no native code an agent can reach. A computer sleeps on its
-disk and wakes in milliseconds, so a single node holds many of them.
+Tablua is the harness and nothing else. Every Tablua agent in Arock has its own computer,
+**🌿 [Moss](https://github.com/OpenRelationship/moss)**: a process on the BEAM, its disk one SQLite file (the same
+file its rows live in), a shell of its own, a headless browser, a mailbox, and Lua as its one language. Moss holds
+the agent's world on its computer (the moves, the gates, the facts), moss-lua, moss-browser, Shroomi, uspx and
+arock-log; it reads this repository as its `tablua/`.
 
-Arock, the Mac and iPhone apps and the server that runs thousands of agents' computers, is
-built on Tablua.
+Arock, the Mac and iPhone apps and the server that runs thousands of agents' computers, is the app of Moss and
+Tablua.
 
 ## Repository
 
@@ -252,19 +252,11 @@ built on Tablua.
 | --- | --- |
 | `core/tablua` | The harness's tables, training queries, effects, hindsight, the program as rows |
 | `core/agent` | The step loop: decide, rank, fill, record, learn |
-| `core/ports` | Jev, Mercury, TabPFN and the other model ports |
-| `core/arock-log` | The append-only log under everything an agent does |
-| `priv/lua/world` | The agent's world on its computer: moves, gates, facts, edits |
-| `priv/gates.org` | The gates, as checkable scenarios |
-| `lib/moss` | Moss, the computer (Elixir) |
-| `lua/`, `browser/` | moss-lua (the Lua VM on the BEAM) and moss-browser |
-| `site/` | tablua.com |
+| `core/ports` | Jev, Mercury, TabPFN and the other model ports, and `ports.sqlite` for a LuaJIT host |
+| `site/` | tablua.com and docs.tablua.com |
 
-```sh
-mix setup
-mix test                                  # Moss, the harness's Lua, and the gates
-mix run bench/computers.exs 20000 400     # how many computers a node holds
-```
+Every module has a unit test (`*_test.lua`). They run in Arock's build on LuaJIT, and in Moss, where `mix test`
+runs each one in moss-lua.
 
 ## License
 

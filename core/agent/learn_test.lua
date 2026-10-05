@@ -4,7 +4,7 @@ local spec = require("mono.spec")
 local learn = require("agent.learn")
 local memory = require("agent.memory")
 local tablua = require("tablua")
-local sqlite = require("arock-log.ffi")
+local sqlite = require("ports.sqlite")
 
 local function store()
   return { rows = {}, events = function(self) return self.rows end,

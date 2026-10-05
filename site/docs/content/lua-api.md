@@ -13,7 +13,7 @@ local tablua = require("tablua")
 local t = tablua.open(db, { clock = fn })
 ```
 
-`db` is any object with `db:exec(sql, params) -> rows`. On LuaJIT, `require("arock-log.ffi").open(path)` gives one. `clock` returns the time as text; by default, UTC in ISO 8601. `open` creates Tablua's tables if they don't exist.
+`db` is any object with `db:exec(sql, params) -> rows`. On LuaJIT, `require("ports.sqlite").open(path)` gives one. `clock` returns the time as text; by default, UTC in ISO 8601. `open` creates Tablua's tables if they don't exist.
 
 ### Writing a step
 

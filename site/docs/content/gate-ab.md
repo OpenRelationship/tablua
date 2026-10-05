@@ -8,7 +8,7 @@ A gate is a rule that holds a move back in some situation. This guide shows how 
 
 ## 1. Pick a gate
 
-Start with a gate whose stated reason doesn't hold in the record (see [Policy as data](/concepts/policy-as-data)). The gates and their reasons are in `priv/gates.org`; each scenario's `# gate:` line gives the name to switch off.
+Start with a gate whose stated reason doesn't hold in the record (see [Policy as data](/concepts/policy-as-data)). The gates and their reasons are in Moss's [`priv/gates.org`](https://github.com/OpenRelationship/moss/blob/main/priv/gates.org); each scenario's `# gate:` line gives the name to switch off.
 
 To see which gates the record says least about, count how often each gate's situation came up. Gates that are rarely tested, or that hide their own evidence, are also good candidates, because switching them off is the only way to learn what they do.
 
@@ -31,7 +31,7 @@ Each run records the gates it ran under as `tablua_gate` rows. In arm B, the swi
 
 ## 3. Compare
 
-Each run's rows are in its own computer's file (`priv/work/computers/<id>.sqlite` locally). Attach the files of one arm to a single SQLite session, or copy their `tablua_run` and `tablua_effect` rows into one file, to compare the arms side by side.
+Each run's rows are in its own computer's file (`priv/work/computers/<id>.sqlite` in a local Moss checkout). Attach the files of one arm to a single SQLite session, or copy their `tablua_run` and `tablua_effect` rows into one file, to compare the arms side by side.
 
 For each arm, look at the runs' endings:
 

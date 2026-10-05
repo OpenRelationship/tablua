@@ -2,7 +2,7 @@
 -- them read back (tablua_break), a call into the app's own module that the module does not define among them.
 local spec = require("mono.spec")
 local tablua = require("tablua")
-local sqlite = require("arock-log.ffi")
+local sqlite = require("ports.sqlite")
 
 -- a plants run's page and module (2026-10-05): the page lists plants.list(), which the module never defined
 local PAGE = [[* Code

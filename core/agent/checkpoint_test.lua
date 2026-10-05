@@ -27,7 +27,7 @@ end)
 
 spec.test("with env.tablua the step is Tablua's rows too: where it stood, Jev's sureness, the move, its outcome", function()
   local a = agent({})
-  local t = require("tablua").open(require("arock-log.ffi").open(":memory:"))
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"))
   a.env.tablua = t
   local req = { task = "t", steps = { { n = 1, verb = "look", outcome = "broken" } }, standing = { stage = "" },
     repeats = 1 }

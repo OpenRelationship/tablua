@@ -1,8 +1,8 @@
--- Unit cases for tablua: typed rows in a real SQLite file (arock-log's LuaJIT host), progress worked out from the
+-- Unit cases for tablua: typed rows in a real SQLite file (ports.sqlite, the LuaJIT host's port), progress worked out from the
 -- rows, and TabPFN's training rows read back by a query, shared files included.
 local spec = require("mono.spec")
 local tablua = require("tablua")
-local sqlite = require("arock-log.ffi")
+local sqlite = require("ports.sqlite")
 
 local function fresh(path) return tablua.open(sqlite.open(path or ":memory:"), { clock = function() return "t" end }) end
 

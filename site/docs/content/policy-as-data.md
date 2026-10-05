@@ -21,7 +21,7 @@ When a run starts, the gates in force are written as `tablua_gate` rows, so ever
 
 ## Each gate states its reason
 
-Gates are also written as test scenarios in `priv/gates.org`, in plain language, with a machine-readable reason:
+Gates are also written as test scenarios in Moss's [`priv/gates.org`](https://github.com/OpenRelationship/moss/blob/main/priv/gates.org), in plain language, with a machine-readable reason:
 
 ```gherkin
 Scenario: fixing the same failure again waits on thinking it through

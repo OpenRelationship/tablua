@@ -2,7 +2,7 @@
 -- how logged predictions have done.
 local spec = require("mono.spec")
 local tablua = require("tablua")
-local sqlite = require("arock-log.ffi")
+local sqlite = require("ports.sqlite")
 
 local function fresh() return tablua.open(sqlite.open(":memory:"), { clock = function() return "t" end }) end
 

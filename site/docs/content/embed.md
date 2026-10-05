@@ -15,7 +15,7 @@ You'll need the [Quickstart](/start/quickstart) set up, and for the ranking, a P
 | `tablua` | the tables: write a step's rows, read training sets |
 | `agent.learn` | asks TabPFN to rank moves, from the `tablua` rows |
 | `ports.tabpfn` | talks to Prior Labs' TabPFN API |
-| `arock-log.ffi` | SQLite for LuaJIT; on other Lua runtimes, supply any object with `db:exec(sql, params) -> rows` |
+| `ports.sqlite` | SQLite for LuaJIT; on other Lua runtimes, supply any object with `db:exec(sql, params) -> rows` |
 
 The harness is portable Lua: it runs unchanged on LuaJIT, Lua 5.4 and 5.5, and on the BEAM. Only the SQLite binding and the HTTP client are specific to where it runs, and you can supply your own.
 
@@ -23,7 +23,7 @@ The harness is portable Lua: it runs unchanged on LuaJIT, Lua 5.4 and 5.5, and o
 
 ```lua
 package.path = "core/?.lua;core/?/init.lua;" .. package.path
-local sqlite = require("arock-log.ffi")
+local sqlite = require("ports.sqlite")
 local tablua = require("tablua")
 
 local t = tablua.open(sqlite.open("agent.sqlite"))

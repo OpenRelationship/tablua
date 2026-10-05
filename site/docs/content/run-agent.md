@@ -7,7 +7,7 @@ description: Run Tablua's own agent on a Moss computer from Elixir - give it a t
 This guide runs Tablua's own agent, the one that builds small apps, on a Moss computer, with all three models.
 
 > [!IMPORTANT]
-> Today a full agent run needs two small Lua modules from **uspx**, Tablua's post between agents, which is not public yet. Until it is, the harness itself runs from a public clone (see the [Quickstart](/start/quickstart) and [Embed the harness in Lua](/guides/embed)), and this guide describes the run for when uspx is published or for those who have it. [Status and roadmap](/reference/status) tracks it.
+> Moss is its own repository, [OpenRelationship/moss](https://github.com/OpenRelationship/moss), which holds the computer, its world and uspx, the post between agents. It is not public yet. Until it is, the harness itself runs from a public clone of Tablua (see the [Quickstart](/start/quickstart) and [Embed the harness in Lua](/guides/embed)), and this guide describes the run for when Moss is published or for those who have it. [Status and roadmap](/reference/status) tracks it.
 
 ## What you need
 
@@ -23,8 +23,8 @@ This guide runs Tablua's own agent, the one that builds small apps, on a Moss co
 ## 1. Set up
 
 ```sh
-git clone https://github.com/OpenRelationship/tablua.git
-cd tablua
+git clone --recursive https://github.com/OpenRelationship/moss.git   # Tablua comes with it, at tablua/
+cd moss
 mix setup
 mix moss.look          # fetches the browser's page-reading module
 ```
@@ -85,7 +85,7 @@ To automate the person's part, for example in a test, pass a function as `betwee
 
 ## 5. Read what it did
 
-Every step is in the computer's file as Tablua rows. Locally, a computer's file is `priv/work/computers/<id>.sqlite`:
+Every step is in the computer's file as Tablua rows. In a local Moss checkout, a computer's file is `priv/work/computers/<id>.sqlite`:
 
 ```sh
 sqlite3 priv/work/computers/plants.sqlite "select n, chosen, by from tablua_decision"

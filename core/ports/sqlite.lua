@@ -1,8 +1,8 @@
--- The database port on the test host: LuaJIT's FFI over the system SQLite.
--- This is host code, not core: arock-log itself never touches the FFI, and
--- any host that can run SQL (a wasm SQLite, a platform binding) can stand in.
+-- ports.sqlite, the database port on a LuaJIT host: LuaJIT's FFI over the system SQLite.
+-- This is host code, not the harness: Tablua itself never touches the FFI, and
+-- any host that can run SQL (Moss's Exqlite, a platform binding) can stand in.
 --
---   local db = require("arock-log.ffi").open(":memory:")
+--   local db = require("ports.sqlite").open(":memory:")
 --   db:exec(sql, params) -> rows, each { column = value } (nil for NULL)
 --
 -- exec runs every statement in `sql`; `params` bind to the last one and are

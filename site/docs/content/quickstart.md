@@ -31,7 +31,7 @@ Create a file called `try.lua` in the `tablua` folder:
 
 ```lua
 package.path = "core/?.lua;core/?/init.lua;" .. package.path
-local sqlite = require("arock-log.ffi")   -- SQLite for LuaJIT
+local sqlite = require("ports.sqlite")   -- SQLite for LuaJIT
 local tablua = require("tablua")
 
 local t = tablua.open(sqlite.open("agent.sqlite"))
