@@ -22,20 +22,24 @@ Effects are written by the harness from what it measured, never by a model.
 
 | Keyword | Meaning |
 | --- | --- |
-| `Tests First Ran` | the features ran for the first time |
-| `More Passing` | more scenarios pass |
-| `Fewer Passing` | fewer scenarios pass |
-| `All Green` | every scenario passes, and didn't before |
-| `Regressed` | a scenario that passed fails now |
+| `Tests First Ran` | the tests ran for the first time |
+| `More Passing` | more tests pass |
+| `Fewer Passing` | fewer tests pass |
+| `All Green` | every test passes, and didn't before |
+| `Regressed` | a test that passed fails now |
 | `Same Failure` | the same failure as before the step |
-| `Scenario Turned Green` | a scenario passes now (arg: its name) |
-| `Scenario Turned Red` | a scenario fails now (arg: its name) |
-| `Line Fixed` | a failing scenario's failing line passes now (arg: the line's kind) |
-| `Failure Moved On` | a scenario still fails, at a later line (arg: the new line's kind) |
-| `Same Line Failing` | a scenario fails at the same line for the same reason (arg: the line's kind) |
-| `Undefined Steps` | lines no step matches |
+| `Test Turned Green` | a test passes now (arg: its name) |
+| `Test Turned Red` | a test fails now (arg: its name) |
+| `Keyword Fixed` | a failing test's failing keyword passes now (arg: the keyword's kind) |
+| `Failure Moved On` | a test still fails, at another keyword (arg: the new keyword's kind) |
+| `Same Keyword Failing` | a test fails at the same keyword for the same reason (arg: the keyword's kind) |
+| `Reached Further` | a failing test passed more keywords before failing than it did |
+| `Fell Back` | a failing test passed fewer keywords before failing than it did |
+| `Undefined Keywords` | calls no keyword answers |
 
-A line's *kind* is what it does in the app's own words: `open`, `type`, `press`, `see`, `not_see` and a few more, or `own` for a line in the agent's own words.
+A keyword's *kind* is which of the page's keywords it is: `open`, `type`, `press`, `press_for`, `see`, `see_for`, `see_before`, `not_see`, or `own` for a keyword of the app's own. A `Given`, `When` or `Then` before it is ignored.
+
+`Reached Further` and `Fell Back` read a failing test's **reach**: how many keywords passed before it failed, from the test run's rows (`tablua_result`). A step that leaves a test failing, but further along, shows up here even when no more tests pass.
 
 ## Pages and commands
 

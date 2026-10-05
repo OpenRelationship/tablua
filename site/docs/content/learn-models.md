@@ -13,7 +13,7 @@ Many agents use one large model for everything: deciding, writing code and judgi
 | Model | Its job | Kind of model | What it writes |
 | --- | --- | --- | --- |
 | **Jev** | Decides the next move | Typed decisions: answers a question with a probability for every option | `jev_p` on each candidate row |
-| **Mercury** | Writes what the move needs: code, steps, pages | A fast code-writing language model | The files, recorded as action rows |
+| **Mercury** | Writes what the move needs: code, tests, keywords, pages | A fast code-writing language model | The files, recorded as action rows |
 | **TabPFN** | Predicts which moves tend to make progress | A tabular foundation model: learns from rows, no training run needed | `p_progress` on each candidate row |
 
 And a fourth party that isn't a model at all: **the host**, which writes the state and outcome rows from real checks.
@@ -27,7 +27,7 @@ At each step:
 3. **Jev** reads the facts and gives every candidate a probability. Its answers fill `jev_p`.
 4. **TabPFN** looks at past rows and gives every candidate its chance of making progress. Its answers fill `p_progress`.
 5. A move is chosen and written as the **decision** row, with `by` saying who chose it.
-6. **Mercury** fills in the move: it writes the actual code, steps or page.
+6. **Mercury** fills in the move: it writes the actual code, tests, keywords or page.
 7. The host runs the checks and writes the **outcome**.
 
 ## Why Jev gives probabilities
@@ -47,7 +47,7 @@ Each model only ever sees what it should:
 
 - TabPFN learns only from columns known *before* the decision, so it can't cheat by seeing the outcome.
 - The facts in the state row come from the host, so no model grades its own work.
-- Mercury writes only what its move allows. If it tries to change something another move owns (for example the feature, which only `write_feature` may change), the computer refuses, and the refusal is written down for the next step.
+- Mercury writes only what its move allows. If it tries to change something another move owns (for example the tests, which only `write_tests` may change), the computer refuses, and the refusal is written down for the next step.
 
 ## Remember
 

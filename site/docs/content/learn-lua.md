@@ -49,12 +49,12 @@ The rows keep that language as data. Whatever the agent's computer can run, the 
 
 ## When the computer runs Lua
 
-A host may give its agents a computer that runs Lua and nothing else. Then the agent writes its code, its test steps and its pages in Lua, and the harness reads all of it closely:
+A host may give its agents a computer that runs Lua and nothing else. Then the agent writes its code, its keywords and its pages in Lua, and the harness reads all of it closely:
 
 | What | Example |
 | --- | --- |
 | Code | `function post.add(req) ... end`, an action the page's form calls |
-| Steps | `test.step("I see {string}", function(w, s) ... end)` |
+| Keywords | `keyword("There is a plant ${name}", function(name) ... end)` |
 | Pages | `return ui.main{ ui.h1"Plants", ui.form{ ... } }` |
 
 A page is a Lua expression that builds the page out of `ui` calls:
@@ -73,7 +73,7 @@ Why a host might keep its computer to one language:
 
 - **Safe to run.** The agent has no shell on any machine. Its Lua runs inside its own computer, against its own files, with only the modules it was given.
 - **A small, closed vocabulary.** The computer gives the agent a short list of modules (files, a database, HTTP, JSON, mail, the page kit, the test kit). A model that only ever sees this small world can get very good at it.
-- **One reader for everything.** Code, tests and pages are all Lua, so all of them are cut into the same kind of rows.
+- **One reader for everything.** Code, keywords and pages are all Lua, so all of them are cut into the same kind of rows. The tests beside them are Robot, cut into rows of their own.
 
 ## Remember
 
@@ -84,4 +84,4 @@ Why a host might keep its computer to one language:
 
 ## Next
 
-Code, steps, pages and the feature belong together. Where do they live? [Module 5: Org](/learn/org)
+Code, keywords, pages and the tests belong together. Where do they live? [Module 5: Org](/learn/org)

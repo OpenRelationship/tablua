@@ -10,13 +10,13 @@ description: Plain definitions of the words used across Tablua's docs.
 
 **A/B.** Running the same tasks two ways, for example with a gate on and with it off, and comparing the outcomes.
 
-**Build, the.** What the agent is making: the files of the app, as rows keyed by file (`tablua_section`, `tablua_unit`, `tablua_scenario` and the rest). Rows are replaced as the files change. One of the three parts of an agent's file, with the log and the policy ([The log and the build](/concepts/log-and-build)).
+**Build, the.** What the agent is making: the files of the app, as rows keyed by file (`tablua_section`, `tablua_unit`, `tablua_test` and the rest). Rows are replaced as the files change. One of the three parts of an agent's file, with the log and the policy ([The log and the build](/concepts/log-and-build)).
 
-**Change block.** An edit as a short script of operations on the build (`%% add`, `replace`, `delete`, `rename`, `scenario`, and on a page's elements `set`, `put`, `drop`, `move`, `wrap`, `unwrap`), made all or none, with the change that undoes it. Each operation is a `tablua_change` row in the log ([Change blocks](/concepts/program-as-rows#change-blocks)).
+**Change block.** An edit as a short script of operations on the build (`%% add`, `replace`, `delete`, `rename`, `test`, `keyword`, and on a page's elements `set`, `put`, `drop`, `move`, `wrap`, `unwrap`), made all or none, with the change that undoes it. Each operation is a `tablua_change` row in the log ([Change blocks](/concepts/program-as-rows#change-blocks)).
 
 **Candidate.** A move that could be made at a step. Every candidate is recorded, not only the one taken.
 
-**Cause.** Where Jev judged the last failure to be: the steps, the app's code, the page, a library call, the feature, or unclear.
+**Cause.** Where Jev judged the last failure to be: the keywords, the app's code, the page, a library call, the tests, or unclear.
 
 **Computer.** Wherever the agent's code is written, run and tested. The host supplies it as the world the step loop acts on.
 
@@ -27,8 +27,6 @@ description: Plain definitions of the words used across Tablua's docs.
 **Element.** One nested call of a page written as Lua (`ui.form{ ... }`), named by its path (`page/card/form`, `button[2]` for the second of a name). A change block can set, put, drop, move, wrap and unwrap elements; each is a `tablua_element` row in the build ([Page elements](/concepts/program-as-rows#page-elements)).
 
 **Experience, shared.** A file of Tablua rows from many agents' finished runs, which each agent reads beside its own.
-
-**Feature (Gherkin).** The person's ask written as test scenarios in plain language: *Given*, *When*, *Then*.
 
 **Feature (column).** A number describing a step that a model can learn from, such as Jev's answer to "does the ask involve dates?"
 
@@ -46,11 +44,13 @@ description: Plain definitions of the words used across Tablua's docs.
 
 **Jev.** The decision model. It picks the next move, with a probability for each option.
 
+**Keyword.** A named step of a test, in Robot Framework's sense: a user keyword written in Robot, a Lua function the agent declares with `keyword(...)`, one of BuiltIn's, or one of the page's (`Open`, `Type`, `Press`, `See`). A call no keyword answers is a break.
+
 **Label.** The answer a training row carries, such as whether the step made progress.
 
 **Log, the.** What the agent did: every state, candidate, decision, action, change and outcome, as rows keyed by run and step. Rows are only ever added. One of the three parts of an agent's file ([The log and the build](/concepts/log-and-build)).
 
-**Mercury.** The writing model. It fills in a chosen move: code, test steps, pages.
+**Mercury.** The writing model. It fills in a chosen move: code, tests, keywords, pages.
 
 
 **Move.** One kind of thing the agent can do, such as `write_code` or `publish`. Also called a verb.
@@ -67,6 +67,12 @@ description: Plain definitions of the words used across Tablua's docs.
 
 **Rank mode.** TabPFN decides when its best move clearly leads and Jev is unsure.
 
+**Reach.** How many keywords of a failing test passed before it failed. A step that leaves a test failing but further along raises it (`Reached Further`).
+
+**Result.** One keyword of one test run, with its status (`PASS`, `FAIL`, `SKIP` or `NOT RUN`), message and time. A `tablua_result` row.
+
+**Robot Framework.** The syntax an agent's tests are written in: tests and tasks as lists of keyword calls. Tablua parses and runs it in portable Lua (`core/robot`).
+
 **Row.** One record in a table, with fixed columns.
 
 **Run.** One task, from the first step to the end. Its ending is a `tablua_run` row.
@@ -79,6 +85,10 @@ description: Plain definitions of the words used across Tablua's docs.
 
 **TabPFN.** A tabular foundation model from Prior Labs. It learns from a table of examples in one pass, with no training run.
 
-**Task.** What the agent was asked to do. The key that joins a run's rows.
+**Task.** What the agent was asked to do. The key that joins a run's rows (the `task` column).
 
-**Unit.** One top-level piece of a program: a function, an action, a scenario, a page.
+**Task (Robot).** A test that does a job rather than checks one, written under `*** Tasks ***`: the same keyword calls, run the same way, its run kept as `tablua_result` rows. A `tablua_test` row of kind `task`; its record over every run is `tablua_task_record`.
+
+**Test.** One test case in Robot Framework's syntax: a name and the keyword calls it makes. The tests say what done means; how many pass is the state's `passed`. A `tablua_test` row.
+
+**Unit.** One top-level piece of a program: a function, an action, a Lua keyword, a page.

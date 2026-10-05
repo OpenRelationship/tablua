@@ -12,7 +12,8 @@ Tablua is in active development. This page says what works today, what has been 
 - **Recording every step** as typed rows, with no text parsing: state, candidates, decision, actions, outcome, effects and the run's ending.
 - **Learning from the rows** with TabPFN, in evidence, shadow and rank modes, under a daily budget.
 - **Shared experience** between the agents on one node.
-- **Gates as named rows**, each stated as a scenario with a measurable reason, switchable for an A/B.
+- **Gates as named rows**, each stated as a Robot test with a measurable reason, switchable for an A/B.
+- **Tasks**: a test that does a job rather than checks one (Robot's `*** Tasks ***`), recorded from a passing test, run with no model deciding, and kept with its record over every run.
 - **The program as rows**: org files that round-trip byte for byte, edits to one unit, and links and breaks as data.
 - **Hosts that drive the loop.** A host drives the step loop through its own world and records every step in the same rows.
 

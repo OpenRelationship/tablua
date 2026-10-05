@@ -22,8 +22,8 @@ export const diagrams: Record<string, string> = {
     <div class="file-bar"><span class="mono">agent.sqlite</span><span>one file per agent</span></div>
     <div class="file-groups">
       <div><h4>The work</h4><p class="mono">state · candidate · decision · action · outcome · run</p></div>
-      <div><h4>What it learns from</h4><p class="mono">label · effect · feature · fit · prediction</p></div>
-      <div><h4>The program</h4><p class="mono">section · unit · scenario · line · link</p></div>
+      <div><h4>What it learns from</h4><p class="mono">result · label · effect · feature · fit · prediction</p></div>
+      <div><h4>The program</h4><p class="mono">section · unit · test · keyword · call · link</p></div>
       <div><h4>Policy</h4><p class="mono">gate</p></div>
       <div><h4>The log</h4><p class="mono">events · args</p></div>
       <div><h4>Its computer</h4><p class="mono">files · tests · pages <span class="faint">(the host's)</span></p></div>
@@ -36,7 +36,7 @@ export const diagrams: Record<string, string> = {
   <div class="cols3">
     <div class="card"><span class="t">Jev</span><b>Decides</b><p>Picks the next move from the moves allowed now, with a probability for each. Answers extra questions about the state in the same call.</p><small>median 0.20 s a call</small></div>
     <div class="card"><span class="t">TabPFN</span><b>Learns</b><p>Reads the agent's past rows and gives each move its chance of making progress. No training run: the rows are its context.</p><small>median 3.0 s a prediction</small></div>
-    <div class="card"><span class="t">Mercury</span><b>Writes</b><p>Fills in the move it is given: the code, the test steps, the page. It never chooses what to do next.</p><small>median 0.77 s a call</small></div>
+    <div class="card"><span class="t">Mercury</span><b>Writes</b><p>Fills in the move it is given: the code, the tests, the keywords, the page. It never chooses what to do next.</p><small>median 0.77 s a call</small></div>
   </div>
   <figcaption>Three models, each with one job, each writing its own columns. Times are medians from 368 traced calls.</figcaption>
 </figure>`,

@@ -68,4 +68,4 @@ This matters: **the host writes the facts, not the model.** The state (which tes
 
 ## Next
 
-The state row said "1 of 3 tests passing". Where do those tests come from? [Module 3: Gherkin](/learn/gherkin)
+The state row said "1 of 3 tests passing". Where do those tests come from? [Module 3: Robot](/learn/robot)

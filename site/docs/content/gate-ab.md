@@ -8,7 +8,7 @@ A gate is a rule that holds a move back in some situation. This guide shows how 
 
 ## 1. Pick a gate
 
-Start with a gate whose stated reason doesn't hold in the record (see [Policy as data](/concepts/policy-as-data)). A host keeps its gates and their reasons as keyword scenarios beside its moves; each scenario's `# gate:` line gives the name to switch off.
+Start with a gate whose stated reason doesn't hold in the record (see [Policy as data](/concepts/policy-as-data)). A host keeps its gates and their reasons as Robot tests beside its moves; each test's `gate:` tag gives the name to switch off.
 
 To see which gates the record says least about, count how often each gate's situation came up. Gates that are rarely tested, or that hide their own evidence, are also good candidates, because switching them off is the only way to learn what they do.
 
@@ -45,10 +45,10 @@ select count(*) as runs,
 from tablua_run;
 ```
 
-and at the effect the gate's reason names. If the reason was "`fix_failure` after 2 stalls leads to Same Line Failing", count that effect in each arm:
+and at the effect the gate's reason names. If the reason was "`fix_failure` after 2 stalls leads to Same Keyword Failing", count that effect in each arm:
 
 ```sql
-select count(*) from tablua_effect where keyword = 'Same Line Failing';
+select count(*) from tablua_effect where keyword = 'Same Keyword Failing';
 ```
 
 ## 4. Decide

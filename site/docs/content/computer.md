@@ -10,7 +10,7 @@ The harness decides and records; it doesn't do the work itself. The work happens
 
 The step loop asks a world for four things, all through plain Lua tables (see [Run an agent in your host](/guides/run-agent)):
 
-- **The facts**: where the work stands, such as which scenarios pass and what is failing. They become the state row.
+- **The facts**: where the work stands, such as which tests pass and which keyword each failing one stopped at. They become the state row.
 - **The moves**: the tools the agent may use there, each with a one-line description. They become the candidate rows.
 - **An act**: doing what a move means on the computer, and saying how it went.
 - **The rows' file**: a SQLite connection, `db:exec(sql, params) -> rows`, that holds the `tablua_*` tables.

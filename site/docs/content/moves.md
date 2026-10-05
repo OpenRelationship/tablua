@@ -16,21 +16,21 @@ The stage is worked out by code, from facts, in this order:
 | `changing` | the app shipped before this task, which asks to change it |
 | `shipped` | the app is published, the task not yet answered |
 | `awaiting_yes` | publishing waits for the person's yes |
-| `no_feature` | no feature has been written yet |
-| `awaiting_agreement` | a feature is written and the person hasn't agreed to it |
-| `building` | something still fails: a scenario, a missing step, a page |
-| `ready` | every scenario passes and every page answers |
+| `no_tests` | no tests have been written yet |
+| `awaiting_agreement` | the tests are written and the person hasn't agreed to them |
+| `building` | something still fails: a test, a call no keyword answers, a page |
+| `ready` | every test passes and every page answers |
 
 ## Moves allowed in each stage
 
 | Stage | Moves |
 | --- | --- |
-| `no_feature` | `write_feature`, `read_help`, `think`, `blocked` |
-| `awaiting_agreement` | `wait_for_agreement`, `write_feature`, `think`, `blocked` |
-| `building` | `undo`, `write_feature`, `write_steps`, `write_code`, `write_page`, `run_test`, `run_check`, `fix_failure`, `rewrite`, `look_at_app`, `read_help`, `think`, `plan`, `next_part`, `blocked` |
+| `no_tests` | `write_tests`, `read_help`, `think`, `blocked` |
+| `awaiting_agreement` | `wait_for_agreement`, `write_tests`, `think`, `blocked` |
+| `building` | `undo`, `write_tests`, `write_keywords`, `write_code`, `write_page`, `run_test`, `run_check`, `fix_failure`, `rewrite`, `look_at_app`, `read_help`, `think`, `plan`, `next_part`, `blocked` |
 | `ready` | `publish`, `undo`, `look_at_app`, `fix_failure`, `rewrite`, `write_page`, `run_test`, `think`, `blocked` |
 | `awaiting_yes` | `wait_for_yes` |
-| `changing` | `write_feature`, `write_page`, `write_code`, `write_steps`, `read_help`, `think`, `blocked` |
+| `changing` | `write_tests`, `write_page`, `write_code`, `write_keywords`, `read_help`, `think`, `blocked` |
 | `shipped` | `answer_task`, `think`, `blocked` |
 | `answered` | `answer` |
 
@@ -40,12 +40,12 @@ Gates can hold some of these back in particular situations ([Policy as data](/co
 
 | Move | What it does |
 | --- | --- |
-| `write_feature` | writes the person's ask, in their words, as Gherkin scenarios |
-| `wait_for_agreement` | waits for the person to agree to the feature |
-| `write_steps` | writes the Lua steps that check each scenario against the app's real behaviour |
+| `write_tests` | writes the person's ask, in their words, as tests in Robot Framework's syntax |
+| `wait_for_agreement` | waits for the person to agree to the tests |
+| `write_keywords` | writes the keywords the tests call, in Lua, which check each test against the app's real behaviour |
 | `write_code` | writes the app's code and its database |
 | `write_page` | writes or fixes the app's pages |
-| `run_test` | runs the feature's tests |
+| `run_test` | runs the tests, keeping every keyword's result as rows |
 | `run_check` | checks the pages and code for problems |
 | `fix_failure` | fixes what the last test, check or page named as failing |
 | `undo` | puts back the files the last change wrote; offered only after a change broke what passed |
@@ -66,9 +66,9 @@ When a step fails, Jev is also asked where the problem most likely is. The answe
 
 | Cause | Meaning |
 | --- | --- |
-| `the_steps` | a test step doesn't match its line, or checks the wrong thing |
+| `the_keywords` | a keyword doesn't answer its call, or checks the wrong thing |
 | `the_app_code` | the app's code or database does the wrong thing |
 | `the_page` | the page doesn't compile, or its action or markup is wrong |
 | `a_library_call` | a call into the computer's library was made the wrong way |
-| `the_feature` | the feature as written can't pass; changing it needs the person's agreement again |
+| `the_tests` | the tests as written can't pass; changing them needs the person's agreement again |
 | `unclear` | it can't be told from what is shown |

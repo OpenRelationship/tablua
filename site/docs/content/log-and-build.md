@@ -9,7 +9,7 @@ An agent's file holds three kinds of rows. Every table belongs to exactly one of
 | Part | What it holds | Keyed by | Changes by |
 | --- | --- | --- | --- |
 | **The log** | what the agent did: each state it decided in, the moves it could have made, the move it took, the calls that move made, how the step turned out, how the run ended | `(task, n)`: the run and the step | adding rows; nothing is ever edited |
-| **The build** | what the agent is making: the files of the app, cut into sections, units, scenarios and the links between them | the file | replacing rows as the files change |
+| **The build** | what the agent is making: the files of the app, cut into sections, units, tests, keywords, their calls and the links between them | the file | replacing rows as the files change |
 | **The policy** | how the next decision is made: the gates in force, the fits TabPFN has made, the rankings a run paid for | neither | refitting, and retiring gates through an A/B |
 
 The test: if a fact needs a step number, it is in the log. If it needs a file, it is in the build. If it needs neither, it is policy.
@@ -29,10 +29,11 @@ The build's state at any earlier step is not stored, and does not need to be: ev
 | `tablua_state` | `tablua_section` | `tablua_gate` |
 | `tablua_candidate` | `tablua_unit` | `tablua_fit` |
 | `tablua_decision` | `tablua_shape` | `tablua_ranking` |
-| `tablua_action` | `tablua_scenario` | |
-| `tablua_change` | `tablua_element` | |
-| `tablua_outcome` | `tablua_line` | |
-| `tablua_effect` | `tablua_link` | |
+| `tablua_action` | `tablua_element` | |
+| `tablua_change` | `tablua_test` | |
+| `tablua_outcome` | `tablua_keyword` | |
+| `tablua_effect` | `tablua_call` | |
+| `tablua_result` | `tablua_link` | |
 | `tablua_feature` | `tablua_break` (a view) | |
 | `tablua_label` | | |
 | `tablua_prediction` | | |

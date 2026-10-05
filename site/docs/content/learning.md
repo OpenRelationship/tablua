@@ -24,7 +24,7 @@ Each training row is one past step, in these columns:
 | --- | --- |
 | `move` | the move taken |
 | `stage` | the stage it was taken in |
-| `pass` | the share of scenarios passing before it |
+| `pass` | the share of tests passing before it |
 | `stalls` | how many steps in a row had made no progress |
 | `last_verb`, `last_outcome` | the step before, and how it went |
 | `cause` | what Jev judged the cause of the last failure to be |
@@ -41,14 +41,14 @@ A *head* is one question TabPFN can be asked about a step. Each has its own labe
 
 | Head | The question | Where the label comes from |
 | --- | --- | --- |
-| `progress` | Did the step help? | the progress rule: more scenarios passing, or a completed step that wasn't a change going nowhere |
+| `progress` | Did the step help? | the progress rule: more tests passing, or a completed step that wasn't a change going nowhere |
 | `ship` | Did the run this step belongs to ship an app that works? | the `run` row |
 | `contrib` | Looking back, did this step contribute to the app that was built? | Jev's hindsight, after the run |
 | `effect:<keyword>` | Did this effect follow the step? | the step's recorded effects |
 
 ### The long view: hindsight
 
-`progress` is short-sighted on purpose. Writing test steps before the code exists turns scenarios red, so it looks like no progress, but it is groundwork. To correct for that, after a run Jev reads the whole trajectory and how it ended, and says of each step whether it contributed to the final app. Those answers are stored as the `contrib` label.
+`progress` is short-sighted on purpose. Writing keywords before the code exists turns tests red, so it looks like no progress, but it is groundwork. To correct for that, after a run Jev reads the whole trajectory and how it ended, and says of each step whether it contributed to the final app. Those answers are stored as the `contrib` label.
 
 Hindsight labels use information from after the step, so they are only ever used for training, never as an input when deciding.
 

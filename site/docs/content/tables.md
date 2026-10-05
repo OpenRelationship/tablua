@@ -4,7 +4,7 @@ description: Every table Tablua keeps in an agent's SQLite file, with every colu
 
 # Tables
 
-Every table Tablua keeps in an agent's file, and what each column means. All names start with `tablua_`. The schema is at version 11 (`tablua_meta`).
+Every table Tablua keeps in an agent's file, and what each column means. All names start with `tablua_`. The schema is at version 12 (`tablua_meta`).
 
 The tables fall into three parts ([The log and the build](/concepts/log-and-build)), told apart by their key:
 
@@ -22,10 +22,10 @@ Where the work stood when a decision was made. Written by the host, from facts.
 | --- | --- |
 | `task`, `n` | the run and the step (key) |
 | `stage` | the stage, worked out from facts ([Stages and moves](/reference/moves)) |
-| `passed`, `total`, `pass` | scenarios passing, scenarios in all, and their ratio |
+| `passed`, `total`, `pass` | tests passing, tests in all, and their ratio |
 | `stalls` | steps in a row that made no progress |
 | `last_verb`, `last_outcome` | the step before and how it went |
-| `cause` | what was judged the cause of the last failure: `the_steps`, `the_app_code`, `the_page`, `a_library_call`, `the_feature`, `unclear` |
+| `cause` | what was judged the cause of the last failure: `the_keywords`, `the_app_code`, `the_page`, `a_library_call`, `the_tests`, `unclear` |
 | `pages_ok` | 1 when every page answers |
 | `own_checks` | checks the agent wrote in its own words |
 | `ask` | the kind of ask |
@@ -79,10 +79,10 @@ How the step turned out. Written by the host.
 | `verb` | the move |
 | `outcome` | `complete`, `broken`, `no_effect`, or `denied` (the person said no) |
 | `progress` | 1 if the step helped ([the rule](/concepts/step-loop#progress-worked-out-from-the-rows)), else 0 |
-| `regressed` | 1 if a scenario that passed fails now |
+| `regressed` | 1 if a test that passed fails now |
 | `same_failure` | 1 if the same failure as before the step |
-| `passed`, `total` | scenarios passing after the step |
-| `failing` | the failing scenarios, as JSON |
+| `passed`, `total` | tests passing after the step |
+| `failing` | the failing tests, as JSON |
 | `note` | what the host noted |
 
 ### tablua_run
@@ -101,7 +101,23 @@ How a run ended.
 
 ### tablua_change
 
-Each operation of a change block a step made ([The program as rows](/concepts/program-as-rows#change-blocks)): where the log meets the build. Key: `task`, `n`, `i`; also `op` (`add`, `replace`, `delete`, `rename`, `scenario`, or on a page's elements `set`, `put`, `drop`, `move`, `wrap`, `unwrap`), `kind` (the unit's kind, or the element's call), `name` (the unit's name, or the element's path), `lines` (code lines added, negative when taken away), `named_by` (units that named the target before; 0 for an element) and `breaks` (units left naming something no unit defines; for an element, posts and form reads left with nothing at their end).
+Each operation of a change block a step made ([The program as rows](/concepts/program-as-rows#change-blocks)): where the log meets the build. Key: `task`, `n`, `i`; also `op` (`add`, `replace`, `delete`, `rename`, `test`, `task`, `keyword`, or on a page's elements `set`, `put`, `drop`, `move`, `wrap`, `unwrap`), `kind` (the unit's kind, or the element's call), `name` (the unit's name, or the element's path), `lines` (code lines added, negative when taken away), `named_by` (units that named the target before; 0 for an element) and `breaks` (units left naming something no unit defines; for an element, posts and form reads left with nothing at their end).
+
+### tablua_result
+
+Every keyword of every test run a step made, one row each: the tree Tablua's Robot runner (`core/robot`) gives back, kept by `t:results(task, n, res, file)`.
+
+| Column | Meaning |
+| --- | --- |
+| `task`, `n`, `run`, `file`, `test`, `path` | the step, which of its test runs, the test file, the test, and the keyword's place in the test (key). `path` is `""` for the test's own row; `2.1.3` is the 3rd call of the 1st call of the test's 2nd; `s` and `t` lead its setup and teardown |
+| `parent`, `depth` | the path of the keyword that called it, and how deep it sits |
+| `type` | `test` (or `task`, for a task's own row), `keyword`, `for`, `iteration`, `if`, `branch` or `return` |
+| `keyword`, `args` | the keyword's name, and its arguments joined by tabs |
+| `status` | `PASS`, `FAIL`, `SKIP` or `NOT RUN` |
+| `message` | why it failed or was skipped |
+| `ms`, `line` | how long it took, and its line in the file |
+
+`t:results` gives back the run's summary: tests passed and in all, calls no keyword answers, and for each failing test the keyword it failed at, why, and its **reach** (how many keywords passed before it failed).
 
 ### tablua_effect
 
@@ -131,12 +147,14 @@ The controls a step chose among on a screen (Tablua's Mac app). Key: `task`, `n`
 | `tablua_unit` | `file`, `section`, `n` | top-level units: `kind`, `name`, `source` |
 | `tablua_shape` | `file`, `section`, `n` | each unit's columns: `lines` (code lines), `arity` (a function's parameters), `depth` (deepest block), `names` (other units it names) |
 | `tablua_element` | `file`, `n` | a Lua page's elements ([Page elements](/concepts/program-as-rows#page-elements)): `path`, `call`, `parent` (its path), `depth`, `children`, `props` (the prop names), `text` (its strings) |
-| `tablua_scenario` | `file`, `n` | scenarios: `name`, `text` |
-| `tablua_line` | `file`, `scenario`, `n` | scenario lines: `keyword`, `text` |
+| `tablua_test` | `file`, `n` | tests and tasks: `kind` (`test` or `task`), `name`, `text` (Robot) |
+| `tablua_keyword` | `file`, `n` | user keywords: `name`, `text` (Robot); numbered with the tests, in the file's order |
+| `tablua_call` | `file`, `item`, `path` | each keyword call a test, task or user keyword makes: `keyword`, `args` (joined by tabs) |
+| `tablua_task_record` | (view) | each task's record over every run, by `name`: `runs`, `passed`, `fails_at` (the keyword it fails at most) |
 | `tablua_link` | `file`, `kind`, `source`, `target` | links between units, with `found` |
 | `tablua_break` | (view) | links with nothing at their end, and actions nothing reaches |
 
-Link kinds: `post` (page to action), `defines`, `sends` (page to field), `reads` (action to field), `line`, `press`, `field` and `see` (scenario line to what must answer it).
+Link kinds: `post` (page to action), `defines`, `sends` (page to field), `reads` (action to field), `call` (a call to the keyword it names), `press`, `field` and `see` (a call of the page's keywords to the label, field or text the page must hold).
 
 ## The policy, and metadata
 

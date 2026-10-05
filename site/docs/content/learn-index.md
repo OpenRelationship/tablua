@@ -1,10 +1,10 @@
 ---
-description: A short course that teaches Tablua from nothing - what an agent harness is, why it keeps everything as tables, and how Lua, Gherkin and org each fit in.
+description: A short course that teaches Tablua from nothing - what an agent harness is, why it keeps everything as tables, and how Lua, Robot Framework and org each fit in.
 ---
 
 # Learn Tablua: the course
 
-This course explains Tablua from the ground up, one idea at a time. You don't need to know anything about agents, machine learning, Lua, Gherkin or org mode before you start. Each module introduces one idea, shows a small example, and ends with what to remember.
+This course explains Tablua from the ground up, one idea at a time. You don't need to know anything about agents, machine learning, Lua, Robot Framework or org mode before you start. Each module introduces one idea, shows a small example, and ends with what to remember.
 
 If you already know what Tablua is and want to use it, the [Quickstart](/start/quickstart) is faster. This course is for understanding why each piece exists and how the pieces connect.
 
@@ -14,7 +14,7 @@ If you already know what Tablua is and want to use it, the [Quickstart](/start/q
 | --- | --- | --- |
 | 1 | [An agent is a loop](/learn/loop) | What an AI agent does, and what a harness adds around it |
 | 2 | [Writing it down as rows](/learn/rows) | Why Tablua records every step as rows in tables, and the tables for one step |
-| 3 | [Gherkin: saying what "done" means](/learn/gherkin) | How the agent turns a person's words into tests before it builds anything |
+| 3 | [Robot: saying what "done" means](/learn/robot) | How the agent turns a person's words into tests before it builds anything |
 | 4 | [Lua: the harness's language](/learn/lua) | Tablua is native Lua and embeds in any Lua VM; what the agent writes is any language its computer runs |
 | 5 | [Org: one file holds it all](/learn/org) | How an app lives in one readable file, and how that file becomes rows |
 | 6 | [Three models, three jobs](/learn/models) | Who decides, who writes and who learns, and why each is a different model |

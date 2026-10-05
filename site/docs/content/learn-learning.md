@@ -12,10 +12,10 @@ Every step, the agent faces the same kind of question: *given where the work sta
 
 To learn, you need examples with answers. In Tablua, the answer for a past step is its **progress** label, worked out from the outcome row:
 
-- **1 (helped)** if more scenarios passed after the step, or the step completed and wasn't a change that went nowhere;
+- **1 (helped)** if more tests passed after the step, or the step completed and wasn't a change that went nowhere;
 - **0 (didn't help)** otherwise.
 
-No model decides this label. It comes from the scenario counts in Module 3.
+No model decides this label. It comes from the test counts in Module 3.
 
 ## Step 2: a training set is a SELECT
 
@@ -61,7 +61,7 @@ Progress is the main question, but the same machinery answers others, each calle
 | `progress` | Did this step help? |
 | `ship` | Did its run end with an app that works? |
 | `contrib` | Looking back at the whole run, did this step contribute? |
-| `effect:<name>` | Did a particular effect follow (for example `Scenario Turned Green`)? |
+| `effect:<name>` | Did a particular effect follow (for example `Test Turned Green`)? |
 
 ## Remember
 

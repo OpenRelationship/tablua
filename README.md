@@ -45,7 +45,7 @@ flowchart TB
   T{{"<b>TabPFN</b><br/>chance each move makes<br/>progress, learned from<br/>past rows"}}
   C["<b>candidates</b><br/>one row per move"]
   D["<b>decision</b><br/>chosen · by · propensity"]
-  M{{"<b>Mercury</b><br/>writes the move:<br/>code, steps, pages"}}
+  M{{"<b>Mercury</b><br/>writes the move:<br/>code, keywords, pages"}}
   A["<b>actions</b><br/>each call it made"]
   O["<b>outcome</b><br/>progress · regressed<br/>same failure"]
   E["<b>effects + labels</b><br/>what followed, judged in<br/>hindsight: TabPFN's next<br/>training rows"]
@@ -70,7 +70,7 @@ flowchart TB
 | --- | --- | --- |
 | **Jev** (typed decisions) | Picks a move with a probability for each option, and answers feature questions about the state in the same call | 0.20 s |
 | **TabPFN** (Prior Labs, 3.5 Fast) | Gives each move its chance of making progress, learned from past rows; ranks during building | 3.0 s |
-| **Mercury** (Inception) | Fills in the move: writes the code, the steps or the page, one unit at a time | 0.77 s |
+| **Mercury** (Inception) | Fills in the move: writes the code, the tests, the keywords or the page, one unit at a time | 0.77 s |
 | **The host** | Writes the state and outcome rows, runs the checks, records effects | milliseconds |
 
 *Latencies are medians of 368 calls from production port traces. Toggle "Real time" on [tablua.com](https://tablua.com)
@@ -82,8 +82,8 @@ The agent's file is ordinary SQLite. Every table is named `tablua_*`, and the ha
 tables. They fall into three parts, told apart by their key:
 
 - **The log**: what the agent did, keyed by run and step. Rows are only ever added.
-- **The build**: what the agent is making, the app's files as rows, keyed by file: sections, units, scenarios and
-  a Lua page's elements. Rows are replaced as files change.
+- **The build**: what the agent is making, the app's files as rows, keyed by file: sections, units, tests,
+  keywords, their calls and a Lua page's elements. Rows are replaced as files change.
 - **The policy**: how the next decision is made: gates, fits, rankings. Keyed by neither.
 
 They meet in `tablua_change`: each operation a step made on the build, kept in the log with columns that describe
@@ -140,8 +140,11 @@ Other tables hold the rest of the agent's world:
 
 - `tablua_fit` and `tablua_prediction`: TabPFN's fits and every prediction it made, so its record can be scored.
 - `tablua_gate`: the hand-written rules still in force.
-- `tablua_section`, `tablua_unit`, `tablua_scenario`, `tablua_line` and `tablua_link`: the program the agent is
-  writing, kept as rows. `tablua_break` is a view of the links that point at nothing.
+- `tablua_section`, `tablua_unit`, `tablua_test`, `tablua_keyword`, `tablua_call` and `tablua_link`: the program the
+  agent is writing, kept as rows. `tablua_break` is a view of the links that point at nothing.
+- `tablua_result`: every keyword of every test or task run, with its status, message and time.
+  `tablua_task_record` is each task's record over its runs. A task is a test that does a job rather than checks
+  one (Robot's `*** Tasks ***`): `robot.record` writes a passing test's run as one, run again with no model deciding.
 - `tablua_control`: on a desktop, the controls on screen a step chose among.
 
 ## How it learns
@@ -154,7 +157,7 @@ known before Jev answers:
 | `progress` | Did this step help? | More checks passing, or a complete step that was not a change going nowhere |
 | `ship` | Did its run ship an app that works? | `tablua_run` |
 | `contrib` | Did it contribute to the app finally built? | Jev, reading the whole run afterwards (never an input at decision time) |
-| `effect:<Keyword>` | Did this effect follow? (`Scenario Turned Green`, `Same Line Failing`, `Step Broken`…) | The harness's own telemetry |
+| `effect:<Keyword>` | Did this effect follow? (`Test Turned Green`, `Same Keyword Failing`, `Reached Further`…) | The harness's own telemetry |
 
 **Shared experience.** When a run ends, its rows are copied into one shared file on the node, with each task
 renamed to `<computer>|<task>` so no run joins another's. The next agent attaches that file and learns from every
@@ -172,16 +175,17 @@ state it has already ranked is ranked again without a call. The day's tokens are
 
 ## Policy as data
 
-The rules that hold a move back are written once as keyword scenarios, which a host keeps beside its moves. Each
-has a reason the harness can check against recorded runs:
+The rules that hold a move back are written once as Robot Framework tasks, which a host keeps beside its moves.
+Each is tagged with its gate's name and has a reason the harness can check against recorded runs:
 
-```gherkin
-Scenario: fixing the same failure again waits on thinking it through
-  # gate: stuck_fix
-  Given Same Failure after 2 changes running
-  When the last move was not think
-  Then fix_failure is not offered
-  # because: fix_failure | 2+ stalls | Same Line Failing | more
+```robot
+*** Test Cases ***
+Fixing the same failure again waits on thinking it through
+    [Documentation]    because: fix_failure | 2+ stalls | Same Keyword Failing | more
+    [Tags]    gate:stuck_fix
+    Given Same Failure after 2 changes running
+    When the last move was not think
+    Then fix_failure is not offered
 ```
 
 The evaluation measures every `because` line against the effects recorded across all runs. A gate
@@ -190,13 +194,31 @@ for the hand-written rules to shrink as the learned model takes over.
 
 ## The program as rows
 
-Tablua's agent writes apps as [org](https://orgmode.org) files with five kinds of section: Notes, Feature, Steps,
-Code and Page. Each code block carries its language, so the output can be any language the agent's computer runs.
-The harness keeps each file as rows: its sections, its code's units, each scenario and each of its lines, plus
-the links between them. A Lua block is cut into its top-level statements and its calls are linked; a block in
-another language is kept whole until a scanner for it is added. Mercury edits one unit at a time, each edit is an action row, and
-the compiled file is what runs and is tested. A step that refers to a missing definition shows up in
-`tablua_break` before any test runs.
+A program is org plus Robot Framework (owner, 2026-10-05). Tablua's agent writes apps as [org](https://orgmode.org)
+files with five kinds of section: Notes, Tests, Keywords, Code and Page. Org holds the plan and the code; the Tests
+section holds the tests and tasks in [Robot Framework](https://robotframework.org)'s syntax, one `** Test:` or
+`** Keyword:` heading per test and user keyword; the Keywords section holds the Lua keywords they call, declared as
+`keyword("There is a plant ${name}", function(name) ... end)`. Each code block carries its language, so the output
+can be any language the agent's computer runs.
+
+```robot
+*** Test Cases ***
+Add a plant
+    Type    Plant name    Fern
+    Press    Add
+    See    Fern
+```
+
+The harness keeps each file as rows: its sections, its code's units, each test and user keyword and every keyword
+call they make, plus the links between them. A Lua block is cut into its top-level statements and its calls are
+linked; a block in another language is kept whole until a scanner for it is added. Mercury edits one unit at a
+time, each edit is an action row, and the compiled file is what runs and is tested. A call that no keyword answers
+shows up in `tablua_break` before any test runs.
+
+The tests run in portable Lua (`core/robot`), and every keyword's result is kept as a row (`tablua_result`): where
+it sits in the test, its arguments, `PASS`, `FAIL`, `SKIP` or `NOT RUN`, why, and how long it took. For a failing
+test the harness also keeps its reach, how many keywords passed before it failed, so a step that moves a failing
+test further along is seen even when no more tests pass.
 
 ## Embedding it
 
@@ -210,9 +232,9 @@ local t = tablua.open(require("ports.sqlite").open("agent.sqlite"))
 
 -- where the work stands, what could be done, what was done, how it went
 t:state{ task = "r1", n = 1, stage = "building", passed = 0, total = 4 }
-t:candidates("r1", 1, { { move = "write_steps", jev_p = 0.61 }, { move = "write_page", jev_p = 0.27 } })
-t:decision{ task = "r1", n = 1, chosen = "write_steps", by = "jev" }
-t:outcome{ task = "r1", n = 1, verb = "write_steps", outcome = "complete", passed = 2, total = 4 }
+t:candidates("r1", 1, { { move = "write_keywords", jev_p = 0.61 }, { move = "write_page", jev_p = 0.27 } })
+t:decision{ task = "r1", n = 1, chosen = "write_keywords", by = "jev" }
+t:outcome{ task = "r1", n = 1, verb = "write_keywords", outcome = "complete", passed = 2, total = 4 }
 
 -- learn from every past step, and from other agents' runs
 t:attach("shared", "experience.sqlite")
@@ -221,7 +243,7 @@ local train, labels = t:training("progress", { before = true })
 -- or let the agent harness do all of it: TabPFN ranks the moves before Jev picks
 local tabpfn = require("ports.tabpfn").new({ fetch = require("ports.curl").fetch }, { key = os.getenv("PRIORLABS_KEY") })
 local learn = require("agent.learn").new{ tablua = t, tabpfn = tabpfn }
-local ranked = learn:rank("step", { stage = "building", stalls = 2, n = 5 }, { "write_steps", "rewrite", "think" })
+local ranked = learn:rank("step", { stage = "building", stalls = 2, n = 5 }, { "write_keywords", "rewrite", "think" })
 ```
 
 The step loop (`core/agent`) is a state machine the host drives one step at a time. Nothing in it yields or
@@ -253,6 +275,7 @@ is the facts and the moves the host hands it, and what it keeps is the rows.
 | Path | What it is |
 | --- | --- |
 | `core/tablua` | The harness's tables, training queries, effects, hindsight, the program as rows |
+| `core/robot` | The agent's tests in Robot Framework's syntax, parsed and run in Lua, every keyword's result kept |
 | `core/agent` | The step loop: decide, rank, fill, record, learn |
 | `core/ports` | Jev, Mercury, TabPFN and the other model ports, and `ports.sqlite` for a LuaJIT host |
 | `site/` | tablua.com and docs.tablua.com |

@@ -26,7 +26,7 @@ Its estimates are recorded too (`p_progress` in the `candidate` rows), whether o
 
 ## Mercury writes
 
-**Mercury**, from Inception, is a fast language model for writing code. Once a move is chosen, Mercury fills it in: the Gherkin scenarios for `write_feature`, the Lua for `write_code`, the page for `write_page`. What it does becomes `action` rows: each command, each file written and its size.
+**Mercury**, from Inception, is a fast language model for writing code. Once a move is chosen, Mercury fills it in: the Robot tests for `write_tests`, the Lua for `write_code`, the page for `write_page`. What it does becomes `action` rows: each command, each file written and its size.
 
 Mercury never chooses the next move. Its prompts are laid out so the parts that don't change (the computer's help and the agent's knowledge base) come first, where Inception's prompt cache can reuse them across calls.
 

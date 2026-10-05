@@ -1,5 +1,5 @@
 ---
-description: The Lua API of Tablua's harness - the tablua module, agent.learn, and the modules for program rows and edits.
+description: The Lua API of Tablua's harness - the tablua module, agent.learn, robot, and the modules for program rows and edits.
 ---
 
 # Lua API
@@ -26,6 +26,8 @@ local t = tablua.open(db, { clock = fn })
 | `t:outcome{ task, n, verb, outcome, passed?, total?, regressed?, same_failure?, failing?, note? } -> progress` | how it turned out; returns 1 or 0 |
 | `t:run{ task, shipped, answered, works, right?, changed?, steps?, cost? }` | how the run ended |
 | `t:features(task, n, { name = number }, form)` | Jev's answers as feature values |
+| `t:results(task, n, res, file?) -> summary` | a test run's keyword tree (`robot.run`'s result), one `tablua_result` row per keyword; returns `robot.summary(res)` |
+| `t:tasks() -> { { file, name, text, runs, passed, fails_at } }` | the program's tasks, each with its record over every run (`tablua_task_record`) |
 | `t:effects(task, n, { { keyword, arg }, ... })` | the step's effects |
 | `t:label(task, n, head, value, source)` | a label given after the fact |
 | `t:gate{ name, predicate, version?, retired_by? }` | a gate the run ran under |
@@ -82,7 +84,34 @@ The program as rows.
 | --- | --- |
 | `src.decode(org) -> rows` | an org file into sections and units |
 | `src.compile(rows) -> org` | rows back into the org file, byte for byte |
-| `src.from_files{ feature?, steps?, lua?, markup?, notes? } -> rows` | separate files into one program's rows |
+| `src.from_files{ tests?, keywords?, code?, markup?, notes?, lang? } -> rows` | separate files into one program's rows |
+| `src.tests(text) -> head, items` | a Robot file's head and its tests and user keywords, `{ kind, name, text }` |
+| `src.calls(item) -> { { path, keyword, args } }` | the keyword calls a test or user keyword makes, `FOR` and `IF` bodies included |
+
+## robot
+
+An agent's tests in Robot Framework's syntax, parsed and run in portable Lua (`core/robot`).
+
+```lua
+local robot = require("robot")
+local suite = robot.parse(text)
+local lib = robot.library()
+lib:add("There is a plant ${name}", function(name) plants.add(name) end)
+local res = robot.run(suite, { libraries = { lib }, clock = os.clock })
+```
+
+| Function | Does |
+| --- | --- |
+| `robot.parse(text) -> suite` | a Robot file's settings, variables, tests, tasks and keywords |
+| `robot.parse.cut(text) -> head, items` | the file cut into its head and each test and keyword, byte for byte |
+| `robot.library() -> lib`, `lib:add(name, fn)` | a library of Lua keywords; `${arg}` in a name is an embedded argument |
+| `robot.run(suite, { libraries, clock?, variables?, only?, rpa? }) -> res` | runs the tests, or with `rpa` the tasks; every keyword run is a node with its status (`PASS`, `FAIL`, `SKIP`, `NOT RUN`), message and time |
+| `robot.summary(res)` | `{ passed, total, undefined, failing = { { test, path, keyword, why, reach } } }` |
+| `robot.rows(res)` | one row per keyword run, as `tablua_result` keeps them |
+| `robot.record(test, name?) -> text` | a passing test's run written as a task: its top-level calls in the order they ran, with the values they had, loops and branches unrolled |
+| `robot.is_builtin(name)` | whether a name is one of BuiltIn's keywords |
+
+A call is answered by the suite's own keywords first, then each library's, then BuiltIn's. Names match without regard to case, spaces or underscores, and a leading `Given`, `When`, `Then`, `And` or `But` is ignored, as in Robot.
 
 ## tablua.edit
 

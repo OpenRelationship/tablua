@@ -1,10 +1,10 @@
 ---
-description: How Tablua keeps the app an agent builds as rows - sections, units, scenarios and the links between them - in one readable org file.
+description: How Tablua keeps the app an agent builds as rows - sections, units, tests, keywords and the links between them - in one readable org file.
 ---
 
 # The program as rows
 
-The app an agent builds is rows too. Each file is cut into sections, and each section into units: a function, an action, a test scenario. The agent can change one unit at a time, the links between units are checked as data, and the file is always written back whole and readable.
+The app an agent builds is rows too. Each file is cut into sections, and each section into units: a function, an action, a test, a keyword. The agent can change one unit at a time, the links between units are checked as data, and the file is always written back whole and readable.
 
 ## One file type: org
 
@@ -13,8 +13,8 @@ An app's file is written in **org**, a plain-text format that Emacs, GitHub and 
 | Section | Holds |
 | --- | --- |
 | `* Notes` | prose: what the app is for, decisions made |
-| `* Feature` | the Gherkin scenarios the app must pass |
-| `* Steps` | the Lua that checks each scenario against the app |
+| `* Tests` | the tests the app must pass, and their user keywords, in Robot Framework's syntax |
+| `* Keywords` | the Lua keywords the tests call to check the app |
 | `* Code` | the app's Lua |
 | `* Page` | what the person sees, as Lua |
 
@@ -38,9 +38,25 @@ Reading a file into rows and writing it back gives the same file, byte for byte.
 
 ## Units
 
-A **unit** is one top-level piece: a Lua statement (an action, a function, a local, a test step), a scenario, or a page. Each unit keeps the comments and blank lines above it, so cutting a file into units and joining them again never moves a comment away from its code.
+A **unit** is one top-level piece: a Lua statement (an action, a function, a local, a keyword), or a page. Each unit keeps the comments and blank lines above it, so cutting a file into units and joining them again never moves a comment away from its code.
 
-Units are kept as `tablua_section`, `tablua_unit`, `tablua_scenario` and `tablua_line` rows.
+The Tests section is cut the same way, by Robot's own structure: its head (settings and variables), then each test and each user keyword, under a `** Test:` or `** Keyword:` heading with its text in a `#+begin_src robot` block:
+
+```org
+* Tests
+** Test: Add a plant
+#+begin_src robot
+,*** Test Cases ***
+Add a plant
+    Type    Plant name    Fern
+    Press    Add
+    See    Fern
+#+end_src
+```
+
+A library keyword in the Keywords section is a Lua unit like any other, declared by name: `keyword("There is a plant ${name}", function(name) ... end)`.
+
+Units are kept as `tablua_section` and `tablua_unit` rows; tests and user keywords as `tablua_test` and `tablua_keyword` rows, and every keyword call either makes as a `tablua_call` row (its path in the item, the keyword it names, its arguments).
 
 ## Editing one unit at a time
 
@@ -71,10 +87,10 @@ local function sum(a, b) return (a or 0) + (b or 0) end
 %% add difference after sum
 local function difference(a, b) return a - b end
 %% rename sum plus
-%% scenario Subtracting
-  Scenario: Subtracting
-    When I subtract 2 from 5
-    Then I see "3"
+%% test Subtracting
+Subtracting
+    I subtract 2 from 5
+    See    3
 ```
 
 | Operation | Does |
@@ -83,7 +99,9 @@ local function difference(a, b) return a - b end
 | `replace <name>` | replaces a unit's source |
 | `delete <name>` | removes a unit |
 | `rename <old> <new>` | renames a unit and every reference to it in the file's Lua, never a string or a comment |
-| `scenario <name> [after <other> \| first]` | adds or replaces a scenario, or removes it when nothing is under it |
+| `test <name> [after <other> \| first]` | adds or replaces a test, or removes it when nothing is under it |
+| `task <name> [after <other> \| first]` | the same for a task; a first task goes after the tests and before the keywords |
+| `keyword <name> [after <other> \| first]` | adds or replaces a user keyword, or removes it when nothing is under it |
 
 A block is applied all or nothing: if one operation names nothing, or leaves Lua that does not compile, none of them happens and the refusal names the operation by number. Every block comes back with the block that undoes it, so the build can always be walked back. `!` after a verb takes the text under it verbatim, which is how the undoing block is written.
 
@@ -129,13 +147,13 @@ Each element is a `tablua_element` row in the build: its path, call, parent, dep
 
 ## Links and breaks
 
-Units refer to each other. A page's button posts to an action. An action reads a field the form sends. A scenario's line needs a test step whose pattern matches it. Tablua records each of these as a `tablua_link` row.
+Units refer to each other. A page's button posts to an action. An action reads a field the form sends. A test's call needs a keyword of that name: a Lua keyword, a user keyword, one of BuiltIn's or one the host's computer gives. Tablua records each of these as a `tablua_link` row.
 
-A link with nothing at its end is a **break**, and breaks are a view over the links (`tablua_break`): a button that posts to an action nobody wrote, a field read that no form sends, a scenario line with no step, or an action no page can reach. Breaks can be found before any test runs, and they feed the agent's facts and TabPFN's columns like any other data.
+A link with nothing at its end is a **break**, and breaks are a view over the links (`tablua_break`): a button that posts to an action nobody wrote, a field read that no form sends, a call no keyword answers, or an action no page can reach. Breaks can be found before any test runs, and they feed the agent's facts and TabPFN's columns like any other data.
 
 ## Why keep the program as rows
 
-- **The agent works on the same units it is measured on.** A failing scenario points to a line; the line points to a step; the step to the code it calls.
+- **The agent works on the same units it is measured on.** A failing test points to the keyword it failed at; the keyword points to the code it calls.
 - **Structure is data.** How many actions, how many breaks, which unit changed: all of it is columns a model can learn from.
 - **The file stays a file.** It is still plain text a person can open, read and edit with any tool.
 

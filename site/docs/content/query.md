@@ -100,7 +100,7 @@ from tablua_effect where task = 'plants' group by n order by n;
 select file, kind, source, target from tablua_break;
 ```
 
-Each row is a link with nothing at its end: a button posting to an action nobody wrote, a scenario line with no test step, an action no page reaches.
+Each row is a link with nothing at its end: a button posting to an action nobody wrote, a test's call no keyword answers, an action no page reaches.
 
 ## Which rules a run ran under
 

@@ -41,15 +41,15 @@ t:state{ task = "plants", n = 1, stage = "building", passed = 0, total = 4 }
 
 -- every move it could have made, with Jev's probability for each
 t:candidates("plants", 1, {
-  { move = "write_steps", jev_p = 0.61 },
-  { move = "write_page",  jev_p = 0.27 },
+  { move = "write_keywords", jev_p = 0.61 },
+  { move = "write_page",     jev_p = 0.27 },
 })
 
 -- the move it took, and who took it
-t:decision{ task = "plants", n = 1, chosen = "write_steps", by = "jev" }
+t:decision{ task = "plants", n = 1, chosen = "write_keywords", by = "jev" }
 
--- how it turned out: two of four scenarios pass now
-local progress = t:outcome{ task = "plants", n = 1, verb = "write_steps",
+-- how it turned out: two of four tests pass now
+local progress = t:outcome{ task = "plants", n = 1, verb = "write_keywords",
   outcome = "complete", passed = 2, total = 4 }
 print("progress:", progress)
 
@@ -73,12 +73,12 @@ You should see something like this:
 ```text
 progress:	1
 columns:	move, stage, pass, stalls, last_verb, last_outcome, cause, own_checks, n, jev_p, jev_margin, ask_dates, ...
-row:	write_steps | building | 0 | 0 |  |  |  | 0 | 1 | 0.61 | -1 | ...	label:	1
+row:	write_keywords | building | 0 | 0 |  |  |  | 0 | 1 | 0.61 | -1 | ...	label:	1
 ```
 
 Three things happened:
 
-1. **The outcome was labelled for you.** More scenarios pass than before, so `progress` is 1. You didn't write that label; Tablua worked it out from the state and the outcome.
+1. **The outcome was labelled for you.** More tests pass than before, so `progress` is 1. You didn't write that label; Tablua worked it out from the state and the outcome.
 2. **The step became one training row.** The move, where the work stood, and Jev's probability, with the label beside it. Missing numbers are `-1`.
 3. **Everything is in `agent.sqlite`.**
 
@@ -89,7 +89,7 @@ sqlite3 agent.sqlite "select task, n, chosen, by from tablua_decision"
 ```
 
 ```text
-plants|1|write_steps|jev
+plants|1|write_keywords|jev
 ```
 
 List every table Tablua made:

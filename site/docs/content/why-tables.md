@@ -22,7 +22,7 @@ Tablua writes each step of the agent's work into tables with fixed columns. Here
 
 | table | row |
 | --- | --- |
-| state | `stage=building  passed=2/4  stalls=0  last_verb=write_steps` |
+| state | `stage=building  passed=2/4  stalls=0  last_verb=write_keywords` |
 | candidate | `rewrite  jev_p=.55` |
 | candidate | `write_page  jev_p=.30` |
 | decision | `chosen=rewrite  by=jev` |

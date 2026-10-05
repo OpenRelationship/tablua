@@ -21,18 +21,19 @@ When a run starts, the gates in force are written as `tablua_gate` rows, so ever
 
 ## Each gate states its reason
 
-A host also writes its gates as test scenarios beside its moves, in plain language, with a machine-readable reason:
+A host also writes its gates as Robot tests beside its moves, in plain language, with the gate's name as a tag and a machine-readable reason in its documentation:
 
-```gherkin
-Scenario: fixing the same failure again waits on thinking it through
-  # gate: stuck_fix
-  Given Same Failure after 2 changes running
-  When the last move was not think
-  Then fix_failure is not offered
-  # because: fix_failure | 2+ stalls | Same Line Failing | more
+```robot
+*** Test Cases ***
+Fixing the same failure again waits on thinking it through
+    [Documentation]    because: fix_failure | 2+ stalls | Same Keyword Failing | more
+    [Tags]    gate:stuck_fix
+    Given Same Failure after 2 changes running
+    When the last move was not think
+    Then fix_failure is not offered
 ```
 
-The `because` line says what the gate assumes: *taking `fix_failure` after two or more stalls leads to `Same Line Failing` more often than usual.* That is a claim about the record, so it can be checked against the record.
+The `because` line says what the gate assumes: *taking `fix_failure` after two or more stalls leads to `Same Keyword Failing` more often than usual.* That is a claim about the record, so it can be checked against the record.
 
 ## Measuring a reason
 
