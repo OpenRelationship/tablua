@@ -18,6 +18,8 @@
 --   change.parse(text) -> ops | nil, why
 --   change.apply(rows, text) -> { rows, reverse, ops = { { op, kind, name, lines, named_by, breaks } } } | nil, why
 --   change.shape(rows) -> { { section, n, kind, name, lines, arity, depth, names } }     a column row per unit
+--   change.file(path, text, block) -> text, result | nil, why   one file changed: a .feature, a step file (a
+--                                     steps/ path), a .lua module, or an org page; text nil when it is new
 local src = require("tablua.source")
 local lexer = require("tablua.lexer")
 
@@ -277,6 +279,35 @@ function M.apply(rows, text)
     if bad then return nil, ("the change leaves the %s not compiling: %s"):format(x.s.kind, tostring(bad)) end
   end
   return { rows = rows, reverse = table.concat(undo), ops = out }
+end
+
+-- a file's text as rows, and back: the kind of section its path holds, or org
+local function kind_of(path)
+  if path:match("%.feature$") then return "feature" end
+  if path:match("%.lua$") then return path:match("steps/") and "steps" or "code" end
+end
+
+function M.file(path, text, block)
+  local kind = kind_of(path)
+  local rows, why
+  if kind then rows = src.from_files{ [kind] = text or "" }
+  elseif path:match("%.org$") then
+    if not text then return nil, path .. " does not exist yet: write the page whole" end
+    rows, why = src.decode(text)
+    if not rows then return nil, path .. " does not read as org: " .. tostring(why) end
+  else
+    return nil, "a change is to a .feature, a .lua file or an org page: " .. path
+  end
+  if kind == "feature" and #rows.sections == 0 then
+    return nil, path .. " has no feature yet: write it whole"
+  end
+  local done, err = M.apply(rows, block)
+  if not done then return nil, err end
+  if not kind then return src.compile(done.rows), done end
+  -- a plain file is its sections' text: a step file's helper lands in a code section of its own
+  local parts = {}
+  for _, s in ipairs(done.rows.sections) do parts[#parts + 1] = src.body(s) end
+  return table.concat(parts), done
 end
 
 -- Columns -------------------------------------------------------------------------------------------------------------

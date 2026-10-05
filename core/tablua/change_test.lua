@@ -65,4 +65,22 @@ spec.test("the columns of each unit", function()
   spec.same({ shape[1].kind, shape[1].name, shape[1].arity, shape[1].depth }, { "step", "I add {int} and {int}", 3, 1 })
 end)
 
+spec.test("a file is changed by its kind: a module, a step file, a feature, an org page", function()
+  spec.eq(assert(change.file("code/sums.lua", CODE, "%% rename sum plus\n")),
+    "local M = {}\n\nlocal function plus(a, b) return a + b end\n\nreturn M\n")
+  local steps = assert(change.file("code/steps/sums.lua", STEPS, "%% add I see {string}\n"
+    .. 'test.step("I see {string}", function(w, s) end)\n'))
+  spec.ok(steps:find("I see {string}", 1, true) and steps:find("I add {int}", 1, true))
+  local feature = assert(change.file("features/sums.feature", FEATURE, "%% scenario Zero\n  Scenario: Zero\n    When I add 0 and 0\n"))
+  spec.ok(feature:find("Scenario: Zero", 1, true) and feature:find("Scenario: Adding", 1, true))
+  local new = assert(change.file("code/new.lua", nil, "%% add M\nlocal M = {}\n"))
+  spec.eq(new, "local M = {}\n")
+  local org = src.compile(src.from_files{ code = CODE })
+  local page, done = change.file("ui/sums.org", org, "%% delete sum\n")
+  spec.ok(page and not page:find("local function sum", 1, true))
+  spec.same({ done.ops[1].op, done.ops[1].breaks }, { "delete", 0 })
+  spec.eq(select(2, change.file("notes.txt", "x", "%% delete x\n")), "a change is to a .feature, a .lua file or an org page: notes.txt")
+  spec.eq(select(2, change.file("ui/none.org", nil, "%% delete x\n")), "ui/none.org does not exist yet: write the page whole")
+end)
+
 spec.run()
