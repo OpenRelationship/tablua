@@ -1,0 +1,9 @@
+// docs.tablua.com: the built docs (docs/dist/) served as a Worker's static assets. `bun run docs:deploy` builds
+// and deploys. Every page is a folder with its index.html; anything else answers with 404.html.
+{
+  "name": "tablua-docs",
+  "account_id": "6d4b74aeb10f455fbf88141901e7595d",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "./dist", "html_handling": "drop-trailing-slash", "not_found_handling": "404-page" },
+  "routes": [{ "pattern": "docs.tablua.com", "custom_domain": true }]
+}
