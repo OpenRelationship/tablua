@@ -8,7 +8,8 @@
 --
 --   local agent = require("agent")
 --   local a = agent.new(env, world)           env = { name?, jev, mercury, learn?, memory?, trace?, log?, refused?,
---                                               stepping?, decided? }   (or agent.mix(A) for a world's own methods)
+--                                               stepping?, decided?, rank?, explore?, random? }
+--                                               (or agent.mix(A) for a world's own methods)
 --   local req = a:begin(text)                 a request in the person's words
 --   a:step(req)    -> { "act", step } | { "done", why? }       Jev decides the next verb
 --   a:perform(req, step) -> nil (the step is over) | { "ask", form } | { "wait", what } | { "done", said }
@@ -22,8 +23,9 @@
 -- waits on the world, { "done", said } to end the request), and optionally questions(a, req) and
 -- answered(a, req, answers) (more questions in Jev's same call), after(a, req, step) and judged(a, req, label)
 -- (checkpoint.lua).
--- env.decided(req, verb, answer, how), when given, hears every decision: Jev's answer with its probabilities, and
--- how it was settled ("jev", or "arbiter" when the close call went to Mercury).
+-- env.decided(req, verb, answer, how, propensity), when given, hears every decision: Jev's answer with its
+-- probabilities, how it was settled ("jev"; "arbiter" when the close call went to Mercury; "tabpfn" in rank mode;
+-- "explore", A:explore) and the chance the step had of taking that move.
 local history = require("agent.history")
 local parts = require("agent.parts")
 local checkpoint = require("agent.checkpoint")
@@ -83,22 +85,42 @@ function A:decide(req)
     p = tonumber(p)
     if v ~= n.choice and p and p > p2 then second, p2 = v, p end
   end
+  local pick, how = n.choice, "jev"
   if second and req.sure and req.sure.p - p2 < M.close and self.env.mercury and w.arbiter then
-    local okm, pick = pcall(self.env.mercury.chat, self.env.mercury, w.arbiter(self, req, n.choice, second))
-    pick = okm and tostring(pick):lower():match("[%a_]+")
-    if pick == second then
-      if self.env.decided then self.env.decided(req, second, n, "arbiter") end
-      return second
-    end
+    local okm, said = pcall(self.env.mercury.chat, self.env.mercury, w.arbiter(self, req, n.choice, second))
+    said = okm and tostring(said):lower():match("[%a_]+")
+    if said == second then pick, how = second, "arbiter" end
   end
   -- rank mode: TabPFN's best allowed move takes the step when it clearly beats Jev's pick and Jev was not sure
-  local over = self:overrule(req, n.choice, n.probabilities)
-  if over then
-    if self.env.decided then self.env.decided(req, over, n, "tabpfn") end
-    return over
+  local over = how == "jev" and self:overrule(req, n.choice, n.probabilities)
+  if over then pick, how = over, "tabpfn" end
+  -- now and then a move the policy would not take, so what it avoids can be measured too
+  local tried, propensity = self:explore(req, pick, questions.next)
+  if tried then pick, how = tried, "explore" end
+  req.explored, req.propensity = tried ~= nil, propensity
+  if self.env.decided then self.env.decided(req, pick, n, how, propensity) end
+  return pick
+end
+
+-- Exploration (env.explore, a rate such as 0.05; env.random, math.random by default): with that chance a step takes,
+-- uniformly, one of the moves offered or held back by a gate the world lets be tried (req.held), other than the
+-- policy's pick, so a move's effect can be estimated where the policy never takes it. Never when the pick stops the
+-- work or hands it on, and never one of those moves (M.jev_only). Gives the move or nil, and the chance the step
+-- had of taking what it took: 1 - rate for the policy's pick, rate / #moves for an explored one, 1 with nothing to try.
+function A:explore(req, pick, question)
+  local rate = tonumber(self.env.explore) or 0
+  if rate <= 0 or M.jev_only[pick] then return nil, 1 end
+  local pool, seen = {}, { [pick] = true }
+  local function add(name)
+    if not seen[name] and not M.jev_only[name] then seen[name], pool[#pool + 1] = true, name end
   end
-  if self.env.decided then self.env.decided(req, n.choice, n, "jev") end
-  return n.choice
+  for name in pairs(question and question.options or {}) do add(name) end
+  for _, name in ipairs(req.held or {}) do add(name) end
+  if #pool == 0 then return nil, 1 end
+  table.sort(pool)
+  local random = self.env.random or math.random
+  if random() >= rate then return nil, 1 - rate end
+  return pool[math.min(math.floor(random() * #pool) + 1, #pool)], rate / #pool
 end
 
 M.margin, M.jev_sure = 0.15, 0.9   -- TabPFN's lead over Jev's pick, and Jev's sureness above which it is kept

@@ -105,6 +105,37 @@ spec.test("in rank mode TabPFN's best allowed move takes the step only on a clea
   spec.eq(a:overrule(req(0.6, true), "rewrite"), nil)        -- rank mode off
 end)
 
+spec.test("exploration takes another allowed or held move now and then, with the chance it had", function()
+  local rolls
+  local a = agent.new({ jev = jev({}), mercury = mercury({}), explore = 0.1,
+    random = function() return table.remove(rolls, 1) end }, world({}))
+  local q = { options = { run = "r", think = "t", publish = "p" } }
+  rolls = { 0.5 }
+  local m, p = a:explore({}, "run", q)
+  spec.same({ m, p }, { nil, 0.9 })
+  -- held moves count; the pick and the moves that stop or hand on the work never do
+  rolls = { 0.05, 0.99 }
+  m, p = a:explore({ held = { "fix_failure" } }, "run", q)
+  spec.same({ m, p }, { "think", 0.05 })
+  rolls = { 0.05, 0.0 }
+  spec.same({ a:explore({ held = { "fix_failure" } }, "run", q) }, { "fix_failure", 0.05 })
+  spec.same({ a:explore({}, "publish", q) }, { nil, 1 })
+  a.env.explore = nil
+  spec.same({ a:explore({ held = { "fix_failure" } }, "run", q) }, { nil, 1 })
+end)
+
+spec.test("an explored step is heard as explore, with its propensity", function()
+  local heard = {}
+  local a = agent.new({ jev = jev({ choice("run", { run = 0.9, answer = 0.1 }) }), mercury = mercury({}), explore = 1,
+    random = function() return 0 end,
+    decided = function(req, verb, _, how, p) heard[#heard + 1] = { verb, how, p, req.explored } end }, world({}))
+  a.world.question = function()
+    return { kind = "choice", text = "What next?", options = { run = "Run.", look = "Look.", answer = "Done." } }
+  end
+  a:step(a:begin("x"))
+  spec.same(heard[1], { "look", "explore", 1, true })
+end)
+
 -- a plants run (2026-10-05): TabPFN rated blocked 0.45, tied with four moves and first by name, and took it twice,
 -- ending a run Jev gave blocked 0.01
 spec.test("TabPFN never takes a move that stops the work, and Jev breaks its ties", function()
