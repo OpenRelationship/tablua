@@ -731,6 +731,28 @@ defmodule Moss.ComputerAgentTest do
     assert out == "building/false ready/true"
   end
 
+  # a circular-buffer run went 6, 4, 6 of 10 through a hundred rewrites, each climb back starting the stall count
+  # again (2026-10-05): a step is measured against the most that ever passed, not the step before
+  test "climbing back to what passed before is not moving on" do
+    counts =
+      Lua.eval!(Moss.Lua.base(), """
+      local facts = require("moss.world")
+      local function at(passed, why)
+        return { features = { { path = "features/a.feature", stage = "agreed" } }, pages = {}, empty_steps = 0,
+          tests = { passed = passed, total = 10, failing = { why }, undefined = {} } }
+      end
+      local req, out = { steps = {} }, {}
+      local seq = { at(1, "a"), at(6, "b"), at(4, "c"), at(6, "d"), at(4, "e"), at(6, "f"), at(7, "g") }
+      for i = 2, #seq do facts.after(req, seq[i - 1], seq[i]); out[#out + 1] = req.repeats end
+      return table.concat(out, " ")
+      """)
+      |> elem(0)
+      |> hd()
+
+    # up to 6 moves on; down to 4 and back to 6, twice, stalls; past 6 at last moves on
+    assert counts == "0 1 2 3 4 0"
+  end
+
   # M6c: what is broken in the program reaches both minds before a test does (a rows run rewrote a page five times,
   # its call to plants.list() never defined in code/plants.lua)
   test "a break in the program is named in the facts, with the side to fix" do

@@ -111,7 +111,15 @@ function M.after(req, before, f)
   -- a stall: something failed before and fails after, and no more scenarios pass. The same failure's words are one;
   -- a failure reworded is another (a pantry run's 26 fixes each changed the message a little, so the count kept
   -- starting again and fixing was never taken away)
-  local stalled = now ~= "" and was ~= "" and (now == was or (t ~= nil and t0 ~= nil and t.passed <= t0.passed))
+  -- and a step is measured against the most that ever passed of the same scenarios, not the step before: going back
+  -- up to it is not moving on (a circular-buffer run went 6, 4, 6 of 10 through a hundred rewrites, each climb back
+  -- starting the count again, and no gate that ends a loop came into force, 2026-10-05)
+  local best = t and req.best and req.best.total == t.total and req.best.passed or nil
+  local stalled = now ~= "" and was ~= "" and (now == was or (t ~= nil and t0 ~= nil and t.passed <= t0.passed)
+    or (best ~= nil and t.passed <= best))
+  if t and t.total > 0 and (not req.best or req.best.total ~= t.total or t.passed > req.best.passed) then
+    req.best = { passed = t.passed, total = t.total }
+  end
   -- with nothing failing, a step that left the stage where it was, for the same reason, stalled too: a green app
   -- short of ready (a packing run read the help seven times, every scenario passing, then blocked) or ready and
   -- not published moved nothing on, and without counting it no gate that ends a loop ever came into force
