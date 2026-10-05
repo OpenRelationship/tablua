@@ -105,6 +105,20 @@ spec.test("in rank mode TabPFN's best allowed move takes the step only on a clea
   spec.eq(a:overrule(req(0.6, true), "rewrite"), nil)        -- rank mode off
 end)
 
+-- a plants run (2026-10-05): TabPFN rated blocked 0.45, tied with four moves and first by name, and took it twice,
+-- ending a run Jev gave blocked 0.01
+spec.test("TabPFN never takes a move that stops the work, and Jev breaks its ties", function()
+  local a = agent.new({ jev = jev({}), mercury = mercury({}), rank = true }, world({}))
+  local ranking = { { name = "blocked", p = 0.45 }, { name = "look_at_app", p = 0.45 }, { name = "run_check", p = 0.45 },
+    { name = "run_test", p = 0.44 }, { name = "rewrite", p = 0.01 } }
+  local req = { ranking = ranking, ranked_all = true, sure = { p = 0.62 } }
+  local jev_p = { blocked = 0.01, look_at_app = 0.05, run_check = 0.06, run_test = 0.01, rewrite = 0.62 }
+  spec.eq(a:overrule(req, "rewrite", jev_p), "run_check")
+  -- and with only a stopping move ahead, Jev's pick stands
+  req.ranking = { { name = "publish", p = 0.9 }, { name = "rewrite", p = 0.1 } }
+  spec.eq(a:overrule(req, "rewrite", jev_p), nil)
+end)
+
 spec.test("without Jev there is no step: the request is answered", function()
   local a = agent.new({ mercury = mercury({}) }, world({}))
   spec.eq(a:step(a:begin("x"))[1], "done")

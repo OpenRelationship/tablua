@@ -93,7 +93,7 @@ function A:decide(req)
     end
   end
   -- rank mode: TabPFN's best allowed move takes the step when it clearly beats Jev's pick and Jev was not sure
-  local over = self:overrule(req, n.choice)
+  local over = self:overrule(req, n.choice, n.probabilities)
   if over then
     if self.env.decided then self.env.decided(req, over, n, "tabpfn") end
     return over
@@ -103,13 +103,25 @@ function A:decide(req)
 end
 
 M.margin, M.jev_sure = 0.15, 0.9   -- TabPFN's lead over Jev's pick, and Jev's sureness above which it is kept
+M.tie = 0.02                     -- TabPFN's chances this close are a tie, which Jev's probabilities break
+-- the moves that stop the work or hand it on are Jev's alone: TabPFN once took blocked twice, tied at 0.45 with four
+-- moves and first by name, and ended a run Jev gave blocked 0.01 (2026-10-05)
+M.jev_only = { blocked = true, publish = true, answer_task = true, answer = true, wait_for_agreement = true,
+  wait_for_yes = true }
 
 -- The move to take in Jev's place, or nil: only with env.rank, a ranking of the allowed moves (checkpoint.lua), and
--- TabPFN's best ahead of Jev's pick by M.margin while Jev gave its pick less than M.jev_sure.
-function A:overrule(req, choice)
+-- TabPFN's best ahead of Jev's pick by M.margin while Jev gave its pick less than M.jev_sure. Its best is never one of
+-- M.jev_only, and among moves it rates within M.tie of each other the one Jev gave most.
+function A:overrule(req, choice, jev)
   if not self.env.rank or not req.ranking or not req.ranked_all then return nil end
-  local best, mine = req.ranking[1], nil
-  for _, r in ipairs(req.ranking) do if r.name == choice then mine = r end end
+  local best, mine = nil, nil
+  local function jp(r) return tonumber((jev or {})[r.name]) or 0 end
+  for _, r in ipairs(req.ranking) do
+    if r.name == choice then mine = r end
+    if not M.jev_only[r.name] then
+      if not best or r.p > best.p + M.tie or (r.p >= best.p - M.tie and jp(r) > jp(best)) then best = r end
+    end
+  end
   if not best or not mine or best.name == choice then return nil end
   if req.sure and req.sure.p >= M.jev_sure then return nil end
   if best.p - mine.p < M.margin then return nil end
