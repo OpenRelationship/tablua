@@ -21,6 +21,7 @@ export function Nav() {
           <a className="opt" href="#how">How it works</a>
           <a className="opt" href="#learning">Learning</a>
           <a className="opt" href="#computer">Computer</a>
+          <a className="opt" href="https://docs.tablua.com">Docs</a>
           <a className="btn btn-quiet btn-sm" href={REPO}>
             <GitHub /> GitHub
           </a>

@@ -9,9 +9,12 @@
   <img alt="TabPFN" src="https://img.shields.io/badge/TabPFN-3.5-2152e8">
   <img alt="Elixir" src="https://img.shields.io/badge/Elixir-BEAM-2152e8?logo=elixir&logoColor=white">
   <a href="https://tablua.com"><img alt="tablua.com" src="https://img.shields.io/badge/site-tablua.com-0c0e13"></a>
+  <a href="https://docs.tablua.com"><img alt="docs.tablua.com" src="https://img.shields.io/badge/docs-docs.tablua.com-0c0e13"></a>
 </p>
 
 # Tablua
+
+> New here? Start with the docs: **[docs.tablua.com](https://docs.tablua.com)**.
 
 **The continual tabular agent harness.** Tablua writes everything an agent does as typed rows in one SQLite file:
 where the work stands, every move it could make and what each model said about it, the move it took and who
