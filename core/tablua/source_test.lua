@@ -1,6 +1,6 @@
 -- Unit cases for the program as rows (M6a): a page decoded into sections, units and scenarios, compiled
 -- to org, and the org decoded back to the same rows.
-local spec = require("mono.spec")
+local spec = require("spec")
 local src = require("tablua.source")
 
 local PAGE = [[

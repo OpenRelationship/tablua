@@ -1,6 +1,6 @@
 -- Unit cases for agent/checkpoint.lua: a step's outcome to memory and to the world, TabPFN asked only once Jev is
 -- stuck, and Jev's judgement of a finished request.
-local spec = require("mono.spec")
+local spec = require("spec")
 local checkpoint = require("agent.checkpoint")
 
 local function agent(opts)

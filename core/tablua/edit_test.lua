@@ -1,6 +1,6 @@
 -- Unit cases for tablua.edit: one unit replaced or added by name, in a plain Lua file and in an org page, the rest
 -- of the file as it was; a unit that does not compile, or a page that does not exist yet, refused with why.
-local spec = require("mono.spec")
+local spec = require("spec")
 local edit = require("tablua.edit")
 
 local PAGE = table.concat({ "* Code", "#+begin_src lua", 'local d = db.open("data/x.dbl")', "",

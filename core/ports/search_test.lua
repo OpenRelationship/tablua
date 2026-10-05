@@ -1,6 +1,6 @@
 -- Unit cases for the search port with a fake fetch: a search and a page read go to Parallel's paths with the key in
 -- x-api-key (or as a Bearer token for a service that proxies it), and their results come back in one shape.
-local spec = require("mono.spec")
+local spec = require("spec")
 local search = require("ports.search")
 local json = require("ports.json")
 

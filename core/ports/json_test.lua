@@ -1,5 +1,5 @@
 -- Unit cases for ports.json and the call's retry rule.
-local spec = require("mono.spec")
+local spec = require("spec")
 local json = require("ports.json")
 local call = require("ports.call")
 

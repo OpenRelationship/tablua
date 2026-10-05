@@ -11,5 +11,8 @@ it reaches the world through; nothing here names one.
   through the ports the host supplies. No WebAssembly, no native code.
 - `site/` is tablua.com, the one place TypeScript, React and Node tooling are allowed (owner, 2026-10-04). Nothing
   the harness runs reaches it.
+- Tests: `luajit test/run.lua` runs every `core/**/*_test.lua` in its own process (`luajit test/run.lua tree edit`
+  runs the files whose path holds one of the words; `TABLUA_LUA=lua` runs them on another VM, where the tests that open
+  SQLite through LuaJIT's FFI fail). The test library is `test/spec.lua`: `test`, `eq`, `ok`, `same`, `err`, `run`.
 - Files stay under 400 lines, split by responsibility. No placeholder modules.
 - Keys and tokens (model keys, page tokens) are never logged, printed or written to files.

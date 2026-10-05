@@ -1,5 +1,5 @@
 -- Unit cases for agent/calibrate.lua: Jev's sureness set beside how steps turned out.
-local spec = require("mono.spec")
+local spec = require("spec")
 local calibrate = require("agent.calibrate")
 
 spec.test("bands, Brier and the calibration error, with a no left out", function()

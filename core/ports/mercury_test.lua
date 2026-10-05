@@ -1,6 +1,6 @@
 -- Unit cases for ports.mercury with a fake fetch: chat's request as Inception reads it, its tool calls in the
 -- record, and the temperature floor Mercury honours.
-local spec = require("mono.spec")
+local spec = require("spec")
 local mercury = require("ports.mercury")
 local json = require("ports.json")
 

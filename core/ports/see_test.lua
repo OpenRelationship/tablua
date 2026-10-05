@@ -1,7 +1,7 @@
 -- Unit cases for the vision port with a fake fetch: the request carries the
 -- frame and the text, and the reply comes back with its cost; the key never
 -- reaches the record.
-local spec = require("mono.spec")
+local spec = require("spec")
 local see = require("ports.see")
 local json = require("ports.json")
 

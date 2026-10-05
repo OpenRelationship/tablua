@@ -1,7 +1,7 @@
 -- Unit cases for tablua.change: parsing a change block, its operations applied all or nothing with their reverse,
 -- a step and a scenario changed, and the refusals named by operation.
 -- The rest is covered where a host binds the change block to its agent.
-local spec = require("mono.spec")
+local spec = require("spec")
 local src = require("tablua.source")
 local change = require("tablua.change")
 

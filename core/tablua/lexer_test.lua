@@ -1,6 +1,6 @@
 -- Unit cases for tablua.lexer: tokens that give the text back, a unit's columns, the names it uses, and a rename
 -- that reaches references and never strings, comments or fields.
-local spec = require("mono.spec")
+local spec = require("spec")
 local lexer = require("tablua.lexer")
 
 local SRC = 'function post.add(form) return sum(form.a, form.b), "sum" end -- sum\nlocal x = 1e-3 .. [[sum]] .. t.sum\n'

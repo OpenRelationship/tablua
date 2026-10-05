@@ -1,5 +1,5 @@
 -- Unit cases for ports.stream: server-sent chat events read as they arrive.
-local spec = require("mono.spec")
+local spec = require("spec")
 local stream = require("ports.stream")
 
 local function event(text) return 'data: {"choices":[{"delta":{"content":"' .. text .. '"}}]}\n\n' end

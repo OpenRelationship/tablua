@@ -1,6 +1,6 @@
 -- Unit cases for the Jev port against a fake host: answers by question kind, and an optional question (a feature
 -- asked beside the decision) that may go unanswered without failing the decision.
-local spec = require("mono.spec")
+local spec = require("spec")
 local json = require("ports.json")
 local jev = require("ports.jev")
 

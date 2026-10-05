@@ -1,6 +1,6 @@
 -- Unit cases for tablua.tree: a page's nested calls cut into elements with paths, its tables' items, and an item
 -- put in and taken out byte for byte. The change block's operations on them are in element_test.
-local spec = require("mono.spec")
+local spec = require("spec")
 local tree = require("tablua.tree")
 
 local PAGE = 'local ui = require("ui")\nreturn ui.page{\n  title = "T",\n  ui.p"one", ui.p("two"),\n'

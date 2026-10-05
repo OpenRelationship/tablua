@@ -1,6 +1,6 @@
 -- Unit cases for agent/learn.lua: TabPFN ranks options from past outcomes, Tablua's rows, once there are enough,
 -- and says why not when there are not.
-local spec = require("mono.spec")
+local spec = require("spec")
 local learn = require("agent.learn")
 local tablua = require("tablua")
 local sqlite = require("ports.sqlite")

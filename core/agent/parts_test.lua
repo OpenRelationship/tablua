@@ -1,6 +1,6 @@
 -- Unit cases for agent/parts.lua: Mercury splits a long request into goals, every prompt shows each part as done,
 -- now or to do, and Jev is offered plan until there are parts, next_part while one is under way, and neither after.
-local spec = require("mono.spec")
+local spec = require("spec")
 local parts = require("agent.parts")
 
 -- an agent whose Mercury gives `reply`, keeping the rows it writes

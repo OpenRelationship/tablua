@@ -1,6 +1,6 @@
 -- Unit cases for agent/clip.lua: a long text keeps its start and end, says how much it left out, and never cuts a
 -- UTF-8 character in two.
-local spec = require("mono.spec")
+local spec = require("spec")
 local clip = require("agent.clip")
 
 spec.test("a short text is kept whole", function()

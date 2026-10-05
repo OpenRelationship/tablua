@@ -1,6 +1,6 @@
 -- Unit cases for tablua.effects: a step's effects, from snapshots before and after it, in the harness's closed
 -- vocabulary; Gherkin lines by the page's own step shapes; a step's commands from its lines.
-local spec = require("mono.spec")
+local spec = require("spec")
 local effects = require("tablua.effects")
 
 local function has(list, keyword, arg)

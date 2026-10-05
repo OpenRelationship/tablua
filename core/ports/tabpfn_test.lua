@@ -1,6 +1,6 @@
 -- Unit cases for the CSV the TabPFN port uploads, and its calls against a fake host: regression, quantiles, limits
 -- and the estimate's ensemble size.
-local spec = require("mono.spec")
+local spec = require("spec")
 local json = require("ports.json")
 local tabpfn = require("ports.tabpfn")
 

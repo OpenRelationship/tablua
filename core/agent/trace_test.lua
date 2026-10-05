@@ -1,5 +1,5 @@
 -- Unit cases for agent/trace.lua: every turn and every port call as rows, in a store a day.
-local spec = require("mono.spec")
+local spec = require("spec")
 local trace = require("agent.trace")
 
 local function stores()

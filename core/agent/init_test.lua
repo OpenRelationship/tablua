@@ -1,6 +1,6 @@
 -- Unit cases for the harness (agent/init.lua): Jev decides every step, a close call goes to Mercury, the agent's own
 -- verbs run here and a tool verb in the world, and the loop is a state machine a host drives with no coroutine.
-local spec = require("mono.spec")
+local spec = require("spec")
 local agent = require("agent")
 
 -- Jev answers from a script of choices, each with its probabilities; it keeps every state and question it was given.

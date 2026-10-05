@@ -1,6 +1,6 @@
 -- Unit cases for tablua.control: the controls a step chose among, learned from as TabPFN's "control" head, and
 -- how logged predictions have done.
-local spec = require("mono.spec")
+local spec = require("spec")
 local tablua = require("tablua")
 local sqlite = require("ports.sqlite")
 

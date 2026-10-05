@@ -1,6 +1,6 @@
 -- Unit cases for agent/history.lua: the one conversation Jev and Mercury both read, in order, with Jev's copy cut
 -- to what bears on the choice and a talked-over answer kept as far as it was heard.
-local spec = require("mono.spec")
+local spec = require("spec")
 local history = require("agent.history")
 
 spec.test("turns and steps read back in order", function()

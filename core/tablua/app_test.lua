@@ -1,6 +1,6 @@
 -- Unit cases for tablua.app: an app's files put as the program's rows while the agent works, and what is broken in
 -- them read back (tablua_break), a call into the app's own module that the module does not define among them.
-local spec = require("mono.spec")
+local spec = require("spec")
 local tablua = require("tablua")
 local sqlite = require("ports.sqlite")
 

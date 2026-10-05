@@ -1,7 +1,7 @@
 -- Unit cases for tablua.element: a change block's operations on a page's elements, through tablua.change, each
 -- with its reverse, and the refusals named by operation. The spec's scenarios are in
 -- context/projects/arock/features/change-blocks (page-elements).
-local spec = require("mono.spec")
+local spec = require("spec")
 local change = require("tablua.change")
 
 local PAGE = 'local ui = require("ui")\nreturn ui.page{\n  ui.form{ post = "add", ui.input{ name = "n" } },\n'

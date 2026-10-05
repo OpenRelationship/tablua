@@ -1,6 +1,6 @@
 -- Unit cases for tablua: typed rows in a real SQLite file (ports.sqlite, the LuaJIT host's port), progress worked out from the
 -- rows, and TabPFN's training rows read back by a query, shared files included.
-local spec = require("mono.spec")
+local spec = require("spec")
 local tablua = require("tablua")
 local sqlite = require("ports.sqlite")
 

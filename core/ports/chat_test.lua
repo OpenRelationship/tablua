@@ -1,6 +1,6 @@
 -- Unit cases for the chat port with a fake fetch: OpenRouter asks for its usage and cost; Cerebras gets the
 -- reasoning effort as asked and no usage field, and its cost comes from its listed prices.
-local spec = require("mono.spec")
+local spec = require("spec")
 local chat = require("ports.chat")
 local json = require("ports.json")
 
