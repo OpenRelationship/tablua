@@ -95,6 +95,18 @@ spec.test("the tests are their head, then each test and user keyword with its ca
   spec.same(src.calls(t.items[3])[1], { path = "1", keyword = "Type", args = { "title", "${title}" } })
 end)
 
+spec.test("a task is an item of its own kind, a ** Task: heading, and comes back from org byte for byte", function()
+  local tests = "*** Test Cases ***\nChecks\n    See    a\n\n*** Tasks ***\nFile Receipts\n    Open    /receipts\n"
+    .. "    Press    File\n"
+  local rows = src.from_files{ tests = tests }
+  local org = src.compile(rows)
+  spec.ok(org:find("\n%*%* Task: File Receipts\n"), org)
+  local back = section(assert(src.decode(org)), "tests")
+  spec.same({ back.items[2].kind, back.items[2].name }, { "task", "File Receipts" })
+  spec.eq(src.body(back), tests)
+  spec.same(src.calls(back.items[2])[2], { path = "2", keyword = "Press", args = { "File" } })
+end)
+
 spec.test("calls inside FOR and IF are found one level down, setup and teardown by s and t", function()
   local _, items = src.tests("*** Test Cases ***\nLoop\n    [Setup]    Open    /\n    FOR    ${x}    IN    a    b\n"
     .. "        Add Note    ${x}\n    END\n    IF    1 > 0\n        See    a\n    ELSE\n        Fail    no\n    END\n")

@@ -1,6 +1,7 @@
--- The change block's operations on the tests (tablua.change): a test or a user keyword of the tests section, by
--- name, added, replaced or removed (%% test, %% keyword), with each run of a kind under its own header.
---   require("tablua.change_tests")(DO, { recut, op_line })   adds DO.test and DO.keyword
+-- The change block's operations on the tests (tablua.change): a test, a task or a user keyword of the tests
+-- section, by name, added, replaced or removed (%% test, %% task, %% keyword), with each run of a kind under its own
+-- header. A new one goes after the last of its kind; the first of a kind goes in the order tests, tasks, keywords.
+--   require("tablua.change_tests")(DO, { recut, op_line })   adds DO.test, DO.task and DO.keyword
 local src = require("tablua.source")
 
 return function(DO, h)
@@ -8,7 +9,8 @@ return function(DO, h)
 
   -- Tests and user keywords: one item of the tests section, by name -------------------------------------------------
 
-  local HEADER = { test = "*** Test Cases ***\n", keyword = "*** Keywords ***\n" }
+  local HEADER = { test = "*** Test Cases ***\n", task = "*** Tasks ***\n", keyword = "*** Keywords ***\n" }
+  local ORDER = { test = 1, task = 2, keyword = 3 }
 
   -- the section's items with their headers made again: one before the first item of each run of a kind, and none
   -- left in the head, so moving or removing an item never strands a header or leaves one out
@@ -64,13 +66,13 @@ return function(DO, h)
         if op.first then at = 1
         elseif op.after then
           for i, it in ipairs(s.items) do if it.name == op.after then at = i + 1 end end
-          if not at then return nil, ("operation %d names no test or keyword %q"):format(op.n, op.after) end
+          if not at then return nil, ("operation %d names no test, task or keyword %q"):format(op.n, op.after) end
         else
-          -- after the last of its kind; a first test before every keyword, a first keyword at the end
+          -- after the last of its kind; the first of a kind before every item of a kind that comes after it
           for i, it in ipairs(s.items) do if it.kind == kind then at = i + 1 end end
           if not at then
             at = #s.items + 1
-            if kind == "test" then for i, it in ipairs(s.items) do if it.kind == "keyword" then at = i break end end end
+            for i, it in ipairs(s.items) do if ORDER[it.kind] > ORDER[kind] then at = i break end end
           end
         end
         table.insert(s.items, at, new)
@@ -84,5 +86,6 @@ return function(DO, h)
 
 
   DO.test = item_op("test")
+  DO.task = item_op("task")
   DO.keyword = item_op("keyword")
 end

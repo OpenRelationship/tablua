@@ -20,7 +20,7 @@ spec.test("a change block parses into numbered operations with their bodies", fu
   spec.ok(ops[3].first and ops[3].body == "")
   spec.eq(select(2, change.parse("local x = 1\n")), "a change starts with an operation: a line beginning %% and its verb")
   spec.eq(select(2, change.parse("%% shove x\n")),
-    'operation 1: there is no "shove" (add, replace, delete, rename, test, keyword; a page\'s set, put, drop, move, wrap, unwrap)')
+    'operation 1: there is no "shove" (add, replace, delete, rename, test, task, keyword; a page\'s set, put, drop, move, wrap, unwrap)')
   spec.eq(select(2, change.parse("%% delete x\nlocal x\n")), "operation 1: delete takes nothing under it")
   spec.eq(select(2, change.parse("%% replace x\n")), "operation 1: replace needs the unit's source under it")
   spec.eq(select(2, change.parse("")), "the change has no operations")
@@ -45,6 +45,16 @@ spec.test("a test and a user keyword are added, replaced and removed by name, he
   spec.same({ done.ops[3].op, done.ops[3].lines }, { "test", -2 })
 end)
 
+spec.test("a task goes after the tests and before the keywords, under its own header, and is removed by name", function()
+  local done = assert(change.apply(rows(), "%% task Sum Two\nSum Two\n    I add 2 and 2\n"))
+  spec.eq(src.body(done.rows.sections[1]), "*** Test Cases ***\nAdding\n    I add 2 and 3\n    See    5\n\n"
+    .. "*** Tasks ***\nSum Two\n    I add 2 and 2\n\n*** Keywords ***\nAdd Twice\n    I add 1 and 1\n    I add 1 and 1\n")
+  spec.same({ done.ops[1].op, done.ops[1].kind, done.ops[1].lines }, { "task", "task", 1 })
+  local back = assert(change.apply(done.rows, done.reverse))
+  spec.eq(src.body(back.rows.sections[1]), TESTS)
+  spec.eq(select(2, change.apply(rows(), "%% task Adding\n")), 'operation 1 names no task "Adding"')
+end)
+
 spec.test("the reverse gives back the program byte for byte", function()
   local before = src.compile(rows())
   local done = assert(change.apply(rows(), "%% replace sum\n-- sums\nlocal function sum(a, b)\n  return a + b\nend\n"
@@ -66,7 +76,7 @@ spec.test("refusals name the operation, and nothing changes", function()
   spec.eq(why("%% add d after nothing\nlocal d\n"), 'operation 1 names no unit "nothing"')
   spec.eq(why("%% test Gone\n"), 'operation 1 names no test "Gone"')
   spec.eq(why("%% test Other\nDifferent\n    Log    x\n"), 'operation 1: its text should be the one test "Other"')
-  spec.eq(why("%% test Zero after Nowhere\nZero\n    Log    x\n"), 'operation 1 names no test or keyword "Nowhere"')
+  spec.eq(why("%% test Zero after Nowhere\nZero\n    Log    x\n"), 'operation 1 names no test, task or keyword "Nowhere"')
   spec.ok(why("%% delete sum\n%% add x\nlocal x = sum(1, 2) +\n"):find("^operation 2 does not compile"))
   spec.eq(src.compile(r), before)
 end)

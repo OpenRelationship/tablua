@@ -183,4 +183,65 @@ spec.test("is_builtin knows BuiltIn's names, with or without a Given in front", 
   spec.ok(not robot.is_builtin("Add Plant"))
 end)
 
+spec.test("tasks run only with rpa, the tests only without it, and a task's row is type task", function()
+  local text = [[
+*** Test Cases ***
+Checks
+    Open App
+
+*** Tasks ***
+Plant Two
+    Open App
+    Add Plant    Fern
+    Add Plant    Ivy
+    The list holds 2 plants
+]]
+  local tests = run(text)
+  spec.same({ tests.total, tests.tests[1].kind }, { 1, "test" })
+  local tasks = run(text, { rpa = true })
+  spec.same({ tasks.total, tasks.passed, tasks.tests[1].name, tasks.tests[1].kind }, { 1, 1, "Plant Two", "task" })
+  spec.eq(robot.rows(tasks)[1].type, "task")
+end)
+
+spec.test("record: a passing test becomes a task that does it again, loops unrolled, values as they ran", function()
+  local text = [[
+*** Variables ***
+@{NAMES}    Fern    Ivy
+
+*** Test Cases ***
+Planting
+    [Setup]    Open App
+    FOR    ${n}    IN    @{NAMES}
+        Add Plant    ${n}
+    END
+    ${all}=    Plants
+    Then the list holds 2 plants
+    Plant One    Moss
+
+*** Keywords ***
+Plant One
+    [Arguments]    ${x}
+    Add Plant    ${x}
+]]
+  local res = run(text)
+  spec.eq(res.status, "PASS", res.tests[1] and res.tests[1].message)
+  local task = robot.record(res.tests[1], "Plant The Usual")
+  spec.eq(task, table.concat({ "*** Tasks ***", "Plant The Usual", "    [Setup]    Open App", "    Add Plant    Fern",
+    "    Add Plant    Ivy", "    Plants", "    Then the list holds 2 plants", "    Plant One    Moss" }, "\n") .. "\n")
+  -- replayed with the suite's keywords, it does the same and passes
+  local again = run(task .. "\n*** Keywords ***\nPlant One\n    [Arguments]    ${x}\n    Add Plant    ${x}\n",
+    { rpa = true })
+  spec.same({ again.passed, again.total }, { 1, 1 })
+  spec.eq(again.tests[1].body[5].children[1].name, "Add Plant")
+end)
+
+spec.test("record refuses a failing test, and a value it cannot write as a cell", function()
+  local failing = run("*** Test Cases ***\nT\n    Break\n")
+  spec.eq(robot.record(failing.tests[1]), nil)
+  local odd = run("*** Test Cases ***\nT\n    Open App\n    Add Plant    ${SPACE}${SPACE}two\n")
+  local text, why = robot.record(odd.tests[1])
+  spec.eq(text, nil)
+  spec.ok(why:find("cannot be written"), why)
+end)
+
 spec.run()

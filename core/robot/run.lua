@@ -5,10 +5,13 @@
 --   local lib = run.library()
 --   lib:add("Add Plant", function(name) ... end)             a keyword in Lua: an error fails it
 --   lib:add('The list holds "${n}" items', function(n) ... end)   embedded arguments in the name
---   run.suite(suite, { libraries = { lib }, clock?, variables?, only? }) -> result
+--   run.suite(suite, { libraries = { lib }, clock?, variables?, only?, rpa? }) -> result
 --     result { status, passed, failed, skipped, total, setup?, teardown?, tests = { test } }
---     test   { name, status, message, ms, tags, line, setup?, teardown?, body = { node } }
---     node   { type, name, args, status, message, ms, line, children = { node }, undefined? }
+--     test   { kind, name, status, message, ms, tags, line, setup?, teardown?, body = { node } }
+--     node   { type, name, called, args, status, message, ms, line, children = { node }, undefined? }
+--       called: the name as the call wrote it, its variables given values (an embedded keyword's name is its pattern)
+--   The suite's tests run; with rpa, its tasks instead (Robot's --rpa): a task is a test that does a job rather than
+--   checks one, in the same language, run the same way, its tree kept the same way.
 --       type: keyword | for | iteration | if | branch | return; status: PASS | FAIL | SKIP | NOT RUN
 --
 -- A keyword is found among the suite's own keywords, then the libraries, then BuiltIn (robot.builtin), by name
@@ -122,7 +125,7 @@ local exec_body
 
 -- runs one keyword by name with argument values; its node is a child of the current one
 function Ctx:call(name, args, line)
-  local node = { type = "keyword", name = name, args = {}, status = "PASS", line = line, children = {} }
+  local node = { type = "keyword", name = name, called = name, args = {}, status = "PASS", line = line, children = {} }
   for i = 1, args.n or #args do node.args[i] = vars.text(args[i]) end
   local parent = self.node
   parent.children[#parent.children + 1] = node
@@ -284,7 +287,7 @@ local function fixture(ctx, f, typ)
 end
 
 local function run_test(ctx, t, settings)
-  local res = { name = t.name, status = "PASS", tags = {}, line = t.line, body = {} }
+  local res = { kind = t.kind or "test", name = t.name, status = "PASS", tags = {}, line = t.line, body = {} }
   for _, x in ipairs(settings.tags or {}) do res.tags[#res.tags + 1] = x end
   for _, x in ipairs(t.tags or {}) do res.tags[#res.tags + 1] = x end
   ctx.test_scope = vars.scope(ctx.suite_scope)
@@ -325,14 +328,14 @@ function M.suite(suite, opts)
     ctx.suite_scope:set(name, type(v) == "table" and vars.args(ctx.scope, v) or vars.value(ctx.scope, v))
   end
   for name, v in pairs(opts.variables or {}) do ctx.suite_scope:set(name, v) end
-  local result = { status = "PASS", passed = 0, failed = 0, skipped = 0, total = 0, tests = {}, logs = ctx.logs }
+  local result = { rpa = opts.rpa or nil, status = "PASS", passed = 0, failed = 0, skipped = 0, total = 0, tests = {}, logs = ctx.logs }
   local setup, ok, err = fixture(ctx, suite.settings.setup, "setup")
   result.setup = setup
-  for _, t in ipairs(suite.tests) do
+  for _, t in ipairs(opts.rpa and (suite.tasks or {}) or suite.tests) do
     if not opts.only or opts.only[t.name] then
       local res
       if ok then res = run_test(ctx, t, suite.settings)
-      else res = { name = t.name, status = "FAIL", message = "Parent suite setup failed: " .. message(err), body = {},
+      else res = { kind = t.kind or "test", name = t.name, status = "FAIL", message = "Parent suite setup failed: " .. message(err), body = {},
         tags = {}, line = t.line, ms = 0 } end
       result.tests[#result.tests + 1] = res
       result.total = result.total + 1

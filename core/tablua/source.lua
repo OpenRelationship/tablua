@@ -4,8 +4,8 @@
 -- not the output's (owner, 2026-10-05). A Lua section is cut into its top-level statements (units: an action, a
 -- function, a local, a keyword, any other statement), each with the blank lines and comments above it; the tests,
 -- in Robot Framework's syntax (core/robot; owner, 2026-10-05: Robot, not Gherkin, since it is the models that read
--- them), into their head (settings, variables) and their items, each test or user keyword, whose calls are kept as
--- rows too; a section in any other language is one unit, its whole text. Every cut falls between lines, so nothing
+-- them), into their head (settings, variables) and their items, each test, task or user keyword, whose calls are
+-- kept as rows too (a task is a test that does a job rather than checks one: Robot's *** Tasks ***); a section in any other language is one unit, its whole text. Every cut falls between lines, so nothing
 -- is lost: compile(decode(org)) is org, byte for byte, for a compiled file, and each section's text comes back whole.
 --
 --   local src = require("tablua.source")
@@ -13,7 +13,7 @@
 --   local org = src.compile(rows)
 --   local rows = src.from_files{ tests = t, keywords = k, code = c, markup = m, notes = n, lang? }
 --   local rows = src.from_lui(text)     -- a .lui page in tagged sections
---   src.tests(text) -> head, items      items { { kind = "test" | "keyword", name, text } }
+--   src.tests(text) -> head, items      items { { kind = "test" | "task" | "keyword", name, text } }
 --   src.calls(item) -> { { path, keyword, args } }   an item's calls, FOR and IF bodies included ("2.1")
 local org = require("tablua.org")
 local robot = require("robot")
@@ -135,9 +135,9 @@ end
 
 -- the calls an item makes, in order, with their place in its body: FOR and IF bodies one level down
 function M.calls(item)
-  local suite = robot.parse(item.kind == "keyword" and ("*** Keywords ***\n" .. item.text:gsub("^%*%*%*[^\n]*\n", ""))
-    or ("*** Test Cases ***\n" .. item.text:gsub("^%*%*%*[^\n]*\n", "")))
-  local it = (suite.tests[1] or suite.keywords[1])
+  local header = ({ keyword = "*** Keywords ***\n", task = "*** Tasks ***\n" })[item.kind] or "*** Test Cases ***\n"
+  local suite = robot.parse(header .. item.text:gsub("^%*%*%*[^\n]*\n", ""))
+  local it = suite.tests[1] or suite.tasks[1] or suite.keywords[1]
   local out = {}
   local function walk(body, prefix)
     for i, x in ipairs(body or {}) do

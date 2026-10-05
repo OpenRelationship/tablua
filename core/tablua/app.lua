@@ -2,7 +2,7 @@
 -- (tablua.source), a page with the app's tests and keywords, each module one of its own, so the harness can put
 -- them (t:put_app) and read what is broken in them (tablua_break) while the agent works, not only after.
 --
---   app.program(files) -> { { name, rows, want }, ... }   files: path -> text (paths ending tests/*.robot,
+--   app.program(files) -> { { name, rows, want }, ... }   files: path -> text (paths ending tests/*.robot, tasks/*.robot,
 --                                                          code/keywords/*.lua, code/*.lua, ui/*.org or ui/*.lui);
 --                                                          want: each section's text, for a round-trip check
 --   t:put_app(files) -> breaks                             every file's rows put, then t:breaks()
@@ -26,7 +26,7 @@ end
 function M.program(files)
   local tests, keywords, modules, pages = {}, {}, {}, {}
   for path, text in pairs(files) do
-    if path:match("tests/.+%.robot$") then tests[#tests + 1] = text
+    if path:match("tests/.+%.robot$") or path:match("tasks/.+%.robot$") then tests[#tests + 1] = text
     elseif path:match("code/keywords/.+%.lua$") then keywords[#keywords + 1] = text
     elseif path:match("code/[^/]+%.lua$") then modules[path] = text
     elseif path:match("ui/.+%.lui$") or path:match("ui/.+%.org$") then pages[path] = text end

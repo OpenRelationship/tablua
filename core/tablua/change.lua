@@ -13,6 +13,7 @@
 --   %% delete <name>
 --   %% rename <old> <new>                    every reference in the file's Lua, never a string or a comment
 --   %% test <name> [after <other> | first]       the test's text (Robot), or none to remove it
+--   %% task <name> [after <other> | first]       a task's text (Robot: a test that does a job), or none to remove it
 --   %% keyword <name> [after <other> | first]    a user keyword's text (Robot), or none to remove it
 --   %% set, put, drop, move, wrap, unwrap ...    a page's elements by path (tablua.element)
 --
@@ -31,8 +32,8 @@ local links = require("tablua.links")
 
 local M = {}
 
-M.verbs = { add = true, replace = true, delete = true, rename = true, test = true, keyword = true }
-local ITEM = { test = true, keyword = true }
+M.verbs = { add = true, replace = true, delete = true, rename = true, test = true, task = true, keyword = true }
+local ITEM = { test = true, task = true, keyword = true }
 for verb in pairs(element.verbs) do M.verbs[verb] = true end
 
 -- Parsing ----------------------------------------------------------------------------------------------------------
@@ -52,7 +53,7 @@ function M.parse(text)
     if verb then
       local n = #ops + 1
       if not M.verbs[verb] then
-        return nil, ("operation %d: there is no %q (add, replace, delete, rename, test, keyword; a page's set, put, drop, move, wrap, unwrap)"):format(n, verb)
+        return nil, ("operation %d: there is no %q (add, replace, delete, rename, test, task, keyword; a page's set, put, drop, move, wrap, unwrap)"):format(n, verb)
       end
       cur = { op = verb, n = n, exact = bang == "!", lines = {} }
       if verb == "add" or ITEM[verb] then place(cur, rest)

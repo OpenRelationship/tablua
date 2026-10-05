@@ -11,7 +11,9 @@
 --   t:decision{ task, n, chosen, by, propensity?, policy? }  the move taken, and by whom (jev, tabpfn, mercury)
 --   t:action{ task, n, i, cmd, file_kind?, op?, target?, bytes?, exit?, duration_ms? }   a call the move made
 --   t:outcome{ task, n, verb, outcome, passed?, total?, regressed?, same_failure?, failing?, note? } -> progress (1|0)
---   t:results(task, n, res, file?) -> summary   a test run's keyword tree (robot.run) as rows of step n (tablua_result)
+--   t:results(task, n, res, file?) -> summary   a test run's keyword tree (robot.run) as rows of step n (tablua_result);
+--                                               a task run's the same (robot.run with rpa)
+--   t:tasks() -> { { file, name, text, runs, passed, fails_at } }   the program's tasks and each one's record
 --   t:run{ task, shipped, answered, works, right?, changed?, steps?, cost? }   how the run ended
 --   t:prediction(task, n, head, move, p)   t:fit(head, schema, id, rows)   t:fitted(head, schema) -> { id, rows } | nil
 --   t:attach(name, path)                   another file's rows (shared experience) read with this one's
@@ -66,6 +68,7 @@ local function now() return os.date("!%Y-%m-%dT%H:%M:%SZ") end
 
 function M.open(db, opts)
   db:exec(schema.ddl)
+  schema.migrate(db)
   db:exec("insert or replace into tablua_meta (key, value) values ('version', ?)", { tostring(schema.version) })
   return setmetatable({ db = db, clock = opts and opts.clock or now, sources = { "main" } }, T)
 end
@@ -162,6 +165,15 @@ function T:results(task, n, res, file)
   end
   db:exec("commit")
   return robot.summary(res)
+end
+
+-- The program's tasks (tablua_test of kind task), in the file's order, each with its record over every run
+-- (tablua_task_record): runs and passed 0 and fails_at "" for one never run. A task that passes is a move to do
+-- again with no model deciding; one that keeps failing at a keyword is that keyword to mend.
+function T:tasks()
+  return self.db:exec("select t.file, t.name, t.text, coalesce(r.runs, 0) as runs, coalesce(r.passed, 0) as passed, "
+    .. "coalesce(r.fails_at, '') as fails_at from tablua_test t left join tablua_task_record r on r.name = t.name "
+    .. "where t.kind = 'task' order by t.file, t.n")
 end
 
 function T:run(r)

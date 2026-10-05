@@ -29,9 +29,15 @@
 -- keyword answers is a break (kind call); the log keeps every keyword each test run ran, as a tree of rows
 -- (tablua_result): what ran, with what, whether it passed, failed or never ran, and why. tablua_scenario and
 -- tablua_line are dropped.
+-- Schema 13 (owner, 2026-10-05): tasks are Tablua's own. A task is a test that does a job rather than checks one
+-- (Robot's *** Tasks ***): tablua_test keeps both, told apart by kind, and its runs are kept in tablua_result as a
+-- test's are, its own row typed task. tablua_task_record is each task's record over every run, by its name (a
+-- task's name is what Robot knows it by): how often it ran and passed, and the keyword it fails at most (the
+-- deepest, when a user keyword fails with the one inside it).
+-- A file kept before it has the kind column added at open (M.migrate).
 local M = {}
 
-M.version = 12
+M.version = 13
 
 M.ddl = [[
 create table if not exists tablua_meta (key text primary key, value text);
@@ -83,7 +89,8 @@ create table if not exists tablua_unit (
 drop table if exists tablua_scenario;
 drop table if exists tablua_line;
 create table if not exists tablua_test (
-  file text not null, n integer not null, name text not null, text text not null, primary key (file, n));
+  file text not null, n integer not null, kind text not null default 'test', name text not null, text text not null,
+  primary key (file, n));
 create table if not exists tablua_keyword (
   file text not null, n integer not null, name text not null, text text not null, primary key (file, n));
 create table if not exists tablua_call (
@@ -95,6 +102,14 @@ create table if not exists tablua_result (
   keyword text not null default '', args text not null default '', status text not null,
   message text not null default '', ms real, line integer,
   primary key (task, n, run, file, test, path));
+drop view if exists tablua_task_record;
+create view if not exists tablua_task_record as select r.test as name, count(*) as runs,
+  sum(r.status = 'PASS') as passed,
+  (select f.keyword from tablua_result f join tablua_result o on o.task = f.task and o.n = f.n and o.run = f.run
+      and o.file = f.file and o.test = f.test and o.path = '' and o.type = 'task'
+    where f.test = r.test and f.type = 'keyword' and f.status = 'FAIL'
+    group by f.keyword order by count(*) desc, max(f.depth) desc, f.keyword limit 1) as fails_at
+  from tablua_result r where r.type = 'task' and r.path = '' group by r.test;
 create table if not exists tablua_label (
   task text not null, n integer not null, head text not null, value real not null, source text not null,
   at text, primary key (task, n, head, source));
@@ -140,5 +155,12 @@ create table if not exists tablua_gate (
   name text primary key, predicate text not null, version integer not null default 1,
   retired_by text);
 ]]
+
+-- what a file kept before this schema needs that create table if not exists does not give it
+function M.migrate(db)
+  local has = false
+  for _, c in ipairs(db:exec("pragma table_info(tablua_test)")) do if c.name == "kind" then has = true end end
+  if not has then db:exec("alter table tablua_test add column kind text not null default 'test'") end
+end
 
 return M

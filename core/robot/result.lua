@@ -5,7 +5,12 @@
 --     path    the failing keyword's place in the tree ("2.1.3": the 2nd call of the test, its 1st, its 3rd)
 --     reach   how many keywords passed in the test before it failed: a test that gets further reaches more
 --   result.rows(res) -> { { test, path, parent, depth, type, keyword, args, status, message, ms, line } }
---     args are joined by tabs; a test's own row has path "" and type "test"
+--     args are joined by tabs; a test's own row has path "" and type "test" (or "task", for a task's)
+--   result.record(test, name?) -> text | nil, why
+--     a passing test's run written as a task (*** Tasks ***): the keywords it called at its top level, in the order
+--     they ran, with the values their arguments had, FOR and IF unrolled into the calls they made. Replayed, the task
+--     does again what worked, with no model deciding. A value Robot would read as more than text (a variable, two
+--     spaces, a tab) cannot be written as a cell, and the test is not recorded.
 local M = {}
 
 local function walk(nodes, prefix, depth, visit)
@@ -58,7 +63,8 @@ end
 function M.rows(res)
   local out = {}
   for _, t in ipairs(res.tests or {}) do
-    out[#out + 1] = { test = t.name, path = "", parent = "", depth = 0, type = "test", keyword = t.name, args = "",
+    out[#out + 1] = { test = t.name, path = "", parent = "", depth = 0, type = t.kind or "test", keyword = t.name,
+      args = "",
       status = t.status, message = t.message or "", ms = t.ms or 0, line = t.line or 0 }
     each(t, function(node, path, parent, depth)
       out[#out + 1] = { test = t.name, path = path, parent = parent, depth = depth, type = node.type,
@@ -67,6 +73,58 @@ function M.rows(res)
     end)
   end
   return out
+end
+
+-- one cell as written, or nil when Robot would read it as more than its text
+local function cell(v)
+  if v == "" then return "${EMPTY}" end
+  if v:find("[%$@&%%]{") or v:find("  ") or v:find("[\t\n\r]") or v:find("\\") or v:match("^#")
+    or v:match("^%.%.%.") or v:match("^%s") or v:match("%s$") then
+    return nil
+  end
+  return v
+end
+
+-- a keyword node as the cells of a call: its name as called, then its arguments' values
+local function call(node)
+  local name = node.called or node.name
+  if not cell(name) then return nil, ("the keyword name %q cannot be written as a cell"):format(name) end
+  local cells = { name }
+  for _, a in ipairs(node.args or {}) do
+    local c = cell(a)
+    if not c then return nil, ("%s's argument %q cannot be written as a cell"):format(name, a) end
+    cells[#cells + 1] = c
+  end
+  return table.concat(cells, "    ")
+end
+
+function M.record(test, name)
+  if test.status ~= "PASS" then return nil, "only a passing test is recorded: " .. test.name .. " " .. test.status end
+  local out = { "*** Tasks ***", name or test.name }
+  local function add(node, lead)
+    local l, why = call(node)
+    if not l then return nil, why end
+    out[#out + 1] = "    " .. (lead and lead .. "    " or "") .. l
+    return true
+  end
+  local function walk(nodes)
+    for _, node in ipairs(nodes or {}) do
+      local ok, why = true, nil
+      if node.type == "keyword" then
+        if node.status == "PASS" then ok, why = add(node) end
+      elseif node.type ~= "return" then
+        ok, why = walk(node.children)
+      end
+      if not ok then return nil, why end
+    end
+    return true
+  end
+  local ok, why = true, nil
+  if test.setup then ok, why = add(test.setup, "[Setup]") end
+  if ok then ok, why = walk(test.body) end
+  if ok and test.teardown then ok, why = add(test.teardown, "[Teardown]") end
+  if not ok then return nil, why end
+  return table.concat(out, "\n") .. "\n"
 end
 
 return M

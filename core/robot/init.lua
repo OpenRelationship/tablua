@@ -5,9 +5,10 @@
 --   local robot = require("robot")
 --   local suite = robot.parse(text)                       robot.parse.cut(text) -> head, items (byte for byte)
 --   local lib = robot.library() ; lib:add(name, fn)
---   local res = robot.run(suite, { libraries = { lib }, clock = os.clock })
+--   local res = robot.run(suite, { libraries = { lib }, clock = os.clock })    rpa = true runs the tasks instead
 --   robot.summary(res) -> { passed, total, undefined, failing = { { test, path, keyword, why, reach } } }
 --   robot.rows(res) -> one row per keyword run
+--   robot.record(test, name?) -> text   a passing test's run written as a task, to do again with no model deciding
 local parse = require("robot.parse")
 local run = require("robot.run")
 local result = require("robot.result")
@@ -21,6 +22,7 @@ M.library = run.library
 M.run = run.suite
 M.summary = result.summary
 M.rows = result.rows
+M.record = result.record
 M.norm = builtin.norm
 M.embedded = run.embedded
 M.captures = run.captures

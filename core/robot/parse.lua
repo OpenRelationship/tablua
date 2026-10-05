@@ -4,25 +4,29 @@
 -- comment. A test or keyword is a line at the left edge, its body the indented lines under it.
 --
 --   local parse = require("robot.parse")
---   parse.suite(text) -> { settings, variables, tests, keywords }
+--   parse.suite(text) -> { settings, variables, tests, tasks, keywords }
 --     settings  { setup, teardown, test_setup, test_teardown, tags, libraries, documentation }
 --     variables { [name] = value | list }                  ${x} as written, @{x} as a list
---     tests     { { name, line, doc, tags, setup, teardown, body } }
+--     tests     { { name, line, doc, tags, setup, teardown, body } }   tasks the same, from *** Tasks ***
 --     keywords  { { name, line, doc, args, returns, teardown, body } }
 --   a body is a list of items:
 --     { kind = "call", keyword, args, assign = { "${x}" }?, line }
 --     { kind = "for", var(s), flavor = "in" | "range", values, body, line }
 --     { kind = "if", branches = { { cond, body } }, otherwise = body?, line }
 --     { kind = "return", values, line }   { kind = "break" | "continue", line }
---   parse.cut(text) -> head, { { kind = "test" | "keyword", name, text } }   head .. every item's text is the text,
+--   parse.cut(text) -> head, { { kind = "test" | "task" | "keyword", name, text } }   head .. every item's text is the text,
 --     byte for byte; a section's header line goes with the item after it
 --   parse.cells(line) -> the line's cells, its indent as an empty first cell
 local M = {}
 
 local SECTIONS = { ["settings"] = "settings", ["setting"] = "settings", ["variables"] = "variables",
-  ["variable"] = "variables", ["test cases"] = "tests", ["test case"] = "tests", ["tasks"] = "tests",
-  ["task"] = "tests", ["keywords"] = "keywords", ["keyword"] = "keywords", ["comments"] = "comments",
+  ["variable"] = "variables", ["test cases"] = "tests", ["test case"] = "tests", ["tasks"] = "tasks",
+  ["task"] = "tasks", ["keywords"] = "keywords", ["keyword"] = "keywords", ["comments"] = "comments",
   ["comment"] = "comments" }
+
+-- the kind of item a section holds
+local ITEM = { tests = "test", tasks = "task", keywords = "keyword" }
+M.item = ITEM
 
 local function trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
 
@@ -159,23 +163,23 @@ local function item(kind, name, list, line)
 end
 
 function M.suite(text)
-  local suite = { settings = { tags = {}, libraries = {} }, variables = {}, tests = {}, keywords = {} }
+  local suite = { settings = { tags = {}, libraries = {} }, variables = {}, tests = {}, tasks = {}, keywords = {} }
+  local into = { test = suite.tests, task = suite.tasks, keyword = suite.keywords }
   local cur, list = nil, nil
   local function close()
     if cur then
-      local it = item(cur.kind, cur.name, list, cur.line)
-      local into = cur.kind == "test" and suite.tests or suite.keywords
-      into[#into + 1] = it
+      local list_ = into[cur.kind]
+      list_[#list_ + 1] = item(cur.kind, cur.name, list, cur.line)
     end
     cur, list = nil, nil
   end
   for _, r in ipairs(rows(text)) do
     if r.header then
       close()
-    elseif r.section == "tests" or r.section == "keywords" then
+    elseif ITEM[r.section] then
       if not r.indented then
         close()
-        cur = { kind = r.section == "tests" and "test" or "keyword", name = r.cells[1], line = r.line }
+        cur = { kind = ITEM[r.section], name = r.cells[1], line = r.line }
         list = {}
         if #r.cells > 1 then list[1] = { cells = rest(r.cells), line = r.line } end
       elseif cur then
@@ -215,8 +219,8 @@ function M.cut(text)
       section = h
       cur = nil
       pending[#pending + 1] = line
-    elseif (section == "tests" or section == "keywords") and line:match("^[^%s#]") and not line:match("^%.%.%.") then
-      cur = { kind = section == "tests" and "test" or "keyword", name = M.cells(line)[1], parts = pending }
+    elseif ITEM[section] and line:match("^[^%s#]") and not line:match("^%.%.%.") then
+      cur = { kind = ITEM[section], name = M.cells(line)[1], parts = pending }
       pending = {}
       cur.parts[#cur.parts + 1] = line
       items[#items + 1] = cur

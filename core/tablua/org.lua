@@ -3,8 +3,8 @@
 -- heading under it, with a drawer for its columns and one source block for its text:
 --
 --   * Notes                 prose (its own headings one level down)
---   * Tests                 #+begin_src robot: the head (settings, variables), then a ** Test: or ** Keyword:
---                           heading per test and user keyword (Robot Framework's syntax, core/robot)
+--   * Tests                 #+begin_src robot: the head (settings, variables), then a ** Test:, ** Task: or
+--                           ** Keyword: heading per test, task and user keyword (Robot Framework's syntax, core/robot)
 --   * Keywords / * Code     a ** heading per unit, :kind: and :name: in its drawer, #+begin_src <lang> (a Lua block
 --                           cut into its top-level statements; a block in another language is one unit)
 --   * Page                  #+begin_src lua (a page as Lua), or lui (a markup page in tagged sections)
@@ -15,6 +15,7 @@
 local M = {}
 
 M.heading = { notes = "Notes", tests = "Tests", keywords = "Keywords", code = "Code", markup = "Page" }
+local ITEM = { test = "Test", task = "Task", keyword = "Keyword" }
 local KIND = {}
 for kind, h in pairs(M.heading) do KIND[h] = kind end
 
@@ -62,7 +63,7 @@ function M.write(sections)
     elseif s.items then
       if s.head ~= "" then out[#out + 1] = block("robot", s.head) end
       for _, it in ipairs(s.items) do
-        out[#out + 1] = "** " .. (it.kind == "keyword" and "Keyword" or "Test") .. ": " .. title(it.name) .. "\n"
+        out[#out + 1] = "** " .. (ITEM[it.kind] or "Test") .. ": " .. title(it.name) .. "\n"
         out[#out + 1] = block("robot", it.text)
       end
     elseif s.kind == "notes" then

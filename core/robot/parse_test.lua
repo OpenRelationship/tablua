@@ -49,7 +49,7 @@ end)
 
 spec.test("headers are read whatever their case and number", function()
   spec.eq(parse.header("*** Test Cases ***"), "tests")
-  spec.eq(parse.header("*** tasks ***"), "tests")
+  spec.eq(parse.header("*** tasks ***"), "tasks")
   spec.eq(parse.header("***Keyword***"), "keywords")
   spec.eq(parse.header("    *** not a header"), nil)
 end)
@@ -111,6 +111,20 @@ spec.test("a file with no tests is all head; one with no trailing newline round-
   local text = "*** Test Cases ***\nOne\n    Log    hi"
   local h2, it2 = parse.cut(text)
   spec.eq(h2 .. it2[1].text, text)
+end)
+
+spec.test("tasks are their own kind: a suite's tasks apart from its tests, and cut as kind task", function()
+  local text = "*** Test Cases ***\nChecks\n    Log    a\n\n*** Tasks ***\nFile Receipts\n    Log    b\n"
+    .. "\n*** Keywords ***\nHelper\n    Log    c\n"
+  local s = parse.suite(text)
+  spec.same({ #s.tests, #s.tasks, #s.keywords }, { 1, 1, 1 })
+  spec.eq(s.tasks[1].name, "File Receipts")
+  spec.eq(s.tasks[1].kind, "task")
+  local _, items = parse.cut(text)
+  local kinds = {}
+  for i, it in ipairs(items) do kinds[i] = it.kind end
+  spec.same(kinds, { "test", "task", "keyword" })
+  spec.ok(items[2].text:find("^%*%*%* Tasks %*%*%*\n"))
 end)
 
 spec.run()

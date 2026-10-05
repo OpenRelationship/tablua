@@ -1,8 +1,8 @@
 -- The program as rows (M6a): a program's rows (tablua.source) kept in tables of the agent's own file, and
 -- its org compiled back from them. One row per section of a file (notes and a page keep their text; the tests
--- their head), per unit (a top-level Lua statement, or a whole block in another language), per test and per user
--- keyword (tablua_test, tablua_keyword, numbered together in the file's order), and per call either makes
--- (tablua_call), keyed as the org file's headings are. The calls are a view of their item's text, kept for what
+-- their head), per unit (a top-level Lua statement, or a whole block in another language), per test or task
+-- (tablua_test, its kind test or task) and per user keyword (tablua_keyword), numbered together in the file's order,
+-- and per call any of them makes (tablua_call), keyed as the org file's headings are. The calls are a view of their item's text, kept for what
 -- learns from them; compiling reads the sections, units, tests and keywords.
 --
 --   t:put_program(file, rows)     the file's rows, replacing what was kept for it
@@ -40,8 +40,12 @@ return function(T, put)
           { file = file, section = n, n = i, kind = u.kind, name = u.name, source = u.source })
       end
       for i, it in ipairs(s.items or {}) do
-        local tbl = it.kind == "keyword" and "tablua_keyword" or "tablua_test"
-        put(db, tbl, { "file", "n", "name", "text" }, { file = file, n = i, name = it.name, text = it.text })
+        if it.kind == "keyword" then
+          put(db, "tablua_keyword", { "file", "n", "name", "text" }, { file = file, n = i, name = it.name, text = it.text })
+        else
+          put(db, "tablua_test", { "file", "n", "kind", "name", "text" },
+            { file = file, n = i, kind = it.kind, name = it.name, text = it.text })
+        end
         for _, c in ipairs(src.calls(it)) do
           put(db, "tablua_call", { "file", "item", "path", "keyword", "args" },
             { file = file, item = i, path = c.path, keyword = c.keyword, args = table.concat(c.args or {}, "\t") })
@@ -109,7 +113,7 @@ return function(T, put)
         end
       elseif r.kind == "tests" then
         s.head, s.items = r.body, {}
-        for _, it in ipairs(db:exec("select n, 'test' as kind, name, text from tablua_test where file = ? "
+        for _, it in ipairs(db:exec("select n, kind, name, text from tablua_test where file = ? "
           .. "union all select n, 'keyword', name, text from tablua_keyword where file = ? order by n", { file, file })) do
           s.items[#s.items + 1] = { kind = it.kind, name = it.name, text = it.text }
         end

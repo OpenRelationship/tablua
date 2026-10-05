@@ -192,6 +192,41 @@ spec.test("a program in another language puts its rows and gives no links and no
   spec.ok(t:compile("app.org"):find("#%+begin_src python"))
 end)
 
+spec.test("tasks are rows of kind task, and each one's record is kept over its runs", function()
+  local robot = require("robot")
+  local src = require("tablua.source")
+  local t = fresh()
+  local text = "*** Test Cases ***\nChecks\n    Log    a\n\n*** Tasks ***\nFile\n    Open    /\n    Send It\n"
+    .. "\nIdle\n    Log    b\n\n*** Keywords ***\nSend It\n    Press    Send\n"
+  t:put_program("app.org", src.from_files{ tests = text })
+  spec.same(t.db:exec("select kind, name from tablua_test order by n"),
+    { { kind = "test", name = "Checks" }, { kind = "task", name = "File" }, { kind = "task", name = "Idle" } })
+  spec.eq(t:compile("app.org"), src.compile(src.from_files{ tests = text }))
+  local ok = true
+  local lib = robot.library()
+  lib:add("Open", function() end)
+  lib:add("Press", function() if not ok then error("no Send button", 0) end end)
+  local suite = robot.parse(text)
+  local function go(n) return t:results("r1", n, robot.run(suite, { libraries = { lib }, rpa = true }), "app.org") end
+  spec.same({ go(1).passed, go(2).total }, { 2, 2 })
+  ok = false
+  go(3)
+  local tasks = t:tasks()
+  spec.same({ tasks[1].name, tasks[1].runs, tasks[1].passed, tasks[1].fails_at }, { "File", 3, 2, "Press" })
+  spec.same({ tasks[2].name, tasks[2].runs, tasks[2].passed, tasks[2].fails_at }, { "Idle", 3, 3, "" })
+  spec.eq(t.db:exec("select count(*) as c from tablua_result where type = 'task'")[1].c, 6)
+end)
+
+spec.test("schema 13 adds a test's kind to a file kept before it", function()
+  local db = sqlite.open(":memory:")
+  db:exec("create table tablua_test (file text not null, n integer not null, name text not null, "
+    .. "text text not null, primary key (file, n))")
+  db:exec("insert into tablua_test (file, n, name, text) values ('old.org', 1, 'T', 'T\n')")
+  local t = tablua.open(db, { clock = function() return "t" end })
+  spec.eq(t.db:exec("select kind from tablua_test")[1].kind, "test")
+  spec.same(t:tasks(), {})
+end)
+
 spec.test("schema 9 renames a Lua section kept before it to kind code", function()
   local db = sqlite.open(":memory:")
   local t = tablua.open(db, { clock = function() return "t" end })
