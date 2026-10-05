@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img" aria-labelledby="t d">
+  <title id="t">Tablua</title>
+  <desc id="d">An agent is a table: each step of an agent's work written as typed rows in one SQLite file.</desc>
+  <defs>
+    <pattern id="minor" width="16" height="16" patternUnits="userSpaceOnUse">
+      <path d="M16 0H0V16" fill="none" stroke="#2152e8" stroke-opacity=".07" stroke-width="1"/>
+    </pattern>
+    <pattern id="major" width="80" height="80" patternUnits="userSpaceOnUse">
+      <rect width="80" height="80" fill="url(#minor)"/>
+      <path d="M80 0H0V80" fill="none" stroke="#2152e8" stroke-opacity=".13" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="fade" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity=".6"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="vfade" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".22" stop-color="#fff" stop-opacity="1"/>
+      <stop offset=".78" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="grid-vmask">
+      <rect width="1280" height="400" fill="url(#vfade)"/>
+    </mask>
+    <mask id="grid-mask">
+      <rect width="1280" height="400" fill="url(#fade)"/>
+    </mask>
+    <filter id="lift" x="-10%" y="-10%" width="120%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#0c0e13" flood-opacity=".08"/>
+    </filter>
+    <clipPath id="card"><rect width="500" height="262" rx="14"/></clipPath>
+  </defs>
+
+  <rect width="1280" height="400" fill="#fff"/>
+  <g mask="url(#grid-vmask)"><rect width="1280" height="400" fill="url(#major)" mask="url(#grid-mask)"/></g>
+
+  <!-- wordmark -->
+  <g transform="translate(88 104)">
+    <rect x="0" y="4" width="44" height="40" rx="9" fill="#fff" stroke="#0c0e13" stroke-width="3.2"/>
+    <rect x="1.6" y="18" width="40.8" height="12" fill="#2152e8"/>
+    <path d="M15 4v40" stroke="#0c0e13" stroke-width="3.2"/>
+    <text x="62" y="40" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="44" font-weight="700" letter-spacing="-1.2" fill="#0c0e13">Tablua</text>
+  </g>
+  <text x="88" y="236" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="52" font-weight="700" letter-spacing="-1.8" fill="#0c0e13">An agent is a table<tspan fill="#2152e8">.</tspan></text>
+  <text font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="19" fill="#5d6472">
+    <tspan x="88" y="280">The continual tabular agent harness: every state, move,</tspan>
+    <tspan x="88" y="306">decision and outcome is a typed row in one SQLite file.</tspan>
+  </text>
+
+  <!-- the agent's file -->
+  <g transform="translate(700 70)" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+    <rect width="500" height="262" rx="14" fill="#fff" filter="url(#lift)"/>
+    <text x="20" y="30" fill="#0c0e13">agent.sqlite</text>
+    <text x="480" y="30" text-anchor="end" fill="#7b8290" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5">step 2</text>
+    <path d="M0 46H500" stroke="#e8ebf0"/>
+    <rect x="0" y="46" width="500" height="30" fill="#f7f8fa" clip-path="url(#card)"/>
+    <text x="20" y="66" fill="#2152e8" font-size="12.5">table</text>
+    <text x="128" y="66" fill="#7b8290" font-size="12.5">row</text>
+    <text x="480" y="66" text-anchor="end" fill="#7b8290" font-size="12.5">by</text>
+    <g clip-path="url(#card)">
+      <path d="M0 76H500M0 112H500M0 148H500M0 184H500M0 220H500" stroke="#eef0f4"/>
+      <text x="20" y="99" fill="#2152e8">state</text>
+      <text x="128" y="99" fill="#0c0e13">stage=building passed=0/4</text>
+      <text x="480" y="99" text-anchor="end" fill="#7b8290">host</text>
+      <text x="20" y="135" fill="#2152e8">candidate</text>
+      <text x="128" y="135" fill="#0c0e13">write_steps p=.52</text>
+      <text x="480" y="135" text-anchor="end" fill="#7b8290">tabpfn</text>
+      <text x="20" y="171" fill="#2152e8">decision</text>
+      <text x="128" y="171" fill="#0c0e13">chosen=write_steps</text>
+      <text x="480" y="171" text-anchor="end" fill="#7b8290">jev</text>
+      <text x="20" y="207" fill="#2152e8">action</text>
+      <text x="128" y="207" fill="#0c0e13">write steps/plants.lua</text>
+      <text x="480" y="207" text-anchor="end" fill="#7b8290">mercury</text>
+      <rect x="0" y="220" width="500" height="42" fill="#eef2fe"/>
+      <text x="20" y="245" fill="#2152e8">outcome</text>
+      <text x="128" y="245" fill="#0c0e13">progress=1 passed=2/4</text>
+      <text x="480" y="245" text-anchor="end" fill="#7b8290">host</text>
+    </g>
+    <rect x=".5" y=".5" width="499" height="261" rx="13.5" fill="none" stroke="#e8ebf0"/>
+  </g>
+</svg>
