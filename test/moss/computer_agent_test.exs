@@ -304,6 +304,47 @@ defmodule Moss.ComputerAgentTest do
     assert note =~ "Test after: 1 of 1 pass (before: 0 of 1)."
   end
 
+  # a plants run went fix, undo, fix, undo eight times (2026-10-05): each undo started the stall count again, so the
+  # gates that end a loop never came into force; undoing goes back to where the work stood, which is not moving on
+  test "undoing a change that broke what passed keeps the stall it counted", %{id: id} do
+    good = ~s|test.step("the page says hello", function(w) test.ok(true) end)\n|
+    Computer.run(id, "help")
+    disk = :sys.get_state(Computer.wake!(id)).disk
+    :ok = Moss.Computer.Disk.write(disk, "/home/features/hello.feature",
+      "Feature: Hello\n  Scenario: Hi\n    Given the page says hello\n  Scenario: Bye\n    Given the page says bye\n")
+    :ok = Moss.Computer.Disk.write(disk, "/home/code/steps/hello.lua", good)
+    :ok = Moss.Computer.Disk.write(disk, "/home/code/steps/bye.lua",
+      ~s|test.step("the page says bye", function(w) test.ok(false, "no bye") end)\n|)
+    :ok = Computer.agree(id, "/home/features/hello.feature")
+    Computer.run(id, "test")
+
+    Req.Test.stub(Moss.Fetch, fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      sent = Jason.decode!(body)
+
+      case conn.request_path do
+        "/api/alpha/decisions" ->
+          options = Map.keys(sent["questions"]["next"]["criteria"])
+          choice = if "undo" in options, do: "undo", else: "write_steps"
+          answers = %{"next" => %{"choice" => choice, "probabilities" => %{choice => 0.9}}}
+          answers = if sent["questions"]["cause"], do: Map.put(answers, "cause", %{"choice" => "the_steps"}), else: answers
+          Req.Test.json(conn, %{"answers" => answers})
+
+        "/v1/chat/completions" ->
+          bad = %{"cmd" => "test", "files" => %{"code/steps/hello.lua" => ~s|test.step("the page says hello", function(w) test.ok(false) end)\n|}}
+          Req.Test.json(conn, %{"usage" => %{}, "choices" => [%{"message" => %{"tool_calls" => [%{"id" => "c",
+            "type" => "function", "function" => %{"name" => "computer", "arguments" => Jason.encode!(bad)}}]}}]})
+      end
+    end)
+
+    Moss.Computer.Agent.run(id, "Make me a hello page.", max_steps: 5)
+    state = :sys.get_state(Computer.whereis(id))
+    {:ok, rows} = Moss.Computer.Agent.sql(state, "select chosen, stalls from tablua_state join tablua_decision using (task, n) order by n", [])
+    # each broken change counts one, and the undo after it takes nothing back
+    assert Enum.map(rows, &"#{&1["chosen"]}:#{&1["stalls"]}") ==
+             ["write_steps:0", "undo:1", "write_steps:1", "undo:2", "write_steps:2"]
+  end
+
   # looking is using: a look that only opened the page did nothing, and publishing still waits on a real one
   test "a look that never submits the form is no look", %{id: id} do
     Computer.run(id, "help")

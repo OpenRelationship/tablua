@@ -268,7 +268,11 @@ function M.new(host, run)
       local r = host.exec({ cmd = "test" })   -- the run that shows the files as they were pass again
       step.lines[#step.lines + 1] = ("$ test  -> %d\n%s"):format(r.code, clip(r.stdout or "", 1500))
       step.outcome = "complete"
+      -- undoing a fix that broke what passed goes back to where it stood, which is not moving on: the stall the fix
+      -- counted stands (a plants run went fix, undo, fix, undo eight times, each undo starting the count again)
+      local held = req.repeats
       if req.facts then step.note = M.after(req, req.facts, host.facts()) end
+      req.repeats = math.max(req.repeats or 0, held or 0)
       return
     end
     local edits = require("moss.world.edits")
