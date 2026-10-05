@@ -55,6 +55,7 @@ defmodule Moss.Computer.Agent do
       "learn" => opts[:learn],
       "gates_off" => opts[:gates_off],
       "edits" => opts[:edits],
+      "per_run" => opts[:per_run],
       "experience" => Experience.path()
     }
 
@@ -145,6 +146,7 @@ defmodule Moss.Computer.Agent do
       "tests" => tests(board),
       "empty_steps" => empty_steps(state.disk, scopes),
       "pages" => pages(state, scopes),
+      "program" => program(state.disk, scopes),
       "asked" => asked?(log),
       "publishes" => length(Log.events(state.disk.conn, ["Publish Artifact"])),
       "shipped" => board != [] and Enum.all?(board, &(&1.stage == "shipped")),
@@ -180,6 +182,18 @@ defmodule Moss.Computer.Agent do
         "checked" => Enum.flat_map(runs, &list(&1["checked"]))
       }
     end
+  end
+
+  # the app's program files, path to text, for the harness to put as Tablua's rows and read what is broken in them
+  # (tablua.app in core; a page calling a function its module never defined, issue #1 M6c)
+  defp program(disk, scopes) do
+    for scope <- scopes,
+        {dir, ext} <- [{"/features", ".feature"}, {"/code", ".lua"}, {"/ui", ".org"}, {"/ui", ".lui"}],
+        path <- Board.files(disk, scope <> dir, ext),
+        {:ok, text} <- [Disk.read(disk, path)],
+        is_binary(text),
+        into: %{},
+        do: {Board.rel(path), text}
   end
 
   # a step whose function does nothing: `function(w, name) end`

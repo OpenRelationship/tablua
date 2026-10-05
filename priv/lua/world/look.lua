@@ -43,16 +43,22 @@ function M.judge(host, step, seen)
   -- what was typed shows on the page after: a page whose form went to an empty get.add showed nothing it was given
   if not holds(seen.shown, seen.typed) then
     step.outcome = "broken"
-    step.lines[#step.lines + 1] = ("Typed %s and sent it, but the page after shows none of it: the form keeps"
-      .. " nothing. Read the page's form and the action it names."):format(table.concat(seen.typed, ", "))
+    -- (a plants change ran 80 steps rewriting its page: the action kept the plant, but the module's list returned a
+    -- table keyed by name and the page read it with ipairs, so nothing showed)
+    step.verdict = ("Typed %s and sent it, but the page after shows none of it. Either the action the form names"
+      .. " keeps nothing, or the page does not show what is kept: read the function the page lists from in"
+      .. " code/ and what it returns (a list of rows the page loops over), not only the page.")
+      :format(table.concat(seen.typed, ", "))
+    step.lines[#step.lines + 1] = step.verdict
     return
   end
   -- and is still there when the page is opened again, as the person comes back to it: a pantry kept its items in
   -- a Lua table, shown in the answer to the form and gone from the next request
   if seen.opened and not holds(host.exec({ cmd = seen.opened }).stdout or "", seen.typed) then
     step.outcome = "broken"
-    step.lines[#step.lines + 1] = ("%s showed after the submit but is gone once the page is opened again: the app"
+    step.verdict = ("%s showed after the submit but is gone once the page is opened again: the app"
       .. " keeps it in memory, and each request starts afresh. Keep it with db.open."):format(seen.typed[1])
+    step.lines[#step.lines + 1] = step.verdict
   end
 end
 

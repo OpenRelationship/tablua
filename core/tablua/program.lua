@@ -40,7 +40,7 @@ return function(T, put)
         end
       end
     end
-    for _, l in ipairs(links.scan(rows)) do
+    for _, l in ipairs(links.scan(rows, file)) do
       put(db, "tablua_link", { "file", "kind", "source", "target" },
         { file = file, kind = l.kind, source = l.source, target = l.target })
     end

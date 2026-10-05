@@ -16,6 +16,9 @@ M.list = {
     blocks = function(c) return c.move == "publish" and not c.req.looked end },
   { name = "think_twice", what = "thinking twice running changes nothing",
     blocks = function(c) return c.move == "think" and c.last and c.last.verb == "think" end },
+  -- (a packing run read the help seven times running, every scenario passing, then blocked)
+  { name = "help_twice", what = "reading the help twice running changes nothing",
+    blocks = function(c) return c.move == "read_help" and c.last and c.last.verb == "read_help" end },
   { name = "undo_regressed", what = "undo is there only after a change broke what passed", fixed = true,
     blocks = function(c) return c.move == "undo" and not c.req.undo end },
   { name = "shipped_answer", what = "once shipped, the task is answered", fixed = true,
@@ -26,17 +29,21 @@ M.list = {
         and not c.w.checks_own(c.req.facts)
     end },
   -- green, with only checks in the app's own words left: rewriting the feature in the page's words is what moves it
-  -- (a packing run looked, thought and tested 80 times, the remedy in its facts, and never rewrote the feature)
+  -- (a packing run looked, thought and tested 80 times, the remedy in its facts, and never rewrote the feature;
+  -- another read the help seven times and stopped as blocked, so stopping is not offered here: the remedy always is)
   { name = "own_checks_first", what = "green with only own-word checks left, the feature is rewritten first",
     blocks = function(c)
       return c.req.stage == "building" and c.w.checks_own(c.req.facts) and c.w.failing(c.req.facts or {}) == ""
-        and not (c.move == "write_feature" or c.move == "read_help" or c.move == "blocked")
+        and not (c.move == "write_feature" or c.move == "read_help")
     end },
   { name = "dead_end", what = "past a dead end neither fixing nor thinking is offered",
     blocks = function(c) return c.repeats >= c.w.dead_end and (c.move == "fix_failure" or c.move == "think") end },
   { name = "give_up", what = "giving up leaves only a rewrite, the feature or stopping",
     blocks = function(c)
-      return c.repeats >= c.w.give_up and not (c.move == "rewrite" or c.move == "write_feature" or c.move == "blocked")
+      -- (publish stays: a ready app's idle steps count as stalls, and giving up must never keep a green app from
+      -- shipping)
+      return c.repeats >= c.w.give_up
+        and not (c.move == "rewrite" or c.move == "write_feature" or c.move == "blocked" or c.move == "publish")
     end },
   { name = "blocked_trouble", what = "blocked is offered only when the work is in trouble",
     blocks = function(c) return c.move == "blocked" and not c.w.troubled(c.req, c.repeats) end },

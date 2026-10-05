@@ -5,10 +5,12 @@
 -- holds. Kept as rows (tablua_link), so a link with nothing at its end
 -- is a view (tablua_break), as is an action no page posts to (an orphan: nothing can reach it), and the harness's facts, gates and TabPFN's columns read the breaks as data.
 --
---   links.scan(rows) -> { { kind, source, target } }   kinds: post (page -> action), defines (page -> action it
+--   links.scan(rows, file?) -> { { kind, source, target } }   kinds: post (page -> action), defines (page -> action it
 --     holds), sends (page -> field), reads (action -> field), and from a scenario's line "i.j": line (its text,
 --     needing a step), press (a label the page must show), field (a field it must have), see (text it must show,
---     unless the scenario typed it or it holds a number)
+--     unless the scenario typed it or it holds a number); with the file's name, calls (a module's function the
+--     file calls: local m = require("mod") ... m.fn(), as "mod.fn"), module (code/<mod>.lua is module mod) and
+--     exports (each function the module returns, "mod.fn")
 --   links.found(link, text, steps) -> whether the program's text (lowercased) or its steps answer a line's link
 --   links.pattern(step) -> the Lua pattern a step's text compiles to (Moss's sdk/test.lua, test.step)
 --   links.step(text, patterns) -> the step pattern a line's text matches, or nil
@@ -64,8 +66,41 @@ local function page(out, seen, text, where)
   end
 end
 
-function M.scan(rows)
+-- the whole of a file's Lua: its units' sources and its pages' bodies
+local function lua_of(rows)
+  local parts = {}
+  for _, s in ipairs(rows.sections or {}) do
+    for _, u in ipairs(s.units or {}) do parts[#parts + 1] = u.source end
+    if s.kind == "markup" then parts[#parts + 1] = s.body or s.text or "" end
+  end
+  return "\n" .. table.concat(parts, "\n")
+end
+
+-- what a file calls of the app's modules, and, for a module (code/<mod>.lua), what it is and returns
+local function modules(out, seen, text, file)
+  for alias, mod in text:gmatch("local%s+([%a_][%w_]*)%s*=%s*require%s*%(?%s*[\"']([%w_]+)[\"']") do
+    for fn in text:gmatch("[^%w_.]" .. alias .. "[.:]([%a_][%w_]*)%s*%(") do
+      add(out, seen, "calls", file or "", mod .. "." .. fn)
+    end
+  end
+  local mod = file and file:match("code/([%w_]+)%.lua$")
+  if not mod or not text:find("%S") then return end   -- a module only with code in it (a file gone has none)
+  add(out, seen, "module", file, mod)
+  -- a module that returns a table literal names what it exports there: return { add = add, list = list }
+  local literal = text:match("\nreturn%s*(%b{})%s*$")
+  if literal then
+    for fn in literal:gmatch("([%a_][%w_]*)%s*=") do add(out, seen, "exports", mod, mod .. "." .. fn) end
+    return
+  end
+  local t = text:match("\nreturn%s+([%a_][%w_]*)%s*$") or text:match("\nreturn%s+([%a_][%w_]*)%s*\n")
+  if not t then return end
+  for fn in text:gmatch("function%s+" .. t .. "[.:]([%a_][%w_]*)") do add(out, seen, "exports", mod, mod .. "." .. fn) end
+  for fn in text:gmatch("[^%w_.]" .. t .. "%.([%a_][%w_]*)%s*=%s*function") do add(out, seen, "exports", mod, mod .. "." .. fn) end
+end
+
+function M.scan(rows, file)
   local out, seen = {}, {}
+  modules(out, seen, lua_of(rows), file)
   for n, s in ipairs(rows.sections or {}) do
     if s.kind == "markup" then page(out, seen, s.body or s.text or "", "page " .. n) end
     for _, u in ipairs(s.units or {}) do

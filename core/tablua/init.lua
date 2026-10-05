@@ -27,6 +27,7 @@
 --   t:controls(task, n, verb, app, controls, chosen), t:control_training(), t:control_rows(ctx, candidates),
 --   t:scored(head)                                  the Mac's control checkpoint, and the predictions' record
 --                                                   (tablua.control)
+--   t:put_app(files) -> breaks                     an app's files as the program's rows (tablua.app)
 --   t:put_program(file, rows), t:program(file), t:compile(file) -> org, t:files()   the program as rows (issue #2;
 --                                                   tablua.program)
 local schema = require("tablua.schema")
@@ -260,10 +261,11 @@ end
 
 require("tablua.program")(T, put)
 require("tablua.control")(T, put)
+require("tablua.app").install(T)
 
 local TABLES = { state = true, candidate = true, decision = true, action = true, outcome = true, run = true,
   fit = true, prediction = true, gate = true, feature = true, label = true, effect = true, section = true, unit = true, scenario = true, line = true,
-  control = true }
+  control = true, ranking = true }
 
 function T:count(name)
   assert(TABLES[name], "tablua: no table " .. tostring(name))

@@ -200,7 +200,7 @@ defmodule Moss.ComputerAgentTest do
     assert [%{"n" => 0}] = sql.("select count(*) as n from tablua_feature where name = 'ask_edit'")
 
     # the harness's gates as rows, written once when the run starts
-    assert [%{"n" => 10}] = sql.("select count(*) as n from tablua_gate where retired_by is null")
+    assert [%{"n" => 11}] = sql.("select count(*) as n from tablua_gate where retired_by is null")
 
     # the harness's behaviour model: every step has its effects, from the facts before and after it
     assert [%{"n" => 7}] = sql.("select count(distinct n) as n from tablua_effect")
@@ -341,13 +341,16 @@ defmodule Moss.ComputerAgentTest do
   # (open app; type ...; click Add) is read command by command
   test "a look is complete only when what it typed shows on the page after it submits", %{id: id} do
     keeps = "function post.add(req) d:exec(\"insert into p values (?)\", req.form.name) end"
-    assert look(id <> "a", "function post.add(req) end", ["open app", ~s(type "Plant name" "Pothos"), "submit Add"]) == "broken"
-    assert look(id <> "b", keeps, ["open app; type Plant Pothos; click Add; page"]) == "complete"
+    assert {"broken", note} = look(id <> "a", "function post.add(req) end", ["open app", ~s(type "Plant name" "Pothos"), "submit Add"])
+    # what the look found is in the note both minds read, naming both places it can come from
+    assert note =~ "Using the app: Typed Pothos and sent it, but the page after shows none of it"
+    assert note =~ "the function the page lists from in code/"
+    assert {"complete", _} = look(id <> "b", keeps, ["open app; type Plant Pothos; click Add; page"])
 
     # and still there when the page is opened again: rows kept in a module's table, not its database, are not
     memory = "local mem = require(\"mem\")\nfunction post.add(req) table.insert(mem.items, req.form.name) end"
     page = "{% for _, n in ipairs(mem.items) do %}<p>{{ n }}</p>{% end %}"
-    assert look(id <> "c", memory, ["open app; type 1 Pothos; submit 1"], page) == "broken"
+    assert {"broken", _} = look(id <> "c", memory, ["open app; type 1 Pothos; submit 1"], page)
   end
 
   defp look(id, action, cmds, list \\ nil) do
@@ -393,7 +396,7 @@ defmodule Moss.ComputerAgentTest do
 
     Moss.Computer.Agent.run(id, "Make me a hello page.", max_steps: 1)
     rows = Log.rows(:sys.get_state(Computer.whereis(id)).disk.conn, ["Outcome"])
-    [outcome] = for(%{"args" => [at, o | _]} <- rows, String.contains?(at, "/step/"), do: o)
+    [outcome] = for(%{"args" => [at, o, note | _]} <- rows, String.contains?(at, "/step/"), do: {o, note})
     outcome
   end
 
@@ -469,7 +472,7 @@ defmodule Moss.ComputerAgentTest do
         for _, own in ipairs({ true, false }) do
           for _, looked in ipairs({ true, false }) do
             for repeats = 0, 10 do
-              for _, last in ipairs({ "think", "look_at_app", "write_code", "undo", "fix_failure" }) do
+              for _, last in ipairs({ "think", "look_at_app", "write_code", "undo", "fix_failure", "read_help" }) do
                 local host = { facts = function() return { features = { { path = "features/a.feature", stage = "agreed" } },
                   pages = { { path = "/", status = 200 } }, empty_steps = 0,
                   tests = { passed = 2, total = 2, failing = {}, undefined = {}, checked = own and { "x is done" } or {} } } end }
@@ -477,8 +480,10 @@ defmodule Moss.ComputerAgentTest do
                 local q = world.new(host, { steps = steps or nil }).question({ req = req })
                 local o = q.options or {}
                 local way = o.write_feature or o.publish or (not looked and o.look_at_app)
-                -- and only that: looking, thinking or testing again changes no check (own_checks_first)
-                if steps == "page" and own then way = o.write_feature and not (o.look_at_app or o.think or o.run_test) end
+                -- and only that: looking, thinking, testing or stopping changes no check (own_checks_first)
+                if steps == "page" and own then
+                  way = o.write_feature and not (o.look_at_app or o.think or o.run_test or o.blocked)
+                end
                 if not way then
                   stuck[#stuck + 1] = ("%s own=%s looked=%s repeats=%d last=%s stage=%s"):format(tostring(steps),
                     tostring(own), tostring(looked), repeats, last, tostring(req.stage))
@@ -494,6 +499,51 @@ defmodule Moss.ComputerAgentTest do
       |> hd()
 
     assert stuck == ""
+  end
+
+  # a step that leaves a green app where it was is a stall, as one that leaves the same failure is: a packing run read
+  # the help seven times, every scenario passing, and no gate that ends a loop came into force
+  test "a step that leaves a green app where it was counts as a stall, and moving on starts the count again" do
+    counts =
+      Lua.eval!(Moss.Lua.base(), """
+      local facts = require("moss.world")
+      local function green(checked)
+        return { features = { { path = "features/a.feature", stage = "agreed" } }, pages = { { path = "/", status = 200 } },
+          empty_steps = 0, page_steps = true,
+          tests = { passed = 2, total = 2, failing = {}, undefined = {}, checked = checked } }
+      end
+      local req, out = { steps = {} }, {}
+      for _ = 1, 3 do facts.after(req, green({ "x is done" }), green({ "x is done" })); out[#out + 1] = req.repeats end
+      -- the feature rewritten: no own-word checks left, so the stage's reason changed
+      facts.after(req, green({ "x is done" }), green({})); out[#out + 1] = req.repeats
+      -- waiting on the person is not stalling
+      local asked = green({}); asked.asked = true
+      facts.after(req, asked, asked); out[#out + 1] = req.repeats
+      return table.concat(out, " ")
+      """)
+      |> elem(0)
+      |> hd()
+
+    assert counts == "1 2 3 0 0"
+  end
+
+  # M6c: what is broken in the program reaches both minds before a test does (a rows run rewrote a page five times,
+  # its call to plants.list() never defined in code/plants.lua)
+  test "a break in the program is named in the facts, with the side to fix" do
+    text =
+      Lua.eval!(Moss.Lua.base(), """
+      local world = require("moss.world")
+      local f = { features = {}, pages = {}, breaks = {
+        { file = "ui/index.org", kind = "calls", source = "ui/index.org", target = "plants.list" },
+        { file = "ui/index.org", kind = "line", source = "1.1", target = "I add a plant" } } }
+      return world.facts_text(f, { stage = "building", why = "1 of 3 scenarios pass" })
+      """)
+      |> elem(0)
+      |> hd()
+
+    assert text =~ "ui/index.org calls plants.list, which code/plants.lua does not define"
+    assert text =~ "Fix the side that is missing"
+    refute text =~ "I add a plant"
   end
 
   # M5: each gate but the fixed ones can be turned off for a run, for an A/B (world/gates.lua)

@@ -9,10 +9,12 @@
 -- telemetry (tablua.effects), each a label TabPFN predicts. Schema 6 adds the links between program rows
 -- (tablua_link, tablua.links) and the view of those with nothing at their end (tablua_break), and of actions no
 -- page posts to (kind orphan). Schema 7 adds the controls a step chose among on a screen (tablua_control,
--- tablua.control): the Mac's "control" checkpoint, which one the request means.
+-- tablua.control): the Mac's "control" checkpoint, which one the request means. Schema 8 adds the rankings a run
+-- paid TabPFN for (tablua_ranking), so a stateless stepper keeps a run's budget and reuses a ranking across steps,
+-- and calls into the app's own modules that nothing defines to tablua_break (dropped and made again at open).
 local M = {}
 
-M.version = 7
+M.version = 8
 
 M.ddl = [[
 create table if not exists tablua_meta (key text primary key, value text);
@@ -74,11 +76,15 @@ create table if not exists tablua_effect (
 create table if not exists tablua_link (
   file text not null, kind text not null, source text not null, target text not null,
   found integer not null default 0, primary key (file, kind, source, target));
+drop view if exists tablua_break;
 create view if not exists tablua_break as select file, kind, source, target from tablua_link l where
   (kind = 'post' and not exists (select 1 from tablua_unit u where u.kind = 'action' and u.name = l.target)
     and not exists (select 1 from tablua_link d where d.kind = 'defines' and d.target = l.target))
   or (kind = 'reads' and not exists (select 1 from tablua_link w where w.kind = 'sends' and w.target = l.target))
   or (kind in ('line', 'press', 'field', 'see') and found = 0)
+  or (kind = 'calls' and exists (select 1 from tablua_link m where m.kind = 'module'
+      and m.target = substr(l.target, 1, instr(l.target, '.') - 1))
+    and not exists (select 1 from tablua_link e where e.kind = 'exports' and e.target = l.target))
 union all select file, 'orphan', name, name from tablua_unit u where kind = 'action'
   and not exists (select 1 from tablua_link p where p.kind = 'post' and p.target = u.name)
 union all select file, 'orphan', target, target from tablua_link d where kind = 'defines'
@@ -87,6 +93,9 @@ create table if not exists tablua_control (
   task text not null, n integer not null, i integer not null, id text not null, app text not null default '',
   verb text not null default '', role text not null default '', label text not null default '', ord integer,
   chosen integer not null default 0, primary key (task, n, i));
+create table if not exists tablua_ranking (
+  task text not null, head text not null, key text not null, n integer, ps text not null,
+  primary key (task, head, key));
 create table if not exists tablua_gate (
   name text primary key, predicate text not null, version integer not null default 1,
   retired_by text);

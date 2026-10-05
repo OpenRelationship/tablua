@@ -82,6 +82,8 @@ end
 M.repeats = 2   -- changes that left the same failure, after which fixing it again waits on thinking it through
 M.dead_end = 4  -- after which fixing and thinking are no longer offered: rewrite, change the feature, or stop
 M.give_up = 8   -- after which only rewriting, changing the feature or stopping is
+-- the stages the agent's own moves advance (not waiting on the person, not done)
+M.working = { no_feature = true, building = true, ready = true, changing = true }
 
 -- How a step's change left the work, against the facts before it: the step's note, which both minds read in the
 -- work so far. Counts the changes running that left the same failure in req.repeats.
@@ -101,11 +103,24 @@ function M.after(req, before, f)
   -- a failure reworded is another (a pantry run's 26 fixes each changed the message a little, so the count kept
   -- starting again and fixing was never taken away)
   local stalled = now ~= "" and was ~= "" and (now == was or (t ~= nil and t0 ~= nil and t.passed <= t0.passed))
+  -- with nothing failing, a step that left the stage where it was, for the same reason, stalled too: a green app
+  -- short of ready (a packing run read the help seven times, every scenario passing, then blocked) or ready and
+  -- not published moved nothing on, and without counting it no gate that ends a loop ever came into force
+  local idle = false
+  if now == "" and was == "" and before.features and f.features then
+    local stage0, why0 = M.stage(before, req.publishes0)
+    local stage1, why1 = M.stage(f, req.publishes0)
+    idle = stage0 == stage1 and why0 == why1 and M.working[stage1] and { stage1, why1 }
+  end
   if stalled then
     req.repeats = (req.repeats or 0) + 1
     out[#out + 1] = (now == was and "The same failure as before this step (%d changes running have left it): %s"
       or "No more scenarios pass than before this step (%d changes running have moved nothing on): %s"):format(
       req.repeats, clip(now, 300))
+  elseif idle then
+    req.repeats = (req.repeats or 0) + 1
+    out[#out + 1] = ("Nothing moved on: the work is %s as before this step (%d steps running), because %s.")
+      :format(idle[1], req.repeats, clip(idle[2], 300))
   else
     req.repeats = 0
   end
@@ -148,9 +163,30 @@ function M.answer_failed(req)
   return false
 end
 
+-- a break in the program (tablua_break) as both minds read it, or nil for one the tests already name
+function M.broken(b)
+  if b.kind == "calls" then
+    local mod, fn = b.target:match("^([%w_]+)%.(.+)$")
+    return ("%s calls %s.%s, which code/%s.lua does not define"):format(b.file, mod, fn, mod)
+  elseif b.kind == "post" then
+    return ("%s posts to %s, which no action defines"):format(b.file, b.target)
+  elseif b.kind == "reads" then
+    return ("the action %s reads the field %s, which no form sends"):format(b.source, b.target)
+  end
+end
+
 function M.facts_text(f, s)
   local stage, repeats = s.stage, s.repeats
   local out = { ("Stage: %s (%s)."):format(stage, s.why) }
+  local said = {}
+  for _, b in ipairs(f.breaks or {}) do
+    local line = M.broken(b)
+    if line and #said < 3 then said[#said + 1] = line end
+  end
+  if #said > 0 then
+    out[#out + 1] = "Broken in the program, before any test: " .. table.concat(said, "; ")
+      .. ". Fix the side that is missing (the module's code, the action), not the side that names it."
+  end
   if (s.unfilled or 0) >= 2 then
     out[#out + 1] = ("Mercury, who fills the moves, failed on the last %d moves: the agent's own tool is failing,"
       .. " not the app."):format(s.unfilled)

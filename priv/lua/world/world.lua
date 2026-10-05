@@ -20,7 +20,8 @@ local M = {}
 M.moves = {
   write_feature = "Write the feature: the person's ask, in their words, as Gherkin scenarios (new feature <name>,"
     .. " then edit it), or change it before the person has agreed; once agreed, change it only when it cannot pass"
-    .. " as written, and the person agrees to it again.",
+    .. " as written, and the person agrees to it again. Writing it is how the person is asked: their agreement"
+    .. " comes after it is written, never before.",
   wait_for_agreement = "The feature is written and the person has not agreed to it yet: wait for them. Nothing is"
     .. " built before they agree.",
   write_steps = "Write the Lua steps in code/steps/ that make each scenario check the app's real behaviour, from the"
@@ -55,7 +56,7 @@ M.causes = {
   the_page = "The page: it does not compile, or its action or markup is wrong.",
   a_library_call = "A call into the computer's library (db, date, test, ui, mail) made the wrong way, such as a"
     .. " missing or wrong argument (\"bad argument #1 to ...\" from inside it): its help says how.",
-  the_feature = "The feature as written cannot pass: changing it needs the person's agreement again.",
+  the_feature = "The feature as written cannot pass: write it again (write_feature), which asks the person to agree.",
   unclear = "It cannot be told from what is shown: read the failing file and line first.",
 }
 
@@ -300,6 +301,8 @@ function M.new(host, run)
       step.note = ("[%s: %s] "):format(req.stage, clip(req.why or "", 160))
         .. (req.cause and ("Cause placed in %s. "):format(req.cause.choice) or "")
         .. M.after(req, req.facts, now)
+      -- what using the app found, which the tests may not: the step's note is what both minds read of it
+      if step.verdict then step.note = step.note .. " Using the app: " .. step.verdict end
       -- only the last change can be undone, and only when it broke what passed
       req.undo = req.regressed and kept or nil
       -- publish answers 3 when it has asked the person: that is it done

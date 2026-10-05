@@ -38,7 +38,7 @@ Feature: the harness's gates
   Scenario: giving up leaves only a rewrite, the feature or stopping
     # gate: give_up
     Given Same Failure after 8 changes running
-    Then only rewrite, write_feature and blocked are offered
+    Then only rewrite, write_feature, blocked and publish are offered
     # because: fix_failure | 8+ stalls | Step No Effect | more
 #+end_src
 ** Scenario: thinking twice running changes nothing
@@ -48,6 +48,14 @@ Feature: the harness's gates
     Given the last move was think
     Then think is not offered
     # because: think | last move think | Step No Effect | more
+#+end_src
+** Scenario: reading the help twice running changes nothing
+#+begin_src feature
+  Scenario: reading the help twice running changes nothing
+    # gate: help_twice
+    Given the last move was read_help
+    Then read_help is not offered
+    # because: read_help | last move read_help | Step No Effect | more
 #+end_src
 ** Scenario: publishing waits on the app having been used since it changed
 #+begin_src feature
@@ -80,7 +88,7 @@ Feature: the harness's gates
     # gate: own_checks_first
     Given every scenario passes and every page answers
     And some checks use steps of the app's own words in a page-steps run
-    Then only write_feature, read_help and blocked are offered
+    Then only write_feature and read_help are offered
     # because: unmeasured: the checks in the app's own words are not yet an effect the harness records
 #+end_src
 ** Scenario: blocked is offered only when the work is in trouble

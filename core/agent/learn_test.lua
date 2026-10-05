@@ -80,6 +80,29 @@ spec.test("enough outcomes: fitted once on Tablua's rows, each option given its 
   learn.per_run = was
 end)
 
+spec.test("a learn made fresh for every step still holds the run to its budget and reuses its rankings", function()
+  local t, tab = fresh(), fake()
+  past(t, 14)
+  local calls, predict = 0, tab.predict
+  tab.predict = function(...) calls = calls + 1; return predict(...) end
+  local function step(n, stalls)
+    return learn.new({ tablua = t, tabpfn = tab, per_run = 2 }):rank("step",
+      { stage = "building", stalls = stalls, n = n, task = "request-15", at = n }, { "look", "run" })
+  end
+  spec.ok(step(1, 0))
+  spec.ok(step(2, 0))            -- the same state at a later step: no call
+  spec.eq(calls, 1)
+  spec.ok(step(3, 1))
+  spec.eq(calls, 2)
+  local none, why = step(4, 2)   -- a third paid ranking would pass the run's 2
+  spec.eq(none, nil)
+  spec.eq(why, "this run's TabPFN predictions are used up")
+  spec.eq(t:count("ranking"), 2)
+  -- another run has its own budget
+  spec.ok(learn.new({ tablua = t, tabpfn = tab, per_run = 2 }):rank("step",
+    { stage = "building", stalls = 2, n = 1, task = "request-16", at = 1 }, { "look", "run" }))
+end)
+
 spec.test("a logged prediction is scored once its step took that move", function()
   local t, tab = fresh(), fake()
   past(t, 14)

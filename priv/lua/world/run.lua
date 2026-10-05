@@ -6,7 +6,7 @@
 -- decision is joined to how it turned out; each call to Jev, Mercury and TabPFN is counted with what it cost.
 --
 --   run.step(saved_json | nil, ctx) -> kind ("act" | "wait" | "done" | "blocked"), detail, saved_json, counts
---   ctx = { task, at, help, procedures, filler?, decider?, steps?, learn? }    host: __host.exec, agent_facts(at), agent_events(), ...
+--   ctx = { task, at, help, procedures, filler?, decider?, steps?, learn?, per_run? }    host: __host.exec, agent_facts(at), agent_events(), ...
 --   filler: an OpenRouter model in Mercury's place; decider: a System One model in Jev's; each to compare
 local agent = require("agent")
 local memory = require("agent.memory")
@@ -83,8 +83,17 @@ function M.step(saved_json, ctx)
   local rec = require("moss.world.record").new(ctx.at, function(line) __host.agent_append(ctx.at, "Note", { line }, "host") end)
   -- TabPFN learns which move helps from Tablua's rows: this computer's, and the node's shared experience when there is
   -- one (other computers' finished runs, Moss.Computer.Experience.share), in place of memory's folded rows
+  local t = rec.tablua(ctx.experience)
   env.learn = learn.new({ memory = mem, tabpfn = models.tabpfn and counted(models.tabpfn, "tabpfn", counts),
-    tablua = rec.tablua(ctx.experience) })
+    tablua = t, per_run = ctx.per_run })
+  -- the facts, with what is broken in the app's program (its files put as Tablua's rows, tablua_break): a page
+  -- calling a function its module never defined is named before a test is run on it
+  local function facts()
+    local f = __host.agent_facts(ctx.at)
+    local ok, breaks = pcall(function() return t and f.program and t:put_app(f.program) end)
+    f.breaks, f.program = ok and breaks or nil, nil
+    return f
+  end
   local decided
   env.decided = function(req, verb, answer, how)
     decided = verb
@@ -102,11 +111,11 @@ function M.step(saved_json, ctx)
       req.task = req.task or doing
       return __host.exec(req)
     end,
-    facts = function() return __host.agent_facts(ctx.at) end,
+    facts = facts,
   }, ctx)
   world.after = function(_, req, step)
     store:append(req.task, "Outcome", { at(step.n), step.outcome, step.note or "", tostring(step.n) }, "host")
-    local now = __host.agent_facts(ctx.at)
+    local now = facts()
     rec.after(req, step, now, (require("moss.world").stage(now, req.publishes0)))
   end
 

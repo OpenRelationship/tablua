@@ -11,7 +11,11 @@ defmodule Moss.TabluaTest do
           "select s.n from main.tablua_state s join main.tablua_decision d on d.n = s.n left join shared.tablua_run r on 1",
           "select count(*) as n from tablua_outcome",
           "create view if not exists tablua_break as select file from tablua_link l where not exists " <>
-            "(select 1 from tablua_unit u where u.name = l.target)"
+            "(select 1 from tablua_unit u where u.name = l.target)",
+          # the view made again at open, and a program's rows put in one transaction (t:put_app)
+          "drop view if exists tablua_break",
+          "begin",
+          "commit"
         ],
         do: assert(Tablua.allowed(s, []) == :ok, s)
   end
@@ -24,6 +28,8 @@ defmodule Moss.TabluaTest do
     assert {:error, _} = Tablua.allowed("create view if not exists tablua_v as select * from events", [])
     assert {:error, _} = Tablua.allowed("create view if not exists v as select * from tablua_state", [])
     assert {:error, "tablua: refused (not a statement the harness makes)" <> _} = Tablua.allowed("drop table tablua_state", [])
+    assert {:error, _} = Tablua.allowed("drop view if exists v", [])
+    assert {:error, _} = Tablua.allowed("begin; delete from events", [])
     assert {:error, "tablua: refused (attach only the shared experience)" <> _} =
              Tablua.allowed("attach database ? as x", ["/etc/passwd"])
   end

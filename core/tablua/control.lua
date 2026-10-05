@@ -7,6 +7,8 @@
 --   t:control_training() -> { columns, rows, categorical }, labels   one row per example, oldest first
 --   t:control_rows(ctx, candidates) -> rows, columns    ctx = { app, verb }: each candidate's row, as training's
 --   t:scored(head) -> { n, right, brier }      head "progress" (a move's chance its step helps) or "control"
+--   t:ranking(task, head, key) -> { p, ... } | nil   t:ranked(task, head, key, n, ps)   t:rankings(task) -> n
+--                                              the rankings a run paid TabPFN for, each by its state's key
 local M = {}
 
 M.max = 200        -- controls kept of one reading
@@ -90,6 +92,25 @@ return function(T, put)
     local columns = {}
     for i, c in ipairs(M.columns) do columns[i] = c end
     return rows, columns
+  end
+
+  function T:ranking(task, head, key)
+    local r = self.db:exec("select ps from tablua_ranking where task = ? and head = ? and key = ?", { task, head, key })[1]
+    if not r then return nil end
+    local ps = {}
+    for v in r.ps:gmatch("[^,]+") do ps[#ps + 1] = tonumber(v) end
+    return ps
+  end
+
+  function T:ranked(task, head, key, n, ps)
+    local parts = {}
+    for i, p in ipairs(ps) do parts[i] = ("%.6f"):format(p) end
+    put(self.db, "tablua_ranking", { "task", "head", "key", "n", "ps" },
+      { task = task, head = head, key = key, n = n, ps = table.concat(parts, ",") })
+  end
+
+  function T:rankings(task)
+    return self.db:exec("select count(*) as k from tablua_ranking where task = ?", { task })[1].k
   end
 
   -- each logged prediction whose outcome has landed: the step took that move, or chose that control

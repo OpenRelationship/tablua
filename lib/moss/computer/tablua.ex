@@ -8,9 +8,11 @@ defmodule Moss.Computer.Tablua do
   """
   alias Moss.Db
 
-  @verbs ~r/\A(create table if not exists|create view if not exists|insert or replace into|insert into|select|update|delete from|attach database)\b/i
+  @verbs ~r/\A(create table if not exists|create view if not exists|drop view if exists|insert or replace into|insert into|select|update|delete from|attach database)\b/i
   # a word that names a table, after the clauses that name one
-  @named ~r/\b(?:from|into|update|join|(?:table|view)(?:\s+if\s+not\s+exists)?)\s+([A-Za-z_][\w.]*)/i
+  @named ~r/\b(?:from|into|update|join|(?:table|view)(?:\s+if\s+(?:not\s+)?exists)?)\s+([A-Za-z_][\w.]*)/i
+  # a batch of the harness's writes (putting a program's rows) is one transaction
+  @batch ~r/\A(begin|commit|rollback)\z/i
 
   @doc "Runs `sql` with `params` on the computer's file when every statement only names tablua_ tables."
   def exec(conn, sql, params) do
@@ -36,6 +38,7 @@ defmodule Moss.Computer.Tablua do
 
   defp check(s, params) do
     cond do
+      Regex.match?(@batch, s) -> :ok
       not Regex.match?(@verbs, s) -> "not a statement the harness makes"
       Regex.match?(~r/\Aattach/i, s) -> attach(params)
       true -> tables(s)

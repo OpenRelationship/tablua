@@ -4,7 +4,7 @@
 -- now (Tablua's progress head, in the columns known before Jev answers), and "control", before a control step in a
 -- window with many controls, which one the request means (tablua.control).
 --
---   local l = learn.new{ tabpfn?, tablua?, memory?, on = fn -> bool, log = fn(line) }
+--   local l = learn.new{ tabpfn?, tablua?, memory?, per_run?, on = fn -> bool, log = fn(line) }
 --   l:rank(checkpoint, ctx, candidates) -> { { name, p }, ... } best first | nil, why
 --   l:training(checkpoint) -> table, labels
 --   l:record(checkpoint) -> { n, right, brier }   how TabPFN's logged predictions have done
@@ -12,8 +12,10 @@
 -- Fits and predictions are Tablua's rows too (tablua_fit, tablua_prediction); the day's TabPFN tokens are memory's
 -- ledger (memory.lua). One fit (Fast, with the server's cache) serves many predictions; it is refitted once
 -- M.refit more outcomes are known. TabPFN is not asked every turn (the free tier's 5M tokens a day are the
--- account's, and a stalled run once spent them): a run asks at most M.per_run times, and a state it ranked before
--- (the same row but for its step number, and the same options) gets the same ranking again without a call. With
+-- account's, and a stalled run once spent them): a run asks at most per_run times (M.per_run unless given), and a
+-- state it ranked before (the same row but for its step number, and the same options) gets the same ranking again
+-- without a call. Both are kept as Tablua's rows (tablua_ranking) for a run with a task, so a host that builds a
+-- learn for every step (Moss's stateless stepper) holds a run to them as one that keeps it does. With
 -- too little history, learning off, the run's or the day's predictions used up, or TabPFN unreachable, it gives nil
 -- and why, and the agent goes on as it would without it.
 local tablua = require("tablua")
@@ -28,15 +30,23 @@ M.head = { step = "progress", control = "control" }   -- the Tablua head each ch
 M.min_rows, M.min_each = 12, 3    -- labelled rows, and of each label, before TabPFN is asked
 M.refit = 25                      -- new labelled rows before a refit
 M.per_run = 20                    -- predictions one run may ask for (a ranking reused costs none)
-M.per_day = 4000000               -- TabPFN tokens a day, under the free tier's 5M; a predict costs at least 10,000
+M.per_day = 4000000               -- TabPFN tokens a day, under the free tier's 5M; a predict costs 10,000
 
 function M.new(env)
   return setmetatable({ tabpfn = env.tabpfn, memory = env.memory, tablua = env.tablua,
-    on = env.on or function() return true end,
+    per_run = tonumber(env.per_run), on = env.on or function() return true end,
     log = env.log or function() end, fits = {}, asked = 0, seen = {} }, L)
 end
 
 local function tokens_today(self) return self.memory and self.memory:tokens_today() or 0 end
+
+-- the run's rankings so far, and one made before for this state: Tablua's rows when the run has a task
+local function kept(self, task) return task and self.tablua ~= nil end
+local function asked(self, task) return kept(self, task) and self.tablua:rankings(task) or self.asked end
+local function seen(self, task, checkpoint, key)
+  if kept(self, task) then return self.tablua:ranking(task, M.head[checkpoint], key) end
+  return self.seen[key]
+end
 
 -- One row per past step ("step": the columns known before Jev answers) or per control example ("control").
 function L:training(checkpoint)
@@ -97,10 +107,13 @@ function L:rank(checkpoint, ctx, candidates)
       if not (checkpoint == "step" and j == tablua.before) then parts[#parts + 1] = tostring(v) end
     end
   end
-  local key = table.concat(parts, "\0")
-  local probas = self.seen[key]
-  if not probas and self.asked >= M.per_run then return nil, "this run's TabPFN predictions are used up" end
-  if not probas then
+  local key = table.concat(parts, "\31")
+  local ps = seen(self, ctx.task, checkpoint, key)
+  if not ps and asked(self, ctx.task) >= (self.per_run or M.per_run) then
+    return nil, "this run's TabPFN predictions are used up"
+  end
+  if not ps then
+    local probas
     -- every prediction is priced first (ports.tabpfn's rule); standard fits cost nothing
     local oke, tokens = pcall(self.tabpfn.estimate, self.tabpfn, { operation = "cache_predict", model = M.model,
       train_rows = self.fits[checkpoint] and self.fits[checkpoint].rows or 0, test_rows = #test.rows,
@@ -116,12 +129,14 @@ function L:rank(checkpoint, ctx, candidates)
       if refit and fresh then okp, probas = pcall(self.tabpfn.predict, self.tabpfn, fresh, test) end
       if not okp then return nil, "TabPFN could not be reached: " .. tostring(probas) end
     end
-    self.asked, self.seen[key] = self.asked + 1, probas
+    ps = {}
+    for i, p in ipairs(probas) do ps[i] = p[#p] end
+    self.asked, self.seen[key] = self.asked + 1, ps
+    if kept(self, ctx.task) then self.tablua:ranked(ctx.task, M.head[checkpoint], key, ctx.at, ps) end
   end
   local ranked = {}
   for i, c in ipairs(candidates) do
-    local p = probas[i]
-    ranked[i] = { name = checkpoint == "step" and c or tostring(c.id), p = p[#p], control = c }
+    ranked[i] = { name = checkpoint == "step" and c or tostring(c.id), p = ps[i], control = c }
   end
   table.sort(ranked, function(a, b) return a.p > b.p end)
   if ctx.task then
