@@ -1,5 +1,5 @@
 -- The TabPFN port: Prior Labs' hosted TabPFN-3.5 over its REST flow, an
--- optional batch calibrator (PROJECT.md 7.7).
+-- optional batch calibrator.
 --
 --   local tabpfn = require("ports.tabpfn").new(host, { key = k })
 --   local tokens, r = tabpfn:estimate{ operation = "predict", train_rows, test_rows, raw_columns }

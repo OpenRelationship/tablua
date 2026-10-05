@@ -1,4 +1,4 @@
--- The program as rows (issue #2, M6a): a program's rows (tablua.source) kept in tables of the agent's own file, and
+-- The program as rows (M6a): a program's rows (tablua.source) kept in tables of the agent's own file, and
 -- its org compiled back from them. One row per section of a file (notes and a page keep their text; a feature its
 -- header), per unit (a top-level Lua statement, or a whole block in another language), per scenario, and per
 -- scenario's step line, keyed as the org file's headings are. The step lines are a view of their scenario's

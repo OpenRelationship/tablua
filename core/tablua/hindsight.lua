@@ -1,4 +1,4 @@
--- Hindsight labels (issue #1, M2; owner, 2026-10-04): after a run, Jev reads the whole trajectory and how it ended,
+-- Hindsight labels (M2; owner, 2026-10-04): after a run, Jev reads the whole trajectory and how it ended,
 -- and says of each step whether it contributed to the app that was finally built. Progress, the label TabPFN
 -- learns from at each step, is short-sighted (steps written before the code turn a run red, and are groundwork);
 -- this is the long view. Each answer is Jev's chance of yes, kept as head "contrib" from source "jev_hindsight"

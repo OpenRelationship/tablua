@@ -1,7 +1,7 @@
--- Arock's agent (PROJECT.md §1, §11): Jev decides, Mercury fills. At each step Jev picks the verb from the world's
+-- The agent: Jev decides, Mercury fills. At each step Jev picks the verb from the world's
 -- tools and the agent's own (answer, ask, think, plan, next_part), with probabilities; a close call goes to a
 -- careful Mercury; TabPFN's ranking from past outcomes reaches Jev after failed steps (checkpoint.lua). The world
--- (the person's Mac, or the agent's own computer) does what a tool verb means and says how it went.
+-- (whatever the host gives it: a person's computer, a computer of the agent's own) does what a tool verb means and says how it went.
 --
 -- The loop is an explicit state machine, not a coroutine, so it runs on every Lua a host may embed (some have no
 -- coroutines): the host calls step() and does what it returns.
@@ -42,7 +42,7 @@ function M.mix(methods)
 end
 
 function M.new(env, world)
-  return setmetatable({ env = env, world = world, name = env.name or "Arock", history = history.new() }, A)
+  return setmetatable({ env = env, world = world, name = env.name or "the agent", history = history.new() }, A)
 end
 
 local function trim(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
@@ -54,13 +54,12 @@ function A:mercury(req)
   return trim(text)
 end
 
--- A refusal from Arock's service (401 signed out, 402 not subscribed) is said as the service worded it, and the
--- host hears it for the console's account row. nil for any other failure.
+-- A port's refusal (an error with status 401, not signed in, or 402, not paid for) is said as the port worded it,
+-- and the host hears it (env.refused). nil for any other failure.
 function A:refusal(err)
   if type(err) ~= "table" or not err.status or err.status < 401 or err.status > 402 then return nil end
   if self.env.refused then self.env.refused(err) end
-  -- a link is shown, not spoken: the console has the subscribe button
-  return (tostring(err):gsub("%s*Subscribe at %S+$", " You can subscribe in my console."))
+  return tostring(err)
 end
 
 function A:decide(req)
@@ -77,8 +76,8 @@ function A:decide(req)
   local n = answers.next
   req.sure = n.probabilities and n.choice and tonumber(n.probabilities[n.choice])
     and { p = tonumber(n.probabilities[n.choice]), confidence = tonumber(n.confidence) } or nil
-  -- a close call: Jev's best two go to a careful Mercury, which picks one of them, for a world that has an arbiter
-  -- (the desktop's); Tablua's has none, its close calls left to TabPFN in rank mode (issue #1 M4)
+  -- a close call: Jev's best two go to a careful Mercury, which picks one of them, for a world that has an
+  -- arbiter; a world without one leaves its close calls to TabPFN in rank mode (M4)
   local second, p2 = nil, -1
   for v, p in pairs(n.probabilities or {}) do
     p = tonumber(p)

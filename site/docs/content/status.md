@@ -14,7 +14,7 @@ Tablua is in active development. This page says what works today, what has been 
 - **Shared experience** between the agents on one node.
 - **Gates as named rows**, each stated as a scenario with a measurable reason, switchable for an A/B.
 - **The program as rows**: org files that round-trip byte for byte, edits to one unit, and links and breaks as data.
-- **Hosts that drive the loop.** Arock, a Mac and iPhone app with a server, is built on Tablua and records its steps the same way.
+- **Hosts that drive the loop.** A host drives the step loop through its own world and records every step in the same rows.
 
 ## Measured so far
 

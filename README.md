@@ -73,7 +73,7 @@ flowchart TB
 | **Mercury** (Inception) | Fills in the move: writes the code, the steps or the page, one unit at a time | 0.77 s |
 | **The host** | Writes the state and outcome rows, runs the checks, records effects | milliseconds |
 
-*Latencies are medians of 368 calls from Arock's port traces. Toggle "Real time" on [tablua.com](https://tablua.com)
+*Latencies are medians of 368 calls from production port traces. Toggle "Real time" on [tablua.com](https://tablua.com)
 to watch a run at those speeds.*
 
 ## The tables

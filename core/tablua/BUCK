@@ -1,6 +1,6 @@
 load("@nomimono//rules/lua:defs.bzl", "lua_library", "lua_test")
 
-# Tablua, the continual tabular agent harness (issue #1): the agent's work as typed rows in its own SQLite file,
+# Tablua, the continual tabular agent harness: the agent's work as typed rows in its own SQLite file,
 # and what TabPFN learns from as a query over them.
 lua_library(
     name = "tablua",

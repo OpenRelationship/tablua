@@ -2,13 +2,13 @@
 -- and says why not when there are not.
 local spec = require("mono.spec")
 local learn = require("agent.learn")
-local memory = require("agent.memory")
 local tablua = require("tablua")
 local sqlite = require("ports.sqlite")
 
-local function store()
-  return { rows = {}, events = function(self) return self.rows end,
-    append = function(self, task, keyword, args) self.rows[#self.rows + 1] = { task = task, keyword = keyword, args = args } end }
+-- the host's ledger of the day's TabPFN tokens (env.memory: called, tokens_today)
+local function ledger()
+  return { tokens = 0, called = function(self, _, tokens) self.tokens = self.tokens + tokens end,
+    tokens_today = function(self) return self.tokens end }
 end
 
 local function fresh() return tablua.open(sqlite.open(":memory:"), { clock = function() return "t" end }) end
@@ -44,7 +44,7 @@ spec.test("with no past outcomes there is no ranking, and it says why", function
 end)
 
 spec.test("without TabPFN, or with learning off, it says so", function()
-  spec.eq(select(2, learn.new({ tablua = fresh() }):rank("step", {}, {})), "TabPFN is not set up (the keychain has no arock-priorlabs)")
+  spec.eq(select(2, learn.new({ tablua = fresh() }):rank("step", {}, {})), "TabPFN is not set up (no Prior Labs key)")
   spec.eq(select(2, learn.new({ tablua = fresh(), tabpfn = fake(), on = function() return false end }):rank("step", {}, {})),
     "learning from past outcomes is turned off")
 end)
@@ -52,7 +52,7 @@ end)
 spec.test("enough outcomes: fitted once on Tablua's rows, each option given its chance, best first, logged", function()
   local t, tab = fresh(), fake()
   past(t, 14)
-  local m = memory.new(store(), { today = function() return "2026-10-04" end })
+  local m = ledger()
   local l = learn.new({ memory = m, tablua = t, tabpfn = tab })
   local ranked = l:rank("step", { stage = "building", stalls = 2, n = 2, task = "request-15", at = 2 }, { "look", "run" })
   spec.eq(ranked[1].name, "run")

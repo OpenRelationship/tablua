@@ -1,6 +1,6 @@
--- Where Arock's agent learns (PROJECT.md §11): each tool step's outcome goes to memory, a finished
+-- Where the agent learns: each tool step's outcome goes to memory, a finished
 -- request is judged by Jev, and after failed steps TabPFN's ranking of the world's tools (learn.lua) reaches Jev as
--- evidence on its card, every option still open. A world may add checkpoints of its own (the Mac's narrows the
+-- evidence on its card, every option still open. A world may add checkpoints of its own (a desktop world narrows the
 -- controls of a crowded window) and record more of a step (world.after) or of a request Jev judged (world.judged).
 --
 --   checkpoint.before(a, req)          before Jev decides: once M.stuck steps have failed, TabPFN's ranking of the tools;
@@ -79,7 +79,7 @@ function M.card(req, env)
   if req.unranked == "no past outcomes to learn from yet" then return "(There are no past outcomes to learn from yet.)" end
 end
 
--- With env.tablua (a world whose own harness does not write them, as the Mac's), the step as Tablua's rows too: where
+-- With env.tablua (a world whose own harness does not write them), the step as Tablua's rows too: where
 -- the work stood, how sure Jev was of the move, the move, and how it ended; what TabPFN learns from (learn.lua).
 local function rows(a, req, step, prev)
   local t, s = a.env.tablua, req.standing or {}

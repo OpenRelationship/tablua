@@ -1,4 +1,4 @@
--- Change blocks (context/projects/arock/features/change-blocks; owner, 2026-10-04): an edit to a program is a
+-- Change blocks: an edit to a program is a
 -- short script of operations on its rows (tablua.source), applied the way a migration is: all of them or none,
 -- with the change that undoes it given back. Each operation is a row of columns TabPFN reads (what it did, to
 -- what kind of unit, how many code lines it added, how many units named what it touched, how many it left naming

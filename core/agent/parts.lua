@@ -1,4 +1,4 @@
--- A long request in parts (PROJECT.md §11): Jev may plan it (Mercury writes two to eight goals, in order), and
+-- A long request in parts: Jev may plan it (Mercury writes two to eight goals, in order), and
 -- from then on every prompt shows each part as done, now or to do. Jev moves on with next_part when the part's
 -- goal is met; after the last it reads that every part is done. Nothing caps the parts or their steps.
 --

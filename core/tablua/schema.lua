@@ -1,15 +1,15 @@
--- Tablua's tables (issue #1): the agent's work as typed rows in its own SQLite file, beside arock-log's events and
+-- Tablua's tables: the agent's work as typed rows in its own SQLite file, beside the host's own log and
 -- never in them. One row per state decided in, per move that could have been made (with what Jev and TabPFN said
 -- of it), per decision, per call a move made, per step's outcome and per run's ending; TabPFN's fits and
 -- predictions; and the hand-written gates still live. Every name starts tablua_, so a host can let the
--- agent's harness write those tables and no others. Schema 3 adds the program as rows (issue #2): each file's
+-- agent's harness write those tables and no others. Schema 3 adds the program as rows: each file's
 -- sections, its top-level Lua statements, its scenarios and their step lines (tablua.program). Schema 4 adds
 -- labels given after the fact (tablua_label): Jev's hindsight on each step, never an input at decision time.
 -- Schema 5 adds the harness's behaviour model (tablua_effect): each step's effects, keywords from the harness's
 -- telemetry (tablua.effects), each a label TabPFN predicts. Schema 6 adds the links between program rows
 -- (tablua_link, tablua.links) and the view of those with nothing at their end (tablua_break), and of actions no
 -- page posts to (kind orphan). Schema 7 adds the controls a step chose among on a screen (tablua_control,
--- tablua.control): the Mac's "control" checkpoint, which one the request means. Schema 8 adds the rankings a run
+-- tablua.control): a desktop world's "control" checkpoint, which one the request means. Schema 8 adds the rankings a run
 -- paid TabPFN for (tablua_ranking), so a stateless stepper keeps a run's budget and reuses a ranking across steps,
 -- and calls into the app's own modules that nothing defines to tablua_break (dropped and made again at open).
 -- Schema 9: a code section is kind code with its language in lang (owner, 2026-10-05: Lua is the harness, not the

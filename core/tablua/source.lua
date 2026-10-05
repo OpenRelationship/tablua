@@ -1,4 +1,4 @@
--- The program as rows (issue #2, M6a): the rows are the program, and its file is real org (core/tablua/org.lua;
+-- The program as rows (M6a): the rows are the program, and its file is real org (core/tablua/org.lua;
 -- owner, 2026-10-04), a compile target with its sections in a fixed order: notes, feature, steps, code, page
 -- (markup). Steps and code carry their language (lang; Lua when none is given): Lua is the harness's language, not
 -- the output's (owner, 2026-10-05). A Lua section is cut into its top-level statements (units: an action, a function, a local, a step, any

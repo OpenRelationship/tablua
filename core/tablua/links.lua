@@ -1,4 +1,4 @@
--- The links between a program's rows (issue #1 M6c): what one row names that another must hold. A page names the
+-- The links between a program's rows (M6c): what one row names that another must hold. A page names the
 -- actions its forms and buttons post to (post = "add" -> function post.add); an action reads the fields a form
 -- sends (req.form.name -> a field name = "name", or vals = { id = ... }); a scenario's line in the app's own words
 -- needs a step whose pattern matches it (test.step), and one in the page's words a label, a field or text the page

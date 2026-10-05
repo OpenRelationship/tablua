@@ -9,7 +9,7 @@
 -- results is a list of { url, title, date, excerpts = { ... } }, best first.
 -- The record is what the log keeps: the call's record plus the search id and
 -- mode, never the key. Parallel reads the key from x-api-key, not Bearer; with
--- bearer = true it goes as a Bearer token (Arock's service, ports.arock).
+-- bearer = true it goes as a Bearer token (a service that proxies the search API).
 local call = require("ports.call")
 local json = require("ports.json")
 

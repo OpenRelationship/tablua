@@ -1,4 +1,4 @@
--- The Mac's "control" checkpoint as rows (schema 7, issue #1 M7): the controls a step chose among on a screen, and
+-- A desktop world's "control" checkpoint as rows (schema 7, M7): the controls a step chose among on a screen, and
 -- which one it chose. TabPFN learns from them which control the request means: a choice whose step worked says the
 -- chosen control was the one and a sample of the others were not; a choice whose step did not work says only that
 -- the chosen one was not. Also how TabPFN's logged predictions have done, for either head.

@@ -1,13 +1,13 @@
--- The conversation Arock's two minds share (PROJECT.md §11): every turn the person spoke, everything the rock
+-- The conversation the agent's two minds share: every turn the person spoke, everything the agent
 -- said aloud, and every step it took with what it found, in the order they happened, across requests and across
--- conversations opened and closed, for as long as the app runs. Jev and Mercury read the same text, so whichever
+-- conversations opened and closed, for as long as the host runs. Jev and Mercury read the same text, so whichever
 -- runs next knows what was said and done. An answer the person talked over is kept only as far as they heard it.
--- Words the turn dropped as the rock's own echo never reach it.
+-- Words the turn dropped as the agent's own echo never reach it.
 --
 --   local h = history.new()
 --   h:begin()              a new request starts (its steps are numbered from 1)
 --   h:person(text)  h:rock(text)  h:note(text)  h:step(step)   step = { verb, lines, note?, n }
---   h:cut(played, total?) -> the words heard of the last thing the rock said, which is marked cut off
+--   h:cut(played, total?) -> the words heard of the last thing the agent said, which is marked cut off
 --                          (played: seconds of it that reached the speaker; total: its length, when known)
 --   h:render(name, for_jev) -> text, oldest first; Jev's copy is the newest part that fits M.jev_chars, with
 --                          results from earlier requests shortened

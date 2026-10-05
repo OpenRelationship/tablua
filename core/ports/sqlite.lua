@@ -7,7 +7,7 @@
 --
 -- exec runs every statement in `sql`; `params` bind to the last one and are
 -- a list of strings, numbers, booleans or false-as-NULL. Errors raise with
--- SQLite's message. AROCK_SQLITE names the library to load.
+-- SQLite's message. TABLUA_SQLITE names the library to load.
 local ffi = require("ffi")
 
 ffi.cdef([[
@@ -39,12 +39,12 @@ local INTEGER, FLOAT, NULL = 1, 2, 5
 local TRANSIENT = ffi.cast("void (*)(void *)", -1)
 
 local function load()
-  local names = { os.getenv("AROCK_SQLITE"), "/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib", "sqlite3" }
+  local names = { os.getenv("TABLUA_SQLITE"), "/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib", "sqlite3" }
   for i = 1, 3 do
     local ok, lib = pcall(ffi.load, names[i])
     if names[i] and ok then return lib end
   end
-  error("no SQLite library found; set AROCK_SQLITE")
+  error("no SQLite library found; set TABLUA_SQLITE")
 end
 
 local C = load()

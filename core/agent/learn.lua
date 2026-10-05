@@ -1,4 +1,4 @@
--- TabPFN narrows, Jev picks (PROJECT.md §7.7), for Arock's agent: at a checkpoint TabPFN reads how past steps turned
+-- TabPFN narrows, Jev picks: at a checkpoint TabPFN reads how past steps turned
 -- out, as Tablua's rows (core/tablua: the agent's work as typed rows in its own file, a shared file attached), and
 -- gives each option its chance of working; Jev reads the ranking. Two checkpoints, not every step: "step", which move
 -- now (Tablua's progress head, in the columns known before Jev answers), and "control", before a control step in a
@@ -93,7 +93,7 @@ end
 -- candidates: move names ("step") or { id, role, label, order } controls ("control").
 function L:rank(checkpoint, ctx, candidates)
   if not self.on() then return nil, "learning from past outcomes is turned off" end
-  if not self.tabpfn then return nil, "TabPFN is not set up (the keychain has no arock-priorlabs)" end
+  if not self.tabpfn then return nil, "TabPFN is not set up (no Prior Labs key)" end
   if not self.tablua then return nil, "no past outcomes to learn from yet" end
   if tokens_today(self) >= M.per_day then return nil, "today's TabPFN predictions are used up" end
   local ok, id, why = pcall(self.fitted, self, checkpoint)

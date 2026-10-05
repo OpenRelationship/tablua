@@ -1,4 +1,4 @@
--- An app's files as the program's rows (issue #1 M6c): its features, step files, modules and pages become org files
+-- An app's files as the program's rows (M6c): its features, step files, modules and pages become org files
 -- (tablua.source), a page with the app's features and steps, each module one of its own, so the harness can put
 -- them (t:put_app) and read what is broken in them (tablua_break) while the agent works, not only after.
 --

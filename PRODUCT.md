@@ -44,7 +44,6 @@ to https://github.com/OpenRelationship/tablua (public, Apache-2.0).
 - Tables today: tablua_state, tablua_candidate, tablua_decision, tablua_action, tablua_outcome, tablua_run,
   tablua_fit, tablua_prediction, tablua_gate.
 - No WebAssembly, no native code; portable Lua embedded in any host's Lua VM.
-- Arock (Mac and iPhone apps, and a server for thousands of computers) is built on Tablua.
 - Undecided: docs site, hosted offering, waitlist. None exists; the site must not imply one.
 
 ## Brand Commitments

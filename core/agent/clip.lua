@@ -1,4 +1,4 @@
--- Text cut to fit what a model reads (PROJECT.md §11): the start and the end of a long text, with how much was left
+-- Text cut to fit what a model reads: the start and the end of a long text, with how much was left
 -- out between them, never cut inside a UTF-8 character.
 --
 --   clip.clip(text, n) -> text of at most about n bytes, cut in the middle

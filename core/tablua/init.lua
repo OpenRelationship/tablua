@@ -1,5 +1,5 @@
--- Tablua, the continual tabular agent harness (issue #1): the agent's work as typed rows in its own SQLite file.
--- The harness writes what it decided in and on; TabPFN learns from a query over it. db is arock-log's port,
+-- Tablua, the continual tabular agent harness: the agent's work as typed rows in its own SQLite file.
+-- The harness writes what it decided in and on; TabPFN learns from a query over it. db is the host's database port,
 -- db:exec(sql, params) -> rows (a host may give the harness one that reaches only the tablua_ tables of its
 -- file).
 --
@@ -25,11 +25,10 @@
 --                                                   oldest first; keys[i] is row i's { task, n }
 --   t:count(table) -> n
 --   t:controls(task, n, verb, app, controls, chosen), t:control_training(), t:control_rows(ctx, candidates),
---   t:scored(head)                                  the Mac's control checkpoint, and the predictions' record
+--   t:scored(head)                                  a desktop world's control checkpoint, and the predictions' record
 --                                                   (tablua.control)
 --   t:put_app(files) -> breaks                     an app's files as the program's rows (tablua.app)
---   t:put_program(file, rows), t:program(file), t:compile(file) -> org, t:files()   the program as rows (issue #2;
---                                                   tablua.program)
+--   t:put_program(file, rows), t:program(file), t:compile(file) -> org, t:files()   the program as rows (tablua.program)
 local schema = require("tablua.schema")
 
 local M = {}
@@ -69,7 +68,7 @@ function M.open(db, opts)
   return setmetatable({ db = db, clock = opts and opts.clock or now, sources = { "main" } }, T)
 end
 
-local function nz(v) if v == nil then return false end return v end   -- false binds as NULL (arock-log's rule)
+local function nz(v) if v == nil then return false end return v end   -- false binds as NULL (the database port's rule)
 local function flag(v) if v == nil then return false end return v and 1 or 0 end
 
 local function put(db, tbl, cols, row)

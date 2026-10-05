@@ -1,4 +1,4 @@
--- Lua's tokens, as far as the program's rows need them (context/projects/arock/features/change-blocks): a unit's
+-- Lua's tokens, as far as the program's rows need them: a unit's
 -- columns (its code lines, a function's parameters, its deepest block, the names it uses) and a rename that
 -- reaches every reference and never a string or a comment. Every byte is in some token, so the tokens' text
 -- joined is the text.

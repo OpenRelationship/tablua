@@ -1,5 +1,5 @@
 -- A chat reply as it streams (features/messenger: a reply's first words within 1 s): the server-sent events an
--- OpenAI-shaped chat route sends when asked with `stream: true` (arock.ai passes them through), read a chunk at a
+-- OpenAI-shaped chat route sends when asked with `stream: true` (a proxy passes them through), read a chunk at a
 -- time as the host's fetch receives them. Each piece of the reply's text is handed on as it arrives; the whole
 -- reply is kept for the end. Portable Lua; the fetch that feeds it is the host's.
 --

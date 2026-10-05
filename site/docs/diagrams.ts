@@ -25,7 +25,7 @@ export const diagrams: Record<string, string> = {
       <div><h4>What it learns from</h4><p class="mono">label · effect · feature · fit · prediction</p></div>
       <div><h4>The program</h4><p class="mono">section · unit · scenario · line · link</p></div>
       <div><h4>Policy</h4><p class="mono">gate</p></div>
-      <div><h4>The log</h4><p class="mono">events · args <span class="faint">(arock-log)</span></p></div>
+      <div><h4>The log</h4><p class="mono">events · args</p></div>
       <div><h4>Its computer</h4><p class="mono">files · tests · pages <span class="faint">(the host's)</span></p></div>
     </div>
   </div>

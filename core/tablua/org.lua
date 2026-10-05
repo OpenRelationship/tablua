@@ -1,4 +1,4 @@
--- The program's file (issue #2, M6a; owner, 2026-10-04): real org syntax, in a written subset that Emacs, GitHub and
+-- The program's file (M6a; owner, 2026-10-04): real org syntax, in a written subset that Emacs, GitHub and
 -- pandoc read as it is. A section is a top-level heading; each of its rows (a Lua unit, a scenario) is a heading
 -- under it, with a drawer for its columns and one source block for its text:
 --

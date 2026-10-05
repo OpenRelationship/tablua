@@ -67,7 +67,7 @@ export function Hero() {
               className={`speed${real ? " on" : ""}`}
               aria-pressed={real}
               onClick={toggle}
-              title="Real time: each row appears when the model behind it would answer (median latencies from Arock's traces). Off: slowed for reading."
+              title="Real time: each row appears when the model behind it would answer (median latencies from production traces). Off: slowed for reading."
             >
               <span className="knob" aria-hidden="true" />
               Real time

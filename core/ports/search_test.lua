@@ -1,5 +1,5 @@
 -- Unit cases for the search port with a fake fetch: a search and a page read go to Parallel's paths with the key in
--- x-api-key (or as a Bearer token for Arock's service), and their results come back in one shape.
+-- x-api-key (or as a Bearer token for a service that proxies it), and their results come back in one shape.
 local spec = require("mono.spec")
 local search = require("ports.search")
 local json = require("ports.json")
@@ -33,7 +33,7 @@ spec.test("a page read asks for the page as it is now, and reports a page it cou
     { "Cubs 0, Padres 3", "https://gone.test", "fetch_failed 404", "e1" })
 end)
 
-spec.test("for Arock's service the key goes as a Bearer token to the service's paths", function()
+spec.test("for a proxying service the key goes as a Bearer token to the service's paths", function()
   local seen = {}
   local s = search.new(host(seen, { results = {} }), { key = "prk_s", bearer = true, url = "https://svc.test/v1/search",
     extract_url = "https://svc.test/v1/extract" })

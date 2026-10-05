@@ -1,6 +1,6 @@
--- Arock's trace (PROJECT.md §11): every turn of the conversation and, inside it, every call to a model or to the
--- Mac's hands, with what was asked in full, what came back, how long it took, what it cost and any failure, as Robot
--- rows in an Arock Core store (append-only), one file a day. It is for auditing: `just tool trace` reads it.
+-- The agent's trace: every turn of the conversation and, inside it, every call to a model or to the host's
+-- hands, with what was asked in full, what came back, how long it took, what it cost and any failure, as keyword
+-- rows in a store the host opens (append-only), one file a day. It is for auditing.
 --
 --   local t = trace.new{ open = fn(day) -> store, today = fn() -> "2026-09-29", now = fn() -> seconds }
 --   t:turn(heard) -> task        a new turn, from what the person was heard saying
@@ -63,7 +63,7 @@ function T:row(keyword, args)
   local db = self:store()
   local out = {}
   for i, a in ipairs(args) do out[i] = clip(a) end
-  pcall(db.append, db, self.task, keyword, out, "host")   -- a trace that cannot be written never stops the rock
+  pcall(db.append, db, self.task, keyword, out, "host")   -- a trace that cannot be written never stops the agent
 end
 
 function T:turn(heard)

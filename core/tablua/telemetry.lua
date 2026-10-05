@@ -1,8 +1,8 @@
--- The behaviour model from the log (issue #1, M2): a run's arock-log events, keyword rows in the manner of Robot
+-- The behaviour model from the log : a run's log events, keyword rows in the manner of Robot
 -- Framework's, cut into one window per step (from Decide <task>/step/<n> to its Outcome) and turned into each
 -- step's effects (tablua.effects): every feature's latest run (Outcome <feature> red|green {json}), every page
 -- served (Serve Request), every command (Run Command) and the stage at each decision. Reads the log, so it runs
--- where the whole file is open (the eval's tools, the Mac), never in the agent's harness, which reaches only
+-- where the whole file is open (an eval's tools, a desktop host), never in the agent's harness, which reaches only
 -- Tablua's tables; the harness records the same effects from its facts as it goes (in the host's world).
 --
 --   telemetry.windows(db, task) -> { [n] = { { keyword, args } } }

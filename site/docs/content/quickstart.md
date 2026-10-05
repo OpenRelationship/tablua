@@ -66,7 +66,7 @@ luajit try.lua
 ```
 
 > [!TIP]
-> If it says `no SQLite library found`, tell it where SQLite is: on Debian or Ubuntu, either `apt install libsqlite3-dev` or run `AROCK_SQLITE=/usr/lib/x86_64-linux-gnu/libsqlite3.so.0 luajit try.lua`.
+> If it says `no SQLite library found`, tell it where SQLite is: on Debian or Ubuntu, either `apt install libsqlite3-dev` or run `TABLUA_SQLITE=/usr/lib/x86_64-linux-gnu/libsqlite3.so.0 luajit try.lua`.
 
 You should see something like this:
 

@@ -32,7 +32,7 @@ CURLSH *curl_share_init(void);
 int curl_share_setopt(CURLSH *share, int option, ...);
 ]])
 
-local C = ffi.load(os.getenv("AROCK_CURL") or "libcurl.4.dylib")
+local C = ffi.load(os.getenv("TABLUA_CURL") or "libcurl.4.dylib")
 
 local URL, POSTFIELDS, HTTPHEADER, CUSTOMREQUEST = 10002, 10015, 10023, 10036
 local WRITEFUNCTION, POSTFIELDSIZE, TIMEOUT_MS, NOSIGNAL = 20011, 60, 155, 99

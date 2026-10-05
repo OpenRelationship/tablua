@@ -1,11 +1,11 @@
 load("@nomimono//rules/lua:defs.bzl", "lua_library", "lua_test")
 
-# Arock's agent harness (PROJECT.md §1, §11): Jev decides, Mercury fills, TabPFN narrows; the loop as an explicit
-# state machine over a world (the person's Mac in app/desktop/agent, the agent's own computer a host gives it).
+# An agent harness in portable Lua: Jev decides, Mercury fills, TabPFN narrows; the loop as an explicit state
+# machine over a world the host gives it.
 lua_library(
     name = "agent",
-    srcs = ["init.lua", "clip.lua", "history.lua", "parts.lua", "checkpoint.lua", "learn.lua", "memory.lua",
-            "calibrate.lua", "trace.lua"],
+    srcs = ["init.lua", "clip.lua", "history.lua", "parts.lua", "checkpoint.lua", "learn.lua", "calibrate.lua",
+            "trace.lua"],
     prefix = "agent",
     deps = ["//submodules/tablua/core/ports:ports", "//submodules/tablua/core/tablua:tablua"],
     visibility = ["PUBLIC"],
@@ -32,12 +32,6 @@ lua_test(
 lua_test(
     name = "parts_test",
     src = "parts_test.lua",
-    deps = [":agent"],
-)
-
-lua_test(
-    name = "memory_test",
-    src = "memory_test.lua",
     deps = [":agent"],
 )
 

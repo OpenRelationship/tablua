@@ -4,7 +4,7 @@ it reaches the world through; nothing here names one.
 
 ## Tablua rules
 
-- Tablua is attached to the Arock repository at `submodules/tablua`. Its Lua is `core/`:
+- Its Lua is `core/`:
   the harness (`tablua`, `agent`) and the model ports (`ports`); read `core/AGENTS.md` before editing there.
 - Lua is the harness, not the output (owner, 2026-10-05): the agent's work may be in any language its computer
   runs. The harness itself is portable Lua, embedded through whatever Lua VM a host has, and reaches the world only

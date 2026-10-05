@@ -36,7 +36,6 @@ export default function App() {
         <div className="wrap">
           <span>Tablua · Apache-2.0</span>
           <a href={REPO}>GitHub</a>
-          <span>Arock, a Mac and iPhone app and a server for thousands of computers, is built on Tablua.</span>
         </div>
       </footer>
     </>

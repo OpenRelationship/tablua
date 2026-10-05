@@ -1,4 +1,4 @@
--- The harness's own behaviour model (issue #1, M2; owner, 2026-10-04): each step as Given / When / Then, written by
+-- The harness's own behaviour model (M2; owner, 2026-10-04): each step as Given / When / Then, written by
 -- the harness from its telemetry, never by the agent's writer. Given is the state (tablua_state), When the move,
 -- and Then the effects seen after it, keywords from a closed vocabulary in the manner of Robot Framework's: the
 -- tests (a scenario turned green or red, a Gherkin line fixed, by the kind of line it is), the pages (one broke or

@@ -2,7 +2,7 @@ load("@nomimono//rules/lua:defs.bzl", "lua_library", "lua_test")
 
 lua_library(
     name = "ports",
-    srcs = ["json.lua", "call.lua", "jev.lua", "mercury.lua", "search.lua", "tabpfn.lua", "chat.lua", "see.lua", "arock.lua", "stream.lua", "writs.lua", "rocks.lua"],
+    srcs = ["json.lua", "call.lua", "jev.lua", "mercury.lua", "search.lua", "tabpfn.lua", "chat.lua", "see.lua", "stream.lua"],
     prefix = "ports",
     visibility = ["PUBLIC"],
 )
@@ -14,22 +14,6 @@ lua_library(
     srcs = ["sqlite.lua"],
     prefix = "ports",
     visibility = ["PUBLIC"],
-)
-
-# Other people's apps through connectory (PROJECT.md §17): the directory's port, signed with the person's own
-# credential, which the host reads.
-lua_library(
-    name = "connect",
-    srcs = ["connect.lua"],
-    prefix = "ports",
-    deps = [":ports", "//submodules/connectory:port_http"],
-    visibility = ["PUBLIC"],
-)
-
-lua_test(
-    name = "connect_test",
-    src = "connect_test.lua",
-    deps = [":connect"],
 )
 
 lua_test(
@@ -79,24 +63,6 @@ lua_test(
 lua_test(
     name = "chat_test",
     src = "chat_test.lua",
-    deps = [":ports"],
-)
-
-lua_test(
-    name = "arock_test",
-    src = "arock_test.lua",
-    deps = [":ports"],
-)
-
-lua_test(
-    name = "rocks_test",
-    src = "rocks_test.lua",
-    deps = [":ports"],
-)
-
-lua_test(
-    name = "writs_test",
-    src = "writs_test.lua",
     deps = [":ports"],
 )
 

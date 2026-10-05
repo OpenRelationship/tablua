@@ -1,4 +1,4 @@
--- An edit to one unit of a program (issue #1 M6b): the agent names a file and one of its units, and gives that
+-- An edit to one unit of a program (M6b): the agent names a file and one of its units, and gives that
 -- unit's new source; the file is read as rows (tablua.source), the unit replaced (or added when the file has none of
 -- that name) and the file written back whole from the rows. A unit is a top-level Lua statement named as the rows
 -- name it (post.add, a local's or a function's name, a step's text), or "page", a page's Page section. A module or

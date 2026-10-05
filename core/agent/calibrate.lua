@@ -1,4 +1,4 @@
--- How far Jev's sureness can be trusted (PROJECT.md §7.9, §11): the probability Jev gave each verb it picked
+-- How far Jev's sureness can be trusted: the probability Jev gave each verb it picked
 -- (Tablua's candidate rows: jev_p of the move chosen) set beside how the step turned out. Steps are put in five bands of what Jev said; each
 -- band has the share that were complete. Brier is the mean squared gap between what was said and what happened; the
 -- calibration error is the bands' gaps weighted by their size. A step the person said no to is left out.
