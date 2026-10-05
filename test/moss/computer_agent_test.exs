@@ -400,6 +400,45 @@ defmodule Moss.ComputerAgentTest do
     outcome
   end
 
+  # with the node's shared experience, every step's Tablua opens again on the same connection and attaches it again
+  # (a protocol run stopped at its second step: "database shared is already in use", then its note logged under an
+  # address in place of a task)
+  test "a run of several steps with shared experience writes its rows without a harness error", %{id: id} do
+    path = Path.join(System.tmp_dir!(), "shared-#{System.unique_integer([:positive])}.sqlite")
+    System.put_env("MOSS_EXPERIENCE", path)
+
+    on_exit(fn ->
+      System.delete_env("MOSS_EXPERIENCE")
+      File.rm(path)
+    end)
+
+    Computer.run(id, "help")
+    # read_help and think in turn: each twice running is held back (help_twice, think_twice)
+    turn = :counters.new(1, [])
+
+    Req.Test.stub(Moss.Fetch, fn conn ->
+      case conn.request_path do
+        "/api/alpha/decisions" ->
+          :counters.add(turn, 1, 1)
+          move = if rem(:counters.get(turn, 1), 2) == 1, do: "read_help", else: "think"
+          Req.Test.json(conn, %{"answers" => %{"next" => %{"choice" => move, "probabilities" => %{move => 0.9}}}})
+
+        "/v1/chat/completions" ->
+          call = %{"id" => "c1", "type" => "function",
+            "function" => %{"name" => "computer", "arguments" => Jason.encode!(%{"cmd" => "help"})}}
+
+          Req.Test.json(conn, %{"usage" => %{}, "choices" => [%{"message" => %{"tool_calls" => [call]}}]})
+      end
+    end)
+
+    Moss.Computer.Agent.run(id, "Make me a hello page.", max_steps: 3)
+    conn = :sys.get_state(Computer.whereis(id)).disk.conn
+    notes = for %{"args" => [line | _]} <- Log.rows(conn, ["Note"]), do: line
+    refute Enum.any?(notes, &String.contains?(&1, "tablua:")), Enum.join(notes, "\n")
+    {:ok, [%{"n" => n}]} = Moss.Db.exec(conn, "select count(*) as n from tablua_decision", [])
+    assert n >= 2
+  end
+
   # code owns the workflow: what belongs to one move is refused in another, and a page names the command that opens it
   test "a move's calls that belong to another move are not run" do
     lua = Moss.Lua.base()

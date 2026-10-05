@@ -170,7 +170,9 @@ end
 -- Another file's rows, read with this one's (Moss's shared experience): attached once under `name`.
 function T:attach(name, path)
   assert(name:match("^[%a_][%w_]*$"), "tablua: not a name: " .. tostring(name))
-  self.db:exec("attach database ? as " .. name, { path })
+  -- a connection kept across steps (Moss's, where Tablua is opened again each step) may hold it already
+  local ok, why = pcall(self.db.exec, self.db, "attach database ? as " .. name, { path })
+  if not ok and not tostring(why):find("already in use", 1, true) then error(why, 0) end
   self.db:exec((schema.ddl:gsub("exists tablua_", "exists " .. name .. ".tablua_")))
   self.sources[#self.sources + 1] = name
 end

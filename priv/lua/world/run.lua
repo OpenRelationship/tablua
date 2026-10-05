@@ -80,7 +80,8 @@ function M.step(saved_json, ctx)
   }
   local function at(n) return ctx.at .. "/step/" .. n end
   -- every step as Tablua's typed rows in the computer's own file (world/record.lua)
-  local rec = require("moss.world.record").new(ctx.at, function(line) __host.agent_append(ctx.at, "Note", { line }, "host") end)
+  -- the harness's own notes go under a task of their own: a log task is a plain name, and ctx.at is an address
+  local rec = require("moss.world.record").new(ctx.at, function(line) __host.agent_append("tablua", "Note", { line }, "host") end)
   -- TabPFN learns which move helps from Tablua's rows: this computer's, and the node's shared experience when there is
   -- one (other computers' finished runs, Moss.Computer.Experience.share), in place of memory's folded rows
   local t = rec.tablua(ctx.experience)
