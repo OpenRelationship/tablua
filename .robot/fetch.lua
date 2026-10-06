@@ -1,6 +1,6 @@
 -- A bench job's trials, from the box to runs/: each trial's sheet (its tablua.db), and in the ledger a trial row:
 -- the task, a label naming what the run tried (the arm, for claims comparing arms), Harbor's reward, whether the
--- agent's own suite went green (a real action ran with every test passing), how many steps it took.
+-- agent's own suite went green (some run of it passed every test), how many steps it took.
 --
 --   local fetch = require("fetch")
 --   fetch.job(root, db, label, job?) -> { { trial, task, reward, green, steps }, ... }   job: the latest by default
@@ -67,8 +67,11 @@ function M.job(root, db, label, job)
       local green, steps
       local okdb, s = pcall(sqlite.open, root .. "/" .. sheet)
       if okdb then
-        local okq, g = pcall(s.exec, s, "select max(case when total > 0 and passed = total then 1 else 0 end) as g,"
-          .. " max(n) as steps from tablua_term where source = 'real'")
+        -- green from the suite's own runs (tablua_result): the terminal's passed column is the count before a step's
+        -- last validation, so a run whose last check went 2 of 2 read as never green (UxH3BwD, 2026-10-06)
+        local okq, g = pcall(s.exec, s, "select (select coalesce(max(ok), 0) from (select min(status = 'PASS') as ok"
+          .. " from tablua_result where type = 'test' group by n, run)) as g, (select max(n) from tablua_term where"
+          .. " source = 'real') as steps")
         if okq and g[1] then green, steps = g[1].g, g[1].steps end
       end
       local task = trial:match("^(.-)__") or trial
