@@ -13,6 +13,18 @@ local function step(t, todo, n, verb, before, after, outcome)
   return t:outcome{ todo = todo, n = n, verb = verb, outcome = outcome, passed = after, total = 2 }
 end
 
+spec.test("a step's features are written in name order, so the same run gives the same rows", function()
+  local t = fresh()
+  local map = {}
+  for _, k in ipairs({ "zeta", "ask_dates", "mu", "done", "beta", "ask_edit", "omega", "alpha", "kappa", "ask_counts" }) do
+    map[k] = 1
+  end
+  t:features("r", 1, map)
+  local got = {}
+  for _, r in ipairs(t.db:exec("select name from tablua_feature order by rowid")) do got[#got + 1] = r.name end
+  spec.same(got, { "alpha", "ask_counts", "ask_dates", "ask_edit", "beta", "done", "kappa", "mu", "omega", "zeta" })
+end)
+
 spec.test("a decision's state, candidates and choice are typed rows", function()
   local t = fresh()
   t:state{ todo = "r1", n = 1, stage = "building", passed = 1, total = 2, last_verb = "write_steps" }

@@ -25,6 +25,16 @@ local function f(test, path, keyword, why, reach)
   return { test = test, path = path, keyword = keyword, why = why, reach = reach or 0 }
 end
 
+spec.test("tests that turn green are named in order, so the same step gives the same rows", function()
+  local names = { "zeta", "mu", "alpha", "omega", "kappa", "beta", "delta", "gamma" }
+  local was = {}
+  for i, n in ipairs(names) do was[i] = f(n, tostring(i), "Open", "500") end
+  local e = effects.compare({ tests = tests(0, #names, was) }, { tests = tests(#names, #names, {}) }, {}, {})
+  local got = {}
+  for _, x in ipairs(e) do if x.keyword == "Test Turned Green" then got[#got + 1] = x.arg end end
+  spec.same(got, { "alpha", "beta", "delta", "gamma", "kappa", "mu", "omega", "zeta" })
+end)
+
 spec.test("a test turned green names its fixed keyword; one failing elsewhere moved on, one further reached", function()
   local before = { tests = tests(0, 2, { f("add", "1", "Open", "500"), f("order", "4", "See Before", "B first", 3) }),
     stage = "building" }

@@ -111,8 +111,14 @@ function T:candidates(todo, n, list)
 end
 
 -- Feature values of a step: a map of name to a number (a yes/no as 1 or 0), each with the question form it came from.
+-- in name order: pairs' order changed between two runs of the same LuaJIT (the Bevy spike's dump, 2026-10-06), and a
+-- run's rows must come out the same each time it is replayed
 function T:features(todo, n, map, form)
-  for name, v in pairs(map or {}) do
+  local names = {}
+  for name in pairs(map or {}) do names[#names + 1] = name end
+  table.sort(names)
+  for _, name in ipairs(names) do
+    local v = map[name]
     put(self.db, "tablua_feature", { "todo", "n", "name", "value", "form" },
       { todo = todo, n = n, name = name, value = tonumber(v), form = form or "" })
   end

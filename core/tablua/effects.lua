@@ -58,6 +58,14 @@ function M.keyword_kind(name)
   return PAGE[(s:lower():gsub("[%s_]", ""))] or "own"
 end
 
+-- a table's keys in order: pairs' order is not the same from run to run, and what is written from it must be
+local function keys(t)
+  local out = {}
+  for k in pairs(t or {}) do out[#out + 1] = k end
+  table.sort(out)
+  return out
+end
+
 local function title(s)
   return (tostring(s):gsub("_", " "):gsub("(%a)([%w]*)", function(a, b) return a:upper() .. b end))
 end
@@ -93,7 +101,8 @@ function M.compare(before, after, step, commands)
     if (a.total or 0) > 0 and a.passed == a.total and not (bt > 0 and bp == bt) then add("All Green") end
     if (a.undefined or 0) > 0 then add("Undefined Keywords") end
     local was, now = by_test(b), by_test(a)
-    for name, f in pairs(was) do
+    for _, name in ipairs(keys(was)) do
+      local f = was[name]
       if not now[name] and (a.total or 0) > 0 then
         add("Test Turned Green", name)
         add("Keyword Fixed", M.keyword_kind(f.keyword))
@@ -108,11 +117,12 @@ function M.compare(before, after, step, commands)
         elseif (g.reach or 0) < (f.reach or 0) then add("Fell Back") end
       end
     end
-    for name in pairs(now) do
+    for _, name in ipairs(keys(now)) do
       if not was[name] and bt > 0 then add("Test Turned Red", name) end
     end
   end
-  for path, status in pairs(after.pages or {}) do
+  for _, path in ipairs(keys(after.pages)) do
+    local status = after.pages[path]
     local was = (before.pages or {})[path]
     if status >= 500 and was ~= status then add("Page Broke", path)
     elseif status == 200 and was and was ~= 200 then add("Page Fixed", path) end

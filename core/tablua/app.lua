@@ -11,6 +11,14 @@ local src = require("tablua.source")
 local M = {}
 
 -- each file ends its line before the next begins (a file's last line would run into the next one's first)
+-- a table's keys in order: pairs' order is not the same from run to run, and what is written from it must be
+local function keys(t)
+  local out = {}
+  for k in pairs(t or {}) do out[#out + 1] = k end
+  table.sort(out)
+  return out
+end
+
 local function joined(t)
   local out = {}
   for i, x in ipairs(t) do out[i] = (x ~= "" and x:sub(-1) ~= "\n") and x .. "\n" or x end
@@ -25,7 +33,8 @@ end
 
 function M.program(files)
   local tests, keywords, modules, pages = {}, {}, {}, {}
-  for path, text in pairs(files) do
+  for _, path in ipairs(keys(files)) do
+    local text = files[path]
     if path:match("tests/.+%.robot$") or path:match("tasks/.+%.robot$") then tests[#tests + 1] = text
     elseif path:match("code/keywords/.+%.lua$") then keywords[#keywords + 1] = text
     elseif path:match("code/[^/]+%.lua$") then modules[path] = text

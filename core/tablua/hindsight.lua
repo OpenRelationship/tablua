@@ -13,6 +13,14 @@ local M = {}
 M.batch = 25
 M.source = "jev_hindsight"
 
+-- a table's keys in order: pairs' order is not the same from run to run, and what is written from it must be
+local function keys(t)
+  local out = {}
+  for k in pairs(t or {}) do out[#out + 1] = k end
+  table.sort(out)
+  return out
+end
+
 function M.steps(t, todo)
   return t.db:exec([[select o.n, o.verb, o.outcome, o.note, o.passed, o.total, coalesce(s.stage, '') as stage
     from tablua_outcome o left join tablua_state s on s.todo = o.todo and s.n = o.n
@@ -69,7 +77,8 @@ function M.label(t, jev, todo)
     if next(q) then
       local answers, record = jev:decide(state, q)
       cost = cost + (record and tonumber(record.cost) or 0)
-      for id, a in pairs(answers) do
+      for _, id in ipairs(keys(answers)) do
+        local a = answers[id]
         t:label(todo, tonumber(id:sub(2)), "contrib", a.noul, M.source)
         labelled = labelled + 1
       end
