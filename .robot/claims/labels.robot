@@ -28,7 +28,7 @@ Further Ranks Passing Trials Higher
     Share Ranks Passing    further
 
 Further Ranks Passing Trials Higher (red)
-    Use Fixture    create table trial (trial, reward, further, safe, complete)    ${MANY} insert into trial select i, i % 2, 0.5, 1, 0.9 from c
+    Use Fixture    create table trials (trial, reward, further, safe, complete)    ${MANY} insert into trials select i, i % 2, 0.5, 1, 0.9 from c
     Share Ranks Passing    further
 
 Further Beats Complete At Ranking Trials
@@ -39,7 +39,7 @@ Further Beats Complete At Ranking Trials
     Further Above Complete
 
 Further Beats Complete At Ranking Trials (red)
-    Use Fixture    create table trial (trial, reward, further, safe, complete)    ${MANY} insert into trial select i, i % 2, 0.5, 1, 0.5 + (i % 2) * 0.3 from c
+    Use Fixture    create table trials (trial, reward, further, safe, complete)    ${MANY} insert into trials select i, i % 2, 0.5, 1, 0.5 + (i % 2) * 0.3 from c
     Further Above Complete
 
 Safe Ranks Passing Trials Higher
@@ -50,7 +50,7 @@ Safe Ranks Passing Trials Higher
     Share Ranks Passing    safe
 
 Safe Ranks Passing Trials Higher (red)
-    Use Fixture    create table trial (trial, reward, further, safe, complete)    ${MANY} insert into trial select i, i % 2, 0.5, 1, 0.9 from c
+    Use Fixture    create table trials (trial, reward, further, safe, complete)    ${MANY} insert into trials select i, i % 2, 0.5, 1, 0.9 from c
     Share Ranks Passing    safe
 
 *** Keywords ***
@@ -62,10 +62,10 @@ Most Steps Complete
 
 Share Ranks Passing
     [Arguments]    ${label}
-    ${auc}    ${null}    ${p}=    AUROC Against Shuffled    select ${label} as score, reward > 0 as label from trial where ${label} is not null    min=5
+    ${auc}    ${null}    ${p}=    AUROC Against Shuffled    select ${label} as score, reward > 0 as label from trials where ${label} is not null    min=5
     Should Be True    ${auc} - ${null} >= 0.1 and ${p} <= 0.05    AUROC ${auc} against shuffled ${null}, p ${p}
 
 Further Above Complete
-    ${f}    ${fn}    ${fp}=    AUROC Against Shuffled    select further as score, reward > 0 as label from trial where further is not null and complete is not null    min=5
-    ${c}    ${cn}    ${cp}=    AUROC Against Shuffled    select complete as score, reward > 0 as label from trial where further is not null and complete is not null    min=5
+    ${f}    ${fn}    ${fp}=    AUROC Against Shuffled    select further as score, reward > 0 as label from trials where further is not null and complete is not null    min=5
+    ${c}    ${cn}    ${cp}=    AUROC Against Shuffled    select complete as score, reward > 0 as label from trials where further is not null and complete is not null    min=5
     Should Be True    ${f} - ${c} >= 0.05    further's AUROC ${f} against complete's ${c}
