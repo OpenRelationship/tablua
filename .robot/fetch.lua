@@ -35,8 +35,8 @@ function M.job(root, db, label, job)
   local got = {}
   for _, trial in ipairs(lines(remote(("ls -1 %s/%s"):format(M.jobs, job)))) do
     local dir = ("%s/%s/%s"):format(M.jobs, job, trial)
-    local result = remote("cat " .. dir .. "/result.json")
-    if trial:find("__") and result:find("{", 1, true) then
+    local result = trial:find("__") and remote("cat " .. dir .. "/result.json") or ""
+    if result:find("{", 1, true) then
       local ok, r = pcall(json.decode, result)
       r = ok and r or {}
       local reward = r.verifier_result and r.verifier_result.rewards and r.verifier_result.rewards.reward
