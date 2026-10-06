@@ -190,6 +190,7 @@ spec.test("Use Sheets pools many runs' rows, each todo named by its sheet; Needs
     os.remove(paths[k])
     local t = require("tablua").open(sqlite.open(paths[k]))
     t.db:exec("insert into tablua_term (todo, n, i, source, program) values ('run', 1, 1, 'real', 'make')")
+    t:decision({ todo = "run", n = 1, chosen = "work", by = "free", said = "work", state = "s" })
   end
   local res = run([[
 *** Test Cases ***
@@ -199,16 +200,21 @@ Pooled
     Should Be True    ${n} == 2
     ${t}=    Value Of    select min(todo) from tablua_term
     Should Be Equal    ${t}    zz-test-1:run
+    ${d}=    Count Of    select 1 from tablua_decision where state = 's'
+    Should Be True    ${d} == 2
 Thin
     Needs At Least    3    20    rows with red text
     Fail    never reached
 None
     Use Sheets    runs/zz-none-*.sqlite
+No Trials
+    Use Trials    zz-no-such-label
 ]])
   for _, p in ipairs(paths) do os.remove(p) end
   spec.eq(res.tests[1].status, "PASS", res.tests[1].message)
   spec.same({ res.tests[2].status, res.tests[2].message }, { "SKIP", "rows with red text: 3 of 20 needed" })
   spec.eq(res.tests[3].status, "SKIP")
+  spec.eq(res.tests[4].status, "SKIP")
 end)
 
 spec.run()

@@ -1,7 +1,8 @@
 *** Settings ***
 Documentation    Claims about what a run keeps as rows since schema 18 (2026-10-06): each test run's keyword tree, and
 ...              each decision with what the decision model said, the text it read and the parts of its probabilities.
-...              They read the latest trial fetched with the label rows-on (run.lua fetch rows-on).
+...              They read every trial fetched with the label rows-on (run.lua fetch rows-on), pooled. Run 3 read only
+...              the latest trial, too few decisions for two claims; the scope widened 2026-10-06, no kill number moved.
 
 *** Variables ***
 ${LABEL}    rows-on
@@ -12,7 +13,7 @@ Test Runs Are Kept As Rows
     [Documentation]    Every action run while tests existed is matched by keyword rows in tablua_result.
     ...    Kill: a rows-on sheet whose term rows show tests (passed is set) has no result rows.
     [Tags]    level:consistent    table:tablua_result    predict:holds@0.85
-    Use Latest Trial
+    Use Trials    ${LABEL}
     Tested Actions Have Results
 
 Test Runs Are Kept As Rows (red)
@@ -24,7 +25,7 @@ Failing Tests Have A Reach
     ...    that reach is above 0 for some, so it can rise while the test is still red.
     ...    Kill: no failing test in the sheet passed a keyword before failing.
     [Tags]    level:consistent    label:reach    predict:holds@0.7
-    Use Latest Trial
+    Use Trials    ${LABEL}
     Some Failing Test Reached Further
 
 Failing Tests Have A Reach (red)
@@ -35,7 +36,7 @@ Decisions Keep What Was Read And Said
     [Documentation]    Every decision row keeps the state text the decision model read and what it said.
     ...    Kill: under 95% of 10 or more decisions have both.
     [Tags]    level:consistent    table:tablua_decision    predict:holds@0.8
-    Use Latest Trial
+    Use Trials    ${LABEL}
     Decisions Are Whole
 
 Decisions Keep What Was Read And Said (red)
@@ -46,7 +47,7 @@ The Prior Makes The Pick
     [Documentation]    From the history (TabICL barely tells moves apart): the decision model's own prior, not the
     ...    tabular part, decides. Kill: the move with the highest final p is the prior's top on under 90% of 20 or more.
     [Tags]    level:informative    hypothesis:prior    predict:holds@0.75
-    Use Latest Trial
+    Use Trials    ${LABEL}
     Prior Tops Agree
 
 The Prior Makes The Pick (red)
@@ -54,14 +55,6 @@ The Prior Makes The Pick (red)
     Prior Tops Agree
 
 *** Keywords ***
-Use Latest Trial
-    Use Sheet    ledger.sqlite
-    ${sheet}=    Value Of    select sheet from trial where label = '${LABEL}' order by at desc, trial limit 1
-    IF    $sheet == None
-        Skip    no trial fetched with the label ${LABEL}
-    END
-    Use Sheet    ${sheet}
-
 Tested Actions Have Results
     ${tested}=    Value Of    select count(*) from tablua_term where passed is not null
     ${results}=    Value Of    select count(*) from tablua_result

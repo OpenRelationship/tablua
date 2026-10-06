@@ -9,6 +9,7 @@
 --   Use Sheet    path                    a tablua file (relative to .robot/), or the ledger itself
 --   Use Sheets    pattern               every sheet matching (runs/*.sqlite) in one in-memory file, each todo named
 --                                        sheet:todo, the columns they share: claims over many runs
+--   Use Trials    label                 every trial fetched with the label (the ledger's trial rows), pooled as above
 --   Use Fixture    sql    ...            a fresh in-memory tablua file, the statements run in it: a red proof's rows
 --   Needs At Least    count    min    what    skips unless count reaches min: a column never exercised is unknown
 --   Value Of    sql                      the first row's first column
@@ -31,7 +32,7 @@ local M = {}
 M.bench = (os.getenv("TABLUA_LOCAL") or (os.getenv("HOME") .. "/tablua-local")) .. "/bench/terminal/"
 
 -- the tables Use Sheets pools
-M.pooled = { "tablua_term", "tablua_event", "tablua_file" }
+M.pooled = { "tablua_term", "tablua_event", "tablua_file", "tablua_result", "tablua_decision", "tablua_candidate" }
 
 local function skip(msg) error({ robot = true, skip = true, message = msg }, 0) end
 
@@ -63,12 +64,10 @@ function M.library(root)
     if full:find("ledger%.sqlite$") then ledger.open(db) end
   end)
 
-  lib:add("Use Sheets", function(pattern)
+  -- the sheets at these paths in one in-memory file, each todo named sheet:todo, the columns they share
+  local function pool(paths)
     db = tablua.open(sqlite.open(":memory:")).db
-    local p = io.popen('ls ' .. root .. '/' .. pattern .. ' 2>/dev/null')
-    local k = 0
-    for path in p:lines() do
-      k = k + 1
+    for _, path in ipairs(paths) do
       local name = path:match("([^/]+)%.sqlite$") or path
       db:exec("attach database ? as s", { path })
       for _, tbl in ipairs(M.pooled) do
@@ -86,8 +85,27 @@ function M.library(root)
       end
       db:exec("detach database s")
     end
+  end
+
+  lib:add("Use Sheets", function(pattern)
+    local paths = {}
+    local p = io.popen('ls ' .. root .. '/' .. pattern .. ' 2>/dev/null')
+    for path in p:lines() do paths[#paths + 1] = path end
     p:close()
-    if k == 0 then skip("no sheet matches " .. pattern) end
+    if #paths == 0 then skip("no sheet matches " .. pattern) end
+    pool(paths)
+  end)
+
+  lib:add("Use Trials", function(label)
+    local l = sqlite.open(root .. "/ledger.sqlite")
+    ledger.open(l)
+    local paths = {}
+    for _, r in ipairs(l:exec("select sheet from trial where label = ? order by job, trial", { label })) do
+      local f = io.open(root .. "/" .. r.sheet, "rb")
+      if f then f:close() paths[#paths + 1] = root .. "/" .. r.sheet end
+    end
+    if #paths == 0 then skip("no trial fetched with the label " .. label) end
+    pool(paths)
   end)
 
   lib:add("Needs At Least", function(count, min, what)
