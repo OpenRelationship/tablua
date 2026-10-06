@@ -2,6 +2,7 @@
 --
 --   luajit .robot/run.lua [word ...]           every claims/*.robot, or those whose path holds a word
 --   luajit .robot/run.lua fetch label [job]    a bench job's trials from the box: sheets to runs/, rows to trial
+--   luajit .robot/run.lua refresh label [job]  fetch, rebuild the decider history and the step labels, run every claim
 --   luajit .robot/run.lua invalid todo n why   mark a run whose verdicts cannot be trusted, saying why
 --   luajit .robot/run.lua history              every claim's verdicts, run by run
 --
@@ -30,14 +31,18 @@ end
 
 local cmd = arg[1]
 
-if cmd == "fetch" then
-  local got = require("fetch").job(root, t.db, assert(arg[2], "fetch needs a label"), arg[3])
+local refresh = cmd == "refresh"
+if cmd == "fetch" or refresh then
+  local got = require("fetch").job(root, t.db, assert(arg[2], cmd .. " needs a label"), arg[3])
   for _, g in ipairs(got) do
     print(("%s  reward=%s green=%s steps=%s  %s"):format(g.task, tostring(g.reward), tostring(g.green),
       tostring(g.steps), g.sheet))
   end
   print(#got .. " trials")
-  return
+  if not refresh then return end
+  require("fetch").derived(root)
+  print("rebuilt the decider history and the step labels")
+  arg = {}
 elseif cmd == "invalid" then
   ledger.invalid(t.db, assert(arg[2], "invalid needs a claims file"), tonumber(arg[3]), assert(arg[4], "say why"))
   print(("%s run %s marked invalid"):format(arg[2], arg[3]))

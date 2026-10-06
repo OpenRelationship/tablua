@@ -4,6 +4,9 @@
 --
 --   local fetch = require("fetch")
 --   fetch.job(root, db, label, job?) -> { { trial, task, reward, green, steps }, ... }   job: the latest by default
+--   fetch.derived(root)   the sheets built from every run: the decider history (tl.history, on the box: it replays
+--                         TabICL there) and the step labels (tl.labels, here, from the ledger's trials)
+--   A copy that comes back empty is an error, never a sheet: an empty file once read as a sheet with no tables
 --   TABLUA_BOX (cuda-box-cable) is the ssh host; TABLUA_BOX_JOBS (/home/shane/tb/jobs) where Harbor keeps jobs,
 --   read through wsl
 local json = require("ports.json")
@@ -13,6 +16,8 @@ local M = {}
 
 M.host = os.getenv("TABLUA_BOX") or "cuda-box-cable"
 M.jobs = os.getenv("TABLUA_BOX_JOBS") or "/home/shane/tb/jobs"
+M.python = os.getenv("TABLUA_BOX_PYTHON") or "/home/shane/tl-venv12/bin/python"
+M.locals = (os.getenv("TABLUA_LOCAL") or (os.getenv("HOME") .. "/tablua-local"))
 
 local function remote(args, out)
   local cmd = ('ssh %s "wsl -e %s"'):format(M.host, args)
@@ -21,6 +26,23 @@ local function remote(args, out)
   local s = p:read("*a")
   p:close()
   return s
+end
+
+local function size(path)
+  local f = io.open(path, "rb")
+  if not f then return 0 end
+  local n = f:seek("end")
+  f:close()
+  return n
+end
+
+-- a file from the box, refused when it comes back empty
+function M.copy(from, to)
+  remote("cat " .. from, to)
+  if size(to) == 0 then
+    os.remove(to)
+    error("nothing came back from " .. M.host .. ":" .. from, 0)
+  end
 end
 
 local function lines(s)
@@ -41,7 +63,7 @@ function M.job(root, db, label, job)
       r = ok and r or {}
       local reward = r.verifier_result and r.verifier_result.rewards and r.verifier_result.rewards.reward
       local sheet = ("runs/%s__%s.sqlite"):format(job, trial)
-      remote("cat " .. dir .. "/agent/tablua.db", root .. "/" .. sheet)
+      M.copy(dir .. "/agent/tablua.db", root .. "/" .. sheet)
       local green, steps
       local okdb, s = pcall(sqlite.open, root .. "/" .. sheet)
       if okdb then
@@ -57,6 +79,17 @@ function M.job(root, db, label, job)
     end
   end
   return got
+end
+
+function M.derived(root)
+  local hist = "/home/shane/tb/decider-history.sqlite"
+  local cmd = ("ssh %s \"wsl -e bash -c 'cd ~/tablua-local && %s -m tl.history --out %s >/dev/null 2>&1'\"")
+    :format(M.host, M.python, hist)
+  os.execute(cmd)
+  M.copy(hist, root .. "/runs/decider-history.sqlite")
+  local ok = os.execute(("cd '%s' && python3 -m tl.labels '%s/ledger.sqlite' '%s/runs/decider-history.sqlite'"
+    .. " '%s/runs/labels.sqlite' >/dev/null"):format(M.locals, root, root, root))
+  if size(root .. "/runs/labels.sqlite") == 0 or not ok then error("the step labels were not built", 0) end
 end
 
 return M
