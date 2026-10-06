@@ -48,6 +48,16 @@ Schema 14 calls what the agent is asked to do a todo (owner, 2026-10-05: org's w
 log table is keyed by (`todo`, `n`), so "task" means only a Robot task. A file kept before it has its `task` column
 renamed at open.
 
+Schemas 15 to 17 make the terminal rows (`term.lua`, owner 2026-10-06): `tablua_term`, every action a step sent to its
+terminal from a source (real, or a world model's foreseen screen), with what was typed (its programs, writes, whether
+it only reads), what the raw bytes showed (colours, redraws, the alternate screen), the files written, how long it took
+and when its first output came, in milliseconds, and what bash itself ran (`trace` and `ran`, from its DEBUG trap: an
+oracle for the typed columns); `tablua_event`, what each screen says went wrong; `tablua_file`; `tablua_vector`, a
+world model's hidden state for an action; and the view `tablua_surprise`, where the foreseen and the real part.
+Schema 18 keeps, with each decision, what the decision model said where another policy chose (`said`) and the text it
+read (`state`), and with each candidate the parts of its probability (`prior`, `p_complete`, `knn`). A file kept
+before any of them gains the columns at open.
+
 Schema 4 adds labels given after the fact (`tablua_label`). `hindsight.lua` gives Jev a finished run, its ask,
 how it ended and every step, and keeps its chance that each step contributed to the app built as head `contrib`
 (source `jev_hindsight`). Progress is short-sighted; this is the long view. It is a training target only, never an
@@ -62,7 +72,7 @@ pages, commands, the stage and how the step was judged. `effects.lua` compares s
 them from its facts as it goes. Each frequent effect is a head: `t:training("effect:<Keyword>")`.
 
 Modules: `init.lua`, `schema.lua`, `source.lua`, `org.lua`, `program.lua`, `hindsight.lua`, `effects.lua`,
-`telemetry.lua`; `init_test.lua`, `source_test.lua`, `effects_test.lua`.
+`telemetry.lua`, `term.lua`; `init_test.lua`, `source_test.lua`, `effects_test.lua`, `term_test.lua`.
 
 ## Links and breaks (schema 6, M6c)
 

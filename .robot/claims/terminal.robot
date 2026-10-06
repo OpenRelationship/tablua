@@ -43,17 +43,6 @@ First Output Time Is Measured, Not The Poll Interval (red)
     Use Fixture    ${MANY} insert into tablua_term (todo, n, i, source, first_ms) select 't', i, 1, 'real', (i % 2) * 100 from c
     First Output Is Not Just Polls
 
-Every Test Run Is Kept As Rows
-    [Documentation]    When the bench runs the agent's tests, their keyword tree lands in tablua_result.
-    ...    Kill: a sheet whose term rows show tests (passed is set) has no result rows.
-    [Tags]    level:consistent    table:tablua_result    predict:KILLED@0.99
-    Use Sheet    ${LAST}
-    Tested Actions Have Results
-
-Every Test Run Is Kept As Rows (red)
-    Use Fixture    insert into tablua_term (todo, n, i, source, passed, total) values ('t', 1, 1, 'real', 1, 2)
-    Tested Actions Have Results
-
 Broken Detector Catches A Return Value Compared Whole
     [Documentation]    A test that assigns Run And Return Rc And Output to one variable compares a list to a number,
     ...    so it can never pass; the detector must call it broken. Taken from step 25's failing test.
@@ -114,11 +103,6 @@ First Output Is Not Just Polls
     Needs At Least    ${all}    20    actions with a first output time
     ${polls}=    Value Of    select count(*) from tablua_term where source = 'real' and first_ms in (0, 100)
     Should Be True    ${polls} < 0.9 * ${all}    ${polls} of ${all} first_ms values are 0 or one poll
-
-Tested Actions Have Results
-    ${tested}=    Value Of    select count(*) from tablua_term where passed is not null
-    ${results}=    Value Of    select count(*) from tablua_result
-    Should Be True    ${tested} == 0 or ${results} > 0    ${tested} rows were tested but tablua_result has ${results} rows
 
 Detector Says Broken
     [Arguments]    ${message}

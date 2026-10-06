@@ -6,7 +6,7 @@
 -- is written as tmux's would be.
 --
 --   local term = require("term")
---   local s = term.new(exec, { history?, poll?, width?, height?, limit?, now? })
+--   local s = term.new(exec, { history?, width?, height?, limit?, now? })
 --                          exec(cmd, timeout) -> { code, stdout, stderr }, the host's command on the computer
 --   s:open() -> mode       "tmux" or "plain"; sends nothing to the computer until called
 --   s:send(keys, wait) -> { keys, wait, screen, exit, done, ms, first_ms, files, raw, trace }
@@ -46,7 +46,7 @@ S.__index = S
 function M.new(exec, opts)
   opts = opts or {}
   assert(type(exec) == "function", "term needs the host's exec")
-  return setmetatable({ exec = exec, history = opts.history or 100000, poll = opts.poll or M.poll,
+  return setmetatable({ exec = exec, history = opts.history or 100000,
     width = opts.width or 200, height = opts.height or 50, limit = opts.limit or M.limit, now = opts.now }, S)
 end
 
