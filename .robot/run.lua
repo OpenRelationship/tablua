@@ -37,8 +37,8 @@ local refresh = cmd == "refresh"
 if cmd == "fetch" or refresh then
   local got = require("fetch").job(root, t.db, assert(arg[2], cmd .. " needs a label"), arg[3])
   for _, g in ipairs(got) do
-    print(("%s  reward=%s green=%s steps=%s  %s"):format(g.task, tostring(g.reward), tostring(g.green),
-      tostring(g.steps), g.sheet))
+    print(("%s  reward=%s green=%s steps=%s ended=%s  %s"):format(g.task, tostring(g.reward), tostring(g.green),
+      tostring(g.steps), tostring(g.ended), g.sheet))
   end
   print(#got .. " trials")
   if not refresh then return end

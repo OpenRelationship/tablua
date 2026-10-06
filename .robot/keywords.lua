@@ -110,9 +110,9 @@ function M.library(root)
     -- and the trials' own rows (task, reward, green), so a claim can read what the verifier said
     ledger.open(db)
     for _, r in ipairs(l:exec("select * from trial where label = ?", { label })) do
-      db:exec("insert into trial (job, trial, task, label, reward, green, steps, sheet, at) values (?, ?, ?, ?, ?, ?, ?,"
-        .. " ?, ?)", { r.job, r.trial, r.task, r.label, r.reward or false, r.green or false, r.steps or false, r.sheet,
-        r.at })
+      db:exec("insert into trial (job, trial, task, label, reward, green, steps, sheet, at, ended) values (?, ?, ?, ?, ?,"
+        .. " ?, ?, ?, ?, ?)", { r.job, r.trial, r.task, r.label, r.reward or false, r.green or false, r.steps or false,
+        r.sheet, r.at, r.ended or "" })
     end
   end)
 

@@ -55,6 +55,11 @@ function M.open(db)
   for _, c in ipairs(db:exec("pragma table_info(claim)")) do cols[c.name] = true end
   if not cols.predict then db:exec("alter table claim add column predict text not null default ''") end
   if not cols.p then db:exec("alter table claim add column p real") end
+  -- how a trial ended: answered (it said it was done), timeout (the benchmark's limit), died (its host gone, nothing
+  -- said: three trials on 2026-10-06 14:13)
+  local tcols = {}
+  for _, c in ipairs(db:exec("pragma table_info(trial)")) do tcols[c.name] = true end
+  if not tcols.ended then db:exec("alter table trial add column ended text not null default ''") end
 end
 
 local RED = " %(red%)$"

@@ -62,6 +62,12 @@ function M.job(root, db, label, job)
       local ok, r = pcall(json.decode, result)
       r = ok and r or {}
       local reward = r.verifier_result and r.verifier_result.rewards and r.verifier_result.rewards.reward
+      -- how it ended: the benchmark's limit, an answer the run gave, or neither (its host gone, nothing said)
+      local ex = r.exception_info and r.exception_info.exception_type
+      local okr, run = pcall(json.decode, remote("cat " .. dir .. "/agent/run.json"))
+      local said = okr and type(run) == "table" and run.said
+      local ended = ex == "AgentTimeoutError" and "timeout" or (said and said ~= json.null) and "answered"
+        or ex and ("error: " .. tostring(ex)) or "died"
       local sheet = ("runs/%s__%s.sqlite"):format(job, trial)
       M.copy(dir .. "/agent/tablua.db", root .. "/" .. sheet)
       local green, steps
@@ -75,10 +81,11 @@ function M.job(root, db, label, job)
         if okq and g[1] then green, steps = g[1].g, g[1].steps end
       end
       local task = trial:match("^(.-)__") or trial
-      db:exec("insert or replace into trial (job, trial, task, label, reward, green, steps, sheet, at) values"
-        .. " (?, ?, ?, ?, ?, ?, ?, ?, ?)", { job, trial, task, label, reward or false, green or false, steps or false,
-        sheet, os.date("!%Y-%m-%dT%H:%M:%SZ") })
-      got[#got + 1] = { trial = trial, task = task, reward = reward, green = green, steps = steps, sheet = sheet }
+      db:exec("insert or replace into trial (job, trial, task, label, reward, green, steps, sheet, at, ended) values"
+        .. " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", { job, trial, task, label, reward or false, green or false, steps or false,
+        sheet, os.date("!%Y-%m-%dT%H:%M:%SZ"), ended })
+      got[#got + 1] = { trial = trial, task = task, reward = reward, green = green, steps = steps, sheet = sheet,
+        ended = ended }
     end
   end
   return got
