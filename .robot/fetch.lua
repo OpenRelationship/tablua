@@ -85,10 +85,17 @@ function M.job(root, db, label, job)
 end
 
 function M.derived(root)
+  -- absolute: the labels are built from tablua-local, where a relative root (".robot") names nothing
+  if not root:find("^/") then
+    local p = assert(io.popen("pwd"))
+    root = p:read("*l") .. "/" .. root
+    p:close()
+  end
   local hist = "/home/shane/tb/decider-history.sqlite"
-  local cmd = ("ssh %s \"wsl -e bash -c 'cd ~/tablua-local && %s -m tl.history --out %s >/dev/null 2>&1'\"")
-    :format(M.host, M.python, hist)
-  os.execute(cmd)
+  -- the script goes on stdin (tablua-local/bin/box): Windows' ssh reads single quotes and 2>/dev/null its own way
+  local p = assert(io.popen(("'%s/bin/box' -l > /dev/null 2>&1"):format(M.locals), "w"))
+  p:write(("cd ~/tablua-local && %s -m tl.history --out %s\n"):format(M.python, hist))
+  p:close()
   M.copy(hist, root .. "/runs/decider-history.sqlite")
   local ok = os.execute(("cd '%s' && python3 -m tl.labels '%s/ledger.sqlite' '%s/runs/decider-history.sqlite'"
     .. " '%s/runs/labels.sqlite' >/dev/null"):format(M.locals, root, root, root))

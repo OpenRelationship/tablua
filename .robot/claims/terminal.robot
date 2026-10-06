@@ -34,9 +34,10 @@ First Output Time Is Measured, Not The Poll Interval
     [Documentation]    first_ms is when a command first printed, past its echo.
     ...    Kill: 90% or more of the values are 0 or exactly one poll (100 ms), so the column only counts polls.
     ...    Since 2026-10-06 11:17 (0ecafd3) it is timed in milliseconds; it reads only trials fetched after that fix
-    ...    (label replicate), since sheets kept before it always counted polls.
+    ...    (label replicate-partial: the 11:23 replication, stopped early and fetched under that name), since
+    ...    sheets kept before it always counted polls.
     [Tags]    level:consistent    column:first_ms    predict:holds@0.75
-    Use Trials    replicate
+    Use Trials    replicate-partial
     First Output Is Not Just Polls
 
 First Output Time Is Measured, Not The Poll Interval (red)
