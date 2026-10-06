@@ -84,6 +84,15 @@ Plant Two
   spec.eq(top.children[4].status, "NOT RUN")
 end)
 
+spec.test("msg= names a library keyword's message, as Robot reads it, not text of its own", function()
+  local res = run([[
+*** Test Cases ***
+Named
+    Should Be Equal As Numbers    1    2    msg=no overfull boxes
+]])
+  spec.eq(res.tests[1].message, "no overfull boxes")
+end)
+
 spec.test("an unknown keyword fails as Robot words it, and the summary lists it as undefined", function()
   local res = run("*** Test Cases ***\nT\n    Water The Fern\n")
   spec.eq(res.tests[1].message, "No keyword with name 'Water The Fern' found.")

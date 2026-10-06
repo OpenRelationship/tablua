@@ -142,6 +142,9 @@ function Ctx:call(name, args, line)
     for i, c in ipairs(k.captured or {}) do list[i] = c end
     for i = 1, args.n or #args do list[#list + 1] = args[i] end
     if k.user then return self:user_keyword(k.user, list) end
+    -- a library keyword's last argument msg=... is its message, named (Should ... msg=why), as Robot reads it
+    local last = list[#list]
+    if type(last) == "string" and last:find("^msg=") then list[#list] = last:sub(5) end
     if k.ctx then return k.fn(self, unpack_(list)) end
     return k.fn(unpack_(list))
   end)

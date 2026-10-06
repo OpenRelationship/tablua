@@ -10,4 +10,6 @@ return {
   { "bench/terminal/policy.lua", "(req.best_at or 0) + 1, -1", "1, -1", "steps before the last gain counted" },
   { "bench/terminal/policy.lua", "if steps[i].verb == \"plan_tests\" then break end", "",
     "planning does not reset the stall" },
+  { "bench/terminal/tests.lua", "if tostring(why or \"\"):find(h[1]) then return h[2] end", "",
+    "no hint for a broken test" },
 }
