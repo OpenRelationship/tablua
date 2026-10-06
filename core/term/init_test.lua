@@ -97,6 +97,20 @@ live("each action says how long it took, which files it wrote, and its raw bytes
   os.execute("rm -rf " .. dir)
 end)
 
+live("the first output is timed in milliseconds, not in polls of the prompt's wait", function(s)
+  -- the old count of 50 ms polls could only say a multiple of 50: three times, at least one is not
+  local seen, off = {}, false
+  for _ = 1, 3 do
+    local r = s:send("sleep 0.13; echo late\n", 10)
+    seen[#seen + 1] = tostring(r.first_ms)
+    spec.ok(r.first_ms and r.first_ms >= 125 and r.first_ms < 300, "first_ms " .. tostring(r.first_ms))
+    if r.first_ms % 50 ~= 0 then off = true end
+  end
+  spec.ok(off, "every first_ms a multiple of 50: " .. table.concat(seen, ", "))
+  local q = s:send("echo soon\n", 10)
+  spec.ok(q.first_ms and q.first_ms < 250, "first_ms " .. tostring(q.first_ms))
+end)
+
 live("the trace is every command bash ran for the keys, as bash read them, its exit codes left alone", function(s)
   local r = s:send("cd /tmp && ls | wc -l; false\n", 10)
   spec.same(r.trace, { "cd /tmp", "ls", "wc -l", "false" })

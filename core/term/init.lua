@@ -30,6 +30,7 @@ M.dir = "/tmp/.tablua-term"
 M.wait = 120          -- seconds a command may run before control comes back, when no wait is given
 M.limit = 1800        -- the longest wait
 M.poll = 0.05         -- seconds between looks at whether the prompt is back
+M.first_poll = 0.005  -- seconds between looks until the first output has come
 M.raw_bytes = 524288  -- of an action's raw bytes, the first this many are kept
 M.files = 200         -- files written, at most this many listed
 M.trace = 500         -- commands traced, at most this many kept
@@ -120,27 +121,34 @@ function S:screen()
 end
 
 -- one exec: note where the prompt is, send the keys, wait for the prompt to come back (a new count in the exit file
--- and bash in front again, seen twice running) or for the wait to run out, then read the screen from that prompt on
-local function sender(keys, ticks)
-  -- the first output is the first byte past the keys' own echo
+-- and bash in front again, seen twice running) or for the wait to run out, then read the screen from that prompt on.
+-- The first output is the first byte past the keys' own echo, looked for every M.first_poll seconds and timed in
+-- milliseconds by the computer's clock (date's %N; whole seconds where it has none): it once counted polls of the
+-- prompt's wait, 0 or 100 and nothing between (the claim First Output Time Is Measured, 2026-10-06)
+local function sender(keys, wait)
   local d, s = M.dir, M.session
   local send = keys ~= "" and tmux("send-keys -t " .. s .. " -- " .. q(keys)) or ":"
   local size = "$(wc -c < " .. d .. "/raw 2>/dev/null || echo 0)"
   return table.concat({
     "b=$(cut -d' ' -f1 " .. d .. "/exit 2>/dev/null)",
     "r0=" .. size .. "; r0=$((r0+0)); first=",
+    "ms() { t=$(date +%s%N); case $t in *N) echo $(( $(date +%s) * 1000 ));; *) echo $(( t / 1000000 ));; esac; }",
     "t0=$(wc -l < " .. d .. "/trace 2>/dev/null || echo 0); t0=$((t0+0))",
     "touch " .. d .. "/mark; sleep 0.01",
     "set -- $(" .. tmux("display -p -t " .. s .. " '#{history_size} #{cursor_y}'") .. ")",
     "a=$(( $1 + $2 ))",
+    "start=$(ms)",
     send,
-    "i=0; seen=0",
-    "while [ $i -lt " .. ticks .. " ]; do",
+    "seen=0",
+    "while [ $(( $(ms) - start )) -lt " .. math.floor(wait * 1000) .. " ]; do",
+    -- until the first output, only the cheap look at its size
+    "  if [ -z \"$first\" ]; then",
+    "    if [ " .. size .. " -gt $((r0 + " .. (#keys + 8) .. ")) ]; then first=$(( $(ms) - start )); else sleep " .. M.first_poll .. "; continue; fi",
+    "  fi",
     "  n=$(cut -d' ' -f1 " .. d .. "/exit 2>/dev/null)",
     "  c=$(" .. tmux("display -p -t " .. s .. " '#{pane_current_command}'") .. ")",
-    "  if [ -z \"$first\" ] && [ " .. size .. " -gt $((r0 + " .. (#keys + 8) .. ")) ]; then first=$i; fi",
     "  if [ \"$n\" != \"$b\" ] && [ \"$c\" = bash ]; then seen=$((seen+1)); [ $seen -ge 2 ] && break; else seen=0; fi",
-    "  sleep " .. M.poll .. "; i=$((i+1))",
+    "  sleep " .. M.poll,
     "done",
     "h=$(" .. tmux("display -p -t " .. s .. " '#{history_size}'") .. ")",
     "n=$(tr ' ' , < " .. d .. "/exit 2>/dev/null)",
@@ -164,9 +172,8 @@ function S:send(keys, wait)
   wait = math.min(math.max(tonumber(wait) or M.wait, 0), self.limit)
   self:open()
   if self.mode == "plain" then return self:plain(keys, wait) end
-  local ticks = math.max(1, math.ceil(wait / self.poll))
   local t0 = self.now and self.now()
-  local r = self:run(sender(keys, ticks), wait + 60)
+  local r = self:run(sender(keys, wait), wait + 60)
   local ms = t0 and (self.now() - t0) * 1000 or nil
   local out = r.stdout or ""
   local head, files, traced, raw, screen = out:match("^(@tablua[^\n]*)\n@files\n(.-)@trace\n(.-)@raw\n(.-)@screen\n?(.*)$")
@@ -181,7 +188,7 @@ function S:send(keys, wait)
   local trace = {}
   for line in traced:gmatch("[^\n]+") do trace[#trace + 1] = line end
   return { keys = keys, wait = wait, screen = trim_end(screen), done = done and true or false,
-    exit = done and tonumber(code) or nil, ms = ms, first_ms = tonumber(first) and tonumber(first) * self.poll * 1000,
+    exit = done and tonumber(code) or nil, ms = ms, first_ms = tonumber(first),
     files = written, raw = require("term.pty").base64(raw), trace = trace }
 end
 
