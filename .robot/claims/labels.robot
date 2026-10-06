@@ -53,6 +53,18 @@ Safe Ranks Passing Trials Higher (red)
     Use Fixture    create table trials (trial, reward, further, safe, complete)    ${MANY} insert into trials select i, i % 2, 0.5, 1, 0.9 from c
     Share Ranks Passing    safe
 
+Live Labels Match The Offline Labels
+    [Documentation]    The bench's live labels (bench/terminal/labels.lua) and the offline ones (tl/labels.py) are two
+    ...    copies of the same rules. Kill: under 100% of 20 or more steps agree on further and on safe, once runs keep
+    ...    the live labels (after this run's code is deployed).
+    [Tags]    level:consistent    label:parity    predict:holds@0.85
+    Use Sheet    ${SHEET}
+    Copies Agree
+
+Live Labels Match The Offline Labels (red)
+    Use Fixture    create table step (trial, n, further, safe, complete, live_further, live_safe)    ${MANY} insert into step select 't', i, i % 2, 1, 1, 0, 1 from c
+    Copies Agree
+
 *** Keywords ***
 Most Steps Complete
     ${all}=    Value Of    select count(*) from step where complete is not null
@@ -69,3 +81,9 @@ Further Above Complete
     ${f}    ${fn}    ${fp}=    AUROC Against Shuffled    select further as score, reward > 0 as label from trials where further is not null and complete is not null    min=5
     ${c}    ${cn}    ${cp}=    AUROC Against Shuffled    select complete as score, reward > 0 as label from trials where further is not null and complete is not null    min=5
     Should Be True    ${f} - ${c} >= 0.05    further's AUROC ${f} against complete's ${c}
+
+Copies Agree
+    ${f}=    Agreement Of    select further as a, live_further as b from step where live_further is not null    min=20
+    ${s}=    Agreement Of    select safe as a, live_safe as b from step where live_safe is not null    min=20
+    ${d}=    Disagreements Of    select trial || ':' || n || ' further ' || further as a, trial || ':' || n || ' further ' || live_further as b from step where live_further is not null
+    Should Be True    ${f} == 1 and ${s} == 1    further agrees on ${f}, safe on ${s}: ${d}
