@@ -18,4 +18,8 @@ return {
     "/dev/null counts as a check" },
   { "bench/terminal/tests.lua", "host.unchanged[path] = hash", "host.unchanged[path] = \"\"",
     "the snapshot keeps no hashes" },
+  { "bench/terminal/look.lua", "if t and #request.messages > 0 then", "if false then", "lookups not told the time" },
+  { "bench/terminal/notes.lua", "  if left then\n", "  if false then\n", "the state not told the time" },
+  { "bench/terminal/notes.lua", "if req.missing and next(req.missing) then", "if false then",
+    "missing programs not named" },
 }
