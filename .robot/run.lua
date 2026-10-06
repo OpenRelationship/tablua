@@ -5,6 +5,8 @@
 --   luajit .robot/run.lua refresh label [job]  fetch, rebuild the decider history and the step labels, run every claim
 --   luajit .robot/run.lua invalid todo n why   mark a run whose verdicts cannot be trusted, saying why
 --   luajit .robot/run.lua history              every claim's verdicts, run by run
+--   luajit .robot/run.lua reds [word ...]      each red proof, run now: where it fails, and whether that is at an
+--                                              assertion (the only red that shows a check can fail); records nothing
 --
 -- Each claims file's run is kept in ledger.sqlite: its keyword trees (tablua_result: todo is the file, n the run),
 -- its verdicts (claim) and whether it counts (claims_run: a draft when the file was not committed as it ran).
@@ -76,16 +78,42 @@ local function lock(path)
   return id, (id == "" or not tracked or changed ~= 0)
 end
 
+local function deepest(node)
+  for _, c in ipairs(node.children or node.body or {}) do if c.status == "FAIL" then return deepest(c) end end
+  return node
+end
+
 local files = {}
 local p = io.popen('ls "' .. root .. '"/claims/*.robot 2>/dev/null')
 for path in p:lines() do
-  local want = #arg == 0
-  for _, w in ipairs(arg) do if path:find(w, 1, true) then want = true end end
+  local want = #arg == 0 or (#arg == 1 and arg[1] == "reds")
+  for k, w in ipairs(arg) do if not (k == 1 and w == "reds") and path:find(w, 1, true) then want = true end end
   if want then files[#files + 1] = path end
 end
 p:close()
 
 local lib = keywords.library(root)
+
+if cmd == "reds" then
+  local bad = 0
+  for _, path in ipairs(files) do
+    local f = assert(io.open(path))
+    local res = robot.run(robot.parse(f:read("*a")), { libraries = { lib } })
+    f:close()
+    print(path:match("(claims/.*)%.robot$"))
+    for _, t in ipairs(res.tests) do
+      if t.name:find(" %(red%)$") then
+        local ok = t.status == "FAIL" and ledger.assertion(t)
+        if not ok then bad = bad + 1 end
+        print(("  %s  %-62s fails at %s"):format(ok and "red " or "BAD ", t.name,
+          t.status == "FAIL" and tostring(deepest(t).name) or ("nothing: " .. t.status)))
+        if not ok and t.message then print("        " .. t.message:gsub("\n", " "):sub(1, 140)) end
+      end
+    end
+  end
+  print(bad == 0 and "every red proof fails at an assertion" or (bad .. " red proofs show nothing"))
+  os.exit(bad == 0 and 0 or 1)
+end
 local MARK = { holds = "holds   ", KILLED = "KILLED  ", broken = "BROKEN  ", BLIND = "BLIND   ", unproven = "unproven",
   unknown = "unknown " }
 local totals = {}

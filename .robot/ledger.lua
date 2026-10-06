@@ -23,6 +23,7 @@
 --   local ledger = require("ledger")
 --   ledger.open(db)                      the ledger's tables, in a tablua file
 --   ledger.verdicts(res) -> { { name, verdict, status, message, tags, red } }
+--   ledger.assertion(node) -> whether a failed test or keyword failed at a Should keyword, the deepest failure down
 --   ledger.hashes(text) -> { [claim name] = hash }   each claim's text with its red proof and the keywords it names
 --   ledger.record(db, todo, n, commit, draft, verdicts, hashes) -> flags   flags: { [name] = "edited after ..." }
 --   ledger.invalid(db, todo, n, why)     ledger.history(db) -> rows
@@ -58,10 +59,10 @@ end
 
 local RED = " %(red%)$"
 
-local function assertion(node)
+function M.assertion(node)
   -- the deepest failing call: a red proof must fail at a check (a Should keyword), not on its way there
   for _, c in ipairs(node.children or node.body or {}) do
-    if c.status == "FAIL" then return assertion(c) end
+    if c.status == "FAIL" then return M.assertion(c) end
   end
   return node.name and node.name:lower():find("^should") ~= nil
 end
@@ -76,10 +77,10 @@ function M.verdicts(res)
       local r = red[t.name]
       local v
       if t.status == "SKIP" then v = "unknown"
-      elseif t.status == "FAIL" then v = assertion(t) and "KILLED" or "broken"
+      elseif t.status == "FAIL" then v = M.assertion(t) and "KILLED" or "broken"
       elseif not r then v = "unproven"
       elseif r.status == "PASS" then v = "BLIND"
-      elseif r.status == "FAIL" and assertion(r) then v = "holds"
+      elseif r.status == "FAIL" and M.assertion(r) then v = "holds"
       else v = "unproven" end
       local predict, p = "", nil
       for _, tag in ipairs(t.tags or {}) do

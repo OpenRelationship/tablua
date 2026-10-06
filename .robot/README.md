@@ -11,8 +11,15 @@ luajit .robot/run.lua                   every claims/*.robot (or: run.lua termin
 luajit .robot/run.lua fetch label [job] a bench job from the box: each trial's sheet to runs/, a trial row each
 luajit .robot/run.lua invalid todo n why  mark a run whose verdicts can't be trusted, and say why
 luajit .robot/run.lua history           every claim's verdicts, run by run
+luajit .robot/run.lua refresh label     fetch, rebuild the decider history and the step labels, run every claim
+luajit .robot/run.lua reds [word]       each red proof run now: where it fails, BAD unless at an assertion
 luajit .robot/test.lua                  the framework's own tests
+luajit .robot/mutate.lua .robot/mutations/<suite>.lua   break each rule once: RED, MISSED or CRASHED
 ```
+
+A test that has never failed shows nothing either. `mutations/` keeps, per suite, the rules its tests must guard,
+each as one exact edit: `framework.lua` (this folder's own rules) and `labels.lua` (the step labels, both copies).
+CRASHED is never red: a mutation that breaks the code's syntax, or a runner whose failures are hidden, shows nothing.
 
 ## Verdicts
 
@@ -70,5 +77,5 @@ run's rows.
 The harness makes the rows, and the terminal judges them. Both use one language, Robot with red first: the agent
 writes tests about its task, and we write claims about the agent.
 
-Files: `run.lua`, `ledger.lua`, `keywords.lua`, `stats.lua`, `fetch.lua`, `test.lua`, `claims/*.robot`, and `runs/`
-(copied sheets, not in git).
+Files: `run.lua`, `ledger.lua`, `keywords.lua`, `stats.lua`, `fetch.lua`, `test.lua`, `mutate.lua`, `claims/*.robot`,
+`mutations/*.lua`, and `runs/` (copied sheets, not in git).
