@@ -8,6 +8,9 @@
 --   BLIND     its check passed, and so did its red proof: the check cannot fail, so it shows nothing
 --   unproven  its check passed, with no red proof, or one that failed before reaching an assertion
 --   unknown   it skipped: not measured yet, or too few rows to measure
+-- A claim may carry a prediction, a predict:<verdict> tag committed before the run: what we expect it to come out as.
+-- The ledger scores them (M.calibration), so how often we are right, and whether we only test what we already
+-- believe, is a query. A prediction is not part of a claim's text for its hash: adding one edits no check.
 -- A run counts only when its claims file is committed and unchanged (locked); one run with the file edited is a
 -- draft. A claim whose text changed after a counted run killed it is flagged: the kill stays in the ledger.
 --
@@ -17,6 +20,7 @@
 --   ledger.hashes(text) -> { [claim name] = hash }   each claim's text with its red proof and the keywords it names
 --   ledger.record(db, todo, n, commit, draft, verdicts, hashes) -> flags   flags: { [name] = "edited after ..." }
 --   ledger.invalid(db, todo, n, why)     ledger.history(db) -> rows
+--   ledger.calibration(db) -> { predicted, right, by = { [predicted verdict] = { n, right } } }   counted runs only
 local robot = require("robot")
 
 local M = {}
@@ -29,14 +33,20 @@ create table if not exists claims_run (
 create table if not exists claim (
   todo text not null, n integer not null, name text not null, verdict text not null, status text not null,
   message text not null default '', tags text not null default '', hash text not null default '',
-  flag text not null default '', red text not null default '', primary key (todo, n, name));
+  flag text not null default '', red text not null default '', predict text not null default '',
+  primary key (todo, n, name));
 create table if not exists trial (
   job text not null, trial text not null, task text not null default '', label text not null default '',
   reward real, green integer, steps integer, sheet text not null default '', at text not null default '',
   primary key (job, trial));
 ]]
 
-function M.open(db) db:exec(M.ddl) end
+function M.open(db)
+  db:exec(M.ddl)
+  local cols = {}
+  for _, c in ipairs(db:exec("pragma table_info(claim)")) do cols[c.name] = true end
+  if not cols.predict then db:exec("alter table claim add column predict text not null default ''") end
+end
 
 local RED = " %(red%)$"
 
@@ -63,7 +73,10 @@ function M.verdicts(res)
       elseif r.status == "PASS" then v = "BLIND"
       elseif r.status == "FAIL" and assertion(r) then v = "holds"
       else v = "unproven" end
+      local predict = ""
+      for _, tag in ipairs(t.tags or {}) do predict = tag:match("^predict:(%S+)$") or predict end
       out[#out + 1] = { name = t.name, verdict = v, status = t.status, message = t.message or "", tags = t.tags or {},
+        predict = predict,
         red = r and (r.status .. (r.message and (": " .. r.message) or "")) or "none" }
     end
   end
@@ -91,7 +104,7 @@ function M.hashes(text)
       for _, k in ipairs(keywords) do
         if robot.norm(seen):find(robot.norm(k.name), 1, true) then parts[#parts + 1] = k.text end
       end
-      out[name] = hash(table.concat(parts, "\0"))
+      out[name] = hash((table.concat(parts, "\0"):gsub("%s*predict:%S+", "")))
     end
   end
   return out
@@ -108,9 +121,9 @@ function M.record(db, todo, n, commit, draft, verdicts, hashes)
       .. " where c.todo = ? and c.name = ? and c.verdict = 'KILLED' and r.draft = 0 and r.invalid = 0"
       .. " order by c.n desc limit 1", { todo, v.name })[1]
     if k and k.hash ~= h then flags[v.name] = ("edited after run %d killed it"):format(k.n) end
-    db:exec("insert or replace into claim (todo, n, name, verdict, status, message, tags, hash, flag, red) values"
-      .. " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", { todo, n, v.name, v.verdict, v.status, v.message,
-      table.concat(v.tags or {}, " "), h, flags[v.name] or "", v.red or "" })
+    db:exec("insert or replace into claim (todo, n, name, verdict, status, message, tags, hash, flag, red, predict)"
+      .. " values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", { todo, n, v.name, v.verdict, v.status, v.message,
+      table.concat(v.tags or {}, " "), h, flags[v.name] or "", v.red or "", v.predict or "" })
   end
   return flags
 end
@@ -119,6 +132,19 @@ function M.invalid(db, todo, n, why)
   local r = db:exec("select n from claims_run where todo = ? and n = ?", { todo, n })[1]
   if not r then error(("no run %d of %s"):format(n, todo), 0) end
   db:exec("update claims_run set invalid = 1, why = ? where todo = ? and n = ?", { why, todo, n })
+end
+
+function M.calibration(db)
+  local out = { predicted = 0, right = 0, by = {} }
+  for _, r in ipairs(db:exec("select c.predict, c.verdict from claim c join claims_run r on r.todo = c.todo and"
+    .. " r.n = c.n where c.predict != '' and r.draft = 0 and r.invalid = 0")) do
+    local hit = r.predict == r.verdict and 1 or 0
+    out.predicted, out.right = out.predicted + 1, out.right + hit
+    local b = out.by[r.predict] or { n = 0, right = 0 }
+    b.n, b.right = b.n + 1, b.right + hit
+    out.by[r.predict] = b
+  end
+  return out
 end
 
 function M.history(db)

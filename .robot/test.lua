@@ -86,6 +86,22 @@ spec.test("a claim edited after a counted run killed it is flagged; drafts and i
   spec.err(function() ledger.invalid(db, "claims/x", 9, "no such run") end)
 end)
 
+spec.test("a prediction is scored against the verdict on counted runs, and adding one edits no claim", function()
+  local text = "*** Test Cases ***\nA\n    [Tags]    level:x\n    Should Be True    1 == 2\n"
+  local with = text:gsub("level:x", "level:x    predict:KILLED")
+  spec.eq(ledger.hashes(with).A, ledger.hashes(text).A)
+  local v = ledger.verdicts(run(with))
+  spec.same({ v[1].verdict, v[1].predict }, { "KILLED", "KILLED" })
+  local db = sqlite.open(":memory:")
+  ledger.open(db)
+  ledger.record(db, "c", 1, "a", false, v, {})
+  ledger.record(db, "c", 2, "a", true, v, {})
+  v[1].predict = "holds"
+  ledger.record(db, "c", 3, "b", false, v, {})
+  local c = ledger.calibration(db)
+  spec.same({ c.predicted, c.right, c.by.KILLED.right, c.by.holds.right }, { 2, 1, 1, 0 })
+end)
+
 spec.test("AUROC and the gap match known values; shuffled labels are seeded, so a measure repeats", function()
   spec.eq(stats.auroc({ 1, 2, 3, 4 }, { 0, 0, 1, 1 }), 1)
   spec.eq(stats.auroc({ 1, 1, 1, 1 }, { 0, 1, 0, 1 }), 0.5)

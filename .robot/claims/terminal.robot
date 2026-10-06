@@ -11,7 +11,7 @@ ${MANY}     with recursive c(i) as (select 1 union all select i + 1 from c where
 Program Is Never A Setup Command When Another Program Ran
     [Documentation]    command.parse skips cd and export: "cd /app && make" is make.
     ...    Oracle: none, our parser against our own rule. Kill: any row breaks it.
-    [Tags]    level:consistent    column:program
+    [Tags]    level:consistent    column:program    predict:holds
     Use Sheets    ${ALL}
     No Setup Command As Program
 
@@ -22,7 +22,7 @@ Program Is Never A Setup Command When Another Program Ran (red)
 Programs Match What Bash Ran
     [Documentation]    The programs column (term.command, from the keys) names what bash itself started, in order.
     ...    Oracle: the ran column, bash's DEBUG trap, read apart from term.command. Kill: below 90% of 20 or more actions.
-    [Tags]    level:correct    column:programs
+    [Tags]    level:correct    column:programs    predict:holds
     Use Sheets    ${ALL}
     Programs Agree With Bash
 
@@ -33,7 +33,7 @@ Programs Match What Bash Ran (red)
 First Output Time Is Measured, Not The Poll Interval
     [Documentation]    first_ms is when a command first printed, past its echo.
     ...    Kill: 90% or more of the values are 0 or exactly one poll (100 ms), so the column only counts polls.
-    [Tags]    level:consistent    column:first_ms
+    [Tags]    level:consistent    column:first_ms    predict:KILLED
     Use Sheets    ${ALL}
     First Output Is Not Just Polls
 
@@ -44,7 +44,7 @@ First Output Time Is Measured, Not The Poll Interval (red)
 Every Test Run Is Kept As Rows
     [Documentation]    When the bench runs the agent's tests, their keyword tree lands in tablua_result.
     ...    Kill: a sheet whose term rows show tests (passed is set) has no result rows.
-    [Tags]    level:consistent    table:tablua_result
+    [Tags]    level:consistent    table:tablua_result    predict:KILLED
     Use Sheet    ${LAST}
     Tested Actions Have Results
 
@@ -56,7 +56,7 @@ Broken Detector Catches A Return Value Compared Whole
     [Documentation]    A test that assigns Run And Return Rc And Output to one variable compares a list to a number,
     ...    so it can never pass; the detector must call it broken. Taken from step 25's failing test.
     ...    Kill: the detector says not broken.
-    [Tags]    level:correct    code:bench/tests.broken
+    [Tags]    level:correct    code:bench/tests.broken    predict:KILLED
     Detector Says Broken    [1, 0] != 0
 
 Broken Detector Catches A Return Value Compared Whole (red)
@@ -65,7 +65,7 @@ Broken Detector Catches A Return Value Compared Whole (red)
 Read Events Predict A Failed Command
     [Documentation]    The events term.read finds on a screen rank failed commands (exit not 0) above the rest.
     ...    Kill: AUROC within 0.1 of its shuffled mean, or p above 0.05, over 10 or more of each.
-    [Tags]    level:informative    column:events
+    [Tags]    level:informative    column:events    predict:unknown
     Use Sheets    ${ALL}
     Events Rank Failures
 
@@ -76,7 +76,7 @@ Read Events Predict A Failed Command (red)
 Red Lines Mark Failures
     [Documentation]    Lines in red in the raw bytes rank failed commands above the rest.
     ...    Kill: AUROC within 0.1 of its shuffled mean, or p above 0.05, once 20 commands have shown red.
-    [Tags]    level:informative    column:red
+    [Tags]    level:informative    column:red    predict:unknown
     Use Sheets    ${ALL}
     ${reds}=    Value Of    select count(*) from tablua_term where source = 'real' and red > 0
     Needs At Least    ${reds}    20    commands that showed red
@@ -89,7 +89,7 @@ Red Lines Mark Failures (red)
 Our Green Suite Means The Verifier Passes
     [Documentation]    When the agent's own tests all pass, Harbor's verifier passes too.
     ...    Kill: mean reward below 0.8 over 10 or more trials that went green.
-    [Tags]    level:useful    loop:tests
+    [Tags]    level:useful    loop:tests    predict:unknown
     Use Sheet    ledger.sqlite
     Green Trials Pass The Verifier
 

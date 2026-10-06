@@ -45,6 +45,11 @@ elseif cmd == "invalid" then
 elseif cmd == "history" then
   for _, r in ipairs(ledger.history(t.db)) do print(("%-18s %-58s %s"):format(r.todo, r.name, r.runs)) end
   print("(draft): run with the file uncommitted   (invalid): marked untrustworthy   !: edited after a kill")
+  local c = ledger.calibration(t.db)
+  local parts = {}
+  for k, b in pairs(c.by) do parts[#parts + 1] = ("%s %d of %d"):format(k, b.right, b.n) end
+  table.sort(parts)
+  print(("predictions: %d of %d right (%s)"):format(c.right, c.predicted, table.concat(parts, ", ")))
   for _, r in ipairs(t.db:exec("select todo, n, why from claims_run where invalid = 1 order by todo, n")) do
     print(("%s run %d is invalid: %s"):format(r.todo, r.n, r.why))
   end
@@ -92,6 +97,9 @@ for _, path in ipairs(files) do
     print(("  %s  %-58s %s"):format(MARK[v.verdict], v.name, table.concat(v.tags, " ")))
     if v.verdict ~= "holds" then print("            " .. (v.message ~= "" and v.message or ("red proof: " .. v.red))
       :gsub("\n", " "):sub(1, 150)) end
+    if v.predict ~= "" then
+      print(("            predicted %s: %s"):format(v.predict, v.predict == v.verdict and "right" or "WRONG"))
+    end
     if flags[v.name] then print("            ! " .. flags[v.name]) end
   end
 end
