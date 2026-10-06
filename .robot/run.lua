@@ -104,7 +104,7 @@ for _, path in ipairs(files) do
       :gsub("\n", " "):sub(1, 150)) end
     if v.predict ~= "" then
       print(("            predicted %s%s: %s"):format(v.predict, v.p and ("@" .. v.p) or "",
-        v.predict == v.verdict and "right" or "WRONG"))
+        v.predict == v.verdict and "right" or (v.verdict == "unknown" and "pending, not measured yet") or "WRONG"))
     end
     if flags[v.name] then print("            ! " .. flags[v.name]) end
   end
