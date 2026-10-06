@@ -23,5 +23,6 @@ it reaches the world through; nothing here names one.
 - Claims are Robot tests in `.robot/` (owner, 2026-10-06): before saying a change "works", "fixed" or "better" when
   something will be built on it, write the claim with its kill number and a ` (red)` proof, commit it, then measure
   (`luajit .robot/run.lua fetch <label>` after a bench run, `luajit .robot/run.lua`) and commit the ledger. Say which
-  level was shown (consistent, correct, informative, useful). `.robot/README.md` says how; `luajit .robot/test.lua`
-  tests the framework itself.
+  level was shown (consistent, correct, informative, useful). `.robot/README.md` says how and `/claim` walks it;
+  `luajit .robot/test.lua` tests the framework, and `luajit .robot/mutate.lua .robot/mutations/*.lua` checks that
+  tests can fail.
