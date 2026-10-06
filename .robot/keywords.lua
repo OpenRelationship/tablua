@@ -32,7 +32,8 @@ local M = {}
 M.bench = (os.getenv("TABLUA_LOCAL") or (os.getenv("HOME") .. "/tablua-local")) .. "/bench/terminal/"
 
 -- the tables Use Sheets pools
-M.pooled = { "tablua_term", "tablua_event", "tablua_file", "tablua_result", "tablua_decision", "tablua_candidate" }
+M.pooled = { "tablua_term", "tablua_event", "tablua_file", "tablua_result", "tablua_decision", "tablua_candidate",
+  "tablua_label" }
 
 local function skip(msg) error({ robot = true, skip = true, message = msg }, 0) end
 

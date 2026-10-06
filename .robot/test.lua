@@ -191,6 +191,7 @@ spec.test("Use Sheets pools many runs' rows, each todo named by its sheet; Needs
     local t = require("tablua").open(sqlite.open(paths[k]))
     t.db:exec("insert into tablua_term (todo, n, i, source, program) values ('run', 1, 1, 'real', 'make')")
     t:decision({ todo = "run", n = 1, chosen = "work", by = "free", said = "work", state = "s" })
+    t.db:exec("insert into tablua_label (todo, n, head, value, source, at) values ('run', 1, 'further', 1, 'bench', '')")
   end
   local res = run([[
 *** Test Cases ***
@@ -202,6 +203,8 @@ Pooled
     Should Be Equal    ${t}    zz-test-1:run
     ${d}=    Count Of    select 1 from tablua_decision where state = 's'
     Should Be True    ${d} == 2
+    ${l}=    Count Of    select 1 from tablua_label where head = 'further'
+    Should Be True    ${l} == 2
 Thin
     Needs At Least    3    20    rows with red text
     Fail    never reached
