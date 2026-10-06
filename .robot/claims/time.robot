@@ -4,10 +4,10 @@ Documentation    The agent did not know its time (2026-10-06): plan steps made 1
 ...              each round's actions were set aside, and a third of work and fix steps ran no command that changed
 ...              anything (24 of 36 did, on the 12:51 and 14:13 runs). Fix: the task's time limit (its task.toml) reaches
 ...              the host as a deadline; the state says the time left, and so does each round of lookups. Measured on
-...              the trials fetched as time (overfull-hbox, 4 trials). Predictions committed before the fix was built.
+...              the trials fetched as green (overfull-hbox, 4 trials; the time fix ships in the same run as the green fixes). Predictions committed before the fix was built.
 
 *** Variables ***
-${LABEL}    time
+${LABEL}    green
 ${MANY}     with recursive c(i) as (select 1 union all select i + 1 from c where i < 12)
 
 *** Test Cases ***
