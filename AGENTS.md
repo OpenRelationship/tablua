@@ -20,3 +20,8 @@ it reaches the world through; nothing here names one.
   SQLite through LuaJIT's FFI fail). The test library is `test/spec.lua`: `test`, `eq`, `ok`, `same`, `err`, `run`.
 - Files stay under 400 lines, split by responsibility. No placeholder modules.
 - Keys and tokens (model keys, page tokens) are never logged, printed or written to files.
+- Claims are Robot tests in `.robot/` (owner, 2026-10-06): before saying a change "works", "fixed" or "better" when
+  something will be built on it, write the claim with its kill number and a ` (red)` proof, commit it, then measure
+  (`luajit .robot/run.lua fetch <label>` after a bench run, `luajit .robot/run.lua`) and commit the ledger. Say which
+  level was shown (consistent, correct, informative, useful). `.robot/README.md` says how; `luajit .robot/test.lua`
+  tests the framework itself.

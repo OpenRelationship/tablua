@@ -141,6 +141,19 @@ Built in
   spec.eq(res.tests[1].status, "PASS", res.tests[1].message)
 end)
 
+spec.test("an expression that is false fails Should Be True and passes Should Not Be True", function()
+  local res = run([[
+*** Test Cases ***
+False is false
+    Should Be True    1 == 2    one is not two
+Not true holds
+    Should Not Be True    1 == 2
+]])
+  spec.eq(res.tests[1].status, "FAIL")
+  spec.eq(res.tests[1].message, "one is not two")
+  spec.eq(res.tests[2].status, "PASS", res.tests[2].message)
+end)
+
 spec.test("setup and teardown run around a test; a failing setup leaves the body NOT RUN", function()
   local res = run([[
 *** Settings ***

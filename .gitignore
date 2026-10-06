@@ -3,3 +3,7 @@
 
 # The Impeccable design skill's working files stay local (owner, 2026-10-05)
 .impeccable/
+
+# The run sheets our claims read stay local; the claims ledger is kept in git, the record of what we tested
+.robot/runs/
+!.robot/ledger.sqlite

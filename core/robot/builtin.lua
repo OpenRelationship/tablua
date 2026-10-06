@@ -77,11 +77,13 @@ K["Should Be Equal As Strings"] = function(_, a, b, msg)
   if vars.text(a) ~= vars.text(b) then fail(msg or ("%s != %s"):format(vars.text(a), vars.text(b))) end
 end
 K["Should Be True"] = function(ctx, expr, msg)
-  local v = type(expr) == "string" and M.eval(ctx, expr) or expr
+  local v = expr
+  if type(expr) == "string" then v = M.eval(ctx, expr) end   -- not and/or: an expression may be false
   if not v then fail(msg or ("'%s' should be true."):format(vars.text(expr))) end
 end
 K["Should Not Be True"] = function(ctx, expr, msg)
-  local v = type(expr) == "string" and M.eval(ctx, expr) or expr
+  local v = expr
+  if type(expr) == "string" then v = M.eval(ctx, expr) end   -- not and/or: an expression may be false
   if v then fail(msg or ("'%s' should not be true."):format(vars.text(expr))) end
 end
 K["Should Contain"] = function(_, c, item, msg)
