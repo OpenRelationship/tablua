@@ -107,6 +107,13 @@ function M.library(root)
     end
     if #paths == 0 then skip("no trial fetched with the label " .. label) end
     pool(paths)
+    -- and the trials' own rows (task, reward, green), so a claim can read what the verifier said
+    ledger.open(db)
+    for _, r in ipairs(l:exec("select * from trial where label = ?", { label })) do
+      db:exec("insert into trial (job, trial, task, label, reward, green, steps, sheet, at) values (?, ?, ?, ?, ?, ?, ?,"
+        .. " ?, ?)", { r.job, r.trial, r.task, r.label, r.reward or false, r.green or false, r.steps or false, r.sheet,
+        r.at })
+    end
   end)
 
   lib:add("Needs At Least", function(count, min, what)
