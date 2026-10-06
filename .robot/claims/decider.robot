@@ -67,12 +67,6 @@ The Nag Stops Once Its Move Is Taken (red)
     Use Fixture    create table decision (run, n, said, taken, free)    ${MANY} insert into decision select 'r', i, 'fix', 'fix', 1 from c
     Nag Moves On
 
-The Pick Survives Reordering
-    [Documentation]    Context bias: with the offered moves reordered and its earlier answers left out, the decider
-    ...    picks the same move. Kill: the pick changes on more than 20% of 30 or more replayed steps.
-    [Tags]    level:correct    hypothesis:context    predict:holds@0.7
-    Skip    needs the state text each pick read, which no run kept: log it, then replay perturbed
-
 Reach Predicts The Outcome Better Than Complete
     [Documentation]    Done further, not done: how far the failing tests reach rising ranks runs that end green above
     ...    the rest better than the share of steps that completed. Kill: its AUROC is not 0.05 above complete's.
