@@ -13,6 +13,15 @@ local json = require("ports.json")
 
 local M = {}
 
+-- a server a host runs itself that scales to zero answers 503 "no upstreams available" while it boots (Modal, a few
+-- minutes, 2026-10-06): it is waited for, M.boot_wait apart, for at most M.boot seconds, so a cold start is a slow
+-- first call and never a failed step, and a server that never comes up still ends in an error
+M.boot, M.boot_wait = 900, 10
+
+local function booting(status, body)
+  return status == 503 and (body or ""):lower():find("no upstreams", 1, true) ~= nil
+end
+
 local function transient(status)
   return status == nil or status == 429 or status >= 500
 end
@@ -43,7 +52,8 @@ end
 -- key is sent as a Bearer token, or in its own header when given as
 -- { header = name, value = key }. With on_data, the body is heard a chunk at a time as it comes (the host's fetch
 -- passes it on) and returned as it came, not decoded: a streamed reply.
-function M.post(host, service, url, key, payload, timeout, on_data)
+-- once: a failure is final, not tried again (a call whose answer is only worth having soon, such as a foresight)
+function M.post(host, service, url, key, payload, timeout, on_data, once)
   local headers = { ["Content-Type"] = "application/json" }
   if type(key) == "table" then
     headers[key.header] = key.value
@@ -57,8 +67,10 @@ function M.post(host, service, url, key, payload, timeout, on_data)
   local last
   -- a busy or briefly failing service (429, 5xx, no answer) is tried three times, a second and then three apart: a
   -- provider's run of 504s left Mercury unfilled twice and a build run stopped blocked on its own tool
-  local waits = { 1, 3 }
-  for try = 1, #waits + 1 do
+  local waits = once and {} or { 1, 3 }
+  local try, booted = 0, 0
+  while try < #waits + 1 do
+    try = try + 1
     record.tries = try
     local ok, res = pcall(host.fetch, req)
     local status = ok and res.status or nil
@@ -71,8 +83,12 @@ function M.post(host, service, url, key, payload, timeout, on_data)
     last = ok and (service .. " answered " .. status .. ": " .. reason(res.body))
       or (service .. " unreachable: " .. tostring(res))
     if status == 429 and M.spent(res.body) then record.spent = true break end
-    if not transient(status) then break end
-    if waits[try] and host.sleep then host.sleep(waits[try]) end
+    if ok and booting(status, res.body) and host.sleep and booted < M.boot then
+      record.booted = true
+      host.sleep(M.boot_wait)
+      booted, try = booted + M.boot_wait, try - 1
+    elseif not transient(status) then break
+    elseif waits[try] and host.sleep then host.sleep(waits[try]) end
   end
   if t0 then record.seconds = host.now() - t0 end
   error(setmetatable({ message = last, record = record, spent = record.spent },

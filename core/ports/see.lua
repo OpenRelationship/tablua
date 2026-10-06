@@ -44,7 +44,7 @@ function See:look(frames, text)
   for _, png64 in ipairs(frames) do
     content[#content + 1] = { type = "image_url", image_url = { url = "data:image/png;base64," .. png64:gsub("%s+", "") } }
   end
-  local payload = { model = self.model, max_tokens = 400, messages = { { role = "user", content = content } } }
+  local payload = { model = self.model, messages = { { role = "user", content = content } } }
   if self.service == "openrouter" then payload.usage = { include = true }
   elseif self.service == "cerebras" then payload.reasoning_effort = "none" end
   local body, record = call.post(self.host, self.service, self.url, self.key, payload, 90)

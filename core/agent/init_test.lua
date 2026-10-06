@@ -182,6 +182,16 @@ spec.test("think, ask and plan are the agent's own; wait and done come from the 
   spec.same(acted, { "look" })
 end)
 
+spec.test("thinking that says nothing is a failed step, and the guidance before it stands", function()
+  local a = agent.new({ jev = jev({}), mercury = mercury({ "read the log", "  " }) }, world({}))
+  local req = a:begin("x")
+  a:perform(req, { verb = "think", lines = {} })
+  local empty = { verb = "think", lines = {} }
+  a:perform(req, empty)
+  spec.same({ empty.outcome, empty.note, #empty.lines }, { "broken", "Thinking failed: Mercury said nothing", 0 })
+  spec.eq(req.guidance, "read the log")
+end)
+
 spec.test("a world's own methods fall back to the agent's", function()
   local W = agent.mix({ greet = function(self) return "hello from " .. self.name end })
   W.__index = W

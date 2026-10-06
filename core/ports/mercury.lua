@@ -53,7 +53,7 @@ end
 function Mercury:fill(req)
   local prompt = snippets(req.context) .. "current_file_path: " .. req.path .. "\n" .. req.before
   local body, record = post(self, "/fim/completions", {
-    model = M.edit_model, prompt = prompt, suffix = req.after or "", max_tokens = req.max_tokens or 512,
+    model = M.edit_model, prompt = prompt, suffix = req.after or "", max_tokens = req.max_tokens,
   })
   return body.choices[1].text, record
 end
@@ -77,12 +77,14 @@ function Mercury:edit(req)
     .. "<|/current_file_content|>\n\n"
     .. "<|edit_diff_history|>\n" .. block(req.diffs or {}) .. "<|/edit_diff_history|>\n"
   local body, record = post(self, "/edit/completions", {
-    model = M.edit_model, messages = { { role = "user", content = message } }, max_tokens = req.max_tokens or 1024,
+    model = M.edit_model, messages = { { role = "user", content = message } }, max_tokens = req.max_tokens,
   })
   local text = body.choices[1].message.content
   return (text:match("^%s*```[%w_+-]*\n(.-)\n?```%s*$") or text), record
 end
 
+-- No reply is cut short unless the caller asks (req.max_tokens): a cap only ever cut answers off, and Mercury
+-- thinking hard under one spent it all reasoning and said nothing (2026-10-05).
 -- Chat without reasoning (the slow part) unless req.reasoning_effort asks for
 -- some ("low", "medium", "high"; billed as output), at the lowest temperature
 -- Mercury honours (req.temperature may raise it: Inception suggests 0.6 for
@@ -94,7 +96,7 @@ end
 function Mercury:chat(req)
   local payload = {
     model = M.chat_model, reasoning_effort = req.reasoning_effort or "instant",
-    temperature = math.max(0.5, req.temperature or 0.5), max_tokens = req.max_tokens or 600,
+    temperature = math.max(0.5, req.temperature or 0.5), max_tokens = req.max_tokens,
     messages = req.messages or { { role = "system", content = req.system }, { role = "user", content = req.user } },
   }
   if req.json then payload.response_format = { type = "json_object" } end

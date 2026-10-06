@@ -49,11 +49,15 @@ end
 
 local function trim(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
 
--- Mercury's text, or nil and why.
+-- Mercury's text, or nil and why. An empty reply is no answer: Mercury thinking hard can spend all its tokens
+-- reasoning and say nothing, and thinking that said nothing was once taken for guidance, step after step
+-- (a terminal run thought 150 times running, 2026-10-05).
 function A:mercury(req)
   local ok, text = pcall(self.env.mercury.chat, self.env.mercury, req)
   if not ok then return nil, tostring(text) end
-  return trim(text)
+  text = trim(text)
+  if text == "" then return nil, "Mercury said nothing" end
+  return text
 end
 
 -- A port's refusal (an error with status 401, not signed in, or 402, not paid for) is said as the port worded it,
@@ -183,7 +187,11 @@ function A:perform(req, step)
   local verb = step.verb
   if verb == "think" then
     local guidance, err = self:mercury(self.world.think(self, req))
-    if guidance then step.lines[1] = "guidance: " .. guidance else step.note = "Thinking failed: " .. tostring(err) end
+    if guidance then
+      step.lines[1] = "guidance: " .. guidance
+    else
+      step.note, step.outcome = "Thinking failed: " .. tostring(err), "broken"
+    end
     req.guidance = guidance or req.guidance
   elseif verb == "ask" then
     local written, err = self:mercury(self.world.ask(self, req))

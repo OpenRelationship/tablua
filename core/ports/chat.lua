@@ -3,9 +3,14 @@
 --
 --   local kimi = require("ports.chat").new(host, { key = k, model = "moonshotai/kimi-k2-thinking" })
 --   local oss = require("ports.chat").new(host, { key = k, service = "cerebras", model = "gpt-oss-120b" })
+--   opts.timeout (seconds a call may take, 180 by default) and opts.once (a failure is not tried again): for a
+--   call worth having only soon, such as a world model's foresight
+--   local own = require("ports.chat").new(host, { key = k, service = "openai", url = ".../v1/chat/completions",
+--                                                 model = "qwen-agent" })   any OpenAI-compatible server
 --   local voice = require("ports.chat").new(host, { key = k, model = "deepseek/deepseek-v4.1-flash", thinking = false,
 --                                                   sort = "latency" })
---   m:chat{ system, user | messages, max_tokens, json, reasoning_effort, on_text, tools, tool_choice, temperature }
+--   m:chat{ system, user | messages, max_tokens, json, reasoning_effort, on_text, tools, tool_choice, temperature,
+--           thinking }   thinking = false for this call alone
 --     -> text, record
 --
 -- on_text(piece, so_far), when given, asks for the reply as a stream (ports/stream.lua) and hears it as it comes,
@@ -18,7 +23,7 @@
 -- place of every request's (Qwen 3.8 thinking refuses "required", 2026-10-02, so a caller gives it "auto").
 -- thinking = false (OpenRouter) asks the model not to reason before it answers, and reserves no reasoning tokens: for a spoken reply, where the first words must come at once.
 --
--- Cerebras (owner, 2026-09-28) takes reasoning_effort as asked (Mercury's low | medium | high) and reports
+-- OpenRouter takes req.reasoning_effort as reasoning.effort. Cerebras (owner, 2026-09-28) takes reasoning_effort as asked (Mercury's low | medium | high) and reports
 -- no cost, so the record's cost comes from its listed prices per million tokens (M.prices).
 --
 -- A thinking model spends tokens on reasoning before it answers, so the
@@ -50,28 +55,48 @@ function M.new(host, opts)
   assert(opts and opts.key, "chat needs a key")
   assert(opts.model, "chat needs a model")
   local service = opts.service or "openrouter"
-  assert(M.urls[service], "chat knows no service " .. tostring(service))
+  assert(M.urls[service] or (service == "openai" and opts.url), "chat knows no service " .. tostring(service)
+    .. (service == "openai" and " without a url" or ""))
   return setmetatable({ host = host, key = opts.key, model = opts.model, service = service,
     url = opts.url or M.urls[service],
     reasoning_tokens = opts.reasoning_tokens or (opts.thinking == false and 0 or M.reasoning_tokens), sort = opts.sort,
-    thinking = opts.thinking, tool_choice = opts.tool_choice }, Chat)
+    thinking = opts.thinking, tool_choice = opts.tool_choice, timeout = opts.timeout or 180, once = opts.once }, Chat)
 end
 
 function Chat:chat(req)
   local payload = {
-    model = self.model, max_tokens = (req.max_tokens or 600) + self.reasoning_tokens,
+    model = self.model, max_tokens = req.max_tokens and req.max_tokens + self.reasoning_tokens,
     messages = { req.system and { role = "system", content = req.system } or nil },
     temperature = req.temperature,
   }
   if req.messages then
-    for _, m in ipairs(req.messages) do payload.messages[#payload.messages + 1] = { role = m.role, content = m.content } end
+    -- a turn keeps its tool calls (assistant) and the call it answers (tool), so a model can look something up and
+    -- go on from what it found
+    for _, m in ipairs(req.messages) do
+      payload.messages[#payload.messages + 1] = { role = m.role, content = m.content, tool_calls = m.tool_calls,
+        tool_call_id = m.tool_call_id }
+    end
   else
     payload.messages[2] = { role = "user", content = req.user }
   end
   if self.service == "openrouter" then
     payload.usage = { include = true }
     if self.sort then payload.provider = { sort = self.sort } end
-    if self.thinking == false then payload.reasoning = { enabled = false } end
+    -- req.thinking, when given, overrides the port's for this call: a fill that should come at once beside a
+    -- thought that should not
+    local thinking = req.thinking
+    if thinking == nil then thinking = self.thinking end
+    if thinking == false then
+      payload.reasoning = { enabled = false }
+    elseif req.reasoning_effort then
+      -- some endpoints refuse reasoning off (GLM 5.3 Flash: "Reasoning is mandatory"); low effort is how they go fast
+      payload.reasoning = { effort = req.reasoning_effort }
+    end
+  elseif self.service == "openai" then
+    -- a model the host serves itself (vLLM, SGLang): Qwen's thinking is switched in its chat template
+    local thinking = req.thinking
+    if thinking == nil then thinking = self.thinking end
+    if thinking ~= nil then payload.chat_template_kwargs = { enable_thinking = thinking } end
   else
     payload.reasoning_effort = req.reasoning_effort
   end
@@ -81,10 +106,11 @@ function Chat:chat(req)
   if req.on_text then
     payload.stream = true
     local r = stream.reader(req.on_text)
-    _, record = call.post(self.host, self.service, self.url, self.key, payload, 180, function(c) r:feed(c) end)
+    _, record = call.post(self.host, self.service, self.url, self.key, payload, self.timeout, function(c) r:feed(c) end,
+      self.once)
     body = { model = r.model, usage = r.usage, choices = { { message = { content = r.text }, finish_reason = r.finish } } }
   else
-    body, record = call.post(self.host, self.service, self.url, self.key, payload, 180)
+    body, record = call.post(self.host, self.service, self.url, self.key, payload, self.timeout, nil, self.once)
   end
   local u = body.usage or {}
   local details = u.prompt_tokens_details or {}

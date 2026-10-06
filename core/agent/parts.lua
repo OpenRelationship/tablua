@@ -33,7 +33,7 @@ function M.render(req)
 end
 
 function M.plan(a, req, step)
-  local ok, text = pcall(a.env.mercury.chat, a.env.mercury, { kind = "parts", json = true, max_tokens = 300,
+  local ok, text = pcall(a.env.mercury.chat, a.env.mercury, { kind = "parts", json = true,
     system = "You split the person's request to " .. a.name .. " into parts, done in order, each with one goal that"
       .. " can be seen to be met (as: Notes is open; a note titled Groceries exists). Two to eight parts. Reply with"
       .. " JSON only: {\"parts\": [{\"goal\": \"...\"}, ...]}.",

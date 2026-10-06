@@ -38,6 +38,35 @@ spec.test("with thinking off, OpenRouter is asked not to reason and no reasoning
   spec.same({ seen.req.reasoning.enabled, seen.req.max_tokens, seen.req.provider.sort }, { false, 300, "latency" })
 end)
 
+spec.test("a call may turn thinking off for itself alone, and asks no cap unless given one", function()
+  local seen = {}
+  local m = chat.new(host(seen, {}), { key = "k", model = "z-ai/glm-5.3-flash" })
+  m:chat{ system = "s", user = "u", thinking = false }
+  spec.same({ seen.req.reasoning.enabled, seen.req.max_tokens }, { false, nil })
+  m:chat{ system = "s", user = "u" }
+  spec.eq(seen.req.reasoning, nil)
+  m:chat{ system = "s", user = "u", reasoning_effort = "low" }
+  spec.same(seen.req.reasoning, { effort = "low" })
+end)
+
+spec.test("a turn keeps its tool calls and the call a tool's reply answers", function()
+  local seen = {}
+  local m = chat.new(host(seen, {}), { key = "k", model = "a/b" })
+  local call = { id = "c1", type = "function", ["function"] = { name = "search", arguments = "{}" } }
+  m:chat{ system = "s", messages = { { role = "user", content = "go" }, { role = "assistant", content = "", tool_calls = { call } },
+    { role = "tool", tool_call_id = "c1", content = "found" } } }
+  spec.same({ seen.req.messages[3].tool_calls[1].id, seen.req.messages[4].tool_call_id }, { "c1", "c1" })
+end)
+
+spec.test("an OpenAI-compatible server at the host's url; thinking off goes in Qwen's chat template", function()
+  local seen = {}
+  local m = chat.new(host(seen, {}), { key = "k.s", service = "openai", url = "https://own.test/v1/chat/completions",
+    model = "qwen-agent" })
+  m:chat{ system = "s", user = "u", thinking = false }
+  spec.same({ seen.url, seen.req.chat_template_kwargs.enable_thinking, seen.req.reasoning }, { "https://own.test/v1/chat/completions", false, nil })
+  spec.err(function() chat.new(host(seen, {}), { key = "k", service = "openai", model = "m" }) end)
+end)
+
 spec.test("a conversation goes as real turns after the system text", function()
   local seen = {}
   local m = chat.new(host(seen, {}), { key = "k", model = "a/b" })

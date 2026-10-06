@@ -25,6 +25,10 @@ M.mercury_chars = 400000
 M.earlier_result = 300   -- a result from an earlier request, as Jev reads it
 M.older_result = 1500    -- an older step's result in the current request, as Jev reads it
 M.latest_result = 4000   -- the latest step's result, as Jev reads it (Mercury reads it whole)
+-- where the writer's copy may start, once the conversation is longer than its budget: only at every cut_every-th
+-- entry, so its start (and a server's cached prompt prefix) stays the same for that many entries at a time, where
+-- cutting at the newest entries that fit moved the start every step and no cache ever matched (2026-10-06)
+M.cut_every = 8
 
 local H = {}
 H.__index = H
@@ -95,18 +99,23 @@ function H:render(name, for_jev)
     if e.who == "step" and e.request == self.request then last_n = math.max(last_n, e.n) end
   end
   local budget = for_jev and M.jev_chars or M.mercury_chars
-  local blocks, size, first = {}, 0, 1
+  local texts, size, first = {}, 0, 1
   for i = #self.entries, 1, -1 do
     local text = table.concat(entry_lines(self.entries[i], name, for_jev, self.request, last_n), "\n")
-    if size + #text > budget and #blocks > 0 then first = i + 1 break end
-    blocks[#blocks + 1] = text
+    if size + #text > budget and next(texts) then first = i + 1 break end
+    texts[i] = text
     size = size + #text + 1
     first = i
+  end
+  -- the writer's copy starts at a fixed cut, the last at or before where the budget allows: up to cut_every - 1
+  -- entries over the budget, so the start moves only when it passes the next cut
+  if not for_jev and first > 1 then
+    first = math.floor((first - 1) / M.cut_every) * M.cut_every + 1
   end
   local out = {}
   if self.summary then out[1] = "(Earlier in this conversation, in short: " .. self.summary .. ")" end
   if first > 1 then out[#out + 1] = ("(the %d earlier entries of the conversation are not shown)"):format(first - 1) end
-  for i = #blocks, 1, -1 do out[#out + 1] = blocks[i] end
+  for i = first, #self.entries do out[#out + 1] = texts[i] end
   return table.concat(out, "\n")
 end
 

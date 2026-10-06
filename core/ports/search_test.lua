@@ -20,6 +20,16 @@ spec.test("a search sends the objective and queries with the key in x-api-key", 
     { "https://api.parallel.ai/v1/search", "par", "https://a.test", nil, "s1" })
 end)
 
+spec.test("excluded domains, the port's and the call's, go as Parallel's source policy; none sends no policy", function()
+  local seen = {}
+  local s = search.new(host(seen, { results = {} }), { key = "par", exclude = { "tbench.ai" } })
+  s:search("o", { "q" }, { exclude = { "github.com/laude-institute" } })
+  spec.same(json.decode(seen[1].body).advanced_settings.source_policy.exclude_domains,
+    { "tbench.ai", "github.com/laude-institute" })
+  search.new(host(seen, { results = {} }), { key = "par" }):search("o", { "q" })
+  spec.eq(json.decode(seen[2].body).advanced_settings, nil)
+end)
+
 spec.test("a page read asks for the page as it is now, and reports a page it could not read", function()
   local seen = {}
   local s = search.new(host(seen, { extract_id = "e1",

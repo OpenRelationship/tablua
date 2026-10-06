@@ -1,7 +1,7 @@
 -- The search port: web search on Parallel's Search API, turbo mode by default
 -- (about 200 ms, $1 per 1,000 requests; English and Japanese queries only).
 --
---   local search = require("ports.search").new(host, { key = k, mode = "turbo" })
+--   local search = require("ports.search").new(host, { key = k, mode = "turbo", exclude = { "example.com" } })
 --   local results, record = search:search(objective, { "keyword query", ... })
 --   local results, record = search:read({ url, ... }, objective)   the pages as they are now (Parallel's Extract),
 --                                                                    fetched fresh unless read in the last 10 minutes
@@ -26,16 +26,21 @@ function M.new(host, opts)
   assert(host and host.fetch, "search needs a host with fetch")
   assert(opts and opts.key, "search needs a key")
   return setmetatable({ host = host, key = opts.key, url = opts.url or M.url, mode = opts.mode or M.mode,
-    extract_url = opts.extract_url or M.extract_url, bearer = opts.bearer }, Search)
+    extract_url = opts.extract_url or M.extract_url, bearer = opts.bearer, exclude = opts.exclude }, Search)
 end
 
--- opts: mode (turbo, fast, basic, advanced) and max_chars_total, per call.
+-- opts: mode (turbo, fast, basic, advanced), max_chars_total and exclude (domains or domain/path prefixes no result
+-- may come from: Parallel's source_policy), per call; the port's own opts.exclude applies to every call.
 function Search:search(objective, queries, opts)
   opts = opts or {}
   assert(type(queries) == "table" and #queries > 0, "search needs at least one query")
   local mode = opts.mode or self.mode
   local payload = { objective = objective, search_queries = json.array(queries), mode = mode,
     max_chars_total = opts.max_chars_total }
+  local exclude = {}
+  for _, d in ipairs(self.exclude or {}) do exclude[#exclude + 1] = d end
+  for _, d in ipairs(opts.exclude or {}) do exclude[#exclude + 1] = d end
+  if #exclude > 0 then payload.advanced_settings = { source_policy = { exclude_domains = json.array(exclude) } } end
   local reply, record = call.post(self.host, "parallel", self.url,
     self.bearer and self.key or { header = "x-api-key", value = self.key }, payload)
   record.search_id, record.mode = reply.search_id, mode
