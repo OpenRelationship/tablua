@@ -102,6 +102,24 @@ spec.test("a prediction is scored against the verdict on counted runs, and addin
   spec.same({ c.predicted, c.right, c.by.KILLED.right, c.by.holds.right }, { 2, 1, 1, 0 })
 end)
 
+spec.test("predictions with a p are scored: Brier, log loss, overconfidence and optimism", function()
+  local db = sqlite.open(":memory:")
+  ledger.open(db)
+  local function claim(name, verdict, predict, p)
+    return { name = name, verdict = verdict, status = "PASS", message = "", tags = {}, predict = predict, p = p }
+  end
+  ledger.record(db, "c", 1, "a", false, { claim("A", "holds", "holds", 0.9), claim("B", "KILLED", "holds", 0.8),
+    claim("C", "KILLED", "KILLED", nil), claim("D", "holds", "holds", 0.5) }, {})
+  local c = ledger.calibration(db)
+  spec.same({ c.predicted, c.right, c.scored }, { 4, 3, 3 })
+  spec.ok(math.abs(c.brier - (0.01 + 0.64 + 0.25) / 3) < 1e-9, c.brier)
+  spec.ok(math.abs(c.log_loss - (-math.log(0.9) - math.log(0.2) - math.log(0.5)) / 3) < 1e-9, c.log_loss)
+  spec.ok(math.abs(c.overconfidence - ((0.9 + 0.8 + 0.5) / 3 - 2 / 3)) < 1e-9, c.overconfidence)
+  spec.eq(c.optimism, (3 - 2) / 4)
+  local v = ledger.verdicts(run("*** Test Cases ***\nA\n    [Tags]    predict:KILLED@0.85\n    Fail    x\n"))
+  spec.same({ v[1].predict, v[1].p }, { "KILLED", 0.85 })
+end)
+
 spec.test("AUROC and the gap match known values; shuffled labels are seeded, so a measure repeats", function()
   spec.eq(stats.auroc({ 1, 2, 3, 4 }, { 0, 0, 1, 1 }), 1)
   spec.eq(stats.auroc({ 1, 1, 1, 1 }, { 0, 1, 0, 1 }), 0.5)

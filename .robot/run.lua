@@ -50,6 +50,11 @@ elseif cmd == "history" then
   for k, b in pairs(c.by) do parts[#parts + 1] = ("%s %d of %d"):format(k, b.right, b.n) end
   table.sort(parts)
   print(("predictions: %d of %d right (%s)"):format(c.right, c.predicted, table.concat(parts, ", ")))
+  if c.optimism then print(("  optimism %+.2f: how often we said holds, less how often it held"):format(c.optimism)) end
+  if c.brier then
+    print(("  over %d with a p: Brier %.3f, log loss %.3f (a coin scores 0.250 and 0.693), overconfidence %+.2f")
+      :format(c.scored, c.brier, c.log_loss, c.overconfidence))
+  end
   for _, r in ipairs(t.db:exec("select todo, n, why from claims_run where invalid = 1 order by todo, n")) do
     print(("%s run %d is invalid: %s"):format(r.todo, r.n, r.why))
   end
@@ -98,7 +103,8 @@ for _, path in ipairs(files) do
     if v.verdict ~= "holds" then print("            " .. (v.message ~= "" and v.message or ("red proof: " .. v.red))
       :gsub("\n", " "):sub(1, 150)) end
     if v.predict ~= "" then
-      print(("            predicted %s: %s"):format(v.predict, v.predict == v.verdict and "right" or "WRONG"))
+      print(("            predicted %s%s: %s"):format(v.predict, v.p and ("@" .. v.p) or "",
+        v.predict == v.verdict and "right" or "WRONG"))
     end
     if flags[v.name] then print("            ! " .. flags[v.name]) end
   end
