@@ -33,8 +33,10 @@ Programs Match What Bash Ran (red)
 First Output Time Is Measured, Not The Poll Interval
     [Documentation]    first_ms is when a command first printed, past its echo.
     ...    Kill: 90% or more of the values are 0 or exactly one poll (100 ms), so the column only counts polls.
-    [Tags]    level:consistent    column:first_ms    predict:KILLED@0.97
-    Use Sheets    ${ALL}
+    ...    Since 2026-10-06 11:17 (0ecafd3) it is timed in milliseconds; it reads only trials fetched after that fix
+    ...    (label replicate), since sheets kept before it always counted polls.
+    [Tags]    level:consistent    column:first_ms    predict:holds@0.75
+    Use Trials    replicate
     First Output Is Not Just Polls
 
 First Output Time Is Measured, Not The Poll Interval (red)
@@ -56,7 +58,7 @@ Broken Detector Catches A Return Value Compared Whole
     [Documentation]    A test that assigns Run And Return Rc And Output to one variable compares a list to a number,
     ...    so it can never pass; the detector must call it broken. Taken from step 25's failing test.
     ...    Kill: the detector says not broken.
-    [Tags]    level:correct    code:bench/tests.broken    predict:KILLED@0.99
+    [Tags]    level:correct    code:bench/tests.broken    predict:holds@0.95
     Detector Says Broken    [1, 0] != 0
 
 Broken Detector Catches A Return Value Compared Whole (red)
