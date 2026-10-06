@@ -14,7 +14,8 @@
 -- that fails costs much, so predicting only safe things does not pay; overconfidence, the mean p less the share
 -- right; and optimism, how often we said holds less how often it held. A prediction is not part of a claim's text
 -- for its hash: adding one edits no check. A prediction other than unknown, on a claim that came out unknown, is
--- pending: it is scored only once the claim is measured.
+-- pending: it is scored only once the claim is measured. A bet is scored once, at the last counted run that
+-- measured it: the same prediction left unchanged across runs is one bet, not one per run.
 -- A run counts only when its claims file is committed and unchanged (locked); one run with the file edited is a
 -- draft. A claim whose text changed after a counted run killed it is flagged: the kill stays in the ledger.
 --
@@ -143,12 +144,15 @@ function M.invalid(db, todo, n, why)
   db:exec("update claims_run set invalid = 1, why = ? where todo = ? and n = ?", { why, todo, n })
 end
 
+-- each bet once: the last counted run that measured it (not draft, not invalid, not pending)
+M.bets = "select c.todo, c.name, c.predict, c.p, c.verdict, max(c.n) as n from claim c join claims_run r on"
+  .. " r.todo = c.todo and r.n = c.n where c.predict != '' and r.draft = 0 and r.invalid = 0"
+  .. " and not (c.verdict = 'unknown' and c.predict != 'unknown') group by c.todo, c.name, c.predict, c.p"
+
 function M.calibration(db)
   local out = { predicted = 0, right = 0, by = {}, scored = 0 }
   local brier, loss, sure, said, held = 0, 0, 0, 0, 0
-  for _, r in ipairs(db:exec("select c.predict, c.verdict, c.p from claim c join claims_run r on r.todo = c.todo and"
-    .. " r.n = c.n where c.predict != '' and r.draft = 0 and r.invalid = 0"
-    .. " and not (c.verdict = 'unknown' and c.predict != 'unknown')")) do
+  for _, r in ipairs(db:exec("select predict, verdict, p from (" .. M.bets .. ")")) do
     local hit = r.predict == r.verdict and 1 or 0
     out.predicted, out.right = out.predicted + 1, out.right + hit
     local b = out.by[r.predict] or { n = 0, right = 0 }
@@ -167,9 +171,7 @@ function M.calibration(db)
   if out.scored > 0 then
     out.brier, out.log_loss = brier / out.scored, loss / out.scored
     local right_scored = 0
-    for _, r in ipairs(db:exec("select c.predict, c.verdict from claim c join claims_run r on r.todo = c.todo and"
-      .. " r.n = c.n where c.predict != '' and c.p is not null and r.draft = 0 and r.invalid = 0"
-      .. " and not (c.verdict = 'unknown' and c.predict != 'unknown')")) do
+    for _, r in ipairs(db:exec("select predict, verdict from (" .. M.bets .. ") where p is not null")) do
       if r.predict == r.verdict then right_scored = right_scored + 1 end
     end
     out.overconfidence = sure / out.scored - right_scored / out.scored

@@ -110,7 +110,7 @@ spec.test("predictions with a p are scored: Brier, log loss, overconfidence and 
   end
   ledger.record(db, "c", 1, "a", false, { claim("A", "holds", "holds", 0.9), claim("B", "KILLED", "holds", 0.8),
     claim("C", "KILLED", "KILLED", nil), claim("D", "holds", "holds", 0.5) }, {})
-  ledger.record(db, "c", 2, "a", false, { claim("E", "unknown", "holds", 0.9) }, {})
+  ledger.record(db, "c", 2, "a", false, { claim("E", "unknown", "holds", 0.9), claim("A", "holds", "holds", 0.9) }, {})
   local c = ledger.calibration(db)
   spec.same({ c.predicted, c.right, c.scored }, { 4, 3, 3 })
   spec.ok(math.abs(c.brier - (0.01 + 0.64 + 0.25) / 3) < 1e-9, c.brier)
