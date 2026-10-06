@@ -38,9 +38,41 @@
 -- Schema 14 (owner, 2026-10-05): what the agent is asked to do is a todo, org's word for a thing to be done, so
 -- that task means one thing, a Robot task. Every log table's key is (todo, n), not (task, n); a file kept before it
 -- has the column renamed at open (M.migrate).
+-- Schema 15 (owner, 2026-10-06): the terminal is Tablua's own (core/term). tablua_term keeps every action a step
+-- sent to its terminal and the screen it left, and tablua_event what each screen says went wrong (term.read), each
+-- from a source: the computer (real) or a world model that foresaw it (world). tablua_surprise is where the two part.
+-- Schema 16 (owner, 2026-10-06): the terminal's every column filled. tablua_term gains what was typed (its program,
+-- all its programs, whether it only reads, the files its redirections write: term.command), what the raw bytes showed
+-- (how many, lines in red, yellow and green, redraws, the alternate screen: term.pty), when its first output came,
+-- how many files it wrote, and where the acceptance tests stood when it ran; tablua_file keeps each file written,
+-- and tablua_vector a world model's hidden state for the action (ports.agentworld's encode), as JSON numbers.
+-- A file kept before it has the columns added at open (M.migrate).
+-- Schema 17 (owner, 2026-10-06): tablua_term keeps what bash itself ran for each action (term's trace, its DEBUG
+-- trap): the commands as the shell read them (trace) and the program each started (ran), an oracle for the columns
+-- read from what was typed, measured another way.
+-- Schema 18 (owner, 2026-10-06): a decision keeps what the decision model said where another policy chose
+-- (said) and the text it read (state); each candidate keeps the parts its probability was made of (the decision
+-- model's own prior, the tabular model's p that the move completes, the nearest states' rate), so where the parts
+-- disagree, and whether the wording moved the pick, are queries.
 local M = {}
 
-M.version = 14
+M.version = 18
+
+-- the columns schema 18 adds, each with its type, to a file kept before it
+M.added = {
+  tablua_decision = { { "said", "text" }, { "state", "text" } },
+  tablua_candidate = { { "prior", "real" }, { "p_complete", "real" }, { "knn", "real" } },
+}
+
+-- the columns schemas 16 and 17 add to tablua_term, each with its type and default
+M.term_columns = {
+  { "program", "text not null default ''" }, { "programs", "text not null default ''" },
+  { "reads", "integer not null default 0" }, { "writes", "integer not null default 0" },
+  { "files", "integer not null default 0" }, { "first_ms", "real" }, { "bytes", "integer" },
+  { "red", "integer" }, { "yellow", "integer" }, { "green", "integer" }, { "redraws", "integer" },
+  { "alt_screen", "integer" }, { "passed", "integer" }, { "total", "integer" },
+  { "trace", "text" }, { "ran", "text" },
+}
 
 M.ddl = [[
 create table if not exists tablua_meta (key text primary key, value text);
@@ -55,10 +87,10 @@ create table if not exists tablua_candidate (
   todo text not null, n integer not null, move text not null,
   jev_p real, jev_conf real, jev_margin real, jev_form text not null default 'choice',
   p_progress real, p_ship real, cost_q50 real, cost_q90 real, explored integer not null default 0,
-  primary key (todo, n, move));
+  prior real, p_complete real, knn real, primary key (todo, n, move));
 create table if not exists tablua_decision (
   todo text not null, n integer not null, chosen text not null, by text not null,
-  propensity real, policy text not null default '', at text,
+  propensity real, policy text not null default '', at text, said text, state text,
   primary key (todo, n));
 create table if not exists tablua_action (
   todo text not null, n integer not null, i integer not null,
@@ -154,6 +186,36 @@ create table if not exists tablua_element (
   file text not null, n integer not null, path text not null, call text not null, parent text not null default '',
   depth integer not null default 1, children integer not null default 0, props text not null default '',
   text text not null default '', primary key (file, n));
+create table if not exists tablua_term (
+  todo text not null, n integer not null, i integer not null, source text not null default 'real',
+  keys text not null default '', wait real, exit integer, done integer not null default 1, failed integer, ms real,
+  lines integer not null default 0, screen text not null default '',
+  program text not null default '', programs text not null default '', reads integer not null default 0,
+  writes integer not null default 0, files integer not null default 0, first_ms real, bytes integer, red integer,
+  yellow integer, green integer, redraws integer, alt_screen integer, passed integer, total integer, trace text,
+  ran text, primary key (todo, n, i, source));
+create table if not exists tablua_vector (
+  todo text not null, n integer not null, i integer not null, source text not null default 'world',
+  model text not null default '', dims integer not null, v text not null, primary key (todo, n, i, source));
+create table if not exists tablua_file (
+  todo text not null, n integer not null, i integer not null, path text not null, size integer,
+  primary key (todo, n, i, path));
+create table if not exists tablua_event (
+  todo text not null, n integer not null, i integer not null, source text not null default 'real', k integer not null,
+  kind text not null, name text not null default '', file text not null default '', line integer,
+  sig text not null, count integer not null default 1, text text not null default '',
+  primary key (todo, n, i, source, k));
+drop view if exists tablua_surprise;
+create view if not exists tablua_surprise as select r.todo, r.n, r.i,
+  (select count(*) from tablua_event e where e.todo = r.todo and e.n = r.n and e.i = r.i and e.source = 'real'
+    and not exists (select 1 from tablua_event x where x.todo = e.todo and x.n = e.n and x.i = e.i
+      and x.source = 'world' and x.kind = e.kind)) as unforeseen,
+  (select count(*) from tablua_event e where e.todo = r.todo and e.n = r.n and e.i = r.i and e.source = 'world'
+    and not exists (select 1 from tablua_event x where x.todo = e.todo and x.n = e.n and x.i = e.i
+      and x.source = 'real' and x.kind = e.kind)) as unfulfilled,
+  (r.failed is not null and r.failed != w.failed) as failed_differs
+  from tablua_term r join tablua_term w on w.todo = r.todo and w.n = r.n and w.i = r.i and w.source = 'world'
+  where r.source = 'real';
 create table if not exists tablua_gate (
   name text primary key, predicate text not null, version integer not null default 1,
   retired_by text);
@@ -161,7 +223,7 @@ create table if not exists tablua_gate (
 
 -- the log's tables, each keyed by the todo (schema 14 renamed its column from task)
 M.log = { "state", "candidate", "decision", "action", "outcome", "run", "prediction", "feature", "result", "label",
-  "effect", "control", "ranking", "change" }
+  "effect", "control", "ranking", "change", "term", "event", "file", "vector" }
 
 local function columns(db, tbl)
   local out = {}
@@ -173,9 +235,24 @@ end
 -- on whichever tables the file already has
 function M.migrate(db)
   db:exec("drop view if exists tablua_task_record")
+  db:exec("drop view if exists tablua_surprise")
   for _, name in ipairs(M.log) do
     local cols = columns(db, "tablua_" .. name)
     if cols.task and not cols.todo then db:exec("alter table tablua_" .. name .. " rename column task to todo") end
+  end
+  local term = columns(db, "tablua_term")
+  if next(term) then
+    for _, c in ipairs(M.term_columns) do
+      if not term[c[1]] then db:exec("alter table tablua_term add column " .. c[1] .. " " .. c[2]) end
+    end
+  end
+  for tbl, cs in pairs(M.added) do
+    local have = columns(db, tbl)
+    if next(have) then
+      for _, c in ipairs(cs) do
+        if not have[c[1]] then db:exec("alter table " .. tbl .. " add column " .. c[1] .. " " .. c[2]) end
+      end
+    end
   end
   local test = columns(db, "tablua_test")
   if next(test) and not test.kind then db:exec("alter table tablua_test add column kind text not null default 'test'") end

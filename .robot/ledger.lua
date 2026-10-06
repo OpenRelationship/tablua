@@ -4,7 +4,8 @@
 -- A claim's verdict is read from its test and its red proof, the test of the same name with " (red)" after it, run
 -- on rows known to be wrong:
 --   holds     its check passed, and the same check failed at an assertion on its red proof
---   KILLED    its check failed
+--   KILLED    its check failed, at an assertion (a Should keyword)
+--   broken    it failed before reaching an assertion: the claim's own setup or query is wrong, so it shows nothing
 --   BLIND     its check passed, and so did its red proof: the check cannot fail, so it shows nothing
 --   unproven  its check passed, with no red proof, or one that failed before reaching an assertion
 --   unknown   it skipped: not measured yet, or too few rows to measure
@@ -75,7 +76,7 @@ function M.verdicts(res)
       local r = red[t.name]
       local v
       if t.status == "SKIP" then v = "unknown"
-      elseif t.status == "FAIL" then v = "KILLED"
+      elseif t.status == "FAIL" then v = assertion(t) and "KILLED" or "broken"
       elseif not r then v = "unproven"
       elseif r.status == "PASS" then v = "BLIND"
       elseif r.status == "FAIL" and assertion(r) then v = "holds"

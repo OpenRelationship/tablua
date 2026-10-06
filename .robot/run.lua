@@ -81,7 +81,8 @@ end
 p:close()
 
 local lib = keywords.library(root)
-local MARK = { holds = "holds   ", KILLED = "KILLED  ", BLIND = "BLIND   ", unproven = "unproven", unknown = "unknown " }
+local MARK = { holds = "holds   ", KILLED = "KILLED  ", broken = "BROKEN  ", BLIND = "BLIND   ", unproven = "unproven",
+  unknown = "unknown " }
 local totals = {}
 
 for _, path in ipairs(files) do
@@ -109,5 +110,5 @@ for _, path in ipairs(files) do
     if flags[v.name] then print("            ! " .. flags[v.name]) end
   end
 end
-print(("%d hold, %d killed, %d blind, %d unproven, %d unknown"):format(totals.holds or 0, totals.KILLED or 0,
-  totals.BLIND or 0, totals.unproven or 0, totals.unknown or 0))
+print(("%d hold, %d killed, %d broken, %d blind, %d unproven, %d unknown"):format(totals.holds or 0,
+  totals.KILLED or 0, totals.broken or 0, totals.BLIND or 0, totals.unproven or 0, totals.unknown or 0))

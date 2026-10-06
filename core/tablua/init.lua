@@ -7,8 +7,11 @@
 --   t:state{ todo, n, stage, passed, total, stalls?, last_verb?, last_outcome?, cause?, pages_ok?, own_checks?, ask?,
 --            versions? }                                  where the work stood as a decision was made
 --   t:candidates(todo, n, { { move, jev_p?, jev_conf?, jev_margin?, jev_form?, p_progress?, p_ship?, cost_q50?,
---                cost_q90?, explored? }, ... })           every move that could have been made, and what was said of it
---   t:decision{ todo, n, chosen, by, propensity?, policy? }  the move taken, and by whom (jev, tabpfn, mercury)
+--                cost_q90?, explored?, prior?, p_complete?, knn? }, ... })   every move that could have been made, what was
+--                                                   said of it, and the parts that said it (a decision model's prior,
+--                                                   a tabular p that it completes, the nearest states' rate)
+--   t:decision{ todo, n, chosen, by, propensity?, policy?, said?, state? }  the move taken, and by whom (jev, tabpfn,
+--                                                   mercury); what the decision model said and the text it read
 --   t:action{ todo, n, i, cmd, file_kind?, op?, target?, bytes?, exit?, duration_ms? }   a call the move made
 --   t:outcome{ todo, n, verb, outcome, passed?, total?, regressed?, same_failure?, failing?, note? } -> progress (1|0)
 --   t:results(todo, n, res, file?) -> summary   a test run's keyword tree (robot.run) as rows of step n (tablua_result);
@@ -30,6 +33,8 @@
 --   t:controls(todo, n, verb, app, controls, chosen), t:control_training(), t:control_rows(ctx, candidates),
 --   t:scored(head)                                  a desktop world's control checkpoint, and the predictions' record
 --                                                   (tablua.control)
+--   t:term(todo, n, i, source, r), t:term_rows(todo, n?, source?), t:term_features(todo, n), t:surprise(todo, n)
+--                                                   the terminal's actions and screens, real and foreseen (tablua.term)
 --   t:put_app(files) -> breaks                     an app's files as the program's rows (tablua.app)
 --   t:put_program(file, rows), t:program(file), t:compile(file) -> org, t:files()   the program as rows (tablua.program)
 local schema = require("tablua.schema")
@@ -98,10 +103,10 @@ end
 function T:candidates(todo, n, list)
   for _, c in ipairs(list) do
     put(self.db, "tablua_candidate", { "todo", "n", "move", "jev_p", "jev_conf", "jev_margin", "jev_form",
-      "p_progress", "p_ship", "cost_q50", "cost_q90", "explored" }, { todo = todo, n = n, move = c.move,
-      jev_p = c.jev_p, jev_conf = c.jev_conf, jev_margin = c.jev_margin, jev_form = c.jev_form or "choice",
+      "p_progress", "p_ship", "cost_q50", "cost_q90", "explored", "prior", "p_complete", "knn" }, { todo = todo, n = n,
+      move = c.move, jev_p = c.jev_p, jev_conf = c.jev_conf, jev_margin = c.jev_margin, jev_form = c.jev_form or "choice",
       p_progress = c.p_progress, p_ship = c.p_ship, cost_q50 = c.cost_q50, cost_q90 = c.cost_q90,
-      explored = c.explored and 1 or 0 })
+      explored = c.explored and 1 or 0, prior = c.prior, p_complete = c.p_complete, knn = c.knn })
   end
 end
 
@@ -114,9 +119,9 @@ function T:features(todo, n, map, form)
 end
 
 function T:decision(d)
-  put(self.db, "tablua_decision", { "todo", "n", "chosen", "by", "propensity", "policy", "at" },
+  put(self.db, "tablua_decision", { "todo", "n", "chosen", "by", "propensity", "policy", "at", "said", "state" },
     { todo = d.todo, n = d.n, chosen = d.chosen, by = d.by, propensity = d.propensity, policy = d.policy or "",
-      at = self.clock() })
+      at = self.clock(), said = d.said, state = d.state })
 end
 
 function T:action(a)
@@ -294,11 +299,13 @@ end
 
 require("tablua.program")(T, put)
 require("tablua.control")(T, put)
+require("tablua.term")(T, put)
 require("tablua.app").install(T)
 
 local TABLES = { state = true, candidate = true, decision = true, action = true, outcome = true, run = true,
   fit = true, prediction = true, gate = true, feature = true, label = true, effect = true, section = true, unit = true,
-  test = true, keyword = true, call = true, result = true, control = true, ranking = true }
+  test = true, keyword = true, call = true, result = true, control = true, ranking = true, term = true, event = true,
+  file = true, vector = true }
 
 function T:count(name)
   assert(TABLES[name], "tablua: no table " .. tostring(name))

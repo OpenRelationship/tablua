@@ -26,6 +26,29 @@ spec.test("a decision's state, candidates and choice are typed rows", function()
   spec.eq(s.pass, 0.5)
 end)
 
+spec.test("a decision keeps what the decision model said and read, and each candidate the parts of its p", function()
+  local t = tablua.open(sqlite.open(":memory:"), { clock = function() return "t" end })
+  t:candidates("r1", 1, { { move = "explore", jev_p = 0.7, prior = 0.6, p_complete = 0.9, knn = 0.8 } })
+  t:decision({ todo = "r1", n = 1, chosen = "plan_tests", by = "free", said = "explore", state = "Where the work stands" })
+  local c = t.db:exec("select prior, p_complete, knn from tablua_candidate")[1]
+  spec.same({ c.prior, c.p_complete, c.knn }, { 0.6, 0.9, 0.8 })
+  local d = t.db:exec("select chosen, said, state from tablua_decision")[1]
+  spec.same({ d.chosen, d.said, d.state }, { "plan_tests", "explore", "Where the work stands" })
+end)
+
+spec.test("a file kept at schema 17 gains the decision's and candidates' new columns at open, its rows kept", function()
+  local path = os.tmpname()
+  local db = sqlite.open(path)
+  db:exec("create table tablua_decision (todo text not null, n integer not null, chosen text not null, by text not null,"
+    .. " propensity real, policy text not null default '', at text, primary key (todo, n))")
+  db:exec("insert into tablua_decision (todo, n, chosen, by) values ('old', 1, 'work', 'jev')")
+  local t = tablua.open(sqlite.open(path))
+  t:decision({ todo = "new", n = 1, chosen = "fix", by = "free", said = "work" })
+  local rows = t.db:exec("select todo, said from tablua_decision order by todo")
+  spec.same({ rows[1].todo, rows[1].said, rows[2].todo, rows[2].said }, { "new", "work", "old", nil })
+  os.remove(path)
+end)
+
 spec.test("progress: more passing, or a complete step that was not a change going nowhere", function()
   spec.eq(tablua.progress({ verb = "rewrite", outcome = "broken", passed = 2 }, { passed = 1, total = 2 }), 1)
   spec.eq(tablua.progress({ verb = "rewrite", outcome = "complete", passed = 1 }, { passed = 1, total = 2 }), 0)

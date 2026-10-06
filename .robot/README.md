@@ -19,7 +19,8 @@ luajit .robot/test.lua                  the framework's own tests
 | verdict | when |
 |---|---|
 | `holds` | Its check passed, and the same check failed at a `Should` assertion on its red proof. |
-| `KILLED` | Its check failed. |
+| `KILLED` | Its check failed at a `Should` assertion. |
+| `BROKEN` | It failed before reaching an assertion: the claim's own setup or query is wrong, so it shows nothing. |
 | `BLIND` | Its check passed, and so did its red proof: the check can't fail, so it shows nothing. |
 | `unproven` | Its check passed, with no red proof, or with one that broke before reaching an assertion. |
 | `unknown` | It skipped: not measured yet, or too few rows (every measure skips below its `min=`). |

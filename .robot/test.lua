@@ -33,6 +33,9 @@ Holds (red)
     No Setup Program
 Killed
     Should Be True    1 == 2
+Broken
+    Value Of    select nothing from nowhere
+    Should Be True    1 == 1
 Blind
     Should Be True    1 == 1
 Blind (red)
@@ -52,7 +55,7 @@ No Setup Program
     ${n}=    Count Of    select 1 from tablua_term where program = 'cd' and programs like '%,%'
     Should Be True    ${n} == 0
 ]])
-  spec.same(v, { Holds = "holds", Killed = "KILLED", Blind = "BLIND", ["No Proof"] = "unproven",
+  spec.same(v, { Holds = "holds", Killed = "KILLED", Broken = "broken", Blind = "BLIND", ["No Proof"] = "unproven",
     ["Red Breaks Early"] = "unproven", Unknown = "unknown" })
 end)
 
