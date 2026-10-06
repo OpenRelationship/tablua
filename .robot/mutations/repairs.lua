@@ -22,8 +22,8 @@ return {
   { "bench/terminal/notes.lua", "  if left then\n", "  if false then\n", "the state not told the time" },
   { "bench/terminal/notes.lua", "if req.missing and next(req.missing) then", "if false then",
     "missing programs not named" },
-  { "bench/terminal/world.lua", "      if #weakened > 0 then\n", "      if false then\n", "a weakened test accepted" },
-  { "bench/terminal/world.lua", "and not req.acted and req.tested_suite ~= req.suite then",
+  { "bench/terminal/suite.lua", "      if #weakened > 0 then\n", "      if false then\n", "a weakened test accepted" },
+  { "bench/terminal/suite.lua", "and not req.acted and req.tested_suite ~= req.suite then",
     "and req.tested_suite ~= req.suite then", "work does not let a rewrite stand" },
   { "bench/terminal/tests.lua", "  if counts_others(line) then return false end\n", "", "grep -cv counts as a check" },
 }
