@@ -12,4 +12,10 @@ return {
     "planning does not reset the stall" },
   { "bench/terminal/tests.lua", "if tostring(why or \"\"):find(h[1]) then return h[2] end", "",
     "no hint for a broken test" },
+  { "bench/terminal/tests.lua", "if hash ~= was then error", "if false then error", "a changed file passes" },
+  { "bench/terminal/tests.lua", "if not was then\n", "if false then\n", "a file with no record is not broken" },
+  { "bench/terminal/tests.lua", "if path == p or path == p .. \"/\" then return false end", "",
+    "/dev/null counts as a check" },
+  { "bench/terminal/tests.lua", "host.unchanged[path] = hash", "host.unchanged[path] = \"\"",
+    "the snapshot keeps no hashes" },
 }
