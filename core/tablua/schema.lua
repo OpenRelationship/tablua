@@ -226,14 +226,14 @@ create table if not exists tablua_msr_comp (
   todo text not null, n integer not null, key text not null, value, type text not null default 's',
   primary key (todo, n, key));
 create table if not exists tablua_msr_node (
-  todo text not null, n integer not null, id text not null, kind text not null, parent text not null default '',
-  z real, primary key (todo, n, id));
+  todo text not null, n integer not null, id text not null, kind text not null, parent text, ord real,
+  primary key (todo, n, id));
 create table if not exists tablua_msr_prop (
   todo text not null, n integer not null, id text not null, name text not null, value,
   type text not null default 's', primary key (todo, n, id, name));
 create table if not exists tablua_msr_key (
   todo text not null, n integer not null, id text not null, name text not null, t not null, value,
-  type text not null default 's', ease text not null default '', primary key (todo, n, id, name, t));
+  type text not null default 's', ease text, primary key (todo, n, id, name, t));
 create table if not exists tablua_msr_motion (
   todo text not null, n integer not null, id text not null, name text not null, t0 real not null, t1 real,
   curve text not null, params text not null default '{}', primary key (todo, n, id, name, t0));

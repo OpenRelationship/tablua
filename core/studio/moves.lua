@@ -36,8 +36,8 @@ end
 
 M.schema = {
   treat = obj({ text = S }, { "text" }),
-  add_node = obj({ node = { type = "object", description = "id and kind, parent (a group or world id) and z if any, "
-    .. "and its props at rest by name", properties = { id = S, kind = S, parent = S, z = { type = "number" } },
+  add_node = obj({ node = { type = "object", description = "id and kind, parent (a group or world id) and order (draw order) if any, "
+    .. "and its props at rest by name", properties = { id = S, kind = S, parent = S, order = { type = "number" } },
     required = { "id", "kind" }, additionalProperties = true } }, { "node" }),
   set_prop = obj({ id = S, name = S, value = VALUE }, { "id", "name", "value" }),
   add_key = obj({ id = S, name = S, t = T, value = VALUE, ease = S }, { "id", "name", "t", "value" }),

@@ -22,7 +22,8 @@ local M = {}
 -- each table: its columns in order, its key columns, and the columns whose value is typed (n, s, b, j)
 M.tables = {
   { name = "comp", cols = { "key", "value" }, key = { "key" }, typed = "value" },
-  { name = "node", cols = { "id", "kind", "parent", "z" }, key = { "id" } },
+  -- nodes in draw and build order, as the engine dumps them (a parent before its children)
+  { name = "node", cols = { "id", "kind", "parent", "order" }, key = { "order", "id" }, rename = { order = "ord" } },
   { name = "prop", cols = { "id", "name", "value" }, key = { "id", "name" }, typed = "value" },
   { name = "key", cols = { "id", "name", "t", "value", "ease" }, key = { "id", "name", "t" }, typed = "value" },
   { name = "motion", cols = { "id", "name", "t0", "t1", "curve", "params" }, key = { "id", "name", "t0" },
@@ -125,7 +126,16 @@ return setmetatable(M, { __call = function(_, T, put)
       local cols = { "todo", "n" }
       for _, c in ipairs(spec.cols) do cols[#cols + 1] = column(spec, c) end
       if spec.typed then cols[#cols + 1] = "type" end
-      for _, r in ipairs(tables[spec.name] or {}) do
+      local list = tables[spec.name] or {}
+      -- the comp's settings come as one object keyed by setting (the engine's form): a row each, in key order
+      if spec.name == "comp" and next(list) ~= nil and list[1] == nil then
+        local keys, rowsof = {}, {}
+        for k in pairs(list) do keys[#keys + 1] = k end
+        table.sort(keys)
+        for i, k in ipairs(keys) do rowsof[i] = { key = k, value = list[k] } end
+        list = rowsof
+      end
+      for _, r in ipairs(list) do
         local row = { todo = todo, n = n }
         for _, c in ipairs(spec.cols) do
           local v = r[c]
@@ -158,6 +168,11 @@ return setmetatable(M, { __call = function(_, T, put)
           list[i] = row
         end
         out.tables[spec.name] = list
+        if spec.name == "comp" then
+          local settings = {}
+          for _, r in ipairs(list) do settings[r.key] = r.value end
+          out.tables.comp = settings
+        end
       end
     end
     return out

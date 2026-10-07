@@ -9,12 +9,12 @@ local function open() return tablua.open(require("ports.sqlite").open(":memory:"
 
 local function comp(y, extra)
   local rows = { schema = "msr/1", tables = {
-    comp = { { key = "width", value = 1920 }, { key = "fps", value = 30 } },
-    node = { { id = "line", kind = "rect", parent = "", z = 1 }, { id = "buoy", kind = "mesh", parent = "w", z = 0 },
-      { id = "w", kind = "world", parent = "", z = 2 } },
+    comp = { width = 1920, fps = 30 },
+    node = { { id = "line", kind = "rect", order = 2 }, { id = "buoy", kind = "mesh", parent = "w", order = 1 },
+      { id = "w", kind = "world", order = 0 } },
     prop = { { id = "line", name = "y", value = y }, { id = "buoy", name = "pos", value = { 0, 0, -6 } },
       { id = "buoy", name = "material", value = { color = "#c0392b" } } },
-    key = { { id = "line", name = "y", t = "0", value = 540, ease = "" }, { id = "tide", name = "opacity", t = "beat:1",
+    key = { { id = "line", name = "y", t = 0, value = 540 }, { id = "tide", name = "opacity", t = "beat:1",
       value = 1, ease = "expoOut" } },
     system = { { name = "tide-follows-line", order = 1, source = "return function(t, s, q) return {} end" } },
   } }
@@ -26,8 +26,8 @@ spec.test("a comp's rows go in per step and come back as they went, positions an
   local t = open()
   t:comp("r", 0, comp(540))
   local back = t:comp_rows("r", 0)
-  spec.same({ back.tables.node[1].id, back.tables.prop[2].value, back.tables.prop[1].value, back.tables.key[2].t,
-    back.tables.system[1].order, back.tables.comp[2].value }, { "buoy", { 0, 0, -6 }, { color = "#c0392b" }, "beat:1", 1,
+  spec.same({ back.tables.node[2].id, back.tables.prop[2].value, back.tables.prop[1].value, back.tables.key[2].t,
+    back.tables.system[1].order, back.tables.comp.width }, { "buoy", { 0, 0, -6 }, { color = "#c0392b" }, "beat:1", 1,
     1920 })
   t:comp("r", 9, back)
   spec.eq(json.encode(t:comp_rows("r", 9)), json.encode(back))

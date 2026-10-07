@@ -25,7 +25,7 @@ local function engine()
     local before, touched = "d" .. e.v, {}
     for _, p in ipairs(patches) do
       if p.move == "add_node" then
-        e.node[#e.node + 1] = { id = p.node.id, kind = p.node.kind, z = 1 }
+        e.node[#e.node + 1] = { id = p.node.id, kind = p.node.kind, order = #e.node + 1 }
         e.prop[#e.prop + 1] = { id = p.node.id, name = "y", value = p.node.y }
         touched[#touched + 1] = { id = p.node.id }
       elseif p.move == "set_prop" then
