@@ -146,6 +146,9 @@ Other tables hold the rest of the agent's world:
   `tablua_task_record` is each task's record over its runs. A task is a test that does a job rather than checks
   one (Robot's `*** Tasks ***`): `robot.record` writes a passing test's run as one, run again with no model deciding.
 - `tablua_control`: on a desktop, the controls on screen a step chose among.
+- `tablua_term`: every command typed in the agent's terminal (`core/term`): its keys, exit code, time to its first
+  output, and the programs the shell really ran (a bash `DEBUG` trace). `tablua_label` keeps each step's `further`
+  (more tests passing than ever, or a failing test reaching further) and `safe` (nothing that passed was lost).
 
 ## How it learns
 
@@ -220,6 +223,16 @@ it sits in the test, its arguments, `PASS`, `FAIL`, `SKIP` or `NOT RUN`, why, an
 test the harness also keeps its reach, how many keywords passed before it failed, so a step that moves a failing
 test further along is seen even when no more tests pass.
 
+## Claims before code
+
+A change is not called fixed, better or working until a claim says so and survives. Claims are Robot tests in
+`.robot/claims/`, each with what checks it, the number that kills it, a `(red)` proof that the check can fail on rows
+built to be wrong, and a prediction (`predict:holds@0.6`), committed before the run they measure. `luajit
+.robot/run.lua` scores them against fetched runs: **holds**, **KILLED**, **broken** (failed before its check),
+**BLIND** (its red proof passed too), or **unknown** (too few rows). A run counts only when its claims file was
+committed unchanged, and each bet is scored once for calibration. `luajit .robot/mutate.lua .robot/mutations/*.lua`
+breaks one rule at a time to show the tests can fail. `.robot/README.md` says how; `/claim` walks it.
+
 ## Embedding it
 
 Tablua is native Lua and nothing else. A host embeds it with whatever Lua VM it has: LuaJIT,
@@ -261,6 +274,11 @@ asks (four held out), several seeds and paraphrases, a page arm against a contro
 - ✅ The program as rows, edited one unit at a time; broken links as a view.
 - 🔬 In an offline study of 4,515 build steps, progress was predictable from the state (AUROC 0.82 on asks it had not
   seen), and Jev was overconfident while building.
+- 🔬 On Terminal-Bench 2.0 (October 2026), with a quantized 35B Qwen writing, overfull-hbox passed 1 of 33 trials; a
+  control on older code did no better, so the writer was the limit, not the harness. The harness now keeps its rules
+  there (no file it must not touch is touched, no host dies, a weakened test is refused), and its tabular model
+  learns `further` rather than `complete`, which told moves apart (mean spread 0.23 against 0.08). Stronger writers
+  are being measured.
 - ⏳ Next: TabPFN deciding during building through A/B tests, retiring gates one at a time, and Gain with its
   confidence interval.
 
@@ -276,8 +294,10 @@ is the facts and the moves the host hands it, and what it keeps is the rows.
 | --- | --- |
 | `core/tablua` | The harness's tables, training queries, effects, hindsight, the program as rows |
 | `core/robot` | The agent's tests in Robot Framework's syntax, parsed and run in Lua, every keyword's result kept |
+| `core/term` | The agent's terminal: one tmux session driven by keystrokes, each command's screen and trace kept as rows |
 | `core/agent` | The step loop: decide, rank, fill, record, learn |
 | `core/ports` | Jev, Mercury, TabPFN and the other model ports, and `ports.sqlite` for a LuaJIT host |
+| `.robot/` | Claims about the harness as Robot tests, their ledger, and mutation suites (see Claims before code) |
 | `site/` | tablua.com and docs.tablua.com |
 
 Every module has a unit test (`*_test.lua`). They run on LuaJIT and on Lua 5.5.
