@@ -84,7 +84,8 @@ local function fkey(f) return table.concat({ f.tier or "", f.id or "", f.name or
 
 local function about(f, touched)
   for _, t in ipairs(touched) do
-    if (f.id or "") == t.id and (t.name == "" or (f.name or "") == "" or f.name == t.name) then return true end
+    local name = t.name or ""
+    if (f.id or "") == t.id and (name == "" or (f.name or "") == "" or f.name == name) then return true end
   end
   return false
 end

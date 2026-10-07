@@ -67,6 +67,9 @@ spec.test("the outcome: nothing changed is no_effect, a new error is broken, the
   spec.eq(studio.outcome(before, { before[2], E("line", "y", "too_fast", "warning") }, touched), "no_effect")
   -- a finding about a node the step removed (its props with it) is gone with it
   spec.eq(studio.outcome({ E("buoy", "pos", "off_frame") }, {}, { { id = "buoy", name = "" } }), "complete")
+  -- the engine leaves name out when a step touched a whole node or system
+  spec.eq(studio.outcome({ E("buoy", "pos", "off_frame") }, { E("buoy", "pos", "off_frame") }, { { id = "buoy" } }),
+    "no_effect")
 end)
 
 spec.run()

@@ -5,6 +5,8 @@
 -- window with many controls, which one the request means (tablua.control).
 --
 --   local l = learn.new{ tabpfn?, tablua?, memory?, per_run?, on = fn -> bool, log = fn(line) }
+--                    step? = { schema, training = fn() -> table, labels, rows = fn(ctx, moves) -> table }: a world's own
+--                    columns for the "step" checkpoint (studio.features.learner), in place of Tablua's
 --   l:rank(checkpoint, ctx, candidates) -> { { name, p }, ... } best first | nil, why
 --   l:training(checkpoint) -> table, labels
 --   l:record(checkpoint) -> { n, right, brier }   how TabPFN's logged predictions have done
@@ -33,7 +35,7 @@ M.per_run = 20                    -- predictions one run may ask for (a ranking 
 M.per_day = 4000000               -- TabPFN tokens a day, under the free tier's 5M; a predict costs 10,000
 
 function M.new(env)
-  return setmetatable({ tabpfn = env.tabpfn, memory = env.memory, tablua = env.tablua,
+  return setmetatable({ tabpfn = env.tabpfn, memory = env.memory, tablua = env.tablua, step = env.step,
     per_run = tonumber(env.per_run), on = env.on or function() return true end,
     log = env.log or function() end, fits = {}, asked = 0, seen = {} }, L)
 end
@@ -51,6 +53,7 @@ end
 -- One row per past step ("step": the columns known before Jev answers) or per control example ("control").
 function L:training(checkpoint)
   if checkpoint == "control" then return self.tablua:control_training() end
+  if self.step then return self.step.training() end
   local train, labels = self.tablua:training("progress", { before = true })
   return { columns = train.columns, rows = train.rows, categorical = tablua.categorical }, labels
 end
@@ -58,6 +61,7 @@ end
 -- A fitted training set for the checkpoint, fitting (or refitting) when there is none or enough is new.
 function L:fitted(checkpoint, force)
   local t, head, schema = self.tablua, M.head[checkpoint], M.schema[checkpoint]
+  if checkpoint == "step" and self.step then schema = self.step.schema end
   local train, labels = self:training(checkpoint)
   local have = self.fits[checkpoint] or t:fitted(head, schema)
   if have and not force and #labels - have.rows < M.refit then
@@ -78,6 +82,7 @@ end
 
 -- Each candidate's row, in the columns the checkpoint's training set has.
 local function test_set(self, checkpoint, ctx, candidates)
+  if checkpoint == "step" and self.step then return self.step.rows(ctx, candidates) end
   if checkpoint == "control" then
     local rows, columns = self.tablua:control_rows(ctx, candidates)
     return { columns = columns, rows = rows }

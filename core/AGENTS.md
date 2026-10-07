@@ -2,7 +2,8 @@
 
 Tablua's Lua: the harness (`tablua`, the agent's work as typed rows; `agent`, the decide-and-act loop; `robot`,
 the agent's tests in Robot Framework's syntax, parsed and run in Lua with every keyword's result kept as rows; `term`,
-the agent's terminal: a shell session driven by keystrokes, its screens read into rows, foreseen by a world model) and the
+the agent's terminal: a shell session driven by keystrokes, its screens read into rows, foreseen by a world model;
+`studio`, Moonsplice as the agent's world: a comp built as rows by typed patch moves) and the
 model ports (`ports`: Jev, Mercury, chat, see, search, TabPFN, and `ports.sqlite`, a LuaJIT host's database). A host
 reads it as Lua modules by name (`core/tablua/source.lua` is `tablua.source`).
 

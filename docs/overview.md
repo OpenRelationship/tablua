@@ -16,7 +16,7 @@ for Moonsplice, and last what is still to build.
  │ engine: mlua + vendored LuaJIT ──────┼── runs ──▶ │ agent    the step machine: decide, act, close │
  │ model:  Candle ── TabICLv2 ──────────┼─ host.tabicl ▶ ports.tabicl ─┐                          │
  │ curl, sqlite (FFI or Rust) ──────────┼─ host.fetch, db ▶ ports.*    │                          │
- │ lint · check · render · critic ──────┼─ world verbs ─▶ world (in Moonsplice: treat/write/fix/look)
+ │ rows · patch · lint · check · sheet ─┼─ exec ──▶ ports.moonsplice ◀── studio world (patch moves) │
  └──────────────────────────────────────┘            │ checkpoint + learn ◀── training rows ──┘      │
                                                      │ tablua   the rows (SQLite, tablua_* tables)   │
  OpenRouter: Jev (decider), minimax/minimax-m3 ◀──── │ ports.jev, ports.chat                         │
@@ -27,13 +27,14 @@ for Moonsplice, and last what is still to build.
 | Piece | Where | What it does |
 |---|---|---|
 | `agent` (`core/agent/init.lua`) | Tablua | The loop as an explicit state machine: `begin`, `step`, `perform`, `close`. No coroutines, so any embedded Lua runs it. |
-| world | Moonsplice (`agent/world.lua`) | The moves Jev may pick (`question`), what both minds read (`state`), what each move does (`act`), the moves legal now (`allowed`). |
+| `studio` (`core/studio/`) | Tablua | Moonsplice as the world: the moves as typed patches (`moves`), what TabICL reads of a comp (`features`), the writer's and critic's prompts (`prompts`), and the world itself (`world`): `question`, `state`, `allowed`, `act`. |
+| `ports.moonsplice` | Tablua | The engine: `bin/moonsplice rows \| patch \| lint \| check \| sheet --json` through the host's `exec` (the Studio's session later). |
 | `checkpoint` (`core/agent/checkpoint.lua`) | Tablua | Before a decision: asks TabICL to rank the legal moves. After a step: writes its rows and its outcome. |
 | `learn` (`core/agent/learn.lua`) | Tablua | Turns the rows into a training table, asks the tabular model, keeps its fits, predictions and rankings as rows. |
 | `ports.jev` | Tablua | Jev: a typed choice with a probability per option, through OpenRouter. |
 | `ports.chat` | Tablua | Any chat model. MiniMax M3 through OpenRouter, or `service = "minimax"` for MiniMax's own API. |
 | `ports.tabicl` | Tablua | TabICL in TabPFN's port shape. Calls the host's own TabICL (`host.tabicl`) or a server's url. |
-| `tablua` (`core/tablua/`) | Tablua | The rows: one SQLite file per run, every table named `tablua_*`, so a host can let the harness write those and no others. |
+| `tablua` (`core/tablua/`) | Tablua | The rows: one SQLite file per run, every table named `tablua_*`, so a host can let the harness write those and no others. `tablua.studio` keeps the comp as rows per step (schema 19). |
 | `robot` (`core/robot/`) | Tablua | Robot Framework tests parsed and run in Lua, every keyword's result kept as a row. |
 
 The host supplies everything that touches the world: `fetch` for HTTP, a `db` with `exec(sql, params)`, the clock,
@@ -52,7 +53,7 @@ a:step(req)
  │                     ├ explore: with env.explore, now and then another legal move (propensity kept)
  │                     └ env.decided(req, verb, answer, how, propensity)
  └─ returns { "act", step } (step.by = how it was settled, step.propensity) or { "done" } on answer
-a:perform(req, step) ── world.act: treat | write | fix | look  → step.outcome, step.note
+a:perform(req, step) ── world.act: treat | a patch move | look  → step.outcome, step.note
 a:close(req, step)
  └─ checkpoint.after ── memory:step(...)
                        └ rows: tablua_state, tablua_candidate, tablua_decision (unless the host wrote them),
@@ -95,6 +96,28 @@ Every table is in `core/tablua/schema.lua` (schema 18). They fall into three par
 | `tablua_result` | keyword a test run ran | The Robot tree: what ran, with what, PASS/FAIL/NOT RUN, why. |
 | `tablua_run` | run | How it ended: shipped, answered, works, steps, cost. |
 | `tablua_action`, `tablua_change`, `tablua_term`, `tablua_event`, `tablua_file`, `tablua_vector`, `tablua_control` | call, edit, keystroke, screen event, file, vector, control | The terminal and desktop worlds' detail. Moonsplice needs none of them today. |
+
+### The comp: what Moonsplice is making, one snapshot per step (schema 19)
+
+The contract is `cadence/docs/ROWS.md` (msr/1). Each table is the engine's, with `(todo, n)` first: the comp as it
+stood after step n, and n = 0 before any step. What step n changed is where snapshot n differs from n - 1
+(`t:touched`); the engine's patch response says it too.
+
+| Table | One row per | Notes |
+|---|---|---|
+| `tablua_msr_comp` | comp setting | width, height, duration, fps, background, seed |
+| `tablua_msr_node` | node | id, kind, parent, z; 3D things are nodes under a `world` node |
+| `tablua_msr_prop` | prop at rest | value with `type`: `n` number, `s` string, `b` boolean, `j` canonical JSON |
+| `tablua_msr_key` | keyframe | `t` is seconds or a fact reference (`beat:12`) |
+| `tablua_msr_motion` | motion that is not key to key | path, wiggle, follow, spring, drop |
+| `tablua_msr_system` | system | a pure function `(t, state, q) -> rows` |
+| `tablua_msr_asset`, `tablua_msr_fact` | asset, fact | media and what perception found |
+| `tablua_msr_finding` | lint or check finding | by the node and prop it is about; empty id for the comp |
+| `tablua_score` | judge's score | the critic's six dims per look, or the oracle's |
+
+A step's outcome comes from these (`tablua.studio.outcome`): nothing touched is `no_effect`; a new error is
+`broken`; a new finding of any other kind, or one still open on what the step touched, is `no_effect`; otherwise
+`complete`.
 
 ### The build: what is being made, keyed by file, replaced as files change
 
@@ -172,18 +195,32 @@ cuda-box at `~/tabicl-parity/`. The checksum is in `tabicl-v2.safetensors.sha256
 estimator on 50 rows, so it would take seconds on LuaJIT. But 27.5 M weights as Lua numbers take 220 to 440 MB. It
 is the fallback for a host without Candle, and not built.
 
-## 6. What changes for Moonsplice's world
+## 6. Moonsplice's world (`core/studio/`)
 
-Tablua was first shaped for apps (pages, forms, tests) and then a terminal. For games and videos:
-
-| Already fits | Gap | Proposed |
+| Stage | When | Moves offered |
 |---|---|---|
-| The step machine, Jev, M3, rank mode, the log tables, determinism, attaching past trials | The training columns speak of apps: `own_checks`, `cause`, and Jev's fan-out `ask_dates`, `ask_edit` | A Moonsplice column set: `kind` (video, game), `version`, gate errors and warnings, the critic's six scores and lowest, frame-hash stability |
-| `tablua_outcome` and the progress label | The gate's findings and the critic's scores live only in the world's text and the step's note | `tablua_score` (todo, n, judge, dim, value) and `tablua_finding` (todo, n, tier, code, severity, count): schema 19 |
-| `tablua_run` | The trial's oracle (re-gate, blind critic, hashes) lives in Moonsplice's ledger only | The oracle's verdict as `tablua_run.works` and `right`, so the `ship` head learns from it |
-| `robot` | Moonsplice's checks are its own CLI (`lint`, `check`, `probe`) | Leave as is; a check's codes become `tablua_finding` rows |
+| `treating` | no treatment yet | `treat` |
+| `building` | no nodes, or errors open | every patch move: `add_node`, `set_prop`, `add_key`, `move_key`, `drop_key`, `bind`, `add_system`, `edit_system`, `derive`, `remove`; `look` once the comp changed and has no errors |
+| `polishing` | no errors | the same, and `answer` once a look scored the comp as it is |
 
-The terminal, desktop and program-as-rows tables stay in Tablua and Moonsplice leaves them empty.
+1. **A patch move.** Jev picks the move. The writer (M3) gets the comp's rows and the standing, and calls that move's
+   tool once per patch, with the engine's own payload fields. Each patch is checked for shape
+   (`studio.moves.check`), then applied by the engine, which rejects what fails its checks. The comp is snapshotted,
+   its findings kept, and the outcome judged from them.
+2. **look.** The engine renders a contact sheet; the critic (M3, the sheet as an image) scores the six dims, kept as
+   `tablua_score`.
+3. **pass** is the share of seven checks that hold: the gate (no errors) and each of the six scores at 3 or more, on
+   the comp as it is now.
+4. **What TabICL reads** (`studio.features.columns`): the move, the stage, the last move and outcome, pass, stalls,
+   the step, whether it is a game, the comp's size by table, keys bound to facts, errors and warnings open, the
+   critic's lowest, mean and six scores, the last render's seconds, and steps since the last look. They are kept per
+   decision as `tablua_feature` rows (form `studio`), so training reads exactly what the decision read, and earlier
+   trials' sheets attached with `t:attach` train it too.
+5. **Not yet:** a candidate is a move, not a move on a target, so the target's kind, prop and open findings are not
+   columns yet; the trial's oracle (re-gate, blind critic, frame hashes) is not yet written to `tablua_run`; the
+   decider does not yet see the contact sheet (the Decisions API's image form is unverified).
+
+The terminal, desktop and program-as-rows tables stay in Tablua; Moonsplice leaves them empty.
 
 ## 7. Where it stands (2026-10-06)
 
@@ -193,3 +230,5 @@ The terminal, desktop and program-as-rows tables stay in Tablua and Moonsplice l
 | The same run writes the same rows | consistent | Three processes, byte-identical dumps |
 | TabICL on Moonsplice's steps beats the base rate | not shown | Needs Moonsplice trials and its held-out Brier claim |
 | A Candle TabICL matches the Python reference | not built | The parity fixtures above are its test |
+| The studio world runs a whole request and keeps its rows | consistent | `core/studio/world_test.lua` over fakes: treat, a breaking patch, a fix, a look, answer; outcomes, snapshots, findings, scores and features as rows |
+| It builds a good comp with the real engine and M3 | not shown | Needs `bin/moonsplice rows` and `patch` (Moonsplice) and a claim |

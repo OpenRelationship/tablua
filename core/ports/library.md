@@ -21,5 +21,5 @@ Modules: `json.lua` (sorted keys, so equal requests
 are equal bytes), `call.lua` (one POST, one retry on network, 429 or 5xx, error text trimmed to the
 service's own messages), `jev.lua`, `mercury.lua`, `chat.lua` (any OpenRouter, Cerebras or MiniMax chat model, or an OpenAI-compatible server, behind Mercury's `chat` shape, with its own cost and a reasoning allowance, so a model such as Kimi K2 Thinking can be the writer), `see.lua` (the image model: one frame or a sequence as successive images; the caller asks for a
 format and validates it), `search.lua` (Parallel's Search API, key in `x-api-key`), `tabpfn.lua` (Prior Labs' REST flow: prepare upload, PUT CSV to the signed URL
-without the key, fit, predict), `tabicl.lua` (TabICL in TabPFN's port shape, over a host's server), `stream.lua` (a chat route's server-sent events, read as they come) and `curl.lua`
+without the key, fit, predict), `tabicl.lua` (TabICL in TabPFN's port shape, over a host's server), `moonsplice.lua` (Moonsplice's engine commands, rows, patch, lint, check and sheet, through the host's exec), `stream.lua` (a chat route's server-sent events, read as they come) and `curl.lua`
 (the test host's fetch over the system libcurl). Every port takes its key from the host; none reads a keychain.
