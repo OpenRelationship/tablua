@@ -192,6 +192,9 @@ spec.test("Use Sheets pools many runs' rows, each todo named by its sheet; Needs
     t.db:exec("insert into tablua_term (todo, n, i, source, program) values ('run', 1, 1, 'real', 'make')")
     t:decision({ todo = "run", n = 1, chosen = "work", by = "free", said = "work", state = "s" })
     t.db:exec("insert into tablua_label (todo, n, head, value, source, at) values ('run', 1, 'further', 1, 'bench', '')")
+    -- the tables a studio run keeps, which the pi claims read (pi-s5's were left out of the pool)
+    t:run{ todo = "run", shipped = true, works = false, changed = true, steps = 3 }
+    t.db:exec("insert into tablua_message (todo, i, n, role, content) values ('run', 1, 1, 'user', 'go')")
   end
   local res = run([[
 *** Test Cases ***
@@ -205,6 +208,10 @@ Pooled
     Should Be True    ${d} == 2
     ${l}=    Count Of    select 1 from tablua_label where head = 'further'
     Should Be True    ${l} == 2
+    ${r}=    Count Of    select 1 from tablua_run where changed = 1
+    Should Be True    ${r} == 2
+    ${m}=    Count Of    select 1 from tablua_message
+    Should Be True    ${m} == 2
 Thin
     Needs At Least    3    20    rows with red text
     Fail    never reached

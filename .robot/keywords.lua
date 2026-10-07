@@ -31,9 +31,17 @@ local M = {}
 -- the bench, where claims about the terminal's harness code find it
 M.bench = (os.getenv("TABLUA_LOCAL") or (os.getenv("HOME") .. "/tablua-local")) .. "/bench/terminal/"
 
--- the tables Use Sheets pools
-M.pooled = { "tablua_term", "tablua_event", "tablua_file", "tablua_result", "tablua_decision", "tablua_candidate",
-  "tablua_label", "tablua_outcome", "tablua_action", "tablua_msr_node", "tablua_msr_finding", "tablua_score" }
+-- the tables Use Sheets pools: every log table, keyed by todo (a fixed list left out the run, the transcript and the
+-- predictions, so the pi claims read none of pi-s5's)
+local function pooled(db)
+  local out = {}
+  for _, r in ipairs(db:exec("select name from main.sqlite_master where type = 'table' and name like 'tablua_%' order by name")) do
+    for _, c in ipairs(db:exec("pragma main.table_info(" .. r.name .. ")")) do
+      if c.name == "todo" then out[#out + 1] = r.name break end
+    end
+  end
+  return out
+end
 
 local function skip(msg) error({ robot = true, skip = true, message = msg }, 0) end
 
@@ -71,7 +79,7 @@ function M.library(root)
     for _, path in ipairs(paths) do
       local name = path:match("([^/]+)%.sqlite$") or path
       db:exec("attach database ? as s", { path })
-      for _, tbl in ipairs(M.pooled) do
+      for _, tbl in ipairs(pooled(db)) do
         local mine, cols = {}, {}
         for _, c in ipairs(db:exec("pragma main.table_info(" .. tbl .. ")")) do mine[c.name] = true end
         for _, c in ipairs(db:exec("pragma s.table_info(" .. tbl .. ")")) do
