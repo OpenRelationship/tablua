@@ -13,7 +13,8 @@
 --                                  measured?, threshold?, detail? } }, the full list after step n
 --   t:scores(todo, n, judge, { dim = value })                    judge "critic" | "oracle"
 --   studio.outcome(before, after, touched) -> "complete" | "no_effect" | "broken"
---   studio.canon(v) -> text         canonical JSON: keys sorted, numbers %.17g (integers as integers)
+--   studio.canon(v) -> text         canonical JSON: keys sorted, an integer under 1e15 as one, any other number the
+--                                  shortest of %.15g, %.16g and %.17g that reads back the same (Moonsplice's rule)
 local json = require("ports.json")
 
 local M = {}
@@ -39,8 +40,14 @@ local function is_array(t)
   return true
 end
 
+-- Moonsplice's rule (ROWS.md): an integer under 1e15 as one; anything else the shortest of 15, 16 and 17 significant
+-- digits that reads back as the same number, so 0.1 is "0.1" and an agent reads what it wrote
 local function number(v)
-  if v == math.floor(v) and math.abs(v) < 2 ^ 53 then return ("%d"):format(v) end
+  if v == math.floor(v) and math.abs(v) < 1e15 then return ("%d"):format(v) end
+  for p = 15, 16 do
+    local s = ("%." .. p .. "g"):format(v)
+    if tonumber(s) == v then return s end
+  end
   return ("%.17g"):format(v)
 end
 

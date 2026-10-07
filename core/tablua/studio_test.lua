@@ -72,4 +72,10 @@ spec.test("the outcome: nothing changed is no_effect, a new error is broken, the
     "no_effect")
 end)
 
+spec.test("numbers in canonical JSON: integers as integers, others the shortest of 15 to 17 digits that reads back", function()
+  spec.same({ studio.canon(540), studio.canon(-6), studio.canon(0.1), studio.canon(1 / 3), studio.canon(2 ^ 60),
+    studio.canon({ 0, 1.2, -6 }), studio.canon({ b = 0.25, a = true }) },
+    { "540", "-6", "0.1", "0.3333333333333333", "1.152921504606847e+18", "[0,1.2,-6]", '{"a":true,"b":0.25}' })
+end)
+
 spec.run()
