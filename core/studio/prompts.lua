@@ -55,6 +55,8 @@ M.rules = {
   "Begin with a short treatment as text: the premise, the one governing rule, the grammar (what things are, how "
     .. "they move, what they are timed to) and the structure in time. Then work.",
   "Read the comp with brief before you change it, and again whenever you have lost track of it.",
+  -- pi-s5 and pi-s6 read four or five reference sections in a row before their first change (Moonsplice, 2026-10-07)
+  "Look first; then read only the reference sections the brief's findings and your next change need.",
   "Change the comp only with patch. Put a node with its props, keys and bind in one call. Numbers and booleans "
     .. "unquoted (y = 500, not \"500\").",
   "The comp's expectations are what the piece is: restyle, retime or re-stage what they name; never remove or hide it. "
