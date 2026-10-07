@@ -20,17 +20,19 @@ Gemini Flash Passes Half The Time
     Use Trials    writer-gemini-flash
     Half Pass
 
-Qwen Flash Passes Half The Time
-    [Documentation]    Writer qwen/qwen3.8-flash. Kill: fewer than 2 of 4 scored trials pass.
-    [Tags]    level:useful    writer:qwen-flash    predict:holds@0.2
-    Use Trials    writer-qwen-flash
+DeepSeek Flash Passes Half The Time
+    [Documentation]    Writer deepseek/deepseek-v4.1-flash, in place of qwen/qwen3.8-flash, which answered tool_choice
+    ...    required with "400 Provider returned error" twice (as did qwen3.7-plus); DeepSeek made the call in 0.9 s.
+    ...    Kill: fewer than 2 of 4 scored trials pass.
+    [Tags]    level:useful    writer:deepseek-flash    predict:holds@0.25
+    Use Trials    writer-deepseek-flash
     Half Pass
 
 A Stronger Writer Beats The Modal Qwen
     [Documentation]    At least one of the three arms passes more overfull-hbox trials than the Modal Qwen's 1 of 33.
     ...    Read across the three arms' trials. Kill: no arm passes any trial (all 12 scored, 0 passed).
     [Tags]    level:useful    writer:any    predict:holds@0.6
-    Use Trials    writer-qwen-max    writer-gemini-flash    writer-qwen-flash
+    Use Trials    writer-qwen-max    writer-gemini-flash    writer-deepseek-flash
     Some Pass
 
 Qwen Max Passes Half The Time (red)
@@ -41,7 +43,7 @@ Gemini Flash Passes Half The Time (red)
     Use Fixture    insert into trial (job, trial, task, reward) values ('j', 'a', 'overfull-hbox', 0), ('j', 'b', 'overfull-hbox', 0), ('j', 'c', 'overfull-hbox', 1), ('j', 'd', 'overfull-hbox', 0)
     Half Pass
 
-Qwen Flash Passes Half The Time (red)
+DeepSeek Flash Passes Half The Time (red)
     Use Fixture    insert into trial (job, trial, task, reward) values ('j', 'a', 'overfull-hbox', 0), ('j', 'b', 'overfull-hbox', 0), ('j', 'c', 'overfull-hbox', 1), ('j', 'd', 'overfull-hbox', 0)
     Half Pass
 
