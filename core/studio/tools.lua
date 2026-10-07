@@ -172,6 +172,18 @@ function M.list(s)
     prepare = function(args)
       args.rows = listed(args.rows, function(v) return v.id ~= nil end)
       args.withdraw = listed(args.withdraw, function(v) return v.id ~= nil end)
+      -- a time written as a numeric string ("3", "1.5s") is seconds, and so is an ordering op's value ("0.5"): the
+      -- studio run gh1 wrote six expect calls of quoted numbers the engine refused, and could not patch without one
+      for _, x in ipairs(type(args.rows) == "table" and args.rows or {}) do
+        if type(x) == "table" then
+          for _, k in ipairs({ "at", "t0", "t1" }) do
+            local v = type(x[k]) == "string" and tonumber((x[k]:gsub("^%s+", ""):gsub("s?%s*$", ""))) or nil
+            if v then x[k] = v end
+          end
+          local ordering = x.op == ">" or x.op == ">=" or x.op == "<" or x.op == "<="
+          if ordering and type(x.value) == "string" and tonumber(x.value) then x.value = tonumber(x.value) end
+        end
+      end
       return args
     end,
     execute = function(args)

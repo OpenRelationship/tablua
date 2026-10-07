@@ -330,6 +330,19 @@ spec.test("a look samples the sheet at the times the expectations name, besides 
   spec.same(e.at, { 4.27, "beat:9", 8 })
 end)
 
+spec.test("quoted numbers in an expectation are seconds and numbers; a fact reference stays text (run gh1)", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local e = engine()
+  local m = model({ { calls = { { "expect", { rows = { { id = "a", says = "lit", node = "t4", prop = "glow", op = ">=",
+    value = "0.5", t0 = "1.5s", t1 = "4", holds = "ever" }, { id = "b", says = "on the beat", node = "t4", at = "beat:9" },
+    { id = "c", says = "named", node = "t4", prop = "text", op = "==", value = "3" } } } } } }, { text = "done" },
+    { text = "done" } })
+  session.new{ engine = e, model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x", todo = "r",
+    exec = function() return { code = 0, stdout = "UE5H" } end }:run()
+  local a, b, c = e.expects[1], e.expects[2], e.expects[3]
+  spec.same({ a.value, a.t0, a.t1, b.at, c.value }, { 0.5, 1.5, 4, "beat:9", "3" })
+end)
+
 spec.test("the model withdraws its own expectation with a reason, kept as a row; a seed's it cannot", function()
   local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
   local e = engine()
