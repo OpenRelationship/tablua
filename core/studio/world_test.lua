@@ -114,4 +114,19 @@ spec.test("look and answer are offered with errors open: the decider reads them 
   spec.same({ offered() }, { false, true })
 end)
 
+spec.test("a writer that reasons to its limit and says nothing is asked once more, afresh", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local tries = 0
+  local runaway = { chat = function()
+    tries = tries + 1
+    if tries == 1 then error("minimax/minimax-m3 spent its limit, 129142 tokens reasoning, and said nothing", 0) end
+    return "Premise: the tide."
+  end }
+  local w = world.new{ engine = engine(), tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
+    writer = runaway, critic = critic, exec = function() return { code = 0, stdout = "" } end }
+  local req, step = { todo = "r", steps = {} }, { lines = {} }
+  w.act(nil, req, "treat", step)
+  spec.same({ tries, step.outcome }, { 2, "complete" })
+end)
+
 spec.run()

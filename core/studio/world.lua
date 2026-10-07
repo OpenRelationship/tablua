@@ -33,6 +33,14 @@ checkpoint.ranked.building, checkpoint.ranked.polishing = true, true
 
 local function clip(s, n) s = tostring(s or "") return #s > n and (s:sub(1, n) .. "...") or s end
 
+-- a chat call, asked once more afresh when the model reasoned to its limit and said nothing (M3 spent 129k tokens
+-- on one derive in studio s1 and answered nothing): ok, text, record
+local function ask(port, req)
+  local ok, text, record = pcall(port.chat, port, req)
+  if not ok and tostring(text):find("said nothing", 1, true) then ok, text, record = pcall(port.chat, port, req) end
+  return ok, text, record
+end
+
 function M.new(o)
   local t = assert(o.tablua, "studio world needs the run's tablua handle")
   local w = { tools = {}, o = o, digest = nil, looked = nil, findings = {} }
@@ -155,7 +163,7 @@ function M.new(o)
   function w.form(written) return { question = written } end
 
   local function treat(req, step)
-    local ok, text = pcall(o.writer.chat, o.writer, prompts.director(o.ask, o.kind))
+    local ok, text = ask(o.writer, prompts.director(o.ask, o.kind))
     if not ok or not text or text == "" then step.outcome, step.note = "broken", "the director failed: " .. clip(text, 200) return end
     req.treatment = text
     step.outcome, step.note = "complete", "treatment: " .. clip(text:gsub("\n", " "), 200)
@@ -167,7 +175,7 @@ function M.new(o)
     w.render_s = sheet.seconds
     local b64 = o.exec("base64 < '" .. o.sheet:gsub("'", [['\'']]) .. "' | tr -d '\\n'", 60)
     if not b64 or b64.code ~= 0 then step.outcome, step.note = "broken", "could not read the sheet" return end
-    local okc, text = pcall(o.critic.chat, o.critic, prompts.critic(o.ask, o.kind, req.treatment, b64.stdout, sheet.picks))
+    local okc, text = ask(o.critic, prompts.critic(o.ask, o.kind, req.treatment, b64.stdout, sheet.picks))
     local scores, said = prompts.scores(okc and text)
     if not scores then step.outcome, step.note = "broken", tostring(said) .. ": " .. clip(text, 200) return end
     t:scores(req.todo, n, "critic", scores)
@@ -181,7 +189,7 @@ function M.new(o)
     local req_w = prompts.move(move, o.ask, o.kind, req.treatment, standing(req),
       json.encode({ tables = rows.tables, derived = rows.derived }), o.reference)
     req_w.tools, req_w.tool_choice = { moves.tool(move) }, "required"
-    local ok, _, record = pcall(o.writer.chat, o.writer, req_w)
+    local ok, _, record = ask(o.writer, req_w)
     if not ok then step.outcome, step.note = "broken", "the writer failed: " .. clip(_, 300) return end
     local patches, refused = {}, {}
     for _, c in ipairs(record.tool_calls or {}) do

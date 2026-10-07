@@ -102,8 +102,16 @@ local function about(f, touched)
   return false
 end
 
+-- info findings are advice (an ease used often, a move too small to see), not problems: they judge nothing
+local function problems(list)
+  local out = {}
+  for _, f in ipairs(list) do if f.severity ~= "info" then out[#out + 1] = f end end
+  return out
+end
+
 function M.outcome(before, after, touched)
   if #touched == 0 then return "no_effect" end
+  before, after = problems(before), problems(after)
   local had, has = {}, {}
   for _, f in ipairs(before) do had[fkey(f)] = true end
   for _, f in ipairs(after) do has[fkey(f)] = true end

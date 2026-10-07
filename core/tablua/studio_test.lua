@@ -71,6 +71,11 @@ spec.test("the outcome: nothing changed is no_effect, a new error is broken, the
   spec.eq(studio.outcome(before, { before[2], E("line", "y", "too_fast", "warning") }, touched), "no_effect")
   -- a finding about a node the step removed (its props with it) is gone with it
   spec.eq(studio.outcome({ E("buoy", "pos", "off_frame") }, {}, { { id = "buoy", name = "" } }), "complete")
+  -- an info finding is advice, not a problem: opening or closing one judges nothing (studio s1: subpixel_drift and
+  -- ease_monoculture, info, made two add_keys no_effect)
+  local info = { tier = "lint", id = "buoy", code = "subpixel_drift", severity = "info" }
+  spec.eq(studio.outcome({}, { info }, { { id = "buoy", name = "y" } }), "neutral")
+  spec.eq(studio.outcome({ info, E("sea", "", "x") }, { E("sea", "", "x") }, { { id = "buoy", name = "y" } }), "neutral")
   -- the engine leaves name out when a step touched a whole node or system
   spec.eq(studio.outcome({ E("buoy", "pos", "off_frame"), E("sea", "", "x") }, { E("buoy", "pos", "off_frame") },
     { { id = "buoy" } }), "no_effect")
