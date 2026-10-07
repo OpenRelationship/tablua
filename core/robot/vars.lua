@@ -1,7 +1,9 @@
 -- Variables for the runner: scopes (suite, test, keyword) and substitution in cells, as Robot Framework does it.
 -- A cell that is one ${x} gives x's value as it is; ${x} inside text gives its string; @{x} as a whole cell
 -- spreads a list into several arguments. ${1} and ${2.5} are numbers; ${True}, ${False}, ${None}, ${EMPTY} and
--- ${SPACE} are what they say. ${x}[i] reads an item (1-based for lists, as in Lua).
+-- ${SPACE} are what they say. ${x}[i] reads an item as Robot does: 0-based for lists, -1 from the end, a key for
+-- a dictionary; whole or inside text (an expression, a message). In an expression $x is the value itself, a Lua table
+-- for a list, so $x[1] is its first item.
 --   local vars = require("robot.vars")
 --   local scope = vars.scope(parent?)  scope:get(name) scope:set(name, v) scope:set_global(name, v)
 --   vars.value(scope, cell) -> v         vars.args(scope, cells) -> { n, ... }   vars.text(v) -> string
@@ -63,10 +65,14 @@ local function lookup(scope, inner)
 end
 
 local function item(v, index)
-  local i = tonumber(index)
   if type(v) ~= "table" then error({ robot = true, message = "Cannot read an item of a value that is not a list" }, 0) end
-  if i then return v[i] end
-  return v[index]
+  local i = tonumber(index)
+  -- a list: 0-based, -1 the last
+  if i and (#v > 0 or next(v) == nil) then return v[i < 0 and (#v + 1 + i) or (i + 1)] end
+  -- a dictionary: the key as written, or as a number
+  local got = v[index]
+  if got == nil and i then got = v[i] end
+  return got
 end
 
 -- a cell's value: the variable itself when the cell is exactly one, else the text with each replaced
@@ -76,6 +82,7 @@ function M.value(scope, cell)
   if whole then return item(lookup(scope, whole), idx) end
   whole = cell:match("^[%$&]{([^{}]+)}$")
   if whole then return lookup(scope, whole) end
+  cell = cell:gsub("%${([^{}]+)}%[([^%]]+)%]", function(inner, idx) return M.text(item(lookup(scope, inner), idx)) end)
   return (cell:gsub("%${([^{}]+)}", function(inner) return M.text(lookup(scope, inner)) end))
 end
 

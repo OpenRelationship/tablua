@@ -266,4 +266,17 @@ spec.test("record refuses a failing test, and a value it cannot write as a cell"
   spec.ok(why:find("cannot be written"), why)
 end)
 
+
+spec.test("an item is read as Robot reads it, 0-based and -1 from the end, whole or inside an expression", function()
+  local res = run([[
+*** Test Cases ***
+Items
+    ${b}=    Create List    0.175    0.26    0.211
+    Should Be Equal    ${b}[0]    0.175
+    Should Be Equal    ${b}[-1]    0.211
+    Should Be True    ${b}[0] < ${b}[1]    TabICL ${b}[0] against ${b}[1]
+    Should Be True    $b[1] == '0.175'
+]])
+  spec.eq(res.tests[1].status, "PASS", res.tests[1].message)
+end)
 spec.run()
