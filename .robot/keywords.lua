@@ -97,11 +97,15 @@ function M.library(root)
     pool(paths)
   end)
 
-  lib:add("Use Trials", function(label)
+  -- one label or several (Use Trials    a    b): the trials of each, pooled
+  lib:add("Use Trials", function(...)
+    local labels = { ... }
+    local label = table.concat(labels, ", ")
+    local marks = ("?, "):rep(#labels):sub(1, -3)
     local l = sqlite.open(root .. "/ledger.sqlite")
     ledger.open(l)
     local paths = {}
-    for _, r in ipairs(l:exec("select sheet from trial where label = ? order by job, trial", { label })) do
+    for _, r in ipairs(l:exec("select sheet from trial where label in (" .. marks .. ") order by job, trial", labels)) do
       local f = io.open(root .. "/" .. r.sheet, "rb")
       if f then f:close() paths[#paths + 1] = root .. "/" .. r.sheet end
     end
@@ -109,7 +113,7 @@ function M.library(root)
     pool(paths)
     -- and the trials' own rows (task, reward, green), so a claim can read what the verifier said
     ledger.open(db)
-    for _, r in ipairs(l:exec("select * from trial where label = ?", { label })) do
+    for _, r in ipairs(l:exec("select * from trial where label in (" .. marks .. ")", labels)) do
       db:exec("insert into trial (job, trial, task, label, reward, green, steps, sheet, at, ended) values (?, ?, ?, ?, ?,"
         .. " ?, ?, ?, ?, ?)", { r.job, r.trial, r.task, r.label, r.reward or false, r.green or false, r.steps or false,
         r.sheet, r.at, r.ended or "" })
