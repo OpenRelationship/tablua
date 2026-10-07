@@ -83,7 +83,7 @@ end
 -- the work stood, how sure Jev was of the move, the move, and how it ended; what TabPFN learns from (learn.lua).
 local function rows(a, req, step, prev)
   local t, s = a.env.tablua, req.standing or {}
-  t:state{ todo = req.todo, n = step.n, stage = s.stage, stalls = req.repeats, last_verb = prev and prev.verb,
+  t:state{ todo = req.todo, n = step.n, stage = s.stage, pass = s.pass, stalls = req.repeats, last_verb = prev and prev.verb,
     last_outcome = prev and prev.outcome, cause = req.cause and req.cause.choice }
   t:candidates(req.todo, step.n, { { move = step.verb, jev_p = step.sure and step.sure.p,
     jev_conf = step.sure and step.sure.confidence } })

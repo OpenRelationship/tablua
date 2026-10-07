@@ -41,6 +41,17 @@ spec.test("with env.tablua the step is Tablua's rows too: where it stood, Jev's 
     by = "jev", progress = 1 } })
 end)
 
+spec.test("where a world keeps its pass rate (req.pass), the step's state row keeps it, for TabPFN's pass column", function()
+  local a = agent({})
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"))
+  a.env.tablua = t
+  local req = { todo = "t", steps = {}, standing = { stage = "building", pass = 0.5 } }
+  local step = { n = 1, verb = "run", outcome = "complete" }
+  req.steps[1] = step
+  checkpoint.after(a, req, step)
+  spec.same(t.db:exec("select stage, pass from tablua_state"), { { stage = "building", pass = 0.5 } })
+end)
+
 spec.test("TabPFN ranks the world's tools only after enough failed steps", function()
   local ranked = 0
   local learn = { rank = function(_, _, _, names) ranked = ranked + 1; return { { name = names[2], p = 0.7 } } end,
