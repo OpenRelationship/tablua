@@ -160,13 +160,13 @@ spec.test("a reply without a tool call after more work on an unchanged comp come
     { text = "Let me try editing hud first, then game.init:" },
     { text = "It cannot sit higher." } })
   local s = session.new{ engine = engine(), model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
-    todo = "r", exec = function() return { code = 0, stdout = "UE5H" } end }
+    todo = "r", expect_first = false, exec = function() return { code = 0, stdout = "UE5H" } end }
   local out = s:run()
   spec.same({ out.stop, #m.seen, out.said }, { "stop", 5, "It cannot sit higher." })
   spec.eq(#t.db:exec("select 1 from tablua_message where role = 'user' and content like 'Not handed in%'"), 2)
 end)
 
-spec.test("TabICL ranks the moves before a patch and its line follows the result; it never blocks", function()
+spec.test("TabICL ranks the moves before a patch, and its line follows the result only with learner_shown", function()
   local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
   local asked
   local learn = { rank = function(_, checkpoint, ctx, moves)
@@ -176,12 +176,39 @@ spec.test("TabICL ranks the moves before a patch and its line follows the result
   local m = model({ { calls = { { "patch", { moves = { { move = "add_node", node = { id = "a", kind = "rect", y = 5 } } } } } } },
     { calls = { { "look", {} } } }, { text = "ok" } })
   local s = session.new{ engine = engine(), model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
-    todo = "r", learn = learn, exec = function() return { code = 0, stdout = "UE5H" } end }
+    todo = "r", expect_first = false, learner_shown = true, learn = learn, exec = function() return { code = 0, stdout = "UE5H" } end }
   s:run()
   spec.same({ asked.checkpoint, asked.n, asked.k > 5 }, { "step", 1, true })
   local first = t.db:exec("select content from tablua_message where role = 'tool' order by i")[1].content
   spec.ok(first:find("learner: from states like this, edit_system 0.62 to close something; add_node not ranked", 1, true)
     or first:find("learner: from states like this, edit_system 0.62", 1, true), first)
+end)
+
+spec.test("without learner_shown the ranking is kept as rows and never reaches the model (its claim is killed)", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local ranked = 0
+  local learn = { rank = function() ranked = ranked + 1 return { { name = "edit_system", p = 0.62 } } end }
+  local m = model({ { calls = { { "patch", { moves = { { move = "add_node", node = { id = "a", kind = "rect", y = 5 } } } } } } },
+    { text = "ok" } })
+  local s = session.new{ engine = engine(), model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
+    todo = "r", expect_first = false, learn = learn, exec = function() return { code = 0, stdout = "UE5H" } end }
+  s:run()
+  spec.eq(ranked, 1)
+  spec.eq(#t.db:exec("select 1 from tablua_message where content like '%learner:%'"), 0)
+end)
+
+spec.test("a patch before an expectation of the model's own is refused, and lands after one (pi-s6 had no done)", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local add = { moves = { { move = "add_node", node = { id = "a", kind = "rect", y = 5 } } } }
+  local m = model({ { calls = { { "patch", add } } },
+    { calls = { { "expect", { rows = { { id = "a-in", says = "a is on screen", node = "a", at = 1 } } } } } },
+    { calls = { { "patch", add } } }, { text = "ok" } })
+  local s = session.new{ engine = engine(), model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
+    todo = "r", exec = function() return { code = 0, stdout = "UE5H" } end }
+  s:run()
+  local tool = t.db:exec("select content from tablua_message where role = 'tool' order by i")
+  spec.ok(tool[1].content:find("expectations first", 1, true), tool[1].content)
+  spec.eq(#t.db:exec("select 1 from tablua_outcome where verb = 'add_node'"), 1)
 end)
 
 spec.test("near the window the turns before the cut become a checkpoint rendered from the tables", function()
@@ -210,7 +237,7 @@ spec.test("a bad move is rejected with why and the others land; an unknown move 
     { calls = { { "reference", { section = "nope" } } } },
     { text = "ok" }, { text = "ok" } })
   local s = session.new{ engine = engine(), model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
-    todo = "r", reference = CARD, exec = function() return { code = 0, stdout = "UE5H" } end }
+    todo = "r", expect_first = false, reference = CARD, exec = function() return { code = 0, stdout = "UE5H" } end }
   s:run()
   local results = t.db:exec("select content, is_error from tablua_message where role = 'tool' order by i")
   spec.ok(results[1].content:find("1 applied, 2 rejected", 1, true) and results[1].content:find("set_prop needs name", 1, true),

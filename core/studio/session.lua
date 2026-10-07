@@ -10,7 +10,10 @@
 --   s:run() -> { stop, status, steps, pass, said }   status: complete (handed in with no errors and every expectation
 --                                             holding) or partial; said: the model's last words
 --     learn: agent.learn with step = studio.features.learner(t): before a patch it ranks the moves from states like
---     this one (TabICL, local), the predictions kept as rows, and its line follows the result; it never blocks
+--     this one (TabICL, local) and the predictions are kept as rows; it never blocks. Its line reaches the model only
+--     with learner_shown, which waits on The Learner Beats The Base Rate (killed 2026-10-07, Brier 0.218 against 0.089)
+--     expect_first: a patch before the model has written an expectation of its own is refused (default true): pi-s6
+--     made twenty set_prop and look pairs with nothing of its own to converge on, and never handed in
 --     engine: ports.moonsplice (brief, rows, lint, check, patch, expect, sheet); model: a chat port; judge: a Jev
 --     port; reference: the engine's card (Moonsplice's .robot/docs/reference.robot); compact: { window, reserve?, keep? }, the
 --     model's context in tokens: near it, the turns before the cut become a checkpoint rendered from the tables
@@ -30,7 +33,7 @@ M.window = 196608
 function M.new(o)
   local s = setmetatable({ o = o, t = assert(o.tablua, "session needs the run's tablua handle"), engine = o.engine,
     comp = o.comp, sheet = o.sheet, exec = o.exec, reference = o.reference, judge = o.judge, kind = o.kind or "video",
-    ask = o.ask, todo = o.todo or "run", n = 0, findings = {} }, S)
+    ask = o.ask, todo = o.todo or "run", n = 0, findings = {}, expect_first = o.expect_first ~= false }, S)
   return s
 end
 
@@ -154,7 +157,7 @@ local function finish(s, call, result)
   if s.o.log then s.o.log(("[step %d] %s -> %s"):format(s.n, s.last.verb, outcome)) end
   if d.verb == "reference" then return nil end
   local lines = { tostring(result.content or "") }
-  lines[#lines + 1] = learner_line(s)
+  if s.o.learner_shown then lines[#lines + 1] = learner_line(s) end
   lines[#lines + 1] = d.state or s:state_line()
   if d.delta then lines[#lines + 1] = d.delta end
   return { content = table.concat(lines, "\n") }
@@ -196,7 +199,14 @@ function S:run()
     transform = compact.transform(model, { window = (self.o.compact or {}).window or M.window,
       reserve = (self.o.compact or {}).reserve, keep = (self.o.compact or {}).keep,
       render = function() return self:checkpoint() end }),
-    before_tool = function(call, args) begin(self, call, args) end,
+    before_tool = function(call, args)
+      if self.expect_first and call["function"] and call["function"].name == "patch"
+        and self:expects() <= self.seed_expects then
+        return { block = true, reason = "Write what the ask requires as expectations first (expect), each saying when: "
+          .. "they are what done means for this comp. Then patch toward them." }
+      end
+      begin(self, call, args)
+    end,
     after_tool = function(call, _, result) return finish(self, call, result) end,
     finish_turn = function(turn, lp) return handed_in(self, turn, lp) end,
     on = function(e)

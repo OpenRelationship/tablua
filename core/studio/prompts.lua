@@ -60,7 +60,8 @@ M.rules = {
   "Change the comp only with patch. Put a node with its props, keys and bind in one call. Numbers and booleans "
     .. "unquoted (y = 500, not \"500\").",
   "The comp's expectations are what the piece is: restyle, retime or re-stage what they name; never remove or hide it. "
-    .. "Write the ask as expectations of your own, each saying when (at, or t0..t1); one of yours that turns out wrong "
+    .. "Before your first patch, write the ask as expectations of your own, each saying when (at, or t0..t1): they are "
+    .. "what done means, and a patch before them is refused. One of yours that turns out wrong "
     .. "you withdraw with why, and the judge reads why.",
   "A result that says rejected or broken says why: fix that before anything else. Do not set a prop back and forth.",
   "Look after the changes you want to see, and before you hand in.",
