@@ -111,6 +111,11 @@ spec.test("a run: treatment, brief, a patch that breaks, a fix, a hand-in sent b
   local last = sent[#sent]
   spec.same({ last.role, last.content[2].image_url.url }, { "user", "data:image/png;base64,UE5H" })
   spec.eq(t.db:exec("select count(*) as c from tablua_message where todo = 'r'")[1].c, #s.loop.messages)
+  -- every result ends with the engine's state, so the newest message carries the truth
+  spec.ok(results[2].content:find("state: digest d1; errors 1 (off_frame title); warnings 0; expect 0/0; step 2", 1, true),
+    results[2].content)
+  local run = t.db:exec("select shipped, works, steps from tablua_run where todo = 'r'")[1]
+  spec.same({ run.shipped, run.works, run.steps }, { 1, 1, 4 })
 end)
 
 spec.test("a hand-in on a version already sent back ends the run, errors and all", function()
@@ -121,7 +126,45 @@ spec.test("a hand-in on a version already sent back ends the run, errors and all
   local s = session.new{ engine = engine(), model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
     todo = "r", exec = function() return { code = 0, stdout = "UE5H" } end }
   local out = s:run()
-  spec.same({ out.stop, #m.seen, out.said }, { "stop", 3, "It cannot sit higher: the ask wants it below the frame." })
+  spec.same({ out.stop, #m.seen, out.said, out.status }, { "stop", 3, "It cannot sit higher: the ask wants it below the frame.",
+    "partial" })
+  spec.eq(t.db:exec("select works from tablua_run where todo = 'r'")[1].works, 0)
+end)
+
+spec.test("TabICL ranks the moves before a patch and its line follows the result; it never blocks", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local asked
+  local learn = { rank = function(_, checkpoint, ctx, moves)
+    asked = { checkpoint = checkpoint, n = ctx.n, k = #moves }
+    return { { name = "edit_system", p = 0.62 }, { name = "set_prop", p = 0.18 } }
+  end }
+  local m = model({ { calls = { { "patch", { moves = { { move = "add_node", node = { id = "a", kind = "rect", y = 5 } } } } } } },
+    { calls = { { "look", {} } } }, { text = "ok" } })
+  local s = session.new{ engine = engine(), model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
+    todo = "r", learn = learn, exec = function() return { code = 0, stdout = "UE5H" } end }
+  s:run()
+  spec.same({ asked.checkpoint, asked.n, asked.k > 5 }, { "step", 1, true })
+  local first = t.db:exec("select content from tablua_message where role = 'tool' order by i")[1].content
+  spec.ok(first:find("learner: from states like this, edit_system 0.62 to close something; add_node not ranked", 1, true)
+    or first:find("learner: from states like this, edit_system 0.62", 1, true), first)
+end)
+
+spec.test("near the window the turns before the cut become a checkpoint rendered from the tables", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local script = { { text = "Treatment: the line rules.", calls = { { "brief", {} } } } }
+  for k = 1, 6 do
+    script[#script + 1] = { calls = { { "patch", { moves = { { move = "add_node", node = { id = "n" .. k, kind = "rect",
+      y = 10 * k, note = string.rep("z", 3000) } } } } } } }
+  end
+  script[#script + 1] = { calls = { { "look", {} } } }
+  script[#script + 1] = { text = "done" }
+  local m = model(script)
+  local s = session.new{ engine = engine(), model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "a tide clock",
+    todo = "r", compact = { window = 3000, reserve = 0, keep = 1500 }, exec = function() return { code = 0, stdout = "UE5H" } end }
+  s:run()
+  local first = m.seen[#m.seen].messages[1].content
+  spec.ok(first:find("## Goal\nThe ask: a tide clock", 1, true) and first:find("## Progress\nstep 1 brief -> complete", 1, true)
+    and first:find("## State\ncomp 1280x720", 1, true) and first:find("## Last intent", 1, true), first)
 end)
 
 spec.test("a bad move is rejected with why and the others land; an unknown move name is an error result", function()

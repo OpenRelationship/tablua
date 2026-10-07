@@ -6,10 +6,14 @@
 -- comp; the run ends when the model hands in again on a comp it already handed in, never on a cap.
 --
 --   local s = require("studio.session").new{ engine, model, tablua, comp, sheet, ask, kind?, exec, reference?,
---                                             judge?, todo?, window?, log? }
---   s:run() -> { stop, steps, pass, said }   said: the model's last words
+--                                             judge?, learn?, todo?, compact?, log? }
+--   s:run() -> { stop, status, steps, pass, said }   status: complete (handed in with no errors and every expectation
+--                                             holding) or partial; said: the model's last words
+--     learn: agent.learn with step = studio.features.learner(t): before a patch it ranks the moves from states like
+--     this one (TabICL, local), the predictions kept as rows, and its line follows the result; it never blocks
 --     engine: ports.moonsplice (brief, rows, lint, check, patch, expect, sheet); model: a chat port; judge: a Jev
---     port; reference: the engine's card (cadence/agent/REFERENCE.md); window: the model's context in tokens
+--     port; reference: the engine's card (cadence/agent/REFERENCE.md); compact: { window, reserve?, keep? }, the
+--     model's context in tokens: near it, the turns before the cut become a checkpoint rendered from the tables
 local loop = require("agent.loop")
 local compact = require("agent.compact")
 local tools = require("studio.tools")
@@ -66,6 +70,42 @@ end
 
 local function stage(s) return s:errors() > 0 and "building" or "polishing" end
 
+-- the comp's state in one line, from the newest snapshot: what every result ends with, so the newest message in an
+-- append-only transcript always says what is true (Moonsplice's spec, 2026-10-07)
+function S:state_line()
+  local errs, fail = {}, {}
+  local warnings = 0
+  for _, f in ipairs(self.findings) do
+    if (f.severity or "error") == "error" then
+      local id = f.code == "expect_failed" and tostring(f.detail or ""):match("%(expect ([^)]+)%)%s*$")
+      if id then fail[#fail + 1] = id end
+      if #errs < 5 then errs[#errs + 1] = f.code .. ((f.id or "") ~= "" and (" " .. f.id) or "") end
+    elseif f.severity == "warning" then warnings = warnings + 1 end
+  end
+  local errors = self:errors()
+  local total = self.t.db:exec("select count(*) as c from tablua_msr_expect where todo = ? and n = ?",
+    { self.todo, self.snapped or 0 })[1].c
+  return ("state: digest %s; errors %d%s; warnings %d; expect %d/%d%s; step %d"):format(tostring(self.digest or ""):sub(1, 8),
+    errors, #errs > 0 and (" (" .. table.concat(errs, ", ") .. (errors > #errs and ", ..." or "") .. ")") or "", warnings,
+    total - #fail, total, #fail > 0 and (" (failing: " .. table.concat(fail, ", ") .. ")") or "", self.n)
+end
+
+-- the tables as the checkpoint a compaction leaves, in pi's sections, exact and with no model call: the ask and the
+-- treatment, the comp as it is, every step's line, the model's last words, and the last look
+function S:checkpoint()
+  local brief = ""
+  local ok, text = pcall(self.engine.brief, self.engine, self.comp)
+  if ok then brief = text end
+  local said = ""
+  for i = #(self.loop and self.loop.messages or {}), 1, -1 do
+    local m = self.loop.messages[i]
+    if m.role == "assistant" and (m.content or "") ~= "" then said = m.content break end
+  end
+  return ("## Goal\nThe ask: %s\nTreatment: %s\n\n## State\n%s\n%s\n\n## Progress\n%s\n\n## Last intent\n%s\n\n## Next\n%s")
+    :format(self.ask, self.treatment or "(none written)", brief, self:state_line(),
+      context.history(self.t, self.todo, self.n), said:sub(1, 800), self.judged or "No look yet.")
+end
+
 -- the step a tool call is: its state and the decision the model made, before it runs (what TabICL reads)
 local function begin(s, call, args)
   s.n = s.n + 1
@@ -77,6 +117,23 @@ local function begin(s, call, args)
   features.record(s.t, s.todo, s.n, features.read(s.t, s.todo, s.n, { game = s.kind == "game" and 1 or 0,
     render_s = s.render_s or -1 }))
   s.t:decision{ todo = s.todo, n = s.n, chosen = chosen, by = "model", propensity = 1, policy = "pi" }
+  s.ranked = nil
+  if s.o.learn and name == "patch" then
+    local ok, ranked = pcall(s.o.learn.rank, s.o.learn, "step", { todo = s.todo, n = s.n, at = s.n, stage = stage(s),
+      pass = s:pass(), stalls = context.since(s.t, s.todo, s.n - 1), last_verb = s.last and s.last.verb or "",
+      last_outcome = s.last and s.last.outcome or "" }, tools.edits)
+    if ok and type(ranked) == "table" and #ranked > 0 then s.ranked = ranked end
+  end
+end
+
+-- TabICL's line: its best move from states like this one, and the chosen one's chance
+local function learner_line(s)
+  if not s.ranked then return nil end
+  local best = s.ranked[1]
+  local mine
+  for _, r in ipairs(s.ranked) do if r.name == (s.last and s.last.verb) then mine = r end end
+  return ("learner: from states like this, %s %.2f to close something%s"):format(best.name, best.p, mine
+    and mine ~= best and ("; %s %.2f"):format(mine.name, mine.p) or "")
 end
 
 local function finish(s, _, result)
@@ -86,6 +143,12 @@ local function finish(s, _, result)
   s.t:outcome{ todo = s.todo, n = s.n, verb = s.last.verb, outcome = outcome,
     note = tostring(result.content or ""):sub(1, 500) }
   if s.o.log then s.o.log(("[step %d] %s -> %s"):format(s.n, s.last.verb, outcome)) end
+  if d.verb == "reference" then return nil end
+  local lines = { tostring(result.content or "") }
+  lines[#lines + 1] = learner_line(s)
+  lines[#lines + 1] = d.state or s:state_line()
+  if d.delta then lines[#lines + 1] = d.delta end
+  return { content = table.concat(lines, "\n") }
 end
 
 -- the model would stop: a hand-in with errors, failing expectations or no look at this version comes back once
@@ -111,9 +174,11 @@ function S:run()
   local model = loop.retrying(self.o.model)
   local l = loop.new{ model = model, system = prompts.system(self.kind, context.index(self.reference)),
     tools = tools.list(self), reasoning_effort = "low",
-    transform = compact.transform(model, { window = self.o.window or M.window }),
+    transform = compact.transform(model, { window = (self.o.compact or {}).window or M.window,
+      reserve = (self.o.compact or {}).reserve, keep = (self.o.compact or {}).keep,
+      render = function() return self:checkpoint() end }),
     before_tool = function(call, args) begin(self, call, args) end,
-    after_tool = function(_, args, result) finish(self, args, result) end,
+    after_tool = function(_, args, result) return finish(self, args, result) end,
     finish_turn = function(turn, lp) return handed_in(self, turn, lp) end,
     on = function(e)
       if e.type ~= "message" then return end
@@ -123,7 +188,11 @@ function S:run()
     end }
   self.loop = l
   local out = l:prompt(("The ask (a %s): %s"):format(self.kind == "game" and "game" or "motion piece", self.ask))
-  return { stop = out.stop, error = out.error, steps = self.n, pass = self:pass(), said = self.said }
+  local errors = self:errors()
+  local status = (out.stop == "stop" and errors == 0) and "complete" or "partial"
+  self.t:run{ todo = self.todo, shipped = out.stop == "stop", answered = out.stop == "stop", works = status == "complete",
+    steps = self.n }
+  return { stop = out.stop, status = status, error = out.error, steps = self.n, pass = self:pass(), said = self.said }
 end
 
 return M

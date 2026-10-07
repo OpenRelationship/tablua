@@ -6,7 +6,9 @@
 --   compact.tokens(messages) -> n            characters over four; an image 1200 (pi: 4800 characters)
 --   compact.due(messages, { window, reserve? }) -> bool     past window - reserve (16384)
 --   compact.cut(messages, keep) -> i         the first message kept: a user or assistant turn, never a tool result
---   compact.run(messages, model, { keep? }) -> messages, why?    keep 20000; on failure the messages as they were
+--   compact.run(messages, model, { keep?, render? }) -> messages, why?   keep 20000; on failure the messages as
+--                                            they were; render(older, previous) -> text, when given, makes the
+--                                            checkpoint from the host's records instead of asking the model
 --   compact.transform(model, { window, reserve?, keep? }) -> fn(messages, l)   for agent.loop's transform hook: it
 --                                            replaces l.messages when due, so the summary is made once
 local json = require("ports.json")
@@ -145,9 +147,15 @@ function M.run(messages, model, o)
     local m = messages[i]
     if m.summary then previous = m.text else older[#older + 1] = m end
   end
-  local user = M.serialize(older) .. "\n\n" .. (previous and ("<previous-summary>\n" .. previous
-    .. "\n</previous-summary>\n\n" .. M.update) or M.prompt)
-  local ok, text = pcall(model.chat, model, { system = M.system, user = user })
+  local ok, text
+  if o.render then
+    -- the checkpoint rendered from the host's own records (the studio's tables), exact, with no model call
+    ok, text = pcall(o.render, older, previous)
+  else
+    local user = M.serialize(older) .. "\n\n" .. (previous and ("<previous-summary>\n" .. previous
+      .. "\n</previous-summary>\n\n" .. M.update) or M.prompt)
+    ok, text = pcall(model.chat, model, { system = M.system, user = user })
+  end
   if not ok or type(text) ~= "string" or text == "" then
     return messages, "compaction failed: " .. tostring(ok and "an empty summary" or text)
   end
@@ -158,7 +166,7 @@ end
 
 function M.transform(model, o)
   return function(messages, l)
-    if not M.due(messages, o) then return messages end
+    if not M.due(messages, o) or #messages < 3 then return messages end
     local out = M.run(messages, model, o)
     if l then l.messages = out end
     return out

@@ -54,4 +54,15 @@ spec.test("a summary that fails leaves the transcript as it was", function()
   spec.same({ out, why }, { msgs, "compaction failed: timeout" })
 end)
 
+
+spec.test("a checkpoint rendered from the tables takes the summary's place: no model is asked", function()
+  local msgs = turns(10, 4000)
+  local model = { chat = function() error("no model call when the checkpoint is rendered", 0) end }
+  local out = compact.run(msgs, model, { keep = 5000, render = function(older)
+    return "## Goal\nA tide clock.\n\n## Progress\nstep 1 brief -> complete (" .. #older .. " messages before)" end })
+  spec.ok(out[1].summary and out[1].content:find("## Progress\nstep 1 brief", 1, true), out[1].content)
+  -- a re-render replaces the checkpoint rather than nesting it
+  local again = compact.run(out, model, { keep = 1000, render = function() return "## Goal\nagain" end })
+  spec.ok(again[1].content:find("## Goal\nagain", 1, true) and not again[1].content:find("A tide clock", 1, true))
+end)
 spec.run()

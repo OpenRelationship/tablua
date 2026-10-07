@@ -113,11 +113,15 @@ function M.list(s)
       local e, w = counts(s.findings)
       local lines = { ("%d applied, %d rejected%s. Outcome: %s."):format(#(res.applied or {}), #refused,
         #refused > 0 and (": " .. table.concat(refused, "; ")) or "", outcome) }
-      lines[#lines + 1] = context.changes(t, s.todo, s.n)
-      lines[#lines + 1] = ("Open now: %d errors, %d warnings."):format(e, w)
+      -- the engine's delta when it gives one (closed and opened findings), else the snapshots'; the undo marks are ours
+      local changed = context.changes(t, s.todo, s.n)
+      if res.delta and res.delta.line then changed = changed and changed:match("(undoes .+)$") end
+      lines[#lines + 1] = changed
       if outcome == "broken" then lines[#lines + 1] = M.found(s.findings, 8) end
       return { content = table.concat(lines, "\n"), is_error = #(res.applied or {}) == 0 or nil,
-        details = { verb = verb, outcome = outcome, applied = #(res.applied or {}), rejected = #refused } }
+        details = { verb = verb, outcome = outcome, applied = #(res.applied or {}), rejected = #refused,
+          state = res.state and res.state.line and (res.state.line .. "; step " .. s.n) or nil,
+          delta = res.delta and res.delta.line or nil, errors = e, warnings = w } }
     end }
 
   local expect = { name = "expect", description = "Add expectations: what the ask requires, as rows the engine checks "
@@ -145,7 +149,8 @@ function M.list(s)
       for _, r in ipairs(res.rejected or {}) do refused[#refused + 1] = clip(r.why, 300) end
       return { content = ("%d added, %d rejected%s. %s"):format(#(res.added or {}), #refused, #refused > 0
         and (": " .. table.concat(refused, "; ")) or "", context.changes(t, s.todo, s.n) or "No error opened or closed."),
-        details = { verb = "expect", outcome = #(res.added or {}) > 0 and "complete" or "no_effect" } }
+        details = { verb = "expect", outcome = #(res.added or {}) > 0 and "complete" or "no_effect",
+          state = res.state and res.state.line and (res.state.line .. "; step " .. s.n) or nil } }
     end }
 
   local look = { name = "look", description = "Render the comp's contact sheet and see it (the image), with the "
@@ -171,6 +176,7 @@ function M.list(s)
           for _, k in ipairs(judge.dims) do d[#d + 1] = ("%s %.1f"):format(k, scores[k] or 0) end
           lines[#lines + 1] = ("The judge, 1 to 5: %s; nearness to the ask %.1f. Chance some text is cut off or "
             .. "overlapping: %.2f."):format(table.concat(d, ", "), scores.ask or 0, scores.cut or 0)
+          s.judged = lines[#lines]
           local seen = {}
           for _, x in ipairs(expects) do
             local p = scores["expect:" .. x.id]
