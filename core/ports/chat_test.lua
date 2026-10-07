@@ -102,8 +102,6 @@ spec.test("an unknown service is refused", function()
   assert(not pcall(chat.new, { fetch = function() end }, { key = "k", model = "m", service = "elsewhere" }))
 end)
 
-spec.run()
-
 spec.test("tools go as asked, and a reply of tool calls alone is an answer, the calls in the record", function()
   local seen = {}
   local calls = { { id = "c", type = "function", ["function"] = { name = "computer", arguments = "{}" } } }
@@ -119,3 +117,45 @@ spec.test("tools go as asked, and a reply of tool calls alone is an answer, the 
   m:chat{ messages = { { role = "user", content = "u" } }, tools = { { type = "function" } }, tool_choice = "required" }
   spec.eq(seen.req.tool_choice, "auto")
 end)
+
+spec.test("an OpenAI-compatible server is sent the reasoning effort as asked (Ollama turns thinking off with none)", function()
+  local seen = {}
+  local m = chat.new(host(seen, {}), { key = "k", service = "openai", url = "http://localhost:11434/v1/chat/completions",
+    model = "qwen3.5:0.8b" })
+  m:chat{ system = "s", user = "u", reasoning_effort = "none" }
+  spec.eq(seen.req.reasoning_effort, "none")
+  m:chat{ system = "s", user = "u" }
+  spec.eq(seen.req.reasoning_effort, nil)
+end)
+
+spec.test("MiniMax's own API: its url, thinking kept out of the answer, thinking off as MiniMax words it", function()
+  local seen = {}
+  local m = chat.new(host(seen, {}), { key = "k", service = "minimax", model = "MiniMax-M3" })
+  local text = m:chat{ system = "s", user = "u", reasoning_effort = "low" }
+  spec.same({ text, seen.url, seen.req.reasoning_split, seen.req.reasoning_effort, seen.req.thinking, seen.req.usage },
+    { "done", "https://api.minimax.io/v1/chat/completions", true, "low", nil, nil })
+  m:chat{ system = "s", user = "u", thinking = false }
+  spec.same(seen.req.thinking, { type = "disabled" })
+end)
+
+spec.test("a reply whose budget went to reasoning says so, with the tokens spent, and how to get an answer", function()
+  local m = chat.new({ fetch = function()
+    return { status = 200, body = json.encode({ usage = { completion_tokens = 11000,
+      completion_tokens_details = { reasoning_tokens = 11000 } },
+      choices = { { finish_reason = "length", message = { content = "", reasoning = "hmm" } } } }) }
+  end }, { key = "k", model = "minimax/minimax-m3" })
+  local ok, err = pcall(m.chat, m, { system = "s", user = "u", max_tokens = 5000 })
+  spec.ok(not ok)
+  spec.ok(tostring(err):find("11000 tokens reasoning", 1, true), err)
+  spec.ok(tostring(err):find("thinking = false", 1, true), err)
+end)
+
+spec.test("a tool turn keeps the reasoning MiniMax asks to be sent back with it", function()
+  local seen = {}
+  local m = chat.new(host(seen, {}), { key = "k", service = "minimax", model = "MiniMax-M3" })
+  m:chat{ system = "s", messages = { { role = "user", content = "go" },
+    { role = "assistant", content = "", reasoning_content = "why", tool_calls = { { id = "c1" } } } } }
+  spec.eq(seen.req.messages[3].reasoning_content, "why")
+end)
+
+spec.run()

@@ -1,4 +1,4 @@
--- Any OpenRouter or Cerebras chat model behind Mercury's chat shape, so a model can take
+-- Any OpenRouter, Cerebras or MiniMax chat model behind Mercury's chat shape, so a model can take
 -- Mercury's place as the writer without the solver knowing.
 --
 --   local kimi = require("ports.chat").new(host, { key = k, model = "moonshotai/kimi-k2-thinking" })
@@ -23,6 +23,15 @@
 -- place of every request's (Qwen 3.8 thinking refuses "required", 2026-10-02, so a caller gives it "auto").
 -- thinking = false (OpenRouter) asks the model not to reason before it answers, and reserves no reasoning tokens: for a spoken reply, where the first words must come at once.
 --
+-- MiniMax's own API (service = "minimax", model "MiniMax-M3"): its thinking is asked to come apart from the answer
+-- (reasoning_split; without it the answer carries it in <think> tags), and thinking = false is MiniMax's
+-- thinking { type = "disabled" } (M3 takes it; MiniMax-M3.1-Flash-Preview refuses it with a 400). A tool turn sent
+-- back keeps its reasoning_content, as MiniMax asks.
+-- An OpenAI-compatible server (service = "openai") is sent req.reasoning_effort as asked: Ollama's Qwen3.5 answers
+-- only with "none", and otherwise spends every token thinking.
+-- A reply that ends at its token limit with nothing said spent the limit reasoning: its error says how many tokens
+-- went to reasoning, so a caller raises max_tokens or turns thinking off rather than trying the same call again.
+--
 -- OpenRouter takes req.reasoning_effort as reasoning.effort. Cerebras (owner, 2026-09-28) takes reasoning_effort as asked (Mercury's low | medium | high) and reports
 -- no cost, so the record's cost comes from its listed prices per million tokens (M.prices).
 --
@@ -38,7 +47,8 @@ local Chat = {}
 Chat.__index = Chat
 
 M.url = "https://openrouter.ai/api/v1/chat/completions"
-M.urls = { openrouter = M.url, cerebras = "https://api.cerebras.ai/v1/chat/completions" }
+M.urls = { openrouter = M.url, cerebras = "https://api.cerebras.ai/v1/chat/completions",
+  minimax = "https://api.minimax.io/v1/chat/completions" }
 M.reasoning_tokens = 8000
 -- USD per million tokens, input and output, as Cerebras lists them (2026-09-28).
 M.prices = { ["gpt-oss-120b"] = { 0.35, 0.75 }, ["qwen-3.8-27b"] = { 0.99, 1.49 },
@@ -74,7 +84,7 @@ function Chat:chat(req)
     -- go on from what it found
     for _, m in ipairs(req.messages) do
       payload.messages[#payload.messages + 1] = { role = m.role, content = m.content, tool_calls = m.tool_calls,
-        tool_call_id = m.tool_call_id }
+        tool_call_id = m.tool_call_id, reasoning_content = m.reasoning_content }
     end
   else
     payload.messages[2] = { role = "user", content = req.user }
@@ -97,6 +107,13 @@ function Chat:chat(req)
     local thinking = req.thinking
     if thinking == nil then thinking = self.thinking end
     if thinking ~= nil then payload.chat_template_kwargs = { enable_thinking = thinking } end
+    payload.reasoning_effort = req.reasoning_effort
+  elseif self.service == "minimax" then
+    local thinking = req.thinking
+    if thinking == nil then thinking = self.thinking end
+    if thinking == false then payload.thinking = { type = "disabled" } end
+    payload.reasoning_split = true
+    payload.reasoning_effort = req.reasoning_effort
   else
     payload.reasoning_effort = req.reasoning_effort
   end
@@ -124,6 +141,12 @@ function Chat:chat(req)
     if #record.tool_calls > 0 then return type(text) == "string" and text or "", record end
   end
   if type(text) ~= "string" or text == "" then
+    local finish = choice and choice.finish_reason
+    local thought = (u.completion_tokens_details or {}).reasoning_tokens
+    if finish == "length" and thought then
+      error(("%s spent its limit, %d tokens reasoning, and said nothing: raise max_tokens or ask with thinking = false")
+        :format(record.model, thought), 0)
+    end
     error(("%s gave no answer (finish %s)"):format(record.model, tostring(choice and choice.finish_reason)), 0)
   end
   return text, record
