@@ -72,6 +72,18 @@ spec.test("the outcome: nothing changed is no_effect, a new error is broken, the
     "no_effect")
 end)
 
+spec.test("derived facts are kept beside the authored ones and come back apart, outside the tables", function()
+  local t = open()
+  local rows = comp(540)
+  rows.tables.fact = { { pred = "holds", args = "tide", t0 = 0, src = "" } }
+  rows.derived = { { pred = "beat", args = "1", t0 = 0.255, src = "beats", asset = "bed" },
+    { pred = "word", args = "tide#2", t0 = 1.5, t1 = 1.9, src = "words", asset = "vo" } }
+  t:comp("r", 0, rows)
+  local back = t:comp_rows("r", 0)
+  spec.same({ #back.tables.fact, back.tables.fact[1].args, #back.derived, back.derived[1].asset, back.derived[2].t1 },
+    { 1, "tide", 2, "bed", 1.9 })
+end)
+
 spec.test("numbers in canonical JSON: integers as integers, others the shortest of 15 to 17 digits that reads back", function()
   spec.same({ studio.canon(540), studio.canon(-6), studio.canon(0.1), studio.canon(1 / 3), studio.canon(2 ^ 60),
     studio.canon({ 0, 1.2, -6 }), studio.canon({ b = 0.25, a = true }) },

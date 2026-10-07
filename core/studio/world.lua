@@ -174,7 +174,9 @@ function M.new(o)
 
   local function edit(req, step, n, move)
     local rows = t:comp_rows(req.todo, n - 1)
-    local req_w = prompts.move(move, o.ask, o.kind, req.treatment, standing(req), json.encode(rows.tables))
+    -- the comp's rows and the facts its assets gave (beat:N, word:...), so a bind names one that exists
+    local req_w = prompts.move(move, o.ask, o.kind, req.treatment, standing(req),
+      json.encode({ tables = rows.tables, derived = rows.derived }))
     req_w.tools, req_w.tool_choice = { moves.tool(move) }, "required"
     local ok, _, record = pcall(o.writer.chat, o.writer, req_w)
     if not ok then step.outcome, step.note = "broken", "the writer failed: " .. clip(_, 300) return end

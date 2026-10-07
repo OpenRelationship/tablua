@@ -14,10 +14,10 @@ M.dims = { "rule", "relationship", "defaults", "rhythm", "memory", "craft" }
 -- the columns, the move and the state's first (categorical: 0-based), then the comp's numbers
 M.columns = { "move", "stage", "last_verb", "last_outcome", "pass", "stalls", "n", "game", "nodes", "keys", "motions",
   "systems", "assets", "facts", "bound", "errors", "warnings", "check_errors", "critic_low", "critic_mean",
-  "rule", "relationship", "defaults", "rhythm", "memory", "craft", "render_s", "since_look" }
+  "rule", "relationship", "defaults", "rhythm", "memory", "craft", "render_s", "since_look", "beats", "words" }
 M.categorical = { 0, 1, 2, 3 }
 M.numbers = 5          -- the first column read from the feature rows (1-based)
-M.schema = "studio-1"  -- a fit's schema: changes when the columns do
+M.schema = "studio-2"  -- a fit's schema: changes when the columns do
 
 local function one(t, sql, args)
   local r = t.db:exec(sql, args)[1]
@@ -39,7 +39,9 @@ function M.read(t, todo, n, extra)
       { todo, s }) or 0
   end
   local f = { nodes = count("node"), keys = count("key"), motions = count("motion"), systems = count("system"),
-    assets = count("asset"), facts = count("fact"),
+    assets = count("asset"), facts = count("fact", " and derived = 0"),
+    -- what the assets gave at compile (ROWS.md's derived): the beats and words a key can be bound to
+    beats = count("fact", " and derived = 1 and pred = 'beat'"), words = count("fact", " and derived = 1 and pred = 'word'"),
     -- keys whose time is a fact reference (ROWS.md: a comp says what it is computed from)
     bound = count("key", " and typeof(t) = 'text' and t like '%:%'"),
     errors = count("finding", " and severity = 'error'"), warnings = count("finding", " and severity != 'error'"),

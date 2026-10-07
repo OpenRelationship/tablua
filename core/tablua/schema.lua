@@ -245,7 +245,8 @@ create table if not exists tablua_msr_asset (
   primary key (todo, n, id));
 create table if not exists tablua_msr_fact (
   todo text not null, n integer not null, pred text not null, args text not null, t0 real not null, t1 real,
-  src text not null default '', conf real, primary key (todo, n, pred, args, t0));
+  src text not null default '', conf real, derived integer not null default 0, asset text,
+  primary key (todo, n, pred, args, t0));
 create table if not exists tablua_msr_finding (
   todo text not null, n integer not null, tier text not null, id text not null default '', name text not null default '',
   code text not null, severity text not null, t0 real not null default -1, t1 real, measured, threshold,

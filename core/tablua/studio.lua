@@ -3,7 +3,9 @@
 -- found in it (tablua_msr_finding), how a judge scored it (tablua_score), and a step's outcome from its findings.
 --
 --   t:comp(todo, n, rows)          rows = { schema = "msr/1", tables = { comp, node, prop, key, motion, system, asset,
---                                  fact } } as `bin/moonsplice rows --json` prints them; replaces step n's snapshot
+--                                  fact }, derived? } as `bin/moonsplice rows --json` prints them; replaces step n's
+--                                  snapshot. derived (the facts assets produced at compile: beats, words) go in the
+--                                  fact table marked derived, with their asset, and come back apart
 --   t:comp_rows(todo, n) -> rows   the same shape back, each table in its key order
 --   t:touched(todo, n) -> { { id, name }, ... }   where snapshot n differs from n - 1, sorted: a node added, removed
 --                                  or changed is { id, "" }, a prop, key or motion { id, name }, a system
@@ -146,6 +148,11 @@ return setmetatable(M, { __call = function(_, T, put)
         put(self.db, tbl, cols, row)
       end
     end
+    for _, f in ipairs(rows and rows.derived or {}) do
+      put(self.db, "tablua_msr_fact", { "todo", "n", "pred", "args", "t0", "t1", "src", "conf", "derived", "asset" },
+        { todo = todo, n = n, pred = f.pred, args = M.canon(f.args), t0 = f.t0, t1 = f.t1, src = f.src or "",
+          conf = f.conf, derived = 1, asset = f.asset })
+    end
   end
 
   function T:comp_rows(todo, n)
@@ -153,8 +160,8 @@ return setmetatable(M, { __call = function(_, T, put)
     for _, spec in ipairs(M.tables) do
       local order = {}
       for i, c in ipairs(spec.key) do order[i] = column(spec, c) end
-      local got = self.db:exec(("select * from tablua_msr_%s where todo = ? and n = ? order by %s"):format(spec.name,
-        table.concat(order, ", ")), { todo, n })
+      local got = self.db:exec(("select * from tablua_msr_%s where todo = ? and n = ?%s order by %s"):format(spec.name,
+        spec.name == "fact" and " and derived = 0" or "", table.concat(order, ", ")), { todo, n })
       if #got > 0 then
         local list = {}
         for i, r in ipairs(got) do
@@ -174,6 +181,12 @@ return setmetatable(M, { __call = function(_, T, put)
           out.tables.comp = settings
         end
       end
+    end
+    local derived = self.db:exec("select pred, args, t0, t1, src, conf, asset from tablua_msr_fact where todo = ? and "
+      .. "n = ? and derived = 1 order by pred, t0, args", { todo, n })
+    if #derived > 0 then
+      for _, f in ipairs(derived) do f.args = json.decode(f.args) end
+      out.derived = derived
     end
     return out
   end

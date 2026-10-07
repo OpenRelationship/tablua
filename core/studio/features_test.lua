@@ -7,7 +7,9 @@ local function sheet()
   local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
   t:comp("r", 0, { tables = { node = { { id = "a", kind = "rect" } } } })
   t:comp("r", 1, { tables = { node = { { id = "a", kind = "rect" }, { id = "b", kind = "text" } },
-    key = { { id = "b", name = "opacity", t = "beat:1", value = 1 }, { id = "a", name = "y", t = 0, value = 5 } } } })
+    key = { { id = "b", name = "opacity", t = "beat:1", value = 1 }, { id = "a", name = "y", t = 0, value = 5 } } },
+    derived = { { pred = "beat", args = "1", t0 = 0.25, src = "beats", asset = "bed" },
+      { pred = "beat", args = "2", t0 = 0.5, src = "beats", asset = "bed" } } })
   t:findings("r", 1, { { tier = "lint", id = "a", name = "y", code = "off_frame", severity = "error" },
     { tier = "check", id = "b", code = "contrast", severity = "warning" } })
   t:scores("r", 1, "critic", { rule = 4, relationship = 3, defaults = 2, rhythm = 4, memory = 3, craft = 5 })
@@ -17,7 +19,7 @@ end
 spec.test("a decision reads the comp the step before it left, its findings and the critic's newest scores", function()
   local f = features.read(sheet(), "r", 2, { render_s = 3.5 })
   spec.same({ f.nodes, f.keys, f.bound, f.errors, f.warnings, f.check_errors, f.critic_low, f.critic_mean, f.defaults,
-    f.since_look, f.render_s }, { 2, 2, 1, 1, 1, 0, 2, 3.5, 2, 1, 3.5 })
+    f.since_look, f.render_s, f.beats, f.facts, f.words }, { 2, 2, 1, 1, 1, 0, 2, 3.5, 2, 1, 3.5, 2, 0, 0 })
   local before = features.read(sheet(), "r", 1)
   spec.same({ before.nodes, before.errors, before.critic_low }, { 1, 0, -1 })
 end)
