@@ -133,10 +133,16 @@ function M.new(o)
     return table.concat(s, "\n")
   end
 
+  -- Jev reads the standing, TabICL's ranking when shown, and the newest contact sheet as an image: the Decisions API
+  -- reads content parts in state (a 64 px red square scored red 1.00 there, 0.03 as text alone; 2026-10-06)
   function w.state(a, req, for_jev)
     local s = standing(req)
     local card = for_jev and checkpoint.card(req, a.env)
-    return card and (s .. "\n" .. card) or s
+    if card then s = s .. "\n" .. card end
+    if not (for_jev and w.sheet_b64) then return s end
+    return { { type = "text", text = s .. "\nThe newest contact sheet" .. (w.looked == w.digest and "" or
+      " (of an earlier version)") .. " is the image." },
+      { type = "image_url", image_url = { url = "data:image/png;base64," .. w.sheet_b64 } } }
   end
 
   function w.think(_, req)
@@ -162,7 +168,7 @@ function M.new(o)
     local scores, said = prompts.scores(okc and text)
     if not scores then step.outcome, step.note = "broken", tostring(said) .. ": " .. clip(text, 200) return end
     t:scores(req.todo, n, "critic", scores)
-    w.critic, w.looked = { scores = scores, notes = said.notes }, w.digest
+    w.critic, w.looked, w.sheet_b64 = { scores = scores, notes = said.notes }, w.digest, b64.stdout
     step.outcome, step.note = "complete", "critic: " .. clip(said.notes, 300)
   end
 

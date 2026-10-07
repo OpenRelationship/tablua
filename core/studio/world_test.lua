@@ -54,8 +54,9 @@ local critic = { chat = function(_, req)
   return '{"scores": {"rule": 4, "relationship": 3, "defaults": 4, "rhythm": 3, "memory": 2, "craft": 4}, "notes": "more"}'
 end }
 
-local function jev(picks)
-  return { decide = function(_, _, questions)
+local function jev(picks, states)
+  return { decide = function(_, state, questions)
+    states[#states + 1] = state
     local pick = table.remove(picks, 1)
     assert(questions.next.options[pick], pick .. " is not offered")
     return { next = { choice = pick, probabilities = { [pick] = 0.9 }, confidence = 0.8 } }
@@ -68,7 +69,9 @@ spec.test("treat, a patch that breaks, a fix, a look, then answer: each step's r
     writer = writer({ { node = { id = "title", kind = "text", y = 1200 } }, { id = "title", name = "y", value = 540 } }),
     critic = critic, exec = function() return { code = 0, stdout = "UE5H" } end }
   local memory = { begin = function() return "r" end, step = function() end, log = function() end }
-  local a = agent.new({ jev = jev({ "treat", "add_node", "set_prop", "look", "answer" }), tablua = t, memory = memory }, w)
+  local states = {}
+  local a = agent.new({ jev = jev({ "treat", "add_node", "set_prop", "look", "answer" }, states), tablua = t,
+    memory = memory }, w)
   local req = a:begin("a tide clock")
   while true do
     local r = a:step(req)
@@ -85,7 +88,10 @@ spec.test("treat, a patch that breaks, a fix, a look, then answer: each step's r
     t.db:exec("select count(distinct n) as c from tablua_feature where form = 'studio'")[1].c },
     { 1, 0, 540, 6, "1,0,1,1", 5 })
   spec.eq(t.db:exec("select stage from tablua_state where n = 4")[1].stage, "polishing")
-  spec.ok(math.abs(req.pass - 6 / 7) < 1e-9, req.pass)   -- the gate and five of six scores at 3 or more: 6 of 7
+  spec.ok(math.abs(req.pass - 6 / 7) < 1e-9, req.pass)
+  -- before any look Jev reads text; after one, the text and the newest contact sheet as content parts
+  spec.eq(type(states[1]), "string")
+  spec.same({ states[5][1].type, states[5][2].image_url.url }, { "text", "data:image/png;base64,UE5H" })   -- the gate and five of six scores at 3 or more: 6 of 7
 end)
 
 spec.run()

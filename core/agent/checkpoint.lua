@@ -113,7 +113,10 @@ function M.judge(a)
   a.judging = nil
   if not j or not a.env.memory then return end
   if not a.env.jev then return end
-  local state = a.world.state(a, j.req, true) .. "\n\nWhat " .. a.name .. " told the person at the end: " .. j.said
+  -- a world may give Jev content parts (text, then images); the judgement reads the text
+  local read = a.world.state(a, j.req, true)
+  if type(read) == "table" then read = read[1] and read[1].text or "" end
+  local state = read .. "\n\nWhat " .. a.name .. " told the person at the end: " .. j.said
   local ok, answers = pcall(a.env.jev.decide, a.env.jev, state, { ended = { kind = "choice", options = M.judgements,
     text = "How did this request end? Read the steps and what was said at the end." } })
   if not ok then note(a, "Jev could not judge how the request ended: " .. tostring(answers)) return end

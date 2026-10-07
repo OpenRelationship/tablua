@@ -216,9 +216,11 @@ is the fallback for a host without Candle, and not built.
    critic's lowest, mean and six scores, the last render's seconds, and steps since the last look. They are kept per
    decision as `tablua_feature` rows (form `studio`), so training reads exactly what the decision read, and earlier
    trials' sheets attached with `t:attach` train it too.
-5. **Not yet:** a candidate is a move, not a move on a target, so the target's kind, prop and open findings are not
-   columns yet; the trial's oracle (re-gate, blind critic, frame hashes) is not yet written to `tablua_run`; the
-   decider does not yet see the contact sheet (the Decisions API's image form is unverified).
+5. **Jev sees the newest contact sheet.** After a look, Jev's state is content parts: the standing as text, then
+   the sheet as an image. Probed 2026-10-06 on `openai/gpt-6-luna-decisions`: a 64 px red square scored red 1.00
+   as an image part, red 0.03 from the text alone; an object with an `image` field was ignored.
+6. **Not yet:** a candidate is a move, not a move on a target, so the target's kind, prop and open findings are not
+   columns yet; the trial's oracle (re-gate, blind critic, frame hashes) is not yet written to `tablua_run`.
 
 The terminal, desktop and program-as-rows tables stay in Tablua; Moonsplice leaves them empty.
 
