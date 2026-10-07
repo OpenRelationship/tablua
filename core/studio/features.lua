@@ -15,10 +15,13 @@ M.dims = { "rule", "relationship", "defaults", "rhythm", "memory", "craft" }
 M.columns = { "move", "stage", "last_verb", "last_outcome", "pass", "stalls", "n", "game", "nodes", "keys", "motions",
   "systems", "assets", "facts", "bound", "errors", "warnings", "check_errors", "critic_low", "critic_mean",
   "rule", "relationship", "defaults", "rhythm", "memory", "craft", "render_s", "since_look", "beats", "words",
-  "solids", "broken_solids" }
+  "solids", "broken_solids", "ask" }
 M.categorical = { 0, 1, 2, 3 }
 M.numbers = 5          -- the first column read from the feature rows (1-based)
-M.schema = "studio-3"  -- a fit's schema: changes when the columns do
+M.schema = "studio-4"  -- a fit's schema: changes when the columns do
+
+local is_dim = {}
+for _, d in ipairs(M.dims) do is_dim[d] = true end
 
 local function one(t, sql, args)
   local r = t.db:exec(sql, args)[1]
@@ -52,13 +55,19 @@ function M.read(t, todo, n, extra)
   local last = one(t, "select max(n) as m from tablua_score where todo = ? and judge = 'critic' and n < ?", { todo, n })
   f.critic_low, f.critic_mean = -1, -1
   for _, d in ipairs(M.dims) do f[d] = -1 end
+  f.ask = -1
   if last then
     local lo, sum, k = nil, 0, 0
     for _, r in ipairs(t.db:exec("select dim, value from tablua_score where todo = ? and n = ? and judge = 'critic'",
       { todo, last })) do
-      f[r.dim] = r.value
-      lo = (lo == nil or r.value < lo) and r.value or lo
-      sum, k = sum + r.value, k + 1
+      -- the rubric's dims make low and mean; ask (the judge's nearness to the ask) is its own column, and the
+      -- judge's expect:<id> rows are not features
+      if r.dim == "ask" then f.ask = r.value
+      elseif is_dim[r.dim] then
+        f[r.dim] = r.value
+        lo = (lo == nil or r.value < lo) and r.value or lo
+        sum, k = sum + r.value, k + 1
+      end
     end
     f.critic_low, f.critic_mean = lo or -1, k > 0 and sum / k or -1
   end

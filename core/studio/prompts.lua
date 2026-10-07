@@ -97,6 +97,30 @@ function M.critic(ask, kind, treatment, sheet_b64, picks, expects)
     temperature = 0.2 }
 end
 
+-- the eye: shown the sheet, it says only what it sees (studio.judge scores; a critic that directs had s2 delete what the
+-- ask was about), its reply JSON { observations = { "..." } }
+function M.eye(ask, kind, sheet_b64, picks)
+  return { messages = { { role = "user", content = {
+    { type = "text", text = "You look at a contact sheet of a " .. (kind == "game" and "game playing itself" or
+      "motion piece") .. " made for this ask: " .. ask .. "\n\nThe frames are at " .. table.concat(picks or {}, ", ")
+      .. " seconds, left to right, top to bottom. Say only what you see, at most eight observations, most important "
+      .. "first: what is on screen and where, what is legible and what is not, what changes between frames, what "
+      .. "looks broken. Describe; do not recommend, direct or judge the work. Reply with one JSON object only: "
+      .. "{\"observations\": [\"...\"]}" },
+    { type = "image_url", image_url = { url = "data:image/png;base64," .. sheet_b64 } } } } },
+    temperature = 0.2 }
+end
+
+-- the eye's observations, or nil and why
+function M.observations(text)
+  local ok, v = pcall(json.decode, tostring(text or ""):match("%b{}") or "")
+  if not ok or type(v) ~= "table" or type(v.observations) ~= "table" then return nil, "the eye gave no observations" end
+  local out = {}
+  for _, s in ipairs(v.observations) do if type(s) == "string" and s ~= "" then out[#out + 1] = s end end
+  if #out == 0 then return nil, "the eye gave no observations" end
+  return out
+end
+
 -- the critic's scores, each a whole number from 1 to 5, every dim present
 function M.scores(text)
   local body = tostring(text or ""):match("%b{}")

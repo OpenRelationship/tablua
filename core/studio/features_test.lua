@@ -69,6 +69,8 @@ spec.test("a decision reads the comp's solids and how many of them are broken (p
     open = { parts = 1, genus = 0, watertight = false, empty = false } } })
   local f = features.read(t, "r", 3)
   spec.same({ f.solids, f.broken_solids }, { 3, 2 })
-  spec.eq(features.columns[#features.columns], "broken_solids")
+  local has = {}
+  for _, c in ipairs(features.columns) do has[c] = true end
+  spec.ok(has.solids and has.broken_solids and has.ask)
 end)
 spec.run()

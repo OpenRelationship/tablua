@@ -222,4 +222,34 @@ spec.test("treat turns the ask into expectations once and the critic is told the
   spec.ok(req.steps[1].note:find("1 expectation", 1, true), req.steps[1].note)
   spec.ok(said:find("the HIGH row lands", 1, true) and said:find("restyle, move or retime", 1, true), said)
 end)
+
+spec.test("with a judge, a look is an eye that describes and Jev that scores; neither directs", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local eye_req, asked
+  local w = world.new{ engine = engine(), tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
+    writer = writer({}), exec = function() return { code = 0, stdout = "UE5H" } end,
+    critic = { chat = function(_, req)
+      eye_req = req
+      return '{"observations": ["The title sits low and dim", "The buoy is dark"]}'
+    end },
+    judge = { decide = function(_, state, qs)
+      asked = { state = state, qs = qs }
+      local a = { next = { choice = "o2" } }
+      for id, q in pairs(qs) do
+        if q.kind == "score" then a[id] = { score = q.levels[4], probabilities = { [q.levels[4]] = 1 } } end
+      end
+      return a
+    end } }
+  local memory = { begin = function() return "r" end, step = function() end, log = function() end }
+  local a = agent.new({ jev = jev({ "look" }, {}), tablua = t, memory = memory }, w)
+  local req = a:begin("x")
+  for _ = 1, 2 do local r = a:step(req) a:perform(req, r[2]) a:close(req, r[2]) end
+  local text = eye_req.messages[1].content[1].text
+  spec.ok(text:find("only what you see", 1, true) and not text:find("Score each", 1, true), text)
+  spec.same({ req.steps[2].outcome, asked.state[2].type, asked.qs.next.options.o2 },
+    { "complete", "image_url", "The buoy is dark" })
+  spec.ok(req.steps[2].note:find("Next: The buoy is dark", 1, true), req.steps[2].note)
+  spec.same({ t.db:exec("select count(*) as c from tablua_score where n = 2 and judge = 'critic'")[1].c, req.pass },
+    { 7, 1 })
+end)
 spec.run()

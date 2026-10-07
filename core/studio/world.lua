@@ -4,7 +4,8 @@
 -- critic scores. Every step leaves the comp, its findings and the scores as rows of the sheet (tablua.studio).
 --
 --   local w = require("studio.world").new{ engine, writer, critic, tablua, comp, sheet, ask, kind?, exec, reference?,
---                                          log? }   reference: Moonsplice's rows-form API card, for the writer
+--                                          judge?, log? }   reference: Moonsplice's rows-form API card, for the writer;
+--                                          judge: a Jev port, so a look is the critic's model as an eye and Jev as judge
 --     engine: ports.moonsplice (or the Studio's session with the same methods); writer, critic: ports.chat;
 --     tablua: the run's handle; comp: the comp's .lua path; sheet: where look writes its contact sheet;
 --     exec: the host's command (reads the sheet as base64)
@@ -18,6 +19,7 @@ local json = require("ports.json")
 local moves = require("studio.moves")
 local features = require("studio.features")
 local prompts = require("studio.prompts")
+local judge = require("studio.judge")
 local studio = require("tablua.studio")
 
 local M = {}
@@ -135,7 +137,10 @@ function M.new(o)
     end
     if w.critic then
       local d = {}
-      for _, k in ipairs(prompts.order) do d[#d + 1] = k .. " " .. w.critic.scores[k] end
+      for _, k in ipairs(prompts.order) do
+        local v = w.critic.scores[k]
+        d[#d + 1] = k .. " " .. (v and ("%.1f"):format(v) or "?")
+      end
       s[#s + 1] = ("Critic%s: %s. %s"):format(w.looked == w.digest and "" or " (on an earlier version)",
         table.concat(d, ", "), clip(w.critic.notes, 500))
     end
@@ -195,12 +200,28 @@ function M.new(o)
     if o.engine.expect then expect(req, step, n) end
   end
 
+  -- an eye that describes and a judge that scores (studio.judge): neither tells the writer what to delete
+  local function judged(req, step, n, sheet, b64)
+    local oke, text = ask(o.critic, prompts.eye(o.ask, o.kind, b64, sheet.picks))
+    local seen, why = prompts.observations(oke and text)
+    if not seen then step.outcome, step.note = "broken", why .. ": " .. clip(text, 200) return end
+    local state, qs = judge.ask{ ask = o.ask, treatment = req.treatment, findings = w.findings, seen = seen,
+      expects = t:comp_rows(req.todo, w.snapped or 0).tables.expect or {}, sheet_b64 = b64 }
+    local okj, answers = pcall(o.judge.decide, o.judge, state, qs)
+    if not okj then step.outcome, step.note = "broken", "the judge failed: " .. clip(answers, 200) return end
+    local scores, said = judge.read(qs, answers, seen)
+    t:scores(req.todo, n, "critic", scores)
+    w.critic, w.looked, w.sheet_b64 = { scores = scores, notes = said.notes }, w.digest, b64
+    step.outcome, step.note = "complete", "judge: " .. clip(said.notes, 300)
+  end
+
   local function look(req, step, n)
     local ok, sheet = pcall(o.engine.sheet, o.engine, o.comp, o.sheet)
     if not ok then step.outcome, step.note = "broken", "render failed: " .. clip(sheet, 300) return end
     w.render_s = sheet.seconds
     local b64 = o.exec("base64 < '" .. o.sheet:gsub("'", [['\'']]) .. "' | tr -d '\\n'", 60)
     if not b64 or b64.code ~= 0 then step.outcome, step.note = "broken", "could not read the sheet" return end
+    if o.judge then return judged(req, step, n, sheet, b64.stdout) end
     local okc, text = ask(o.critic, prompts.critic(o.ask, o.kind, req.treatment, b64.stdout, sheet.picks,
       t:comp_rows(req.todo, w.snapped or 0).tables.expect))
     local scores, said = prompts.scores(okc and text)
