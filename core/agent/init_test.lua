@@ -136,6 +136,16 @@ spec.test("an explored step is heard as explore, with its propensity", function(
   spec.same(heard[1], { "look", "explore", 1, true })
 end)
 
+spec.test("a question with one option is no decision: the move is taken without asking Jev", function()
+  local j = jev({})
+  local heard = {}
+  local a = agent.new({ jev = j, mercury = mercury({}),
+    decided = function(_, verb, _, how, p) heard[#heard + 1] = { verb, how, p } end }, world({}))
+  a.world.question = function() return { kind = "choice", text = "What next?", options = { run = "Run." } } end
+  local step = a:step(a:begin("x"))[2]
+  spec.same({ step.verb, step.by, #j.calls, heard[1] }, { "run", "only", 0, { "run", "only", 1 } })
+end)
+
 spec.test("a step carries how it was settled and its propensity, so its decision row says who chose", function()
   local a = agent.new({ jev = jev({ choice("answer", { answer = 0.40, run = 0.36 }) }), mercury = mercury({ "run" }) },
     world({}))

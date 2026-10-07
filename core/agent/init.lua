@@ -72,6 +72,14 @@ function A:decide(req)
   local w = self.world
   if not self.env.jev then return "answer" end
   local questions = { next = w.question(self) }
+  -- one option is no decision (a decision model needs two: OpenAI Decisions answered 400, 2026-10-06): it is taken
+  local only, count = nil, 0
+  for name in pairs(questions.next.options or {}) do only, count = name, count + 1 end
+  if count == 1 then
+    req.sure, req.explored, req.propensity, req.how = nil, false, 1, "only"
+    if self.env.decided then self.env.decided(req, only, { choice = only, probabilities = { [only] = 1 } }, "only", 1) end
+    return only
+  end
   if w.questions then for id, q in pairs(w.questions(self, req)) do questions[id] = q end end
   local ok, answers = pcall(self.env.jev.decide, self.env.jev, w.state(self, req, true), questions)
   if not ok then

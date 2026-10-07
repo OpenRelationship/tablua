@@ -70,7 +70,7 @@ spec.test("treat, a patch that breaks, a fix, a look, then answer: each step's r
     critic = critic, exec = function() return { code = 0, stdout = "UE5H" } end }
   local memory = { begin = function() return "r" end, step = function() end, log = function() end }
   local states = {}
-  local a = agent.new({ jev = jev({ "treat", "add_node", "set_prop", "look", "answer" }, states), tablua = t,
+  local a = agent.new({ jev = jev({ "add_node", "set_prop", "look", "answer" }, states), tablua = t,
     memory = memory }, w)
   local req = a:begin("a tide clock")
   while true do
@@ -91,7 +91,9 @@ spec.test("treat, a patch that breaks, a fix, a look, then answer: each step's r
   spec.ok(math.abs(req.pass - 6 / 7) < 1e-9, req.pass)
   -- before any look Jev reads text; after one, the text and the newest contact sheet as content parts
   spec.eq(type(states[1]), "string")
-  spec.same({ states[5][1].type, states[5][2].image_url.url }, { "text", "data:image/png;base64,UE5H" })   -- the gate and five of six scores at 3 or more: 6 of 7
+  spec.same({ states[4][1].type, states[4][2].image_url.url }, { "text", "data:image/png;base64,UE5H" })
+  -- treat was the only move offered, so it was taken without asking Jev
+  spec.same({ #states, t.db:exec("select by from tablua_decision where n = 1")[1].by }, { 4, "only" })   -- the gate and five of six scores at 3 or more: 6 of 7
 end)
 
 spec.run()
