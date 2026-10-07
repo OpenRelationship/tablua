@@ -129,4 +129,31 @@ spec.test("a writer that reasons to its limit and says nothing is asked once mor
   spec.same({ tries, step.outcome }, { 2, "complete" })
 end)
 
+spec.test("one step lands the chosen move with the patches it needs from others, the writer reasoning briefly", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local seen
+  local call = function(name, args) return { id = name, type = "function", ["function"] = { name = name,
+    arguments = json.encode(args) } } end
+  local both = { chat = function(_, req)
+    seen = req
+    return "", { tool_calls = { call("add_node", { node = { id = "buoy", kind = "rect", y = 1200 } }),
+      call("set_prop", { id = "buoy", name = "y", value = 540 }) } }
+  end }
+  local w = world.new{ engine = engine(), tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
+    writer = both, critic = critic, exec = function() return { code = 0, stdout = "" } end }
+  local req, step = { todo = "r", steps = {}, treatment = "Rule: the line." }, { lines = {} }
+  w.act(nil, req, "add_node", step)
+  -- the node lands at 540 by the set_prop of the same reply: no error opened, none closed, so neutral, not broken
+  spec.same({ step.outcome, seen.tools[1]["function"].name, seen.reasoning_effort }, { "neutral", "add_node", "low" })
+  spec.ok(#seen.tools > 1 and seen.messages[1].content:find("in the same reply", 1, true))
+  spec.ok(step.note:find("2 applied", 1, true), step.note)
+  -- a reply without the chosen move is not that move
+  local only = { chat = function() return "", { tool_calls = { call("set_prop", { id = "buoy", name = "y", value = 9 }) } } end }
+  w = world.new{ engine = engine(), tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
+    writer = only, critic = critic, exec = function() return { code = 0, stdout = "" } end }
+  step = { lines = {} }
+  w.act(nil, { todo = "r2", steps = {}, treatment = "x" }, "add_node", step)
+  spec.eq(step.outcome, "no_effect")
+end)
+
 spec.run()

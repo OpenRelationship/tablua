@@ -52,8 +52,8 @@ function M.move(move, ask, kind, treatment, standing, rows_json, reference)
       .. (reference and ("\n\nThe engine's reference:\n" .. reference) or ""),
     messages = { { role = "user", content = "The ask: " .. ask .. "\n\nThe treatment:\n" .. (treatment or "(none yet)")
       .. "\n\nWhere the work stands:\n" .. standing .. "\n\nThe comp's rows now:\n" .. rows_json .. "\n\nMake this move: "
-      .. move .. ". Call the tool once per patch, as many times as the move needs and no more; change nothing the "
-      .. "move does not need. Write numbers and booleans as JSON numbers and booleans, never in quotes, in node "
+      .. move .. ". Call its tool once per patch. When the move needs patches of other kinds to read (a new node's "
+      .. "keys, its bind to a beat), make them in the same reply, after it; change nothing the move does not need. Write numbers and booleans as JSON numbers and booleans, never in quotes, in node "
       .. "props and derive ops too (y = 500, not \"500\"; deflicker = true, not \"true\")." } },
     temperature = 0.4 }
 end

@@ -188,15 +188,27 @@ function M.new(o)
     -- the comp's rows and the facts its assets gave (beat:N, word:...), so a bind names one that exists
     local req_w = prompts.move(move, o.ask, o.kind, req.treatment, standing(req),
       json.encode({ tables = rows.tables, derived = rows.derived }), o.reference)
+    -- the chosen move first, then the others it may need in the same reply (an add_node with its keys): in studio s1
+    -- a node and its keys took a step each, and seventeen steps changed little (Moonsplice's read, 2026-10-06)
+    local offered = { [move] = true }
     req_w.tools, req_w.tool_choice = { moves.tool(move) }, "required"
+    for _, m in ipairs(M.edits) do
+      if m ~= move then offered[m] = true req_w.tools[#req_w.tools + 1] = moves.tool(m) end
+    end
+    -- one call that reasons briefly: M3 at its default effort took 50 to 280 s a step, and once 129k tokens
+    req_w.reasoning_effort = "low"
     local ok, _, record = ask(o.writer, req_w)
     if not ok then step.outcome, step.note = "broken", "the writer failed: " .. clip(_, 300) return end
-    local patches, refused = {}, {}
+    local patches, refused, chosen = {}, {}, false
     for _, c in ipairs(record.tool_calls or {}) do
+      local name = c["function"] and c["function"].name
       local okj, args = pcall(json.decode, c["function"] and c["function"].arguments or "")
-      local good, why = moves.check(move, okj and args or nil)
-      if good then patches[#patches + 1] = moves.patch(move, args) else refused[#refused + 1] = why end
+      local good, why = moves.check(name, okj and args or nil)
+      if good and not offered[name] then good, why = nil, tostring(name) .. " is not a patch move" end
+      if good then patches[#patches + 1] = moves.patch(name, args) chosen = chosen or name == move
+      else refused[#refused + 1] = why end
     end
+    if not chosen then patches = {} refused[#refused + 1] = "no " .. move .. " among the calls" end
     if #patches == 0 then
       step.outcome, step.note = "no_effect", "the writer made no valid " .. move .. " patch" .. (#refused > 0
         and (": " .. table.concat(refused, "; ")) or "")
@@ -207,7 +219,7 @@ function M.new(o)
     if not okp then step.outcome, step.note = "broken", "the patch failed: " .. clip(res, 300) return end
     snap(req.todo, n, res.findings or {})
     for i, p in ipairs(res.applied or {}) do
-      t:action{ todo = req.todo, n = n, i = i, cmd = json.encode(p), op = move, target = (p.id or p.name or "") }
+      t:action{ todo = req.todo, n = n, i = i, cmd = json.encode(p), op = p.move or move, target = (p.id or p.name or "") }
     end
     local changed = res.digest_before ~= res.digest_after
     step.outcome = changed and studio.outcome(before, w.findings, res.touched or {}) or "no_effect"
