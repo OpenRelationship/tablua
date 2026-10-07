@@ -62,7 +62,7 @@ spec.test("the outcome: nothing changed is no_effect, a new error is broken, the
   local touched = { { id = "line", name = "y" } }
   spec.eq(studio.outcome(before, before, {}), "no_effect")
   spec.eq(studio.outcome(before, { E("tide", "opacity", "parked_visible", "warning") }, touched), "complete")
-  -- changed, but no finding opened or closed: the findings cannot judge it (ROWS.md: neutral)
+  -- changed, but no finding opened or closed: the findings cannot judge it (rows.robot: neutral)
   spec.eq(studio.outcome(before, { before[1], before[2] }, touched), "neutral")
   spec.eq(studio.outcome({}, {}, { { id = "title", name = "opacity" } }), "neutral")
   -- one closed elsewhere while the target's own stays open helped nothing on the target

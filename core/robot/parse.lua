@@ -68,13 +68,31 @@ local function rows(text)
       local cells = M.cells(raw)
       local first = cells[1] == "" and 2 or 1
       if cells[first] == "..." and #out > 0 and not out[#out].header then
-        for i = first + 1, #cells do out[#out].cells[#out[#out].cells + 1] = cells[i] end
+        local more = {}
+        for i = first + 1, #cells do
+          out[#out].cells[#out[#out].cells + 1] = cells[i]
+          more[#more + 1] = cells[i]
+        end
+        out[#out].lines[#out[#out].lines + 1] = more
       elseif #cells > (cells[1] == "" and 1 or 0) then
-        out[#out + 1] = { cells = cells, line = n, indented = cells[1] == "", section = section }
+        local own = {}
+        for i = first, #cells do own[#own + 1] = cells[i] end
+        out[#out + 1] = { cells = cells, line = n, indented = cells[1] == "", section = section, lines = { own } }
       end
     end
   end
   return out
+end
+
+-- a Documentation setting's text as Robot reads it: its cells joined by a space, each row a line (an empty ... row an
+-- empty line), and \x read as x (\n a newline): "\ \ " keeps a code block's indent
+local function doc(r)
+  local out = {}
+  for i, cells in ipairs(r.lines) do
+    local text = table.concat(cells, " ", i == 1 and 2 or 1)
+    out[#out + 1] = (text:gsub("\\(.)", function(c) return c == "n" and "\n" or c == "t" and "\t" or c end))
+  end
+  return table.concat(out, "\n")
 end
 
 local function is_var(cell) return cell:match("^[%$@&]{.+}%s*=?$") ~= nil end
@@ -147,7 +165,7 @@ local function item(kind, name, list, line)
     local s = setting(r.cells[1])
     if s then
       local key = s:lower()
-      if key == "documentation" then it.doc = table.concat(rest(r.cells), " ")
+      if key == "documentation" then it.doc = doc(r)
       elseif key == "tags" then it.tags = rest(r.cells)
       elseif key == "arguments" then it.args = rest(r.cells)
       elseif key == "return" then it.returns = rest(r.cells)
@@ -181,9 +199,14 @@ function M.suite(text)
         close()
         cur = { kind = ITEM[r.section], name = r.cells[1], line = r.line }
         list = {}
-        if #r.cells > 1 then list[1] = { cells = rest(r.cells), line = r.line } end
+        if #r.cells > 1 then
+          -- the name shares the row: its first line loses the name cell too
+          local lines = { rest(r.lines[1]) }
+          for i = 2, #r.lines do lines[i] = r.lines[i] end
+          list[1] = { cells = rest(r.cells), line = r.line, lines = lines }
+        end
       elseif cur then
-        list[#list + 1] = { cells = rest(r.cells), line = r.line }
+        list[#list + 1] = { cells = rest(r.cells), line = r.line, lines = r.lines }
       end
     elseif r.section == "settings" and not r.indented then
       local k, c = r.cells[1]:lower(), r.cells
@@ -194,7 +217,7 @@ function M.suite(text)
       elseif k == "test teardown" or k == "task teardown" then s.test_teardown = { keyword = c[2], args = rest(c, 3) }
       elseif k == "test tags" or k == "force tags" or k == "task tags" then s.tags = rest(c)
       elseif k == "library" or k == "resource" then s.libraries[#s.libraries + 1] = c[2]
-      elseif k == "documentation" then s.documentation = table.concat(rest(c), " ") end
+      elseif k == "documentation" then s.documentation = doc(r) end
     elseif r.section == "variables" and not r.indented then
       local name = r.cells[1]:gsub("%s*=$", "")
       local values = rest(r.cells)

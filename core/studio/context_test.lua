@@ -40,7 +40,7 @@ spec.test("the history is a line a step, every step: what it did, how it came ou
 end)
 
 local CARD = "# Card\nintro\n## Comp skeleton (passes)\nskel\n## Keys and motion\nkeys\n## Systems and code\nsys\n"
-  .. "## The moves (bin/moonsplice patch)\nmoves\n## Node kinds: { id= }\nkinds\n## 3D: a world node\nworld\n"
+  .. "## The moves (./moonsplice patch)\nmoves\n## Node kinds: { id= }\nkinds\n## 3D: a world node\nworld\n"
   .. "## Solids: Manifold\nsolids\n## Games: the game table\ngames\n## Pitfalls (each fails)\npits\n"
 
 spec.test("the card goes by section: always the moves and the pitfalls, then what the move touches", function()
@@ -55,6 +55,21 @@ spec.test("the card goes by section: always the moves and the pitfalls, then wha
   spec.ok(#context.card(CARD, "remove", "video", true) < #CARD)
 end)
 
+
+-- the card as Moonsplice keeps it now (.robot/docs/reference.robot): the suite's documentation is the head, each test
+-- case a section whose [Documentation] is its text
+local ROBOT = table.concat({ "*** Settings ***", "Documentation    Moonsplice API card.", "...    Exact.", "",
+  "*** Test Cases ***", "Keys and motion", "    [Documentation]    Summary: how keys ease.", "    ...    ```lua",
+  "    ...    \\ \\ keys = {}", "    ...    ```", "The moves (moonsplice patch)", "    [Documentation]    moves",
+  "Pitfalls (each fails)", "    [Documentation]    pits" }, "\n")
+
+spec.test("the card may be the Robot doc: its tests are the sections, their documentation the text", function()
+  spec.eq(context.index(ROBOT), "- Keys and motion: how keys ease.\n- The moves\n- Pitfalls")
+  spec.eq(context.section(ROBOT, "keys and motion"), "## Keys and motion\nSummary: how keys ease.\n```lua\n  keys = {}\n```")
+  local key = context.card(ROBOT, "add_key", "video", false)
+  spec.ok(key:find("Moonsplice API card.\nExact.", 1, true) and key:find("  keys = {}", 1, true) and key:find("pits", 1, true),
+    key)
+end)
 
 spec.test("a step that sets a prop back to a value it had within three steps is marked as undoing the one that changed it", function()
   local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })

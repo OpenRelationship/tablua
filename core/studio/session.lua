@@ -12,7 +12,7 @@
 --     learn: agent.learn with step = studio.features.learner(t): before a patch it ranks the moves from states like
 --     this one (TabICL, local), the predictions kept as rows, and its line follows the result; it never blocks
 --     engine: ports.moonsplice (brief, rows, lint, check, patch, expect, sheet); model: a chat port; judge: a Jev
---     port; reference: the engine's card (cadence/agent/REFERENCE.md); compact: { window, reserve?, keep? }, the
+--     port; reference: the engine's card (Moonsplice's .robot/docs/reference.robot); compact: { window, reserve?, keep? }, the
 --     model's context in tokens: near it, the turns before the cut become a checkpoint rendered from the tables
 local loop = require("agent.loop")
 local compact = require("agent.compact")

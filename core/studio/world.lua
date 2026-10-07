@@ -1,4 +1,4 @@
--- Moonsplice as Tablua's world (owner, 2026-10-06; cadence/docs/ROWS.md): the agent builds a game or a video as a
+-- Moonsplice as Tablua's world (owner, 2026-10-06; Moonsplice's .robot/docs/rows.robot): the agent builds a game or a video as a
 -- comp of rows, one typed patch move at a time. Jev decides the move, the writer (MiniMax M3) fills it as tool calls,
 -- the engine applies and checks it, and the step's outcome comes from the findings; look renders a contact sheet the
 -- critic scores. Every step leaves the comp, its findings and the scores as rows of the sheet (tablua.studio).

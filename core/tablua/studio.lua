@@ -1,9 +1,9 @@
--- Moonsplice's comp as Tablua's rows (schema 19, owner 2026-10-06; the contract is cadence/docs/ROWS.md, msr/1): the
+-- Moonsplice's comp as Tablua's rows (schema 19, owner 2026-10-06; the contract is Moonsplice's .robot/docs/rows.robot, msr/1): the
 -- comp each step left, kept whole per step (tablua_msr_*, (todo, n) first; n = 0 before any step), what lint and check
 -- found in it (tablua_msr_finding), how a judge scored it (tablua_score), and a step's outcome from its findings.
 --
 --   t:comp(todo, n, rows)          rows = { schema = "msr/1", tables = { comp, node, prop, key, motion, system, asset,
---                                  fact }, derived? } as `bin/moonsplice rows --json` prints them; replaces step n's
+--                                  fact }, derived? } as `./moonsplice rows --json` prints them; replaces step n's
 --                                  snapshot. derived (the facts assets produced at compile: beats, words) go in the
 --                                  fact table marked derived, with their asset, and come back apart
 --   t:comp_rows(todo, n) -> rows   the same shape back, each table in its key order
@@ -34,7 +34,7 @@ M.tables = {
   { name = "asset", cols = { "id", "src", "derive", "solid" }, key = { "id" }, json = { derive = true, solid = true } },
   { name = "fact", cols = { "pred", "args", "t0", "t1", "src", "conf" }, key = { "pred", "args", "t0" },
     json = { args = true } },
-  -- what the ask requires (ROWS.md, "Expectations"); at, t0 and t1 are seconds or fact references, kept as they come
+  -- what the ask requires (rows.robot, "Expectations"); at, t0 and t1 are seconds or fact references, kept as they come
   { name = "expect", cols = { "id", "says", "node", "prop", "op", "value", "at", "t0", "t1", "holds" }, key = { "id" },
     typed = "value" },
 }
@@ -46,7 +46,7 @@ local function is_array(t)
   return true
 end
 
--- Moonsplice's rule (ROWS.md): an integer under 1e15 as one; anything else the shortest of 15, 16 and 17 significant
+-- Moonsplice's rule (rows.robot): an integer under 1e15 as one; anything else the shortest of 15, 16 and 17 significant
 -- digits that reads back as the same number, so 0.1 is "0.1" and an agent reads what it wrote
 local function number(v)
   if v == math.floor(v) and math.abs(v) < 1e15 then return ("%d"):format(v) end
@@ -89,7 +89,7 @@ end
 
 local function column(spec, c) return spec.rename and spec.rename[c] or c end
 
--- A step's outcome from the findings before and after it and what it touched (ROWS.md, level 6): nothing touched is
+-- A step's outcome from the findings before and after it and what it touched (rows.robot, level 6): nothing touched is
 -- no_effect; a new error is broken; a new finding of any other kind helped nothing (no_effect); a change that opened
 -- and closed no finding is neutral, which findings cannot judge and the next look's critic does (an opacity of 0
 -- hid a title and no finding saw it, studio trial 1); one on what it touched still open is no_effect; otherwise

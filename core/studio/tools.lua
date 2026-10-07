@@ -1,5 +1,5 @@
 -- The studio's tools for agent.loop (owner, 2026-10-07: the harness works the way pi does): what the model calls to
--- read, change and see a Moonsplice comp (cadence/docs/ROWS.md). pi gives a coding agent read, edit, write and bash;
+-- read, change and see a Moonsplice comp (Moonsplice's .robot/docs/rows.robot). pi gives a coding agent read, edit, write and bash;
 -- a comp's are brief (read it), patch (edit it, typed moves, several in one call as pi's edit takes edits[]), expect
 -- (add what the ask requires; nothing edits or removes one), look (see it: the contact sheet as an image, the judge's
 -- scores and what the engine measured) and reference (one section of the engine's card, read when needed, as pi reads
@@ -64,7 +64,7 @@ end
 -- errors, then warnings, a line each (info judges nothing)
 function M.found(findings, max)
   local out = {}
-  -- the engine's severities are error, warn and info (cadence lib/moonsplice)
+  -- the engine's severities are error, warn and info (Moonsplice's core/moonsplice/lint.lua)
   for _, sev in ipairs({ "error", "warn" }) do
     for _, f in ipairs(findings or {}) do
       if (f.severity or "error") == sev then

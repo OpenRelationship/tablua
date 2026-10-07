@@ -20,12 +20,12 @@ spec.test("rows, lint, check and sheet are one command each, their JSON read bac
   local h = host({ ok({ schema = "msr/1", tables = { node = { { id = "a", kind = "rect" } } }, digest = "d0" }),
     ok({ findings = { { tier = "lint", id = "a", code = "off_frame", severity = "error" } } }), ok({ findings = {} }),
     ok({ picks = { 0, 6 }, seconds = 2.5 }) })
-  local m = moonsplice.new(h, { bin = "/m/bin/moonsplice" })
+  local m = moonsplice.new(h, { bin = "/m/moonsplice" })
   local rows = m:rows("/w/comp's.lua")
   local lint, check, sheet = m:lint("/w/c.lua"), m:check("/w/c.lua"), m:sheet("/w/c.lua", "/w/s.png")
   spec.same({ rows.digest, lint[1].code, #check, sheet.seconds }, { "d0", "off_frame", 0, 2.5 })
-  spec.same({ h.ran[1].cmd, h.ran[2].cmd, h.ran[4].cmd }, { [['/m/bin/moonsplice' rows '/w/comp'\''s.lua' --json]],
-    "'/m/bin/moonsplice' lint '/w/c.lua' --json", "'/m/bin/moonsplice' sheet '/w/c.lua' '/w/s.png' --json" })
+  spec.same({ h.ran[1].cmd, h.ran[2].cmd, h.ran[4].cmd }, { [['/m/moonsplice' rows '/w/comp'\''s.lua' --json]],
+    "'/m/moonsplice' lint '/w/c.lua' --json", "'/m/moonsplice' sheet '/w/c.lua' '/w/s.png' --json" })
 end)
 
 spec.test("a patch list goes to a file, then to the engine, and its result comes back whole", function()

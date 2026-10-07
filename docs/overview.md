@@ -28,7 +28,7 @@ for Moonsplice, and last what is still to build.
 |---|---|---|
 | `agent` (`core/agent/init.lua`) | Tablua | The loop as an explicit state machine: `begin`, `step`, `perform`, `close`. No coroutines, so any embedded Lua runs it. |
 | `studio` (`core/studio/`) | Tablua | Moonsplice as the world: the moves as typed patches (`moves`), what TabICL reads of a comp (`features`), the writer's and critic's prompts (`prompts`), and the world itself (`world`): `question`, `state`, `allowed`, `act`. |
-| `ports.moonsplice` | Tablua | The engine: `bin/moonsplice rows \| patch \| lint \| check \| sheet --json` through the host's `exec` (the Studio's session later). |
+| `ports.moonsplice` | Tablua | The engine: `./moonsplice rows \| patch \| lint \| check \| sheet --json` through the host's `exec` (the Studio's session later). |
 | `checkpoint` (`core/agent/checkpoint.lua`) | Tablua | Before a decision: asks TabICL to rank the legal moves. After a step: writes its rows and its outcome. |
 | `learn` (`core/agent/learn.lua`) | Tablua | Turns the rows into a training table, asks the tabular model, keeps its fits, predictions and rankings as rows. |
 | `ports.jev` | Tablua | Jev: a typed choice with a probability per option, through OpenRouter. |
@@ -99,7 +99,7 @@ Every table is in `core/tablua/schema.lua` (schema 18). They fall into three par
 
 ### The comp: what Moonsplice is making, one snapshot per step (schema 22)
 
-The contract is `cadence/docs/ROWS.md` (msr/1). Each table is the engine's, with `(todo, n)` first: the comp as it
+The contract is Moonsplice's `.robot/docs/rows.robot` (msr/1). Each table is the engine's, with `(todo, n)` first: the comp as it
 stood after step n, and n = 0 before any step. What step n changed is where snapshot n differs from n - 1
 (`t:touched`); the engine's patch response says it too.
 
@@ -234,6 +234,6 @@ The terminal, desktop and program-as-rows tables stay in Tablua; Moonsplice leav
 | `ports.tabicl` ranks moves for `learn`, with a server or with the host's own model | consistent | Fixture tests; live through Modal once, `fix` 1.000 over `look` 0.003 |
 | The same run writes the same rows | consistent | Three processes, byte-identical dumps |
 | TabICL on Moonsplice's steps beats the base rate | not shown | Needs Moonsplice trials and its held-out Brier claim |
-| A Candle TabICL matches the Python reference | correct | Moonsplice's claims (cadence/.robot/claims/tabicl.robot: logits within 2.6e-4, members within 1.2e-7, probas within 1.9e-6); checked from Tablua too, three fixtures within 1.8e-6. `bin/moonsplice tabicl` takes ports.tabicl's body on stdin |
+| A Candle TabICL matches the Python reference | correct | Moonsplice's claims (moonsplice/.robot/claims/tabicl.robot: logits within 2.6e-4, members within 1.2e-7, probas within 1.9e-6); checked from Tablua too, three fixtures within 1.8e-6. `./moonsplice tabicl` takes ports.tabicl's body on stdin |
 | The studio world runs a whole request and keeps its rows | consistent | `core/studio/world_test.lua` over fakes: treat, a breaking patch, a fix, a look, answer; outcomes, snapshots, findings, scores and features as rows |
-| It builds a good comp with the real engine and M3 | not shown | Needs `bin/moonsplice rows` and `patch` (Moonsplice) and a claim |
+| It builds a good comp with the real engine and M3 | not shown | Needs `./moonsplice rows` and `patch` (Moonsplice) and a claim |

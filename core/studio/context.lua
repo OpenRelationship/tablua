@@ -7,7 +7,7 @@
 --                                             opened or closed (the msr_finding snapshots before and after it)
 --   context.since(t, todo, upto) -> n         the patch steps after the last one that came out complete (a stall the
 --                                             writer and the decider are shown; nothing stops the run on it)
---   context.card(card, move, kind, world) -> text   the engine's reference card (Moonsplice's agent/REFERENCE.md) cut
+--   context.card(card, move, kind, world) -> text   the engine's reference card (Moonsplice's .robot/docs/reference.robot) cut
 --                                             to its sections the move needs: always its head, the moves and the
 --                                             pitfalls; world says the comp has a 3D world
 --   context.shown(req) -> text   a request as kept in tablua_prompt: system, user or messages, the tools by name, and
@@ -195,7 +195,18 @@ function M.history(t, todo, upto)
 end
 
 -- the card's sections by name, the text up to ":" or " (" of each "## " heading, in order
+-- the card as Moonsplice keeps it (.robot/docs/reference.robot) read into the sectioned text: the suite's
+-- documentation as the head, each test case a "## name" section of its documentation
+function M.unrobot(card)
+  if not card:match("^%*%*%*") then return card end
+  local suite = require("robot.parse").suite(card)
+  local out = { suite.settings.documentation or "" }
+  for _, t in ipairs(suite.tests) do out[#out + 1] = "## " .. t.name .. "\n" .. (t.doc or "") end
+  return table.concat(out, "\n")
+end
+
 local function sections(card)
+  card = M.unrobot(card)
   local head, out, order, cur = {}, {}, {}, nil
   for line in (card .. "\n"):gmatch("(.-)\n") do
     local title = line:match("^## (.+)$")
@@ -242,7 +253,7 @@ end
 
 function M.card(card, move, kind, world)
   local head, by, order = sections(card or "")
-  if #order == 0 then return card end
+  if #order == 0 then return M.unrobot(card or "") end
   local want = {}
   for _, s in ipairs(M.always) do want[s] = true end
   for _, s in ipairs(M.needs[move] or {}) do want[s] = true end

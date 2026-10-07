@@ -127,4 +127,27 @@ spec.test("tasks are their own kind: a suite's tasks apart from its tests, and c
   spec.ok(items[2].text:find("^%*%*%* Tasks %*%*%*\n"))
 end)
 
+spec.test("documentation reads as Robot reads it: a row a line, an empty row an empty line, escapes undone", function()
+  local s = parse.suite(table.concat({
+    "*** Settings ***",
+    "Documentation    The card.",
+    "...    Exact.",
+    "",
+    "*** Test Cases ***",
+    "Skeleton",
+    "    [Documentation]    Summary: the shape.",
+    "    ...    ```lua",
+    "    ...",
+    "    ...    \\ \\ width = 1920,    -- two cells",
+    "    ...    \\\\ \\# \\$x",
+    "    Log    x",
+    "Inline    [Documentation]    one",
+    "    ...    two",
+  }, "\n"))
+  spec.eq(s.settings.documentation, "The card.\nExact.")
+  spec.eq(s.tests[1].doc, "Summary: the shape.\n```lua\n\n  width = 1920, -- two cells\n\\ # $x")
+  spec.eq(#s.tests[1].body, 1)
+  spec.eq(s.tests[2].doc, "one\ntwo")
+end)
+
 spec.run()

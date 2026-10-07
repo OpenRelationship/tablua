@@ -1,13 +1,13 @@
--- The Moonsplice engine port: the commands of cadence/docs/ROWS.md ("The engine commands tablua calls"), each run
--- through the host's exec and read back as JSON. Outside the Studio this shells out to bin/moonsplice; inside it, the
+-- The Moonsplice engine port: the commands of Moonsplice's .robot/docs/rows.robot ("The engine commands tablua calls"), each run
+-- through the host's exec and read back as JSON. Outside the Studio this shells out to ./moonsplice; inside it, the
 -- engine's Session serves the same ops, and a host gives a port with these methods instead.
 --
---   local m = require("ports.moonsplice").new(host, { bin = ".../bin/moonsplice", tmp = dir, timeout? })
+--   local m = require("ports.moonsplice").new(host, { bin = ".../moonsplice", tmp = dir, timeout? })
 --     host.exec(cmd, timeout) -> { code, stdout, stderr }   host.write(path, text) (patch files)
 --   m:rows(comp) -> { schema, tables, digest }      m:brief(comp) -> text   the comp as a model reads it
 --   m:patch(comp, patches) -> { applied, rejected = { { patch, why } }, touched, digest_before, digest_after, findings }
 --   m:expect(comp, rows) -> { added, rejected = { { row, why } }, digest_before, digest_after, findings }   the ask as
---                         predicates (ROWS.md, "Expectations"), added once by the harness: no patch move touches them
+--                         predicates (rows.robot, "Expectations"), added once by the harness: no patch move touches them
 --   m:lint(comp) -> findings      m:check(comp) -> findings      m:sheet(comp, out_png) -> { picks, seconds }
 --
 -- Every command prints JSON and exits 0 when it ran; any other exit is the command failing, raised with its stderr.
@@ -25,7 +25,7 @@ local function quote(s) return "'" .. tostring(s):gsub("'", [['\'']]) .. "'" end
 function M.new(host, opts)
   assert(host and host.exec, "moonsplice needs a host with exec")
   opts = opts or {}
-  return setmetatable({ host = host, bin = opts.bin or "bin/moonsplice", tmp = opts.tmp or "/tmp",
+  return setmetatable({ host = host, bin = opts.bin or "./moonsplice", tmp = opts.tmp or "/tmp",
     timeout = opts.timeout or M.timeout, n = 0 }, P)
 end
 
@@ -47,7 +47,7 @@ end
 
 function P:rows(comp) return self:run("rows", comp) end
 
--- the comp as a model reads it (ROWS.md: rows --brief), text rather than JSON
+-- the comp as a model reads it (rows.robot: rows --brief), text rather than JSON
 function P:brief(comp)
   local cmd = ("%s rows %s --brief"):format(quote(self.bin), quote(comp))
   local r = self.host.exec(cmd, self.timeout)

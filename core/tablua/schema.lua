@@ -55,15 +55,15 @@
 -- model's own prior, the tabular model's p that the move completes, the nearest states' rate), so where the parts
 -- disagree, and whether the wording moved the pick, are queries.
 -- Schema 19 (owner, 2026-10-06: Tablua is outfitted for Moonsplice): the comp a step left, as Moonsplice's rows
--- (msr/1, cadence/docs/ROWS.md), one snapshot per step (tablua_msr_*, keyed by (todo, n) then the row's own key: n = 0 is
+-- (msr/1, Moonsplice's .robot/docs/rows.robot), one snapshot per step (tablua_msr_*, keyed by (todo, n) then the row's own key: n = 0 is
 -- the comp before any step), what lint and check found in it (tablua_msr_finding, by the node and prop each is about)
 -- and how a judge scored it (tablua_score: the critic's dims, or the oracle's). A value cell holds a number or a
 -- string as itself and a boolean, array or object as canonical JSON text, its type column saying which (n, s, b, j),
--- as ROWS.md says. A step joins to what it changed through the snapshots.
+-- as rows.robot says. A step joins to what it changed through the snapshots.
 -- Schema 20 (owner, 2026-10-06): an asset may be a solid, built by Manifold from a tree of plain values
--- (tablua_msr_asset.solid, canonical JSON; cadence/docs/SOLIDS.md), and what the engine measured of each solid is kept
+-- (tablua_msr_asset.solid, canonical JSON; Moonsplice's .robot/docs/solids.robot), and what the engine measured of each solid is kept
 -- beside the snapshot, outside its tables as derived facts are (tablua_msr_solid: parts, genus, watertight, size).
--- Schema 21 (owner, 2026-10-06): what the ask requires, as predicates lint checks (tablua_msr_expect; ROWS.md,
+-- Schema 21 (owner, 2026-10-06): what the ask requires, as predicates lint checks (tablua_msr_expect; rows.robot,
 -- "Expectations"): written once at treat by the harness, never by a move, so deleting what an ask names is an error.
 -- Schema 22 (owner, 2026-10-06): every model call of a step (tablua_prompt): who was asked (writer, eye, judge,
 -- director), the bytes of each part of what it read (the card, the brief, the history...), the request as sent (images

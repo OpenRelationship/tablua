@@ -1,11 +1,11 @@
--- What the writer and the critic are asked, for a comp built as rows (cadence/docs/ROWS.md). The bans and the
--- critic's rubric are Moonsplice's own (cadence/agent/prompts.lua, 2026-10-06), kept word for word so a score means the
+-- What the writer and the critic are asked, for a comp built as rows (Moonsplice's .robot/docs/rows.robot). The bans and the
+-- critic's rubric are Moonsplice's own (Moonsplice's core/host/prompts.lua, 2026-10-06), kept word for word so a score means the
 -- same thing in both.
 --
 --   prompts.director(ask, kind, comp?) -> chat request     the treatment, within the seed (comp: its brief)
 --   prompts.move(move, ask, kind, treatment, standing, comp, card?, sources?) -> chat request   one move, as tool
 --                                  calls; comp is the engine's brief (rows --brief), card the sections of Moonsplice's
---                                  API card (cadence/agent/REFERENCE.md) the move needs, sources the systems' code
+--                                  API card (Moonsplice's .robot/docs/reference.robot) the move needs, sources the systems' code
 --   prompts.critic(ask, kind, treatment, sheet_b64, picks) -> chat request, its reply JSON { scores, broken, notes }
 --   prompts.scores(text) -> { dim = 1..5 } | nil, why
 local json = require("ports.json")
@@ -101,7 +101,7 @@ function M.move(move, ask, kind, treatment, standing, comp, card, sources)
     temperature = 0.4 }
 end
 
--- the ask as expectations (ROWS.md, "Expectations"): rows the engine checks every run, written once and then fixed
+-- the ask as expectations (rows.robot, "Expectations"): rows the engine checks every run, written once and then fixed
 function M.expect(ask, kind, treatment, comp, reference)
   return { system = "You turn the ask for a Moonsplice " .. (kind == "game" and "game" or "motion piece") .. " into "
       .. "expectations the engine checks on every run.\n\n" .. M.rows .. (reference and ("\n\nThe engine's reference:\n"

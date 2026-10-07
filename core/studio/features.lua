@@ -1,4 +1,4 @@
--- What TabICL reads of a comp at each decision (cadence/docs/ROWS.md, level 7): the comp's size by table, its open
+-- What TabICL reads of a comp at each decision (Moonsplice's .robot/docs/rows.robot, level 7): the comp's size by table, its open
 -- findings, the critic's last scores, where the work stands, and the move; read from the sheet's rows as the
 -- decision is made, kept as feature rows of that step (form "studio"), and the training table built from them.
 --
@@ -44,13 +44,13 @@ function M.read(t, todo, n, extra)
   end
   local f = { nodes = count("node"), keys = count("key"), motions = count("motion"), systems = count("system"),
     assets = count("asset"), facts = count("fact", " and derived = 0"),
-    -- what the assets gave at compile (ROWS.md's derived): the beats and words a key can be bound to
+    -- what the assets gave at compile (rows.robot's derived): the beats and words a key can be bound to
     beats = count("fact", " and derived = 1 and pred = 'beat'"), words = count("fact", " and derived = 1 and pred = 'word'"),
-    -- keys whose time is a fact reference (ROWS.md: a comp says what it is computed from)
+    -- keys whose time is a fact reference (rows.robot: a comp says what it is computed from)
     bound = count("key", " and typeof(t) = 'text' and t like '%:%'"),
     errors = count("finding", " and severity = 'error'"), warnings = count("finding", " and severity != 'error'"),
     check_errors = count("finding", " and severity = 'error' and tier = 'check'"),
-    -- Manifold's measures of each solid (cadence/docs/SOLIDS.md): more than one part, not closed, or empty is broken
+    -- Manifold's measures of each solid (Moonsplice's .robot/docs/solids.robot): more than one part, not closed, or empty is broken
     solids = count("solid"), broken_solids = count("solid", " and (parts > 1 or watertight = 0 or empty = 1)") }
   local last = one(t, "select max(n) as m from tablua_score where todo = ? and judge = 'critic' and n < ?", { todo, n })
   f.critic_low, f.critic_mean = -1, -1

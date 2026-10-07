@@ -1,6 +1,6 @@
--- The agent's moves on a comp (cadence/docs/ROWS.md, level 6): each a typed patch, its payload a JSON schema the
+-- The agent's moves on a comp (Moonsplice's .robot/docs/rows.robot, level 6): each a typed patch, its payload a JSON schema the
 -- writer fills as a tool call, checked here for shape before the engine checks it for meaning
--- (lib/moonsplice/rows.lua's MOVES, whose fields these are). treat is the director's treatment, not a comp edit.
+-- (core/moonsplice/rows.lua's MOVES, whose fields these are). treat is the director's treatment, not a comp edit.
 --
 --   moves.order                     the moves in the order they are offered
 --   moves.what[move]                one line on what the move does, for the decider and the writer
@@ -61,7 +61,7 @@ M.schema = {
   remove = obj({ id = S, system = S }, {}),
 }
 
--- expectations: the ask as predicates the engine's lint checks (ROWS.md, "Expectations"), written once at treat
+-- expectations: the ask as predicates the engine's lint checks (rows.robot, "Expectations"), written once at treat
 M.ops = { "==", "~=", ">", ">=", "<", "<=", "has" }
 local EXPECT = { type = "object", required = { "id", "says", "node" }, properties = {
   id = S, says = { type = "string", description = "the requirement in words, as a finding will name it" },
