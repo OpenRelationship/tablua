@@ -31,14 +31,16 @@ spec.test("with env.tablua the step is Tablua's rows too: where it stood, Jev's 
   a.env.tablua = t
   local req = { todo = "t", steps = { { n = 1, verb = "look", outcome = "broken" } }, standing = { stage = "" },
     repeats = 1 }
-  local step = { n = 2, verb = "run", outcome = "complete", sure = { p = 0.8, confidence = 0.6 } }
+  local step = { n = 2, verb = "run", outcome = "complete", sure = { p = 0.8, confidence = 0.6 }, by = "arbiter",
+    propensity = 0.95 }
   req.steps[2] = step
   checkpoint.after(a, req, step)
-  local r = t.db:exec([[select s.last_verb, s.last_outcome, s.stalls, c.jev_p, c.jev_conf, d.chosen, d.by, o.progress
+  local r = t.db:exec([[select s.last_verb, s.last_outcome, s.stalls, c.jev_p, c.jev_conf, d.chosen, d.by, d.propensity,
+    o.progress
     from tablua_state s join tablua_candidate c using (todo, n) join tablua_decision d using (todo, n)
     join tablua_outcome o using (todo, n)]])
   spec.same(r, { { last_verb = "look", last_outcome = "broken", stalls = 1, jev_p = 0.8, jev_conf = 0.6, chosen = "run",
-    by = "jev", progress = 1 } })
+    by = "arbiter", propensity = 0.95, progress = 1 } })
 end)
 
 spec.test("where a world keeps its pass rate (req.pass), the step's state row keeps it, for TabPFN's pass column", function()

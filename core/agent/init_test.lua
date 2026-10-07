@@ -136,6 +136,20 @@ spec.test("an explored step is heard as explore, with its propensity", function(
   spec.same(heard[1], { "look", "explore", 1, true })
 end)
 
+spec.test("a step carries how it was settled and its propensity, so its decision row says who chose", function()
+  local a = agent.new({ jev = jev({ choice("answer", { answer = 0.40, run = 0.36 }) }), mercury = mercury({ "run" }) },
+    world({}))
+  local step = a:step(a:begin("do it"))[2]
+  spec.same({ step.verb, step.by, step.propensity }, { "run", "arbiter", 1 })
+  local b = agent.new({ jev = jev({ choice("run", { run = 0.9, answer = 0.1 }) }), mercury = mercury({}), explore = 1,
+    random = function() return 0 end }, world({}))
+  b.world.question = function()
+    return { kind = "choice", text = "What next?", options = { run = "Run.", look = "Look.", answer = "Done." } }
+  end
+  local explored = b:step(b:begin("x"))[2]
+  spec.same({ explored.verb, explored.by, explored.propensity }, { "look", "explore", 1 })
+end)
+
 -- a plants run (2026-10-05): TabPFN rated blocked 0.45, tied with four moves and first by name, and took it twice,
 -- ending a run Jev gave blocked 0.01
 spec.test("TabPFN never takes a move that stops the work, and Jev breaks its ties", function()

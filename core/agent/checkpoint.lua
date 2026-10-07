@@ -90,7 +90,7 @@ local function rows(a, req, step, prev)
   if not written then
     t:candidates(req.todo, step.n, { { move = step.verb, jev_p = step.sure and step.sure.p,
       jev_conf = step.sure and step.sure.confidence } })
-    t:decision{ todo = req.todo, n = step.n, chosen = step.verb, by = step.by or "jev" }
+    t:decision{ todo = req.todo, n = step.n, chosen = step.verb, by = step.by or "jev", propensity = step.propensity }
   end
   t:outcome{ todo = req.todo, n = step.n, verb = step.verb, outcome = step.outcome, note = step.note }
 end

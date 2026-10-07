@@ -101,7 +101,7 @@ function A:decide(req)
   -- now and then a move the policy would not take, so what it avoids can be measured too
   local tried, propensity = self:explore(req, pick, questions.next)
   if tried then pick, how = tried, "explore" end
-  req.explored, req.propensity = tried ~= nil, propensity
+  req.explored, req.propensity, req.how = tried ~= nil, propensity, how
   if self.env.decided then self.env.decided(req, pick, n, how, propensity) end
   return pick
 end
@@ -179,7 +179,8 @@ function A:step(req)
   checkpoint.before(self, req)
   local verb, why = self:decide(req)
   if not verb or verb == "answer" then return { "done", why } end
-  return { "act", { verb = verb, lines = {}, sure = req.sure } }
+  -- how it was settled (jev, arbiter, tabpfn, explore) and the chance it had, for the step's decision row
+  return { "act", { verb = verb, lines = {}, sure = req.sure, by = req.how, propensity = req.propensity } }
 end
 
 -- The step's verb is done: the agent's own verbs here, a tool verb by the world.
