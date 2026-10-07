@@ -224,7 +224,7 @@ M.needs = {
   add_key = { "Keys and motion" }, move_key = { "Keys and motion" }, drop_key = { "Keys and motion" },
   bind = { "Keys and motion", "Derive and facts" }, add_system = { "Systems and code" },
   edit_system = { "Systems and code" }, derive = { "Derive and facts", "Local media" }, solid = { "Solids", "3D" },
-  remove = {}, expect = { "Node kinds", "Derive and facts" },
+  move_clip = { "Composition" }, remove = {}, expect = { "Node kinds", "Derive and facts" },
 }
 M.always = { "The moves", "Pitfalls" }
 M.worldly = { add_node = true, set_prop = true, add_system = true, edit_system = true }   -- 3D when the comp has a world

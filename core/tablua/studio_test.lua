@@ -170,4 +170,10 @@ spec.test("a file kept before schema 24 has its findings table rekeyed at open, 
   spec.same({ #t:findings_of("r", 1), #t:findings_of("r", 2) }, { 1, 2 })
 end)
 
+spec.test("a system keeps the clip whose local time it runs in (Moonsplice's composition, 2026-10-07)", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  t:comp("r", 1, { tables = { system = { { name = "sway", order = 1, source = "return 1", clip = "shot2" } } } })
+  spec.eq(t:comp_rows("r", 1).tables.system[1].clip, "shot2")
+end)
+
 spec.run()

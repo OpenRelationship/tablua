@@ -56,4 +56,12 @@ spec.test("expectations are one tool call of rows, each checked: an id, what it 
   spec.ok(not moves.check_expect({ id = "x", node = "t4" }))
   spec.ok(not moves.check_expect({ id = "x", says = "x", node = "t4", prop = "y" }), "a prop needs op and value")
 end)
+spec.test("move_clip puts a clip at another place in its track: by index, before or after a sibling", function()
+  spec.ok(moves.check("move_clip", { id = "shot2", index = 1 }))
+  spec.ok(moves.check("move_clip", { id = "shot2", before = "shot1" }))
+  local ok, why = moves.check("move_clip", { id = "shot2" })
+  spec.same({ ok, why }, { nil, "move_clip needs index, before or after" })
+  spec.same({ moves.check("move_clip", { id = "shot2", index = "first" }) }, { nil, "move_clip.index is not number" })
+end)
+
 spec.run()

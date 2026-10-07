@@ -75,14 +75,17 @@
 -- and studio pi-s5 kept one of each such pair. A file kept before it has the table rebuilt at open, its rows kept.
 -- Schema 25 (2026-10-07): an expectation the model wrote and withdrew, with its reason (tablua_withdrawal): what the
 -- ask was said to require and why it no longer does, for the judge to read and a claim to count. A seed's never is.
+-- Schema 26 (2026-10-07): Moonsplice's composition (clips, tracks, transitions, precomps) adds no table; a system may
+-- name the clip whose local time it runs in (tablua_msr_system.clip), added to a file kept before it at open.
 local M = {}
 
-M.version = 25
+M.version = 26
 
 -- the columns schema 18 adds, each with its type, to a file kept before it
 M.added = {
   tablua_prompt = { { "seconds", "real" }, { "tries", "integer" }, { "provider", "text" } },
   tablua_msr_asset = { { "solid", "text" } },
+  tablua_msr_system = { { "clip", "text" } },
   tablua_decision = { { "said", "text" }, { "state", "text" } },
   tablua_candidate = { { "prior", "real" }, { "p_complete", "real" }, { "knn", "real" } },
 }
@@ -255,7 +258,7 @@ create table if not exists tablua_msr_motion (
   todo text not null, n integer not null, id text not null, name text not null, t0 real not null, t1 real,
   curve text not null, params text not null default '{}', primary key (todo, n, id, name, t0));
 create table if not exists tablua_msr_system (
-  todo text not null, n integer not null, name text not null, ord real, source text not null default '',
+  todo text not null, n integer not null, name text not null, ord real, source text not null default '', clip text,
   primary key (todo, n, name));
 create table if not exists tablua_msr_asset (
   todo text not null, n integer not null, id text not null, src text not null default '', derive text not null default '',

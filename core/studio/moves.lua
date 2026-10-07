@@ -10,7 +10,7 @@
 local M = {}
 
 M.order = { "treat", "add_node", "set_prop", "add_key", "move_key", "drop_key", "bind", "add_system", "edit_system",
-  "derive", "solid", "remove" }
+  "derive", "solid", "move_clip", "remove" }
 
 M.what = {
   treat = "Write the treatment: the premise, the governing rule, the grammar and the structure. Not a comp edit.",
@@ -25,6 +25,8 @@ M.what = {
   derive = "Declare a media asset and the derive ops it is made with.",
   solid = "Build a solid with Manifold from a tree of ops (the reference's Solids section); a mesh node shows it with "
     .. "src = \"asset:<id>\", a system's entity with solid = \"asset:<id>\".",
+  move_clip = "Put a clip at another place in its track (index, 1 first, or before or after a sibling clip); the rest "
+    .. "ripple (the reference's Composition section).",
   remove = "Remove a node with its props, keys and children, or a system.",
 }
 
@@ -51,13 +53,15 @@ M.schema = {
   bind = obj({ id = S, name = S, t = T, fact = { type = "string", description = "pred:args, such as beat:12" } },
     { "id", "name", "t", "fact" }),
   add_system = obj({ name = S, source = { type = "string", description = "Lua returning function(t, state, q) -> rows" },
-    order = { type = "number" } }, { "name", "source" }),
-  edit_system = obj({ name = S, source = S, order = { type = "number" } }, { "name" }),
+    order = { type = "number" }, clip = { type = "string", description = "a clip whose local time t is; the system "
+      .. "runs only while it plays" } }, { "name", "source" }),
+  edit_system = obj({ name = S, source = S, order = { type = "number" }, clip = S }, { "name" }),
   derive = obj({ asset = { type = "object", properties = { id = S, src = S, derive = { type = "object" } },
     required = { "id", "src" } } }, { "asset" }),
   solid = obj({ asset = { type = "object", properties = { id = S, solid = { type = "object",
     description = "the tree: an op and its fields, children nested (the reference's Solids section)" } },
     required = { "id", "solid" } } }, { "asset" }),
+  move_clip = obj({ id = S, index = { type = "number", description = "1 is first" }, before = S, after = S }, { "id" }),
   remove = obj({ id = S, system = S }, {}),
 }
 
@@ -124,6 +128,8 @@ function M.check(move, patch)
     if type(n.id) ~= "string" or n.id == "" or type(n.kind) ~= "string" then return nil, "add_node needs node.id and node.kind" end
   elseif move == "solid" and (type(patch.asset.id) ~= "string" or type(patch.asset.solid) ~= "table") then
     return nil, "solid needs asset.id and asset.solid"
+  elseif move == "move_clip" and patch.index == nil and patch.before == nil and patch.after == nil then
+    return nil, "move_clip needs index, before or after"
   elseif move == "remove" and patch.id == nil and patch.system == nil then
     return nil, "remove needs id or system"
   end

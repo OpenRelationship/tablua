@@ -30,7 +30,7 @@ M.tables = {
   { name = "key", cols = { "id", "name", "t", "value", "ease" }, key = { "id", "name", "t" }, typed = "value" },
   { name = "motion", cols = { "id", "name", "t0", "t1", "curve", "params" }, key = { "id", "name", "t0" },
     json = { params = true } },
-  { name = "system", cols = { "name", "order", "source" }, key = { "order", "name" }, rename = { order = "ord" } },
+  { name = "system", cols = { "name", "order", "source", "clip" }, key = { "order", "name" }, rename = { order = "ord" } },
   { name = "asset", cols = { "id", "src", "derive", "solid" }, key = { "id" }, json = { derive = true, solid = true } },
   { name = "fact", cols = { "pred", "args", "t0", "t1", "src", "conf" }, key = { "pred", "args", "t0" },
     json = { args = true } },
