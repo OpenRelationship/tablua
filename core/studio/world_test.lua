@@ -96,4 +96,20 @@ spec.test("treat, a patch that breaks, a fix, a look, then answer: each step's r
   spec.same({ #states, t.db:exec("select by from tablua_decision where n = 1")[1].by }, { 4, "only" })   -- the gate and five of six scores at 3 or more: 6 of 7
 end)
 
+spec.test("look and answer are offered with errors open: the decider reads them and decides", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local e = engine()
+  e.node[1] = { id = "title", kind = "text", order = 1 }
+  e.prop[1] = { id = "title", name = "y", value = 1200 }
+  local w = world.new{ engine = e, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x", writer = writer({}),
+    critic = critic, exec = function() return { code = 0, stdout = "UE5H" } end }
+  local a = agent.new({ jev = jev({}, {}), tablua = t, memory = { begin = function() return "r" end } }, w)
+  local req = a:begin("x")
+  req.treatment = "a rule"
+  local function offered() local q = w.question(a) return q.options.look ~= nil, q.options.answer ~= nil end
+  spec.same({ offered() }, { true, false })
+  w.act(a, req, "look", { lines = {} })
+  spec.same({ offered() }, { false, true })
+end)
+
 spec.run()

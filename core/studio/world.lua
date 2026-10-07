@@ -10,8 +10,8 @@
 --   agent.new(env, w)      env.tablua = the same handle; env.learn with step = studio.features.learner(t)
 --
 -- Stages: treating (no treatment yet), building (no nodes, or errors open), polishing (no errors). Moves allowed:
--- treat while treating; every patch move after; look once the comp has changed since the last look and has no
--- errors; answer once a look scored the comp as it is.
+-- treat while treating; every patch move after; look once the comp has changed since the last look; answer once a
+-- look scored the comp as it is. Open errors hold neither back: the decider reads them in the state and decides.
 local checkpoint = require("agent.checkpoint")
 local json = require("ports.json")
 local moves = require("studio.moves")
@@ -23,8 +23,8 @@ local M = {}
 
 M.edits = { "add_node", "set_prop", "add_key", "move_key", "drop_key", "bind", "add_system", "edit_system", "derive",
   "remove" }
-M.look = "Render a contact sheet and have the critic score it (only once the comp changed and has no errors)."
-M.answer = "Hand the piece in: a look scored the comp as it is now."
+M.look = "Render a contact sheet and have the critic score it (once the comp changed since the last look)."
+M.answer = "Hand the piece in as it is now, scored by the last look. Open errors go with it."
 M.shown = 12   -- open findings shown in the state
 
 -- the stages whose every decision TabICL ranks, with env.rank or env.shadow
@@ -89,7 +89,9 @@ function M.new(o)
     if req.stage == "treating" then return { "treat" } end
     local out = {}
     for _, m in ipairs(M.edits) do out[#out + 1] = m end
-    if errors() == 0 and w.looked ~= w.digest then out[#out + 1] = "look" end
+    -- a look whenever the comp changed since the last: findings a step cannot clear (a contrast measured on pixels)
+    -- held every look and answer back in studio trial 1, and the agent could only go on patching
+    if w.looked ~= w.digest then out[#out + 1] = "look" end
     return out
   end
 
@@ -101,7 +103,7 @@ function M.new(o)
       render_s = w.render_s or -1 }))
     local options = {}
     for _, m in ipairs(w.allowed(a, req)) do options[m] = m == "look" and M.look or moves.what[m] end
-    if w.looked and w.looked == w.digest and errors() == 0 then options.answer = M.answer end
+    if w.looked and w.looked == w.digest then options.answer = M.answer end
     return { kind = "choice", options = options,
       text = "Which move should the studio make next on the comp? Read the ask, the treatment, the open findings and "
         .. "the critic's scores." }

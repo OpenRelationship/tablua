@@ -29,6 +29,12 @@ spec.test("a patch missing a field, or with one of the wrong type, is refused wi
   spec.ok(not moves.check("teleport", {}))
 end)
 
+spec.test("a value says its types, so a number goes as a number and null clears", function()
+  local v = moves.schema.set_prop.properties.value
+  spec.same(v.type, { "number", "string", "boolean", "array", "object", "null" })
+  spec.ok(v.description:find("48, not", 1, true))
+end)
+
 spec.test("a tool call's arguments become the engine's patch", function()
   spec.same(moves.patch("move_key", { id = "line", name = "y", t = 6, to_t = "beat:4" }),
     { move = "move_key", id = "line", name = "y", t = 6, to_t = "beat:4" })

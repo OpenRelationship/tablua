@@ -26,7 +26,10 @@ M.what = {
   remove = "Remove a node with its props, keys and children, or a system.",
 }
 
-local VALUE = { description = "a number, a string, a boolean, or an array or object of those" }
+-- a value names its types: left open, M3 sent every value as a string ("48", "null"; studio trial 1, 2026-10-06)
+local VALUE = { type = { "number", "string", "boolean", "array", "object", "null" },
+  description = "a number as a JSON number (48, not \"48\"), a string, a boolean, or an array or object of those; "
+    .. "null clears the prop" }
 local T = { description = "seconds, or a fact reference such as \"beat:12\"", type = { "number", "string" } }
 local S = { type = "string" }
 
@@ -39,7 +42,7 @@ M.schema = {
   add_node = obj({ node = { type = "object", description = "id and kind, parent (a group or world id) and order (draw order) if any, "
     .. "and its props at rest by name", properties = { id = S, kind = S, parent = S, order = { type = "number" } },
     required = { "id", "kind" }, additionalProperties = true } }, { "node" }),
-  set_prop = obj({ id = S, name = S, value = VALUE }, { "id", "name", "value" }),
+  set_prop = obj({ id = S, name = S, value = VALUE }, { "id", "name" }),   -- no value: the prop is cleared
   add_key = obj({ id = S, name = S, t = T, value = VALUE, ease = S }, { "id", "name", "t", "value" }),
   move_key = obj({ id = S, name = S, t = T, to_t = T, value = VALUE, ease = S }, { "id", "name", "t" }),
   drop_key = obj({ id = S, name = S, t = T }, { "id", "name", "t" }),
@@ -64,7 +67,8 @@ local function typed(v, want)
     for _, w in ipairs(want) do if typed(v, w) then return true end end
     return false
   end
-  if want == "object" then return type(v) == "table" end
+  if want == "object" or want == "array" then return type(v) == "table" end
+  if want == "null" then return v == nil end
   return type(v) == want
 end
 
