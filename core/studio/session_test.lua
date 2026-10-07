@@ -305,4 +305,22 @@ spec.test("the model withdraws its own expectation with a reason, kept as a row;
   local res = t.db:exec("select content from tablua_message where role = 'tool' and n = 2")[1].content
   spec.ok(res:find("1 withdrawn", 1, true) and res:find("seed-row is the seed's", 1, true), res)
 end)
+
+spec.test("a sheet the engine reported but did not write is a failed look, no empty image sent (pi-s6 ended on a 400)", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local m = model({ { calls = { { "look", {} } } }, { text = "done" }, { text = "done" } })
+  local s = session.new{ engine = engine(), model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
+    todo = "r", exec = function() return { code = 0, stdout = "" } end }
+  s:run()
+  local o = t.db:exec("select verb, outcome, note from tablua_outcome where n = 1")[1]
+  spec.same({ o.verb, o.outcome }, { "look", "broken" })
+  spec.ok(o.note:find("wrote no contact sheet", 1, true), o.note)
+  for _, req in ipairs(m.seen) do
+    for _, msg in ipairs(req.messages or {}) do
+      for _, part in ipairs(type(msg.content) == "table" and msg.content or {}) do
+        spec.ok(part.type ~= "image_url", "an image was sent")
+      end
+    end
+  end
+end)
 spec.run()

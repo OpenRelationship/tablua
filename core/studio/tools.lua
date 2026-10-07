@@ -224,6 +224,10 @@ function M.list(s)
       s.render_s = sheet.seconds
       local b64 = s.exec("base64 < '" .. s.sheet:gsub("'", [['\'']]) .. "' | tr -d '\\n'", 60)
       if not b64 or b64.code ~= 0 then error("could not read the contact sheet", 0) end
+      -- a pipe exits with its last command's status: a sheet never written reads as nothing (pi-s6)
+      if (b64.stdout or ""):match("^%s*$") then
+        error("the engine reported a sheet but wrote no contact sheet at " .. s.sheet, 0)
+      end
       local lines = { ("The contact sheet: frames at %s s, left to right, top to bottom (the image after this).")
         :format(table.concat(sheet.picks or {}, ", ")) }
       if s.judge then
