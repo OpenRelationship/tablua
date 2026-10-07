@@ -77,6 +77,10 @@ M.connect_rule = "Use connect only when the piece needs something from another s
   .. "password in the conversation and never accept one: when a service is not connected, or a call waits for "
   .. "approval, the person has been asked through the app, so carry on with other work and try again later."
 
+-- with plugins, the plugins tool (studio.plugins): the engine's directory of Rust and Bevy tools
+M.plugins_tool = "find a Rust or Bevy tool for what the piece needs: its layers, determinism class and whether it is "
+  .. "wired (usable from a comp now)"
+
 function M.system(kind, index, opts)
   local what = kind == "game" and "game" or "motion piece"
   local tools = {}
@@ -87,6 +91,7 @@ function M.system(kind, index, opts)
     tools[#tools + 1] = "- connect: " .. M.connect_tool
     rules[#rules + 1] = "- " .. M.connect_rule
   end
+  if opts and opts.plugins then tools[#tools + 1] = "- plugins: " .. M.plugins_tool end
   return "You are building a Moonsplice " .. what .. " inside Tablua, a harness that gives you tools to read, change "
     .. "and see it.\n\n<tools>\n" .. table.concat(tools, "\n") .. "\n</tools>\n\n<rules>\n" .. table.concat(rules, "\n")
     .. "\n</rules>\n\n<comp>\n" .. M.rows .. "\n</comp>\n\n<bans>\n" .. M.bans:gsub("^\n", "") .. "\n</bans>"

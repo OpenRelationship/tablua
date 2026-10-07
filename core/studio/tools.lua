@@ -294,6 +294,8 @@ function M.list(s)
   local list = { brief, patch, expect, look, reference }
   -- other people's apps, when the host gives the session connectory's port (studio.connect)
   if s.o and s.o.connect then list[#list + 1] = require("studio.connect").tool(s) end
+  -- Rust and Bevy tools, when the host gives the session its plugin directory (studio.plugins)
+  if s.o and s.o.plugins then list[#list + 1] = require("studio.plugins").tool(s) end
   return list
 end
 
