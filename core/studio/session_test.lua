@@ -150,6 +150,22 @@ spec.test("a hand-in on a version already sent back ends the run, errors and all
   spec.eq(t.db:exec("select works from tablua_run where todo = 'r'")[1].works, 0)
 end)
 
+spec.test("a reply without a tool call after more work on an unchanged comp comes back again (pi-g2 ended mid-fix)", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local m = model({
+    { calls = { { "patch", { moves = { { move = "add_node", node = { id = "title", kind = "text", y = 1200 } } } } } } },
+    { text = "Done." },
+    -- a patch the engine never applies: the comp is the version already sent back
+    { calls = { { "patch", { moves = { { move = "set_prop" } } } } } },
+    { text = "Let me try editing hud first, then game.init:" },
+    { text = "It cannot sit higher." } })
+  local s = session.new{ engine = engine(), model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
+    todo = "r", exec = function() return { code = 0, stdout = "UE5H" } end }
+  local out = s:run()
+  spec.same({ out.stop, #m.seen, out.said }, { "stop", 5, "It cannot sit higher." })
+  spec.eq(#t.db:exec("select 1 from tablua_message where role = 'user' and content like 'Not handed in%'"), 2)
+end)
+
 spec.test("TabICL ranks the moves before a patch and its line follows the result; it never blocks", function()
   local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
   local asked

@@ -14,7 +14,7 @@ ${SNAP}     (select max(c.n) from (select n from tablua_msr_comp where todo = m.
 *** Test Cases ***
 A Run Ends Only Through The Gate
     [Documentation]    A run marked complete (tablua_run.works) has no error open at its last snapshot: a hand-in with
-    ...    errors or failing expectations came back to the model, and a second hand-in on the same comp ended the run
+    ...    errors or failing expectations came back to the model, and a reply to that with no tool call ended the run
     ...    as partial. Kill: any complete run with an error open, among 3 or more runs.
     [Tags]    level:consistent    pi:gate    predict:holds@0.85
     Use Sheets    ${ALL}

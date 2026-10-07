@@ -2,8 +2,8 @@
 -- builds a Moonsplice comp until it hands in. Tablua keeps the rows: every tool call is a step n with its state,
 -- decision, features (what TabICL learns from), outcome and, for a change, the comp's snapshot and findings; every
 -- message joins tablua_message. Jev judges each look (studio.judge). A hand-in with errors open, failing
--- expectations or no look at the comp as it is comes back to the model as a follow-up, once for each version of the
--- comp; the run ends when the model hands in again on a comp it already handed in, never on a cap.
+-- expectations or no look at the comp as it is comes back to the model as a follow-up; the run ends when the model
+-- answers a send-back without calling a tool, never on a cap.
 --
 --   local s = require("studio.session").new{ engine, model, tablua, comp, sheet, ask, kind?, exec, reference?,
 --                                             judge?, learn?, todo?, compact?, log? }
@@ -117,6 +117,7 @@ end
 -- the step a tool call is: its state and the decision the model made, before it runs (what TabICL reads)
 local function begin(s, call, args)
   s.n = s.n + 1
+  s.worked = true
   local name = call["function"] and call["function"].name
   local chosen = name == "patch" and type(args.moves) == "table" and type(args.moves[1]) == "table"
     and args.moves[1].move or name
@@ -160,7 +161,7 @@ local function finish(s, call, result)
 end
 
 -- the model would stop: a hand-in with errors, failing expectations, no look at this version, no expectations of
--- the model's own or no change from the seed comes back once for each version of the comp
+-- the model's own or no change from the seed comes back, unless the model is answering a send-back with no tool call
 local function handed_in(s, turn, l)
   if turn.message.tool_calls then return nil end
   s.said = turn.message.content
@@ -175,8 +176,10 @@ local function handed_in(s, turn, l)
     open[#open + 1] = "Write what the ask requires as expectations first (expect): none of the comp's are yours."
   end
   if s.digest == s.seed then open[#open + 1] = "The comp is as it was given: nothing has changed." end
-  if #open == 0 or s.refused == s.digest then return nil end
-  s.refused = s.digest
+  -- the run ends when the model answers a send-back without trying anything: a reply with no tool call after work on
+  -- an unchanged comp is not a hand-in (pi-g2 ended on "Let me try editing hud first" after two rejected patches)
+  if #open == 0 or (s.sent_back and not s.worked) then return nil end
+  s.sent_back, s.worked = true, false
   l:follow_up("Not handed in yet. " .. table.concat(open, "\n") .. "\nFix what you can and look; if something "
     .. "cannot be fixed, say why when you hand in again.")
   return nil
