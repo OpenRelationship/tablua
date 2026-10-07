@@ -54,9 +54,15 @@
 -- (said) and the text it read (state); each candidate keeps the parts its probability was made of (the decision
 -- model's own prior, the tabular model's p that the move completes, the nearest states' rate), so where the parts
 -- disagree, and whether the wording moved the pick, are queries.
+-- Schema 19 (owner, 2026-10-06: Tablua is outfitted for Moonsplice): the comp a step left, as Moonsplice's rows
+-- (msr/1, cadence/docs/ROWS.md), one snapshot per step (tablua_msr_*, keyed by (todo, n) then the row's own key: n = 0 is
+-- the comp before any step), what lint and check found in it (tablua_msr_finding, by the node and prop each is about)
+-- and how a judge scored it (tablua_score: the critic's dims, or the oracle's). A value cell holds a number or a
+-- string as itself and a boolean, array or object as canonical JSON text, its type column saying which (n, s, b, j),
+-- as ROWS.md says. A step joins to what it changed through the snapshots.
 local M = {}
 
-M.version = 18
+M.version = 19
 
 -- the columns schema 18 adds, each with its type, to a file kept before it
 M.added = {
@@ -216,6 +222,37 @@ create view if not exists tablua_surprise as select r.todo, r.n, r.i,
   (r.failed is not null and r.failed != w.failed) as failed_differs
   from tablua_term r join tablua_term w on w.todo = r.todo and w.n = r.n and w.i = r.i and w.source = 'world'
   where r.source = 'real';
+create table if not exists tablua_msr_comp (
+  todo text not null, n integer not null, key text not null, value, type text not null default 's',
+  primary key (todo, n, key));
+create table if not exists tablua_msr_node (
+  todo text not null, n integer not null, id text not null, kind text not null, parent text not null default '',
+  z real, primary key (todo, n, id));
+create table if not exists tablua_msr_prop (
+  todo text not null, n integer not null, id text not null, name text not null, value,
+  type text not null default 's', primary key (todo, n, id, name));
+create table if not exists tablua_msr_key (
+  todo text not null, n integer not null, id text not null, name text not null, t not null, value,
+  type text not null default 's', ease text not null default '', primary key (todo, n, id, name, t));
+create table if not exists tablua_msr_motion (
+  todo text not null, n integer not null, id text not null, name text not null, t0 real not null, t1 real,
+  curve text not null, params text not null default '{}', primary key (todo, n, id, name, t0));
+create table if not exists tablua_msr_system (
+  todo text not null, n integer not null, name text not null, ord real, source text not null default '',
+  primary key (todo, n, name));
+create table if not exists tablua_msr_asset (
+  todo text not null, n integer not null, id text not null, src text not null default '', derive text not null default '',
+  primary key (todo, n, id));
+create table if not exists tablua_msr_fact (
+  todo text not null, n integer not null, pred text not null, args text not null, t0 real not null, t1 real,
+  src text not null default '', conf real, primary key (todo, n, pred, args, t0));
+create table if not exists tablua_msr_finding (
+  todo text not null, n integer not null, tier text not null, id text not null default '', name text not null default '',
+  code text not null, severity text not null, t0 real not null default -1, t1 real, measured, threshold,
+  detail text not null default '', primary key (todo, n, tier, id, name, code, t0));
+create table if not exists tablua_score (
+  todo text not null, n integer not null, judge text not null, dim text not null, value real,
+  primary key (todo, n, judge, dim));
 create table if not exists tablua_gate (
   name text primary key, predicate text not null, version integer not null default 1,
   retired_by text);
@@ -223,7 +260,8 @@ create table if not exists tablua_gate (
 
 -- the log's tables, each keyed by the todo (schema 14 renamed its column from task)
 M.log = { "state", "candidate", "decision", "action", "outcome", "run", "prediction", "feature", "result", "label",
-  "effect", "control", "ranking", "change", "term", "event", "file", "vector" }
+  "effect", "control", "ranking", "change", "term", "event", "file", "vector", "msr_comp", "msr_node", "msr_prop",
+  "msr_key", "msr_motion", "msr_system", "msr_asset", "msr_fact", "msr_finding", "score" }
 
 local function columns(db, tbl)
   local out = {}

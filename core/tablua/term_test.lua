@@ -37,7 +37,7 @@ end)
 
 spec.test("the terminal's tables are log tables, keyed by the todo", function()
   local t = fresh()
-  spec.eq(tablua.schema.version, 18)
+  spec.ok(tablua.schema.version >= 18)
   t:term("r1", 1, 1, "real", { keys = "true\n", exit = 0, done = true, screen = P .. "true\n" .. P })
   spec.eq(t:count("term"), 1)
 end)

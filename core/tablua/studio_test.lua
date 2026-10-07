@@ -1,0 +1,72 @@
+-- Unit cases for tablua.studio: a comp's msr/1 rows kept per step and read back the same, what a step touched as
+-- the difference of two snapshots, findings and scores as rows, and a step's outcome from the findings.
+local spec = require("spec")
+local tablua = require("tablua")
+local studio = require("tablua.studio")
+local json = require("ports.json")
+
+local function open() return tablua.open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end }) end
+
+local function comp(y, extra)
+  local rows = { schema = "msr/1", tables = {
+    comp = { { key = "width", value = 1920 }, { key = "fps", value = 30 } },
+    node = { { id = "line", kind = "rect", parent = "", z = 1 }, { id = "buoy", kind = "mesh", parent = "w", z = 0 },
+      { id = "w", kind = "world", parent = "", z = 2 } },
+    prop = { { id = "line", name = "y", value = y }, { id = "buoy", name = "pos", value = { 0, 0, -6 } },
+      { id = "buoy", name = "material", value = { color = "#c0392b" } } },
+    key = { { id = "line", name = "y", t = "0", value = 540, ease = "" }, { id = "tide", name = "opacity", t = "beat:1",
+      value = 1, ease = "expoOut" } },
+    system = { { name = "tide-follows-line", order = 1, source = "return function(t, s, q) return {} end" } },
+  } }
+  for k, v in pairs(extra or {}) do rows.tables[k] = v end
+  return rows
+end
+
+spec.test("a comp's rows go in per step and come back as they went, positions and materials included", function()
+  local t = open()
+  t:comp("r", 0, comp(540))
+  local back = t:comp_rows("r", 0)
+  spec.same({ back.tables.node[1].id, back.tables.prop[2].value, back.tables.prop[1].value, back.tables.key[2].t,
+    back.tables.system[1].order, back.tables.comp[2].value }, { "buoy", { 0, 0, -6 }, { color = "#c0392b" }, "beat:1", 1,
+    1920 })
+  t:comp("r", 9, back)
+  spec.eq(json.encode(t:comp_rows("r", 9)), json.encode(back))
+  spec.eq(t.db:exec("select value from tablua_msr_prop where id = 'buoy' and name = 'pos'")[1].value, "[0,0,-6]")
+end)
+
+spec.test("what a step touched is where its snapshot differs from the one before", function()
+  local t = open()
+  t:comp("r", 0, comp(540))
+  local after = comp(220)
+  table.remove(after.tables.node, 2)          -- buoy removed
+  table.remove(after.tables.prop, 3); table.remove(after.tables.prop, 2)
+  after.tables.system[1].source = "return function(t, s, q) return { { id = 'tide' } } end"
+  t:comp("r", 1, after)
+  spec.same(t:touched("r", 1), { { id = "buoy", name = "" }, { id = "buoy", name = "material" },
+    { id = "buoy", name = "pos" }, { id = "line", name = "y" }, { id = "system:tide-follows-line", name = "source" } })
+  t:comp("r", 2, after)
+  spec.same(t:touched("r", 2), {})
+end)
+
+local E = function(id, name, code, sev) return { tier = "lint", id = id, name = name, code = code, severity = sev or "error" } end
+
+spec.test("findings and scores are rows of the step", function()
+  local t = open()
+  t:findings("r", 1, { E("line", "y", "off_frame"), E("", "", "contrast", "warning") })
+  t:scores("r", 1, "critic", { rule = 4, craft = 2 })
+  spec.same({ #t:findings_of("r", 1), t.db:exec("select min(value) as low from tablua_score")[1].low }, { 2, 2 })
+end)
+
+spec.test("the outcome: nothing changed is no_effect, a new error is broken, the target's findings gone is complete", function()
+  local before = { E("line", "y", "off_frame"), E("tide", "opacity", "parked_visible", "warning") }
+  local touched = { { id = "line", name = "y" } }
+  spec.eq(studio.outcome(before, before, {}), "no_effect")
+  spec.eq(studio.outcome(before, { E("tide", "opacity", "parked_visible", "warning") }, touched), "complete")
+  spec.eq(studio.outcome(before, { before[1], before[2] }, touched), "no_effect")
+  spec.eq(studio.outcome(before, { before[2], E("sea", "", "missing_src") }, touched), "broken")
+  spec.eq(studio.outcome(before, { before[2], E("line", "y", "too_fast", "warning") }, touched), "no_effect")
+  -- a finding about a node the step removed (its props with it) is gone with it
+  spec.eq(studio.outcome({ E("buoy", "pos", "off_frame") }, {}, { { id = "buoy", name = "" } }), "complete")
+end)
+
+spec.run()

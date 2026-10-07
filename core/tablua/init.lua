@@ -306,12 +306,13 @@ end
 require("tablua.program")(T, put)
 require("tablua.control")(T, put)
 require("tablua.term")(T, put)
+require("tablua.studio")(T, put)
 require("tablua.app").install(T)
 
 local TABLES = { state = true, candidate = true, decision = true, action = true, outcome = true, run = true,
   fit = true, prediction = true, gate = true, feature = true, label = true, effect = true, section = true, unit = true,
   test = true, keyword = true, call = true, result = true, control = true, ranking = true, term = true, event = true,
-  file = true, vector = true }
+  file = true, vector = true, msr_node = true, msr_prop = true, msr_key = true, msr_finding = true, score = true }
 
 function T:count(name)
   assert(TABLES[name], "tablua: no table " .. tostring(name))
