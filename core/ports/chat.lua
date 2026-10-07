@@ -140,6 +140,10 @@ function Chat:chat(req)
   record.usage = { prompt = u.prompt_tokens, cached = details.cached_tokens or 0, completion = u.completion_tokens }
   local choice = body.choices and body.choices[1]
   local text = choice and choice.message and choice.message.content
+  -- why the reply ended (a "length" stop may have cut its tool calls short) and the model's reasoning, which MiniMax
+  -- asks to have sent back with its tool turn
+  record.finish = choice and choice.finish_reason
+  record.reasoning = choice and choice.message and (choice.message.reasoning_content or choice.message.reasoning)
   if req.tools then
     record.tool_calls = choice and choice.message and choice.message.tool_calls or {}
     if #record.tool_calls > 0 then return type(text) == "string" and text or "", record end

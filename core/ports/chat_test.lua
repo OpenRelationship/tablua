@@ -158,4 +158,20 @@ spec.test("a tool turn keeps the reasoning MiniMax asks to be sent back with it"
   spec.eq(seen.req.messages[3].reasoning_content, "why")
 end)
 
+
+spec.test("the record says why the reply ended and keeps the model's reasoning, to be sent back with its turn", function()
+  local calls = { { id = "c", type = "function", ["function"] = { name = "patch", arguments = "{}" } } }
+  local m = chat.new({ fetch = function()
+    return { status = 200, body = json.encode({ usage = {}, provider = "Fireworks", choices = { { finish_reason = "length",
+      message = { tool_calls = calls, reasoning_content = "move the line first" } } } }) }
+  end }, { key = "k", model = "minimax/minimax-m3" })
+  local _, record = m:chat{ messages = { { role = "user", content = "u" } }, tools = { { type = "function" } } }
+  spec.same({ record.finish, record.reasoning, record.provider }, { "length", "move the line first", "Fireworks" })
+  local m2 = chat.new({ fetch = function()
+    return { status = 200, body = json.encode({ usage = {}, choices = { { finish_reason = "stop",
+      message = { content = "Handed in.", reasoning = "all expectations hold" } } } }) }
+  end }, { key = "k", model = "minimax/minimax-m3" })
+  local text, r2 = m2:chat{ messages = { { role = "user", content = "u" } }, tools = { { type = "function" } } }
+  spec.same({ text, r2.finish, r2.reasoning }, { "Handed in.", "stop", "all expectations hold" })
+end)
 spec.run()

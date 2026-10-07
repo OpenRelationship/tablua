@@ -7,8 +7,13 @@ it reaches the world through; nothing here names one.
 - Tablua is outfitted for Moonsplice (owner, 2026-10-06): its world is building games and videos as Lua comps, and
   its rows, columns and learner are shaped for that world. This narrows "knows no host" above: Moonsplice's words
   (comp, gate, critic, frame) may name Tablua's columns and docs; Moonsplice's own code and stores still live in
-  Moonsplice. The stack is Jev deciding, MiniMax M3 writing and TabICL ranking; TabICL runs locally, in Moonsplice's
-  binary through Candle (reached as host.tabicl), never on a hosted service. `docs/overview.md` is how it fits.
+  Moonsplice. TabICL runs locally, in Moonsplice's binary through Candle (reached as host.tabicl), never on a hosted
+  service. `docs/overview.md` is how it fits.
+- The harness works the way pi does (owner, 2026-10-07; badlogic/pi-mono's pi-agent-core is the guide): one model in
+  one loop with a short system prompt and a few tools, calling tools until it answers without one; its context is
+  the transcript itself; a run ends when the model says it is done, never on a step, token or turn cap; a person or
+  a hook steers mid-run or queues a follow-up; tool errors go back to the model as results. MiniMax M3 drives. Jev and
+  TabICL are hooks, not the driver: Jev judges a look, TabICL learns from every tool call's rows and may annotate one.
 
 - Its Lua is `core/`:
   the harness (`tablua`, `agent`, `robot`) and the model ports (`ports`); read `core/AGENTS.md` before editing there.
