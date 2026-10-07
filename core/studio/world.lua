@@ -20,6 +20,7 @@ local moves = require("studio.moves")
 local features = require("studio.features")
 local prompts = require("studio.prompts")
 local judge = require("studio.judge")
+local context = require("studio.context")
 local studio = require("tablua.studio")
 
 local M = {}
@@ -120,6 +121,36 @@ function M.new(o)
         .. "the critic's scores." }
   end
 
+  -- a model call of step n, kept as a row (tablua_prompt) with each part's bytes, its request and its reply
+  local function call(role, port, req_c, todo, n, parts)
+    local ok, text, record = ask(port, req_c)
+    local reply = not ok and ("error: " .. tostring(text)) or (record and record.tool_calls and #record.tool_calls > 0
+      and json.encode(record.tool_calls)) or tostring(text or "")
+    t:prompt{ todo = todo, n = n, role = role, parts = parts or {}, text = context.shown(req_c), reply = reply }
+    return ok, text, record
+  end
+
+  local function judged_line()
+    if not w.critic then return nil end
+    local d = {}
+    for _, k in ipairs(prompts.order) do
+      local v = w.critic.scores[k]
+      d[#d + 1] = k .. " " .. (v and ("%.1f"):format(v) or "?")
+    end
+    return ("The last look%s: %s. %s"):format(w.looked == w.digest and "" or " (on an earlier version)",
+      table.concat(d, ", "), clip(w.critic.notes, 500))
+  end
+
+  -- what the writer reads of the run: the stage, every step's line rendered from the sheet, and the last look; the ask,
+  -- the treatment and the comp (its brief, with its findings) go beside it once
+  local function story(req)
+    local s = { ("Stage: %s. Steps so far: %d."):format(req.stage or stage(req), #req.steps) }
+    local h = context.history(t, req.todo, #req.steps)
+    if h ~= "" then s[#s + 1] = "What each step did:\n" .. h end
+    s[#s + 1] = judged_line()
+    return table.concat(s, "\n"), #h
+  end
+
   local function standing(req)
     local s = { ("Ask (%s): %s"):format(o.kind or "video", o.ask),
       req.treatment and ("Treatment: " .. clip(req.treatment, 600)) or "Treatment: none yet.",
@@ -129,23 +160,20 @@ function M.new(o)
     local parts = {}
     for _, r in ipairs(kinds) do parts[#parts + 1] = r.c .. " " .. r.kind end
     s[#s + 1] = "Comp: " .. (#parts > 0 and table.concat(parts, ", ") or "no nodes yet") .. "."
-    s[#s + 1] = ("Open findings: %d (%d errors)."):format(#w.findings, errors())
-    for i = 1, math.min(M.shown, #w.findings) do
-      local f = w.findings[i]
+    -- errors then warnings; info judges nothing and is left out
+    local shown = {}
+    for _, sev in ipairs({ "error", "warning" }) do
+      for _, f in ipairs(w.findings) do if (f.severity or "error") == sev then shown[#shown + 1] = f end end
+    end
+    s[#s + 1] = ("Open findings: %d (%d errors)."):format(#shown, errors())
+    for i = 1, math.min(M.shown, #shown) do
+      local f = shown[i]
       s[#s + 1] = ("  %s %s %s%s: %s"):format(f.tier or "lint", f.severity or "error", f.code, f.id ~= "" and f.id
         and (" on " .. f.id .. (f.name and f.name ~= "" and ("." .. f.name) or "")) or "", clip(f.detail, 160))
     end
-    if w.critic then
-      local d = {}
-      for _, k in ipairs(prompts.order) do
-        local v = w.critic.scores[k]
-        d[#d + 1] = k .. " " .. (v and ("%.1f"):format(v) or "?")
-      end
-      s[#s + 1] = ("Critic%s: %s. %s"):format(w.looked == w.digest and "" or " (on an earlier version)",
-        table.concat(d, ", "), clip(w.critic.notes, 500))
-    end
-    local last = req.steps[#req.steps]
-    if last then s[#s + 1] = ("Last step: %s -> %s. %s"):format(last.verb, tostring(last.outcome), clip(last.note, 400)) end
+    s[#s + 1] = judged_line()
+    local h = context.history(t, req.todo, #req.steps)
+    if h ~= "" then s[#s + 1] = "What each step did:\n" .. h end
     return table.concat(s, "\n")
   end
 
@@ -167,14 +195,24 @@ function M.new(o)
   function w.ask(a, req) return w.think(a, req) end
   function w.form(written) return { question = written } end
 
+  -- the comp as the writer reads it: the engine's brief, or its rows as JSON from an engine without one
+  local function seen_comp(req)
+    if o.engine.brief then
+      local ok, text = pcall(o.engine.brief, o.engine, o.comp)
+      if ok and text ~= "" then return text end
+    end
+    local rows = t:comp_rows(req.todo, w.snapped or 0)
+    return json.encode({ tables = rows.tables, derived = rows.derived, solids = rows.solids })
+  end
+
   -- the ask as expectations, once, after the treatment: rows the engine checks every run and no move may change, so a
   -- step cannot meet the ask by deleting what it names (studio s2 removed the tide table and was scored complete)
   local function expect(req, step, n)
-    local rows = t:comp_rows(req.todo, w.snapped or 0)
-    local req_w = prompts.expect(o.ask, o.kind, req.treatment, json.encode({ tables = rows.tables,
-      derived = rows.derived }), o.reference)
+    local comp, card = seen_comp(req), context.card(o.reference, "expect", o.kind, false)
+    local req_w = prompts.expect(o.ask, o.kind, req.treatment, comp, card)
     req_w.tools, req_w.tool_choice, req_w.reasoning_effort = { moves.expect_tool() }, "required", "low"
-    local ok, _, record = ask(o.writer, req_w)
+    local ok, _, record = call("expect", o.writer, req_w, req.todo, n, { brief = #comp, card = #(card or ""),
+      treatment = #(req.treatment or ""), ask = #o.ask })
     local good, refused = {}, {}
     for _, c in ipairs(ok and record and record.tool_calls or {}) do
       local okj, args = pcall(json.decode, c["function"] and c["function"].arguments or "")
@@ -193,7 +231,7 @@ function M.new(o)
   end
 
   local function treat(req, step, n)
-    local ok, text = ask(o.writer, prompts.director(o.ask, o.kind))
+    local ok, text = call("director", o.writer, prompts.director(o.ask, o.kind), req.todo, n, { ask = #o.ask })
     if not ok or not text or text == "" then step.outcome, step.note = "broken", "the director failed: " .. clip(text, 200) return end
     req.treatment = text
     step.outcome, step.note = "complete", "treatment: " .. clip(text:gsub("\n", " "), 200)
@@ -202,12 +240,16 @@ function M.new(o)
 
   -- an eye that describes and a judge that scores (studio.judge): neither tells the writer what to delete
   local function judged(req, step, n, sheet, b64)
-    local oke, text = ask(o.critic, prompts.eye(o.ask, o.kind, b64, sheet.picks))
+    local oke, text = call("eye", o.critic, prompts.eye(o.ask, o.kind, b64, sheet.picks), req.todo, n,
+      { sheet = #b64, ask = #o.ask })
     local seen, why = prompts.observations(oke and text)
     if not seen then step.outcome, step.note = "broken", why .. ": " .. clip(text, 200) return end
     local state, qs = judge.ask{ ask = o.ask, treatment = req.treatment, findings = w.findings, seen = seen,
       expects = t:comp_rows(req.todo, w.snapped or 0).tables.expect or {}, sheet_b64 = b64 }
     local okj, answers = pcall(o.judge.decide, o.judge, state, qs)
+    t:prompt{ todo = req.todo, n = n, role = "judge", parts = { sheet = #b64, seen = #table.concat(seen, "\n"),
+      expects = #(t:comp_rows(req.todo, w.snapped or 0).tables.expect or {}) }, text = context.shown({ state = state,
+      questions = qs }), reply = okj and json.encode(answers) or ("error: " .. tostring(answers)) }
     if not okj then step.outcome, step.note = "broken", "the judge failed: " .. clip(answers, 200) return end
     local scores, said = judge.read(qs, answers, seen)
     t:scores(req.todo, n, "critic", scores)
@@ -222,8 +264,8 @@ function M.new(o)
     local b64 = o.exec("base64 < '" .. o.sheet:gsub("'", [['\'']]) .. "' | tr -d '\\n'", 60)
     if not b64 or b64.code ~= 0 then step.outcome, step.note = "broken", "could not read the sheet" return end
     if o.judge then return judged(req, step, n, sheet, b64.stdout) end
-    local okc, text = ask(o.critic, prompts.critic(o.ask, o.kind, req.treatment, b64.stdout, sheet.picks,
-      t:comp_rows(req.todo, w.snapped or 0).tables.expect))
+    local okc, text = call("critic", o.critic, prompts.critic(o.ask, o.kind, req.treatment, b64.stdout, sheet.picks,
+      t:comp_rows(req.todo, w.snapped or 0).tables.expect), req.todo, n, { sheet = #b64.stdout })
     local scores, said = prompts.scores(okc and text)
     if not scores then step.outcome, step.note = "broken", tostring(said) .. ": " .. clip(text, 200) return end
     t:scores(req.todo, n, "critic", scores)
@@ -237,9 +279,20 @@ function M.new(o)
     -- the newest snapshot, not step n - 1's: treat and look take none (studio s2: a key after a look saw an empty comp
     -- and guessed the node buoy)
     local rows = t:comp_rows(req.todo, w.snapped or 0)
-    -- the comp's rows and the facts its assets gave (beat:N, word:...), so a bind names one that exists
-    local req_w = prompts.move(move, o.ask, o.kind, req.treatment, standing(req),
-      json.encode({ tables = rows.tables, derived = rows.derived, solids = rows.solids }), o.reference)
+    -- the comp as the engine's brief (its facts, keys with references resolved, what each system sets, the
+    -- expectations and findings), the run as a line a step, and the card's sections this move needs (Moonsplice's
+    -- context audit of s2, 2026-10-06: 18.6 KB of card and 17.7 KB of rows JSON every step, one step of history)
+    local comp = seen_comp(req)
+    local said, hist = story(req)
+    local world_ = false
+    for _, nd in ipairs(rows.tables.node or {}) do world_ = world_ or nd.kind == "world" end
+    local card = context.card(o.reference, move, o.kind, world_)
+    local sources = {}
+    if move == "add_system" or move == "edit_system" then
+      for _, sy in ipairs(rows.tables.system or {}) do sources[#sources + 1] = "-- " .. sy.name .. "\n" .. sy.source end
+    end
+    sources = table.concat(sources, "\n\n")
+    local req_w = prompts.move(move, o.ask, o.kind, req.treatment, said, comp, card, sources)
     -- the chosen move first, then the others it may need in the same reply (an add_node with its keys): in studio s1
     -- a node and its keys took a step each, and seventeen steps changed little (Moonsplice's read, 2026-10-06)
     local offered = { [move] = true }
@@ -249,7 +302,8 @@ function M.new(o)
     end
     -- one call that reasons briefly: M3 at its default effort took 50 to 280 s a step, and once 129k tokens
     req_w.reasoning_effort = "low"
-    local ok, _, record = ask(o.writer, req_w)
+    local ok, _, record = call("writer", o.writer, req_w, req.todo, n, { card = #(card or ""), brief = #comp,
+      history = hist, standing = #said, treatment = #(req.treatment or ""), ask = #o.ask, sources = #sources })
     if not ok then step.outcome, step.note = "broken", "the writer failed: " .. clip(_, 300) return end
     local patches, refused, chosen = {}, {}, false
     for _, c in ipairs(record.tool_calls or {}) do
@@ -271,7 +325,8 @@ function M.new(o)
     if not okp then step.outcome, step.note = "broken", "the patch failed: " .. clip(res, 300) return end
     snap(req.todo, n, res.findings or {})
     for i, p in ipairs(res.applied or {}) do
-      t:action{ todo = req.todo, n = n, i = i, cmd = json.encode(p), op = p.move or move, target = (p.id or p.name or "") }
+      t:action{ todo = req.todo, n = n, i = i, cmd = json.encode(p), op = p.move or move,
+        target = p.id or (p.node and p.node.id) or (p.asset and p.asset.id) or p.system or p.name or "" }
     end
     local changed = res.digest_before ~= res.digest_after
     step.outcome = changed and studio.outcome(before, w.findings, res.touched or {}) or "no_effect"

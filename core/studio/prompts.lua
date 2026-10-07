@@ -3,9 +3,9 @@
 -- same thing in both.
 --
 --   prompts.director(ask, kind) -> chat request            the treatment
---   prompts.move(move, ask, kind, treatment, standing, rows_json, reference?) -> chat request   one move, as tool
---                                  calls; reference is Moonsplice's rows-form API card (cadence/agent/REFERENCE.md),
---                                  given by the host
+--   prompts.move(move, ask, kind, treatment, standing, comp, card?, sources?) -> chat request   one move, as tool
+--                                  calls; comp is the engine's brief (rows --brief), card the sections of Moonsplice's
+--                                  API card (cadence/agent/REFERENCE.md) the move needs, sources the systems' code
 --   prompts.critic(ask, kind, treatment, sheet_b64, picks) -> chat request, its reply JSON { scores, broken, notes }
 --   prompts.scores(text) -> { dim = 1..5 } | nil, why
 local json = require("ports.json")
@@ -31,7 +31,7 @@ M.rubric = {
 M.order = { "rule", "relationship", "defaults", "rhythm", "memory", "craft" }
 
 M.rows = [[
-A comp is rows (msr/1): comp (width, height, duration, fps, ...), node (id, kind, parent, z), prop (id, name, value),
+A comp is rows (msr/1): comp (width, height, duration, fps, ...), node (id, kind, parent, order), prop (id, name, value),
 key (id, name, t, value, ease: from the previous key of that prop to this one; t is seconds or a fact reference such
 as "beat:12"), motion (path, wiggle, follow, spring, drop), system (a pure function (t, state, q) -> rows, run every
 frame after the keys; it reads only through q), asset (src and its derive ops) and fact (what perception found). 3D
@@ -46,12 +46,13 @@ function M.director(ask, kind)
     temperature = 0.7 }
 end
 
-function M.move(move, ask, kind, treatment, standing, rows_json, reference)
+function M.move(move, ask, kind, treatment, standing, comp, card, sources)
   return { system = "You build a Moonsplice " .. (kind == "game" and "game" or "motion piece") .. " to a treatment, "
       .. "one move at a time.\n\n" .. M.rows .. "\n\n" .. M.bans
-      .. (reference and ("\n\nThe engine's reference:\n" .. reference) or ""),
+      .. (card and ("\n\nThe engine's reference:\n" .. card) or ""),
     messages = { { role = "user", content = "The ask: " .. ask .. "\n\nThe treatment:\n" .. (treatment or "(none yet)")
-      .. "\n\nWhere the work stands:\n" .. standing .. "\n\nThe comp's rows now:\n" .. rows_json .. "\n\nMake this move: "
+      .. "\n\nWhere the work stands:\n" .. standing .. "\n\nThe comp now:\n" .. comp
+      .. (sources and sources ~= "" and ("\n\nThe systems' source:\n" .. sources) or "") .. "\n\nMake this move: "
       .. move .. ". Call its tool once per patch. When the move needs patches of other kinds to read (a new node's "
       .. "keys, its bind to a beat), make them in the same reply, after it; change nothing the move does not need. Write numbers and booleans as JSON numbers and booleans, never in quotes, in node "
       .. "props and derive ops too (y = 500, not \"500\"; deflicker = true, not \"true\")." } },
@@ -59,12 +60,12 @@ function M.move(move, ask, kind, treatment, standing, rows_json, reference)
 end
 
 -- the ask as expectations (ROWS.md, "Expectations"): rows the engine checks every run, written once and then fixed
-function M.expect(ask, kind, treatment, rows_json, reference)
+function M.expect(ask, kind, treatment, comp, reference)
   return { system = "You turn the ask for a Moonsplice " .. (kind == "game" and "game" or "motion piece") .. " into "
       .. "expectations the engine checks on every run.\n\n" .. M.rows .. (reference and ("\n\nThe engine's reference:\n"
       .. reference) or ""),
     messages = { { role = "user", content = "The ask: " .. ask .. "\n\nThe treatment:\n" .. (treatment or "(none)")
-      .. "\n\nThe comp's rows now (its expect rows, if any, are the seed's and stay):\n" .. rows_json .. "\n\nCall the "
+      .. "\n\nThe comp now (its expectations, if any, are the seed's and stay):\n" .. comp .. "\n\nCall the "
       .. "expect tool once with three to eight rows: what the ask requires that the engine can measure. Name nodes "
       .. "and props in the rows; a node the ask needs that is not there yet may be named by the id a move should give "
       .. "it. Times are seconds inside the comp or facts that exist (beat:N); has takes a string, the others numbers. Each row: id, says "

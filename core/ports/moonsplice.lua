@@ -4,7 +4,7 @@
 --
 --   local m = require("ports.moonsplice").new(host, { bin = ".../bin/moonsplice", tmp = dir, timeout? })
 --     host.exec(cmd, timeout) -> { code, stdout, stderr }   host.write(path, text) (patch files)
---   m:rows(comp) -> { schema, tables, digest }
+--   m:rows(comp) -> { schema, tables, digest }      m:brief(comp) -> text   the comp as a model reads it
 --   m:patch(comp, patches) -> { applied, rejected = { { patch, why } }, touched, digest_before, digest_after, findings }
 --   m:expect(comp, rows) -> { added, rejected = { { row, why } }, digest_before, digest_after, findings }   the ask as
 --                         predicates (ROWS.md, "Expectations"), added once by the harness: no patch move touches them
@@ -46,6 +46,16 @@ function P:run(...)
 end
 
 function P:rows(comp) return self:run("rows", comp) end
+
+-- the comp as a model reads it (ROWS.md: rows --brief), text rather than JSON
+function P:brief(comp)
+  local cmd = ("%s rows %s --brief"):format(quote(self.bin), quote(comp))
+  local r = self.host.exec(cmd, self.timeout)
+  if not r or r.code ~= 0 then
+    error(("moonsplice rows --brief failed (%s): %s"):format(tostring(r and r.code), tostring(r and r.stderr or "")), 0)
+  end
+  return r.stdout or ""
+end
 function P:lint(comp) return self:run("lint", comp).findings or {} end
 function P:check(comp) return self:run("check", comp).findings or {} end
 function P:sheet(comp, out) return self:run("sheet", comp, out) end

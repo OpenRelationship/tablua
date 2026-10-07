@@ -126,4 +126,14 @@ spec.test("expectations are rows of the comp, their times seconds or facts, and 
   t:comp("r", 1, back)
   spec.eq(json.encode(t:comp_rows("r", 1)), json.encode(back))
 end)
+
+spec.test("each model call of a step is a row: who was asked, each part's bytes, the text sent and the reply", function()
+  local t = open()
+  t:prompt{ todo = "r", n = 3, role = "writer", parts = { card = 4200, brief = 4736, history = 610 },
+    text = "the whole request", reply = "the tool calls" }
+  t:prompt{ todo = "r", n = 3, role = "writer", parts = { card = 4200 }, text = "again", reply = "" }
+  local rows = t.db:exec("select i, role, bytes, parts, text from tablua_prompt where todo = 'r' and n = 3 order by i")
+  spec.same({ #rows, rows[1].i, rows[2].i, rows[1].bytes, json.decode(rows[1].parts).brief, rows[2].text },
+    { 2, 1, 2, #"the whole request", 4736, "again" })
+end)
 spec.run()

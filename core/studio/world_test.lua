@@ -252,4 +252,39 @@ spec.test("with a judge, a look is an eye that describes and Jev that scores; ne
   spec.same({ t.db:exec("select count(*) as c from tablua_score where n = 2 and judge = 'critic'")[1].c, req.pass },
     { 7, 1 })
 end)
+
+spec.test("the writer reads the brief, every step's line and the card's sections, the treatment once; every call is a row", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local e = engine()
+  function e.brief() return "BRIEF: the comp as text" end
+  local card = "# THE CARD\n## Keys and motion\nKEYS SECTION\n## The moves (patch)\nMOVES SECTION\n"
+    .. "## Node kinds: { id= }\nKINDS SECTION\n## Pitfalls\nPITFALLS SECTION\n"
+  local reqs = {}
+  local w = world.new{ engine = e, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "a tide clock",
+    reference = card, critic = critic, exec = function() return { code = 0, stdout = "UE5H" } end,
+    writer = { chat = function(_, req)
+      if not req.tools then return "Premise: a tide line. Rule: the line." end
+      reqs[#reqs + 1] = req
+      local args = #reqs == 1 and { node = { id = "title", kind = "text", y = 1200 } } or { id = "title", name = "y", value = 540 }
+      return "", { tool_calls = { { id = "c", type = "function", ["function"] = { name = req.tools[1]["function"].name,
+        arguments = json.encode(args) } } } }
+    end } }
+  local memory = { begin = function() return "r" end, step = function() end, log = function() end }
+  local a = agent.new({ jev = jev({ "add_node", "set_prop" }, {}), tablua = t, memory = memory }, w)
+  local req = a:begin("a tide clock")
+  for _ = 1, 3 do local r = a:step(req) a:perform(req, r[2]) a:close(req, r[2]) end
+  local text = reqs[2].messages[1].content
+  spec.ok(text:find("BRIEF: the comp as text", 1, true), text)
+  spec.ok(text:find("step 2 add_node title -> broken; errors 0->1 (+1: off_frame on title)", 1, true), text)
+  local _, twice = text:gsub("Rule: the line", "")
+  spec.eq(twice, 1)
+  spec.ok(not text:find('"tables"', 1, true), "no rows JSON beside the brief")
+  local sys = reqs[2].system
+  spec.ok(sys:find("KINDS SECTION", 1, true) and sys:find("MOVES SECTION", 1, true) and sys:find("PITFALLS", 1, true))
+  spec.ok(not sys:find("KEYS SECTION", 1, true), "set_prop needs no keys section")
+  local rows = t.db:exec("select n, role, parts, bytes from tablua_prompt order by n, i")
+  spec.same({ #rows, rows[1].role, rows[2].role, rows[3].role }, { 3, "director", "writer", "writer" })
+  spec.same({ json.decode(rows[3].parts).brief, rows[3].n }, { #"BRIEF: the comp as text", 3 })
+  spec.ok(rows[3].bytes > 0)
+end)
 spec.run()

@@ -55,4 +55,11 @@ spec.test("expectations go to a file, then to the engine's expect, which adds th
     { 1, "expect_failed", "t4" })
   spec.eq(h.ran[1].cmd, "'moonsplice' expect '/w/c.lua' '/tmp/t/expect-1.json' --json")
 end)
+
+spec.test("the brief is the comp as text, the one command read back without JSON", function()
+  local h = host({ { code = 0, stdout = "comp 1280x720, 8s\nnodes:\n  t1 text\n", stderr = "" } })
+  local m = moonsplice.new(h, { bin = "moonsplice" })
+  spec.eq(m:brief("/w/c.lua"), "comp 1280x720, 8s\nnodes:\n  t1 text\n")
+  spec.eq(h.ran[1].cmd, "'moonsplice' rows '/w/c.lua' --brief")
+end)
 spec.run()

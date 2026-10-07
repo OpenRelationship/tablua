@@ -34,7 +34,7 @@ for Moonsplice, and last what is still to build.
 | `ports.jev` | Tablua | Jev: a typed choice with a probability per option, through OpenRouter. |
 | `ports.chat` | Tablua | Any chat model. MiniMax M3 through OpenRouter, or `service = "minimax"` for MiniMax's own API. |
 | `ports.tabicl` | Tablua | TabICL in TabPFN's port shape. Calls the host's own TabICL (`host.tabicl`) or a server's url. |
-| `tablua` (`core/tablua/`) | Tablua | The rows: one SQLite file per run, every table named `tablua_*`, so a host can let the harness write those and no others. `tablua.studio` keeps the comp as rows per step (schema 20). |
+| `tablua` (`core/tablua/`) | Tablua | The rows: one SQLite file per run, every table named `tablua_*`, so a host can let the harness write those and no others. `tablua.studio` keeps the comp as rows per step (schema 22). |
 | `robot` (`core/robot/`) | Tablua | Robot Framework tests parsed and run in Lua, every keyword's result kept as a row. |
 
 The host supplies everything that touches the world: `fetch` for HTTP, a `db` with `exec(sql, params)`, the clock,
@@ -97,7 +97,7 @@ Every table is in `core/tablua/schema.lua` (schema 18). They fall into three par
 | `tablua_run` | run | How it ended: shipped, answered, works, steps, cost. |
 | `tablua_action`, `tablua_change`, `tablua_term`, `tablua_event`, `tablua_file`, `tablua_vector`, `tablua_control` | call, edit, keystroke, screen event, file, vector, control | The terminal and desktop worlds' detail. Moonsplice needs none of them today. |
 
-### The comp: what Moonsplice is making, one snapshot per step (schema 20)
+### The comp: what Moonsplice is making, one snapshot per step (schema 22)
 
 The contract is `cadence/docs/ROWS.md` (msr/1). Each table is the engine's, with `(todo, n)` first: the comp as it
 stood after step n, and n = 0 before any step. What step n changed is where snapshot n differs from n - 1
@@ -112,6 +112,7 @@ stood after step n, and n = 0 before any step. What step n changed is where snap
 | `tablua_msr_motion` | motion that is not key to key | path, wiggle, follow, spring, drop |
 | `tablua_msr_system` | system | a pure function `(t, state, q) -> rows` |
 | `tablua_msr_asset`, `tablua_msr_fact` | asset, fact | media and what perception found |
+| `tablua_prompt` | (none) | every model call of a step: role (director, expect, writer, eye, judge), each part's bytes, the request as sent with images as sizes, the reply |
 | `tablua_msr_solid` | the rows' `solids` | what Manifold measured of each solid asset (parts, genus, watertight, size); outside the digest |
 | `tablua_msr_finding` | lint or check finding | by the node and prop it is about; empty id for the comp |
 | `tablua_score` | judge's score | the critic's six dims per look, or the oracle's |

@@ -65,9 +65,12 @@
 -- beside the snapshot, outside its tables as derived facts are (tablua_msr_solid: parts, genus, watertight, size).
 -- Schema 21 (owner, 2026-10-06): what the ask requires, as predicates lint checks (tablua_msr_expect; ROWS.md,
 -- "Expectations"): written once at treat by the harness, never by a move, so deleting what an ask names is an error.
+-- Schema 22 (owner, 2026-10-06): every model call of a step (tablua_prompt): who was asked (writer, eye, judge,
+-- director), the bytes of each part of what it read (the card, the brief, the history...), the request as sent (images
+-- replaced by their size) and the reply, so what a model saw at a step is a query rather than a reconstruction.
 local M = {}
 
-M.version = 21
+M.version = 22
 
 -- the columns schema 18 adds, each with its type, to a file kept before it
 M.added = {
@@ -252,6 +255,9 @@ create table if not exists tablua_msr_asset (
 create table if not exists tablua_msr_expect (
   todo text not null, n integer not null, id text not null, says text not null default '', node text, prop text,
   op text, value, type text not null default 's', at, t0, t1, holds text, primary key (todo, n, id));
+create table if not exists tablua_prompt (
+  todo text not null, n integer not null, i integer not null, role text not null, parts text not null default '{}',
+  bytes integer, text text not null default '', reply text not null default '', primary key (todo, n, i));
 create table if not exists tablua_msr_solid (
   todo text not null, n integer not null, id text not null, parts integer, genus integer, watertight integer,
   empty integer, volume real, area real, triangles integer, size text, primary key (todo, n, id));
@@ -275,7 +281,7 @@ create table if not exists tablua_gate (
 M.log = { "state", "candidate", "decision", "action", "outcome", "run", "prediction", "feature", "result", "label",
   "effect", "control", "ranking", "change", "term", "event", "file", "vector", "msr_comp", "msr_node", "msr_prop",
   "msr_key", "msr_motion", "msr_system", "msr_asset", "msr_fact", "msr_finding", "score",
-  "msr_solid", "msr_expect" }
+  "msr_solid", "msr_expect", "prompt" }
 
 local function columns(db, tbl)
   local out = {}

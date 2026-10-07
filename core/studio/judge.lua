@@ -22,7 +22,9 @@ end
 
 local function failing(x, findings)
   for _, f in ipairs(findings or {}) do
-    if f.code == "expect_failed" and (f.detail == x.says or (f.id ~= "" and f.id == x.node and not f.detail)) then
+    -- the engine names the expectation at the end of the detail: "<says>: <why> (expect <id>)"
+    local id = f.code == "expect_failed" and tostring(f.detail or ""):match("%(expect ([^)]+)%)%s*$")
+    if id == x.id or (f.code == "expect_failed" and f.detail == x.says) then
       return true
     end
   end

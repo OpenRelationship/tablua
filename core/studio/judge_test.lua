@@ -37,4 +37,11 @@ spec.test("one observation or none: no choice is asked, the one is the next note
   spec.eq(said.next, "only this")
 end)
 
+
+spec.test("an expectation fails when a finding names it, as the engine writes it: its words, why, and (expect id)", function()
+  local state = judge.ask{ ask = "x", expects = { { id = "wl", says = "22:58 HIGH sits on the waterline" } },
+    findings = { { code = "expect_failed", id = "wl_type", severity = "error",
+      detail = "22:58 HIGH sits on the waterline: node wl_type does not exist (expect wl)" } }, seen = {} }
+  spec.ok(state:find("waterline (the engine: failing)", 1, true), state)
+end)
 spec.run()
