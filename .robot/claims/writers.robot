@@ -28,6 +28,14 @@ DeepSeek Flash Passes Half The Time
     Use Trials    writer-deepseek-flash
     Half Pass
 
+MiniMax M3 Passes Half The Time
+    [Documentation]    Writer minimax/minimax-m3, the newest MiniMax (added on request while the three arms ran; its
+    ...    smoke test made the tool call in 1.5 to 2.8 s, where minimax-m2.7 answered with a provider 401). Kill:
+    ...    fewer than 2 of 4 scored trials pass.
+    [Tags]    level:useful    writer:minimax-m3    predict:holds@0.3
+    Use Trials    writer-minimax-m3
+    Half Pass
+
 A Stronger Writer Beats The Modal Qwen
     [Documentation]    At least one of the three arms passes more overfull-hbox trials than the Modal Qwen's 1 of 33.
     ...    Read across the three arms' trials. Kill: no arm passes any trial (all 12 scored, 0 passed).
@@ -44,6 +52,10 @@ Gemini Flash Passes Half The Time (red)
     Half Pass
 
 DeepSeek Flash Passes Half The Time (red)
+    Use Fixture    insert into trial (job, trial, task, reward) values ('j', 'a', 'overfull-hbox', 0), ('j', 'b', 'overfull-hbox', 0), ('j', 'c', 'overfull-hbox', 1), ('j', 'd', 'overfull-hbox', 0)
+    Half Pass
+
+MiniMax M3 Passes Half The Time (red)
     Use Fixture    insert into trial (job, trial, task, reward) values ('j', 'a', 'overfull-hbox', 0), ('j', 'b', 'overfull-hbox', 0), ('j', 'c', 'overfull-hbox', 1), ('j', 'd', 'overfull-hbox', 0)
     Half Pass
 
