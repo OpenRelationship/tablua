@@ -13,6 +13,7 @@ reads it as Lua modules by name (`core/tablua/source.lua` is `tablua.source`).
   No build system: no BUCK, no nomimono (owner, 2026-10-05).
 - Portable Lua: it runs unchanged on LuaJIT, Lua 5.4/5.5, Luerl and any other Lua VM a host embeds. No FFI except in host
   files that say so (`ports.sqlite`, `ports.curl`), which a host without FFI leaves out and supplies itself; no `goto`, `//` or `utf8`.
-- No host's names: nothing here names a product built on Tablua. A host's own ports and stores live with the host.
+- Moonsplice is the host Tablua is outfitted for (owner, 2026-10-06, see ../AGENTS.md): its world's words may name
+  columns; its code, ports and stores live in Moonsplice. TabICL runs in its binary and is reached as host.tabicl.
 - Consumers depend on targets, never on file paths across domains. 400 lines a file at most.
 - Do not add a domain until two real modules have nowhere else to go.

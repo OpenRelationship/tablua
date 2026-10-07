@@ -1,9 +1,13 @@
--- TabICL behind TabPFN's port shape, so learn.lua ranks moves with it as it would with TabPFN: a host's TabICL
--- server (POST <url>/predict, as tablua-local's modal/tabular.py serves it). TabICL learns in context, so a fit is
+-- TabICL behind TabPFN's port shape, so learn.lua ranks moves with it as it would with TabPFN. Where it runs is the
+-- host's: its own TabICL in its binary (host.tabicl, Moonsplice's Candle build reached through mlua: the owner's
+-- choice, 2026-10-06, TabICL runs locally), or a TabICL server (POST <url>/predict, as tablua-local's
+-- modal/tabular.py serves it). Either takes the same body and gives { probas }. TabICL learns in context, so a fit is
 -- kept here, costs no call, and goes with every prediction; the server keeps nothing between calls. It costs no
 -- TabPFN tokens (estimate is 0).
 --
---   local tab = require("ports.tabicl").new(host, { url = "https://...", key = k, timeout? })
+--   local tab = require("ports.tabicl").new(host)        host.tabicl(body) -> { probas, ms? }, the host's own model
+--   local tab = require("ports.tabicl").new(host, { url = "https://...", key = k, timeout? })   a server
+--   body = { train = { columns, rows }, labels, categorical = { 0-based }, test = { columns, rows } }
 --   learn.new{ tabpfn = tab, tablua = t }
 --   tab:fit(train, labels, { categorical = { 0-based indices } }) -> id
 --   tab:predict(id, test) -> { { p0, p1 }, ... }, record
@@ -16,8 +20,12 @@ local T = {}
 T.__index = T
 
 function M.new(host, opts)
-  assert(host and host.fetch, "tabicl needs a host with fetch")
-  assert(opts and opts.url, "tabicl needs the server's url")
+  assert(host, "tabicl needs a host")
+  if not (opts and opts.url) then
+    assert(type(host.tabicl) == "function", "tabicl needs the host's own TabICL (host.tabicl) or a server's url")
+    return setmetatable({ host = host, fits = {}, n = 0 }, T)
+  end
+  assert(host.fetch, "tabicl needs a host with fetch for a server")
   assert(opts.key, "tabicl needs a key")
   return setmetatable({ host = host, url = opts.url:gsub("/+$", "") .. "/predict", key = opts.key,
     timeout = opts.timeout or 120, fits = {}, n = 0 }, T)
@@ -36,8 +44,16 @@ end
 
 function T:predict(id, test)
   local f = assert(self.fits[id], "tabicl: no fit " .. tostring(id))
-  local body, record = call.post(self.host, "tabicl", self.url, self.key, { train = f.train, labels = f.labels,
-    categorical = f.categorical, test = { columns = test.columns, rows = test.rows } }, self.timeout)
+  local req = { train = f.train, labels = f.labels, categorical = f.categorical,
+    test = { columns = test.columns, rows = test.rows } }
+  local body, record
+  if self.url then
+    body, record = call.post(self.host, "tabicl", self.url, self.key, req, self.timeout)
+  else
+    local t0 = self.host.now and self.host.now()
+    body = self.host.tabicl(req)
+    record = { service = "tabicl-local", seconds = t0 and self.host.now() - t0 }
+  end
   local probas = body and body.probas
   assert(type(probas) == "table" and #probas == #test.rows,
     ("tabicl gave %s answers for %d rows"):format(type(probas) == "table" and #probas or "no", #test.rows))

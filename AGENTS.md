@@ -4,6 +4,12 @@ it reaches the world through; nothing here names one.
 
 ## Tablua rules
 
+- Tablua is outfitted for Moonsplice (owner, 2026-10-06): its world is building games and videos as Lua comps, and
+  its rows, columns and learner are shaped for that world. This narrows "knows no host" above: Moonsplice's words
+  (comp, gate, critic, frame) may name Tablua's columns and docs; Moonsplice's own code and stores still live in
+  Moonsplice. The stack is Jev deciding, MiniMax M3 writing and TabICL ranking; TabICL runs locally, in Moonsplice's
+  binary through Candle (reached as host.tabicl), never on a hosted service. `docs/overview.md` is how it fits.
+
 - Its Lua is `core/`:
   the harness (`tablua`, `agent`, `robot`) and the model ports (`ports`); read `core/AGENTS.md` before editing there.
 - A program is org plus Robot Framework (owner, 2026-10-05): org holds the plan and the code, Robot the tests and

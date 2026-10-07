@@ -48,4 +48,18 @@ spec.test("learn ranks a run's moves with it in TabPFN's place", function()
   spec.same({ ranked[1].name, #seen.req.train.rows, seen.req.categorical }, { "fix", 16, require("tablua").categorical })
 end)
 
+spec.test("with the host's own TabICL (host.tabicl, a model in its binary), the port calls it and no fetch", function()
+  local got
+  local h = { tabicl = function(body)
+    got = body
+    return { probas = { { 0.1, 0.9 } } }
+  end }
+  local t = tabicl.new(h)
+  local id = t:fit({ columns = { "move" }, rows = { { "fix" }, { "look" } } }, { 1, 0 }, { categorical = { 0 } })
+  local probas, record = t:predict(id, { columns = { "move" }, rows = { { "fix" } } })
+  spec.same({ probas, got.labels, got.categorical, got.test.rows, record.service }, { { { 0.1, 0.9 } }, { 1, 0 }, { 0 },
+    { { "fix" } }, "tabicl-local" })
+  spec.err(function() tabicl.new({}) end)
+end)
+
 spec.run()
