@@ -181,4 +181,45 @@ spec.test("a patch after a treat and a look sees the comp as it stands, and the 
   spec.ok(seen:find("Light the buoy", 1, true), "the writer saw no critique")
 end)
 
+
+spec.test("treat turns the ask into expectations once and the critic is told they are fixed", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local e = engine()
+  e.expects = {}
+  local plain = e.rows
+  function e.rows() local r = plain() r.tables.expect = e.expects return r end
+  function e.lint()
+    local out = {}
+    for _, x in ipairs(e.expects) do out[#out + 1] = { tier = "lint", id = x.node, code = "expect_failed",
+      severity = "error", detail = x.says } end
+    return out
+  end
+  function e.expect(_, _, rows)
+    for _, x in ipairs(rows) do e.expects[#e.expects + 1] = x end
+    return { added = rows, rejected = {}, findings = e.lint() }
+  end
+  local said
+  local w = world.new{ engine = e, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "the turn of the tide",
+    reference = "THE CARD",
+    writer = { chat = function(_, req)
+      if not req.tools then return "Rule: the tide turns at 22:58." end
+      spec.eq(req.tools[1]["function"].name, "expect")
+      return "", { tool_calls = { { id = "c", type = "function", ["function"] = { name = "expect", arguments = json.encode(
+        { rows = { { id = "high", says = "the HIGH row lands", node = "t4", prop = "opacity", op = ">=", value = 0.9,
+          at = "beat:14" }, { id = "bad", node = "t4" } } }) } } } }
+    end },
+    critic = { chat = function(_, req)
+      said = req.messages[1].content[1].text
+      return '{"scores": {"rule": 4, "relationship": 3, "defaults": 4, "rhythm": 3, "memory": 2, "craft": 4}, "notes": "x"}'
+    end },
+    exec = function() return { code = 0, stdout = "UE5H" } end }
+  local memory = { begin = function() return "r" end, step = function() end, log = function() end }
+  local a = agent.new({ jev = jev({ "look" }, {}), tablua = t, memory = memory }, w)
+  local req = a:begin("the turn of the tide")
+  for _ = 1, 2 do local r = a:step(req) a:perform(req, r[2]) a:close(req, r[2]) end
+  spec.same({ req.steps[1].outcome, #e.expects, t:comp_rows("r", 1).tables.expect[1].at, t:findings_of("r", 1)[1].code },
+    { "complete", 1, "beat:14", "expect_failed" })
+  spec.ok(req.steps[1].note:find("1 expectation", 1, true), req.steps[1].note)
+  spec.ok(said:find("the HIGH row lands", 1, true) and said:find("restyle, move or retime", 1, true), said)
+end)
 spec.run()

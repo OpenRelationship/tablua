@@ -34,6 +34,9 @@ M.tables = {
   { name = "asset", cols = { "id", "src", "derive", "solid" }, key = { "id" }, json = { derive = true, solid = true } },
   { name = "fact", cols = { "pred", "args", "t0", "t1", "src", "conf" }, key = { "pred", "args", "t0" },
     json = { args = true } },
+  -- what the ask requires (ROWS.md, "Expectations"); at, t0 and t1 are seconds or fact references, kept as they come
+  { name = "expect", cols = { "id", "says", "node", "prop", "op", "value", "at", "t0", "t1", "holds" }, key = { "id" },
+    typed = "value" },
 }
 
 local function is_array(t)

@@ -61,6 +61,36 @@ M.schema = {
   remove = obj({ id = S, system = S }, {}),
 }
 
+-- expectations: the ask as predicates the engine's lint checks (ROWS.md, "Expectations"), written once at treat
+M.ops = { "==", "~=", ">", ">=", "<", "<=", "has" }
+local EXPECT = { type = "object", required = { "id", "says", "node" }, properties = {
+  id = S, says = { type = "string", description = "the requirement in words, as a finding will name it" },
+  node = { type = "string", description = "the node it is about (an id in the comp's rows); alone, it must exist" },
+  prop = S, op = { type = "string", enum = M.ops }, value = VALUE,
+  at = T, t0 = T, t1 = T, holds = { type = "string", enum = { "ever", "always" }, description = "ever: at some frame of "
+    .. "t0..t1; always (the default): at every one" } } }
+
+function M.expect_tool()
+  return { type = "function", ["function"] = { name = "expect", description = "Write what the ask requires as "
+    .. "expectations the engine checks every run.", parameters = obj({ rows = { type = "array", items = EXPECT } },
+    { "rows" }) } }
+end
+
+function M.check_expect(x)
+  if type(x) ~= "table" then return nil, "an expectation is an object" end
+  local id = tostring(x.id)
+  for _, k in ipairs({ "id", "says", "node" }) do
+    if type(x[k]) ~= "string" or x[k] == "" then return nil, ("expect %s needs %s"):format(id, k) end
+  end
+  if x.prop ~= nil then
+    local known = false
+    for _, op in ipairs(M.ops) do known = known or x.op == op end
+    if not known then return nil, ("expect %s: op %q is not one of %s"):format(id, tostring(x.op), table.concat(M.ops, " ")) end
+    if x.value == nil then return nil, ("expect %s needs a value"):format(id) end
+  end
+  return true
+end
+
 function M.tool(move)
   assert(M.schema[move], "studio: no move " .. tostring(move))
   return { type = "function", ["function"] = { name = move, description = M.what[move], parameters = M.schema[move] } }

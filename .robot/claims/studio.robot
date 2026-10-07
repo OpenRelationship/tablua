@@ -8,7 +8,9 @@ Documentation    The studio world on a real Moonsplice comp (owner, 2026-10-06; 
 
 *** Variables ***
 ${ALL}      runs/studio-*.sqlite
-${PATCH}    ('add_node', 'set_prop', 'add_key', 'move_key', 'drop_key', 'bind', 'add_system', 'edit_system', 'derive', 'remove')
+# the newest snapshot before step o.n: treat and look take none, so n - 1 may have no rows (fixed before measuring)
+${BEFORE}    (select max(c.n) from tablua_msr_comp c where c.todo = o.todo and c.n < o.n)
+${PATCH}    ('add_node', 'set_prop', 'add_key', 'move_key', 'drop_key', 'bind', 'add_system', 'edit_system', 'derive', 'solid', 'remove')
 
 *** Test Cases ***
 Patch Moves Land
@@ -56,6 +58,19 @@ A Run Ends With The Gate Passing (red)
     Use Fixture    insert into tablua_msr_node (todo, n, id, kind) values ('a', 4, 'x', 'rect'), ('b', 2, 'x', 'rect'), ('c', 6, 'x', 'rect')    insert into tablua_msr_finding (todo, n, tier, code, severity) values ('b', 2, 'lint', 'off_frame', 'error')
     Runs End Clean
 
+No Complete Step Adds An Expectation Failed
+    [Documentation]    A step judged complete never leaves more expect_failed findings than the snapshot before it:
+    ...    a move cannot meet the ask by deleting what an expectation names (Moonsplice's ask, 2026-10-06; studio s2
+    ...    removed the tide table at steps 12 to 14 and was scored complete). The oracle is the engine's lint of the
+    ...    expectations written at treat. Kill: any, among 5 or more complete patch steps.
+    [Tags]    level:correct    studio:expect    predict:holds@0.9
+    Use Sheets    ${ALL}
+    Complete Adds No Expect Failed
+
+No Complete Step Adds An Expectation Failed (red)
+    Use Fixture    with recursive c(i) as (select 1 union all select i + 1 from c where i < 6) insert into tablua_outcome (todo, n, verb, outcome, progress) select 't', i, 'remove', 'complete', 1 from c    insert into tablua_msr_comp (todo, n, key, value) values ('t', 11, 'fps', 30), ('t', 12, 'fps', 30)    insert into tablua_outcome (todo, n, verb, outcome, progress) values ('t', 12, 'remove', 'complete', 1)    insert into tablua_msr_finding (todo, n, tier, id, code, severity) values ('t', 12, 'lint', 't4', 'expect_failed', 'error')
+    Complete Adds No Expect Failed
+
 *** Keywords ***
 Patches Land
     ${all}=    Value Of    select count(*) from tablua_decision where chosen in ${PATCH}
@@ -66,7 +81,7 @@ Patches Land
 Complete Adds No Error
     ${all}=    Value Of    select count(*) from tablua_outcome where outcome = 'complete' and verb in ${PATCH}
     Needs At Least    ${all}    5    complete patch steps
-    ${bad}=    Value Of    select count(*) from tablua_outcome o where o.outcome = 'complete' and o.verb in ${PATCH} and (select count(*) from tablua_msr_finding f where f.todo = o.todo and f.n = o.n and f.severity = 'error') > (select count(*) from tablua_msr_finding f where f.todo = o.todo and f.n = o.n - 1 and f.severity = 'error')
+    ${bad}=    Value Of    select count(*) from tablua_outcome o where o.outcome = 'complete' and o.verb in ${PATCH} and (select count(*) from tablua_msr_finding f where f.todo = o.todo and f.n = o.n and f.severity = 'error') > (select count(*) from tablua_msr_finding f where f.todo = o.todo and f.n = ${BEFORE} and f.severity = 'error')
     Should Be True    ${bad} == 0    ${bad} of ${all} complete steps added an error
 
 Looks Scored
@@ -80,3 +95,9 @@ Runs End Clean
     Needs At Least    ${runs}    3    runs
     ${dirty}=    Value Of    select count(*) from (select todo, max(n) as last from tablua_msr_node group by todo) r where (select count(*) from tablua_msr_finding f where f.todo = r.todo and f.n = r.last and f.severity = 'error') > 0
     Should Be True    ${dirty} == 0    ${dirty} of ${runs} runs ended with errors open
+
+Complete Adds No Expect Failed
+    ${all}=    Value Of    select count(*) from tablua_outcome where outcome = 'complete' and verb in ${PATCH}
+    Needs At Least    ${all}    5    complete patch steps
+    ${bad}=    Value Of    select count(*) from tablua_outcome o where o.outcome = 'complete' and o.verb in ${PATCH} and (select count(*) from tablua_msr_finding f where f.todo = o.todo and f.n = o.n and f.code = 'expect_failed') > (select count(*) from tablua_msr_finding f where f.todo = o.todo and f.n = ${BEFORE} and f.code = 'expect_failed')
+    Should Be True    ${bad} == 0    ${bad} of ${all} complete steps added an expect_failed

@@ -162,11 +162,37 @@ function M.new(o)
   function w.ask(a, req) return w.think(a, req) end
   function w.form(written) return { question = written } end
 
-  local function treat(req, step)
+  -- the ask as expectations, once, after the treatment: rows the engine checks every run and no move may change, so a
+  -- step cannot meet the ask by deleting what it names (studio s2 removed the tide table and was scored complete)
+  local function expect(req, step, n)
+    local rows = t:comp_rows(req.todo, w.snapped or 0)
+    local req_w = prompts.expect(o.ask, o.kind, req.treatment, json.encode({ tables = rows.tables,
+      derived = rows.derived }), o.reference)
+    req_w.tools, req_w.tool_choice, req_w.reasoning_effort = { moves.expect_tool() }, "required", "low"
+    local ok, _, record = ask(o.writer, req_w)
+    local good, refused = {}, {}
+    for _, c in ipairs(ok and record and record.tool_calls or {}) do
+      local okj, args = pcall(json.decode, c["function"] and c["function"].arguments or "")
+      for _, x in ipairs(okj and type(args) == "table" and args.rows or {}) do
+        local fine, why = moves.check_expect(x)
+        if fine then good[#good + 1] = x else refused[#refused + 1] = why end
+      end
+    end
+    if #good == 0 then step.note = step.note .. "; no expectations: " .. clip(ok and table.concat(refused, "; ") or _, 200) return end
+    local oke, res = pcall(o.engine.expect, o.engine, o.comp, good)
+    if not oke then step.note = step.note .. "; expectations failed: " .. clip(res, 200) return end
+    snap(req.todo, n, res.findings)
+    for _, r in ipairs(res.rejected or {}) do refused[#refused + 1] = clip(r.why, 120) end
+    step.note = ("%s; %d expectations written, %d refused%s"):format(step.note, #(res.added or {}), #refused,
+      #refused > 0 and (": " .. table.concat(refused, "; ")) or "")
+  end
+
+  local function treat(req, step, n)
     local ok, text = ask(o.writer, prompts.director(o.ask, o.kind))
     if not ok or not text or text == "" then step.outcome, step.note = "broken", "the director failed: " .. clip(text, 200) return end
     req.treatment = text
     step.outcome, step.note = "complete", "treatment: " .. clip(text:gsub("\n", " "), 200)
+    if o.engine.expect then expect(req, step, n) end
   end
 
   local function look(req, step, n)
@@ -175,7 +201,8 @@ function M.new(o)
     w.render_s = sheet.seconds
     local b64 = o.exec("base64 < '" .. o.sheet:gsub("'", [['\'']]) .. "' | tr -d '\\n'", 60)
     if not b64 or b64.code ~= 0 then step.outcome, step.note = "broken", "could not read the sheet" return end
-    local okc, text = ask(o.critic, prompts.critic(o.ask, o.kind, req.treatment, b64.stdout, sheet.picks))
+    local okc, text = ask(o.critic, prompts.critic(o.ask, o.kind, req.treatment, b64.stdout, sheet.picks,
+      t:comp_rows(req.todo, w.snapped or 0).tables.expect))
     local scores, said = prompts.scores(okc and text)
     if not scores then step.outcome, step.note = "broken", tostring(said) .. ": " .. clip(text, 200) return end
     t:scores(req.todo, n, "critic", scores)
@@ -236,7 +263,7 @@ function M.new(o)
 
   function w.act(_, req, verb, step)
     local n = #req.steps + 1
-    if verb == "treat" then treat(req, step)
+    if verb == "treat" then treat(req, step, n)
     elseif verb == "look" then look(req, step, n)
     elseif moves.schema[verb] then edit(req, step, n, verb)
     else step.outcome, step.note = "broken", "no such move " .. tostring(verb) end

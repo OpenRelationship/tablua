@@ -6,6 +6,8 @@
 --     host.exec(cmd, timeout) -> { code, stdout, stderr }   host.write(path, text) (patch files)
 --   m:rows(comp) -> { schema, tables, digest }
 --   m:patch(comp, patches) -> { applied, rejected = { { patch, why } }, touched, digest_before, digest_after, findings }
+--   m:expect(comp, rows) -> { added, rejected = { { row, why } }, digest_before, digest_after, findings }   the ask as
+--                         predicates (ROWS.md, "Expectations"), added once by the harness: no patch move touches them
 --   m:lint(comp) -> findings      m:check(comp) -> findings      m:sheet(comp, out_png) -> { picks, seconds }
 --
 -- Every command prints JSON and exits 0 when it ran; any other exit is the command failing, raised with its stderr.
@@ -54,6 +56,14 @@ function P:patch(comp, patches)
   local path = ("%s/patches-%d.json"):format(self.tmp, self.n)
   self.host.write(path, json.encode(json.array(patches)))
   return self:run("patch", comp, path)
+end
+
+function P:expect(comp, rows)
+  assert(self.host.write, "moonsplice expect needs a host with write")
+  self.n = self.n + 1
+  local path = ("%s/expect-%d.json"):format(self.tmp, self.n)
+  self.host.write(path, json.encode(json.array(rows)))
+  return self:run("expect", comp, path)
 end
 
 return M

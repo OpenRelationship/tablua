@@ -58,14 +58,38 @@ function M.move(move, ask, kind, treatment, standing, rows_json, reference)
     temperature = 0.4 }
 end
 
-function M.critic(ask, kind, treatment, sheet_b64, picks)
+-- the ask as expectations (ROWS.md, "Expectations"): rows the engine checks every run, written once and then fixed
+function M.expect(ask, kind, treatment, rows_json, reference)
+  return { system = "You turn the ask for a Moonsplice " .. (kind == "game" and "game" or "motion piece") .. " into "
+      .. "expectations the engine checks on every run.\n\n" .. M.rows .. (reference and ("\n\nThe engine's reference:\n"
+      .. reference) or ""),
+    messages = { { role = "user", content = "The ask: " .. ask .. "\n\nThe treatment:\n" .. (treatment or "(none)")
+      .. "\n\nThe comp's rows now (its expect rows, if any, are the seed's and stay):\n" .. rows_json .. "\n\nCall the "
+      .. "expect tool once with three to eight rows: what the ask requires that the engine can measure. Name nodes "
+      .. "and props in the rows; a node the ask needs that is not there yet may be named by the id a move should give "
+      .. "it. Times are seconds inside the comp or facts that exist (beat:N); has takes a string, the others numbers. Each row: id, says "
+      .. "(the requirement in words), node; with prop, an op (== ~= > >= < <= has) and a value, at a time (at) or over "
+      .. "t0..t1 (holds = \"ever\" for some frame of it). These are fixed once written: nothing later may change them, "
+      .. "so write what the ask needs, not how to build it. Write numbers and booleans unquoted." } },
+    temperature = 0.3 }
+end
+
+function M.critic(ask, kind, treatment, sheet_b64, picks, expects)
+  local fixed = ""
+  if expects and #expects > 0 then
+    local says = {}
+    for i, x in ipairs(expects) do says[i] = "- " .. tostring(x.says) end
+    fixed = "The ask's expectations are fixed and the engine checks them; they are not yours to drop:\n"
+      .. table.concat(says, "\n") .. "\nWhere one names something that should not stay as it is, say restyle, move "
+      .. "or retime it, never kill or remove it.\n\n"
+  end
   local lines, fields = {}, {}
   for i, k in ipairs(M.order) do lines[i] = k .. ": " .. M.rubric[k]; fields[i] = '"' .. k .. '": n' end
   return { messages = { { role = "user", content = {
     { type = "text", text = "You are a demanding creative director reviewing a " .. (kind == "game" and "game (a "
       .. "recording of it playing itself)" or "motion piece") .. ". The ask was: " .. ask .. "\n\n"
       .. (treatment and ("Its treatment:\n" .. treatment .. "\n\n") or "") .. "The contact sheet shows frames at "
-      .. table.concat(picks or {}, ", ") .. " seconds, left to right, top to bottom.\n\n" .. M.bans .. "\n\nScore each "
+      .. table.concat(picks or {}, ", ") .. " seconds, left to right, top to bottom.\n\n" .. fixed .. M.bans .. "\n\nScore each "
       .. "from 1 to 5 (5 = work you would show a client):\n" .. table.concat(lines, "\n") .. "\n\nReply with one JSON "
       .. "object only: {\"scores\": {" .. table.concat(fields, ", ") .. "}, \"broken\": [\"anything visibly wrong\"], "
       .. "\"notes\": \"the three most important changes, concrete\"}" },

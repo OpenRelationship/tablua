@@ -45,4 +45,14 @@ spec.test("a command that failed is an error with what it said; output that is n
   spec.err(function() m:rows("/x.lua") end)
 end)
 
+
+spec.test("expectations go to a file, then to the engine's expect, which adds them once", function()
+  local h = host({ ok({ added = { { id = "high" } }, rejected = {}, digest_before = "d0", digest_after = "d1",
+    findings = { { tier = "lint", id = "t4", code = "expect_failed", severity = "error" } } }) })
+  local m = moonsplice.new(h, { bin = "moonsplice", tmp = "/tmp/t" })
+  local got = m:expect("/w/c.lua", { { id = "high", says = "the HIGH row lands", node = "t4" } })
+  spec.same({ #got.added, got.findings[1].code, json.decode(h.wrote["/tmp/t/expect-1.json"])[1].node },
+    { 1, "expect_failed", "t4" })
+  spec.eq(h.ran[1].cmd, "'moonsplice' expect '/w/c.lua' '/tmp/t/expect-1.json' --json")
+end)
 spec.run()

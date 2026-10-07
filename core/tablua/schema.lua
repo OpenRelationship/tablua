@@ -63,9 +63,11 @@
 -- Schema 20 (owner, 2026-10-06): an asset may be a solid, built by Manifold from a tree of plain values
 -- (tablua_msr_asset.solid, canonical JSON; cadence/docs/SOLIDS.md), and what the engine measured of each solid is kept
 -- beside the snapshot, outside its tables as derived facts are (tablua_msr_solid: parts, genus, watertight, size).
+-- Schema 21 (owner, 2026-10-06): what the ask requires, as predicates lint checks (tablua_msr_expect; ROWS.md,
+-- "Expectations"): written once at treat by the harness, never by a move, so deleting what an ask names is an error.
 local M = {}
 
-M.version = 20
+M.version = 21
 
 -- the columns schema 18 adds, each with its type, to a file kept before it
 M.added = {
@@ -247,6 +249,9 @@ create table if not exists tablua_msr_system (
 create table if not exists tablua_msr_asset (
   todo text not null, n integer not null, id text not null, src text not null default '', derive text not null default '',
   solid text, primary key (todo, n, id));
+create table if not exists tablua_msr_expect (
+  todo text not null, n integer not null, id text not null, says text not null default '', node text, prop text,
+  op text, value, type text not null default 's', at, t0, t1, holds text, primary key (todo, n, id));
 create table if not exists tablua_msr_solid (
   todo text not null, n integer not null, id text not null, parts integer, genus integer, watertight integer,
   empty integer, volume real, area real, triangles integer, size text, primary key (todo, n, id));
@@ -270,7 +275,7 @@ create table if not exists tablua_gate (
 M.log = { "state", "candidate", "decision", "action", "outcome", "run", "prediction", "feature", "result", "label",
   "effect", "control", "ranking", "change", "term", "event", "file", "vector", "msr_comp", "msr_node", "msr_prop",
   "msr_key", "msr_motion", "msr_system", "msr_asset", "msr_fact", "msr_finding", "score",
-  "msr_solid" }
+  "msr_solid", "msr_expect" }
 
 local function columns(db, tbl)
   local out = {}

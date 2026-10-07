@@ -113,4 +113,17 @@ spec.test("a solid's tree is kept with its asset and its measures beside it, out
   t:comp("r", 1, back)
   spec.eq(json.encode(t:comp_rows("r", 1)), json.encode(back))
 end)
+
+spec.test("expectations are rows of the comp, their times seconds or facts, and come back as they went", function()
+  local t = open()
+  t:comp("r", 0, comp(540, { expect = { { id = "high", says = "the HIGH row lands", node = "t4", prop = "opacity",
+    op = ">=", value = 0.9, at = "beat:14" }, { id = "lamp", says = "the lamp burns", node = "lamp", prop = "intensity",
+    op = ">", value = 0, t0 = 4.5, t1 = 6, holds = "ever" } } }))
+  local back = t:comp_rows("r", 0)
+  spec.same({ back.tables.expect[1].id, back.tables.expect[1].at, back.tables.expect[1].value, back.tables.expect[2].t0,
+    back.tables.expect[2].holds }, { "high", "beat:14", 0.9, 4.5, "ever" })
+  spec.eq(back.tables.expect[1].t0, nil)
+  t:comp("r", 1, back)
+  spec.eq(json.encode(t:comp_rows("r", 1)), json.encode(back))
+end)
 spec.run()
