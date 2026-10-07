@@ -183,4 +183,16 @@ spec.test("a bad move is rejected with why and the others land; an unknown move 
   spec.ok(results[2].is_error == 1 and results[2].content:find("there are: The moves, Pitfalls", 1, true))
 end)
 
+
+spec.test("the patch tool's schema declares every move's fields, so a provider that keeps to the schema keeps them", function()
+  local tools = require("studio.tools")
+  local patch
+  for _, tl in ipairs(tools.list({ t = {} })) do if tl.name == "patch" then patch = tl end end
+  local items = patch.parameters.properties.moves.items
+  local by = {}
+  for _, alt in ipairs(items.anyOf) do by[alt.properties.move.enum[1]] = alt end
+  spec.same({ by.set_prop.properties.id.type, by.set_prop.properties.value.type[1], by.move_key.properties.to_t ~= nil,
+    by.add_node.properties.node.type, by.set_prop.required[1] }, { "string", "number", true, "object", "move" })
+  spec.ok(by.treat == nil and by.solid ~= nil)
+end)
 spec.run()

@@ -19,6 +19,21 @@ local M = {}
 M.edits = {}
 for _, m in ipairs(moves.order) do if m ~= "treat" then M.edits[#M.edits + 1] = m end end
 
+-- each move's own schema with its name as a field: a provider that keeps to the schema drops every field it does not
+-- declare, and studio pi-s4 lost all 57 patch steps' fields to an item that declared only move
+function M.items()
+  local out = {}
+  for _, name in ipairs(M.edits) do
+    local sch = moves.schema[name]
+    local props, req = { move = { type = "string", enum = { name } } }, { "move" }
+    for k, v in pairs(sch.properties) do props[k] = v end
+    for _, r in ipairs(sch.required or {}) do req[#req + 1] = r end
+    out[#out + 1] = { type = "object", description = moves.what[name], properties = props, required = req,
+      additionalProperties = false }
+  end
+  return out
+end
+
 local function clip(s, n) s = tostring(s or "") return #s > n and (s:sub(1, n) .. "...") or s end
 M.max = 50 * 1024   -- a result's text at most, as pi's read cuts at 50 KB
 
@@ -73,7 +88,7 @@ function M.list(s)
       .. "and bind in one call.",
     parameters = { type = "object", required = { "moves" }, properties = { moves = { type = "array",
       description = "each a move: { move = <name>, ...its fields }; the moves: " .. table.concat(M.edits, ", "),
-      items = { type = "object", required = { "move" }, properties = { move = { type = "string", enum = M.edits } } } } } },
+      items = { anyOf = M.items() } } } },
     prepare = function(args)
       args.moves = listed(args.moves, function(v) return v.move ~= nil end)
       return args
