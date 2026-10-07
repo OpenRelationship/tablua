@@ -148,6 +148,17 @@ function M.since(t, todo, upto)
   return k
 end
 
+-- what step n changed, as one line: the errors and expectations it opened or closed and the props it set back, or nil
+function M.changes(t, todo, n)
+  local snapped = #t.db:exec("select 1 from tablua_msr_comp where todo = ?1 and n = ?2 union all select 1 from "
+    .. "tablua_msr_node where todo = ?1 and n = ?2 limit 1", { todo, n }) > 0
+  if not snapped then return nil end
+  local parts = {}
+  parts[#parts + 1] = delta(t, todo, n)
+  parts[#parts + 1] = undone(t, todo, n)
+  return #parts > 0 and table.concat(parts, "; ") or nil
+end
+
 function M.history(t, todo, upto)
   local lines = {}
   for _, o in ipairs(t.db:exec("select n, verb, outcome, note from tablua_outcome where todo = ? and n <= ? order by n",
@@ -206,6 +217,28 @@ M.needs = {
 }
 M.always = { "The moves", "Pitfalls" }
 M.worldly = { add_node = true, set_prop = true, add_system = true, edit_system = true }   -- 3D when the comp has a world
+
+-- the card's sections as "- name: summary" lines (each section's "Summary:" line), for a system prompt that names
+-- them and a reference tool that reads one
+function M.index(card)
+  local _, by, order = sections(card or "")
+  local out = {}
+  for _, s in ipairs(order) do
+    local summary
+    for _, line in ipairs(by[s]) do summary = summary or line:match("^Summary:%s*(.+)$") end
+    out[#out + 1] = "- " .. s .. (summary and (": " .. summary) or "")
+  end
+  return table.concat(out, "\n")
+end
+
+-- one section by name, or nil and the names there are
+function M.section(card, name)
+  local _, by, order = sections(card or "")
+  for _, s in ipairs(order) do
+    if s:lower() == tostring(name):lower() then return table.concat(by[s], "\n") end
+  end
+  return nil, "no section " .. tostring(name) .. "; there are: " .. table.concat(order, ", ")
+end
 
 function M.card(card, move, kind, world)
   local head, by, order = sections(card or "")

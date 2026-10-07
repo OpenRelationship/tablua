@@ -136,4 +136,17 @@ spec.test("each model call of a step is a row: who was asked, each part's bytes,
   spec.same({ #rows, rows[1].i, rows[2].i, rows[1].bytes, json.decode(rows[1].parts).brief, rows[2].text },
     { 2, 1, 2, #"the whole request", 4736, "again" })
 end)
+
+spec.test("the transcript is a row per message, in order, with its calls, the call it answers and its usage", function()
+  local t = open()
+  t:message("r", 0, { role = "user", content = "Make it feel like the turn of the tide." })
+  t:message("r", 0, { role = "assistant", content = "Treatment: ...", reasoning_content = "first the almanac",
+    tool_calls = { { id = "c1", type = "function", ["function"] = { name = "brief", arguments = "{}" } } },
+    usage = { prompt = 3000, completion = 200 }, provider = "Fireworks" })
+  t:message("r", 1, { role = "tool", name = "look", tool_call_id = "c1", content = "the sheet", image = "UE5HUE5H" })
+  local rows = t.db:exec("select i, n, role, tool_call_id, image, provider, reasoning from tablua_message order by i")
+  spec.same({ #rows, rows[2].provider, rows[2].reasoning, rows[3].tool_call_id, rows[3].image, rows[3].n },
+    { 3, "Fireworks", "first the almanac", "c1", 8, 1 })
+  spec.eq(json.decode(t.db:exec("select tool_calls from tablua_message where i = 2")[1].tool_calls)[1].id, "c1")
+end)
 spec.run()

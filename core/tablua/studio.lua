@@ -224,6 +224,20 @@ return setmetatable(M, { __call = function(_, T, put)
     return out
   end
 
+  -- a message of the run's transcript, numbered in the order it joined (agent.loop's message event)
+  function T:message(todo, n, m)
+    local i = (self.db:exec("select max(i) as m from tablua_message where todo = ?", { todo })[1].m or 0) + 1
+    local content = m.content
+    if type(content) ~= "string" then content = M.canon(content or "") end
+    put(self.db, "tablua_message", { "todo", "i", "n", "role", "name", "content", "tool_calls", "tool_call_id",
+      "is_error", "image", "reasoning", "usage", "provider", "model" }, { todo = todo, i = i, n = n, role = m.role,
+      name = m.name, content = content, tool_calls = m.tool_calls and M.canon(m.tool_calls) or nil,
+      tool_call_id = m.tool_call_id, is_error = m.is_error and 1 or nil, image = m.image and #m.image or nil,
+      reasoning = m.reasoning_content, usage = m.usage and M.canon(m.usage) or nil, provider = m.provider,
+      model = m.model })
+    return i
+  end
+
   -- a model call of step n, numbered within the step
   function T:prompt(p)
     local i = (self.db:exec("select max(i) as m from tablua_prompt where todo = ? and n = ?", { p.todo, p.n })[1].m or 0) + 1

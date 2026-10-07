@@ -11,6 +11,7 @@
 --   l:continue() -> the same, from the transcript as it is (its last message a user or tool turn)
 --   l:steer(text | message)      read before the next reply      l:follow_up(text | message)   read when it would stop
 --   l:abort()                    the run ends after the tool call in hand      l.messages   the transcript
+--   loop.retrying(port) -> port  asks again once when the model said nothing or no provider answered
 --
 -- model: a chat port (ports.chat): chat{ system, messages, tools, ... } -> text, { tool_calls, finish, reasoning,
 -- usage, provider, model }. A tool: { name, description, parameters (JSON schema), execute(args, l, call) -> result,
@@ -232,6 +233,30 @@ local function run(self, new, initial)
   end
   emit(self, { type = "agent_end", messages = new })
   return { stop = "stop", messages = new }
+end
+
+-- a chat port that asks again once: afresh when the model reasoned to its limit and said nothing (M3 spent 129k
+-- tokens on one move in studio s1), or ordered by latency when no provider answered in time or one failed with a 5xx
+-- (studio s3 waited 37 and 45 minutes on one); pi-ai's retryAssistantCall does the same for its providers
+function M.retrying(port)
+  local r = {}
+  function r.chat(_, req)
+    local ok, text, record = pcall(port.chat, port, req)
+    if ok then return text, record end
+    local e = tostring(text)
+    local again = req
+    if e:find("unreachable", 1, true) or e:find("answered 5", 1, true) then
+      again = {}
+      for k, v in pairs(req) do again[k] = v end
+      again.sort = "latency"
+    elseif not e:find("said nothing", 1, true) then
+      error(text, 0)
+    end
+    text, record = port.chat(port, again)
+    if type(record) == "table" then record.tries = 2 end
+    return text, record
+  end
+  return r
 end
 
 function L:prompt(m)

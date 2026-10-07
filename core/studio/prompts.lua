@@ -40,6 +40,44 @@ the comp only with patches; each is checked, and one that fails is rejected with
 
 -- comp: the seed as the engine's brief, its expectations among it. In studio s2 the treatment replaced the seed's tide
 -- table with "one moment of type", and the critic then had it deleted (Moonsplice, 2026-10-06)
+-- the driving model's system prompt, built as pi builds its own (packages/coding-agent/src/core/system-prompt.ts): a
+-- preamble, the tools a line each, the rules, then what the work needs (the bans, the reference's sections by name)
+M.tools = {
+  brief = "read the comp as it is now, with its expectations and the engine's findings",
+  patch = "change the comp with typed moves, several in one call",
+  expect = "add an expectation the ask needs that the comp lacks (none is ever edited or removed)",
+  look = "render the contact sheet and see it, with the judge's scores and what the engine measured",
+  reference = "read one section of the engine's reference by name",
+}
+M.tool_order = { "brief", "patch", "expect", "look", "reference" }
+
+M.rules = {
+  "Begin with a short treatment as text: the premise, the one governing rule, the grammar (what things are, how "
+    .. "they move, what they are timed to) and the structure in time. Then work.",
+  "Read the comp with brief before you change it, and again whenever you have lost track of it.",
+  "Change the comp only with patch. Put a node with its props, keys and bind in one call. Numbers and booleans "
+    .. "unquoted (y = 500, not \"500\").",
+  "The comp's expectations are what the piece is: restyle, retime or re-stage what they name; never remove or hide it.",
+  "A result that says rejected or broken says why: fix that before anything else. Do not set a prop back and forth.",
+  "Look after the changes you want to see, and before you hand in.",
+  "When the piece is done, reply without calling a tool and say what you made. A hand-in with errors or failing "
+    .. "expectations comes back to you.",
+  "Be concise.",
+}
+
+function M.system(kind, index)
+  local what = kind == "game" and "game" or "motion piece"
+  local tools = {}
+  for _, name in ipairs(M.tool_order) do tools[#tools + 1] = "- " .. name .. ": " .. M.tools[name] end
+  local rules = {}
+  for i, r in ipairs(M.rules) do rules[i] = "- " .. r end
+  return "You are building a Moonsplice " .. what .. " inside Tablua, a harness that gives you tools to read, change "
+    .. "and see it.\n\n<tools>\n" .. table.concat(tools, "\n") .. "\n</tools>\n\n<rules>\n" .. table.concat(rules, "\n")
+    .. "\n</rules>\n\n<comp>\n" .. M.rows .. "\n</comp>\n\n<bans>\n" .. M.bans:gsub("^\n", "") .. "\n</bans>"
+    .. (index and index ~= "" and ("\n\n<reference>\nThe engine's reference, a section at a time with the reference "
+      .. "tool:\n" .. index .. "\n</reference>") or "")
+end
+
 function M.director(ask, kind, comp)
   return { system = "You are the director of a small studio making a " .. (kind == "game" and "game" or "motion piece")
     .. ". You think before anything is built.\n\n" .. M.bans,

@@ -133,4 +133,25 @@ spec.test("finish_turn may end the run after a turn, or ask for one more turn of
   spec.eq(#m.seen, 1)
 end)
 
+
+spec.test("a model that said nothing is asked once more; one no provider answered, once more by latency", function()
+  local function flaky(first)
+    local m = { sorts = {} }
+    function m.chat(_, req)
+      m.sorts[#m.sorts + 1] = req.sort or "default"
+      if #m.sorts == 1 then error(first, 0) end
+      return "fine", { tool_calls = {}, finish = "stop" }
+    end
+    return m
+  end
+  local quiet = flaky("minimax/minimax-m3 spent its limit, 129142 tokens reasoning, and said nothing")
+  local text, record = loop.retrying(quiet).chat(nil, {})
+  spec.same({ text, record.tries, quiet.sorts[2] }, { "fine", 2, "default" })
+  local slow = flaky("openrouter unreachable: Timeout was reached")
+  loop.retrying(slow).chat(nil, {})
+  spec.eq(slow.sorts[2], "latency")
+  local hard = loop.retrying({ chat = function() error("openrouter answered 400: bad request", 0) end })
+  local ok, why = pcall(hard.chat, hard, {})
+  spec.same({ ok, why }, { false, "openrouter answered 400: bad request" })
+end)
 spec.run()

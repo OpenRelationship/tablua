@@ -68,9 +68,12 @@
 -- Schema 22 (owner, 2026-10-06): every model call of a step (tablua_prompt): who was asked (writer, eye, judge,
 -- director), the bytes of each part of what it read (the card, the brief, the history...), the request as sent (images
 -- replaced by their size) and the reply, so what a model saw at a step is a query rather than a reconstruction.
+-- Schema 23 (owner, 2026-10-07: the harness works the way pi does): the transcript a run's model reads, a row per
+-- message as it joined (tablua_message: role, text, tool calls, the tool call a result answers, an image's bytes, the
+-- step n it belongs to, usage and provider), as pi keeps a session; what a model saw is the rows up to its turn.
 local M = {}
 
-M.version = 22
+M.version = 23
 
 -- the columns schema 18 adds, each with its type, to a file kept before it
 M.added = {
@@ -256,6 +259,10 @@ create table if not exists tablua_msr_asset (
 create table if not exists tablua_msr_expect (
   todo text not null, n integer not null, id text not null, says text not null default '', node text, prop text,
   op text, value, type text not null default 's', at, t0, t1, holds text, primary key (todo, n, id));
+create table if not exists tablua_message (
+  todo text not null, i integer not null, n integer, role text not null, name text, content text not null default '',
+  tool_calls text, tool_call_id text, is_error integer, image integer, reasoning text, usage text, provider text,
+  model text, primary key (todo, i));
 create table if not exists tablua_prompt (
   todo text not null, n integer not null, i integer not null, role text not null, parts text not null default '{}',
   bytes integer, text text not null default '', reply text not null default '', seconds real, tries integer,
@@ -283,7 +290,7 @@ create table if not exists tablua_gate (
 M.log = { "state", "candidate", "decision", "action", "outcome", "run", "prediction", "feature", "result", "label",
   "effect", "control", "ranking", "change", "term", "event", "file", "vector", "msr_comp", "msr_node", "msr_prop",
   "msr_key", "msr_motion", "msr_system", "msr_asset", "msr_fact", "msr_finding", "score",
-  "msr_solid", "msr_expect", "prompt" }
+  "msr_solid", "msr_expect", "prompt", "message" }
 
 local function columns(db, tbl)
   local out = {}
