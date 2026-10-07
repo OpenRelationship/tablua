@@ -303,4 +303,22 @@ spec.test("the director reads the comp and its expectations first, and works wit
   local row = t.db:exec("select role, parts from tablua_prompt where n = 1")[1]
   spec.same({ row.role, json.decode(row.parts).brief }, { "director", #e.brief() })
 end)
+
+spec.test("a call that timed out is asked once more of the fastest provider, and its seconds and provider are kept", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local sorts = {}
+  local slow = { chat = function(_, req)
+    sorts[#sorts + 1] = req.sort or "default"
+    if #sorts == 1 then error("openrouter unreachable: Timeout was reached", 0) end
+    return "Rule: x.", { provider = "Fireworks" }
+  end }
+  local w = world.new{ engine = engine(), tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
+    writer = slow, critic = critic, exec = function() return { code = 0, stdout = "" } end }
+  local step = { lines = {} }
+  w.act(nil, { todo = "r", steps = {} }, "treat", step)
+  spec.same({ step.outcome, sorts[1], sorts[2] }, { "complete", "default", "latency" })
+  local row = t.db:exec("select provider, tries, seconds from tablua_prompt where n = 1")[1]
+  spec.same({ row.provider, row.tries }, { "Fireworks", 2 })
+  spec.ok(row.seconds >= 0)
+end)
 spec.run()

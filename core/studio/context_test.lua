@@ -55,4 +55,29 @@ spec.test("the card goes by section: always the moves and the pitfalls, then wha
   spec.ok(#context.card(CARD, "remove", "video", true) < #CARD)
 end)
 
+
+spec.test("a step that sets a prop back to a value it had within three steps is marked as undoing the one that changed it", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local function snap(n, color, w)
+    t:comp("r", n, { tables = { node = { { id = "field", kind = "rect" } }, prop = { { id = "field", name = "color",
+      value = color }, { id = "field", name = "w", value = w } } } })
+    t:findings("r", n, {})
+  end
+  snap(0, "#081218", 560)
+  for n, v in ipairs({ { "#1a1418", 560 }, { "#1a1418", 600 }, { "#081218", 600 }, { "#081218", 640 } }) do
+    snap(n, v[1], v[2])
+    t:action{ todo = "r", n = n, i = 1, cmd = "{}", op = "set_prop", target = "field" }
+    t:outcome{ todo = "r", n = n, verb = "set_prop", outcome = "neutral", note = "1 applied, 0 rejected; 0 open" }
+  end
+  local lines = {}
+  for l in context.history(t, "r", 4):gmatch("[^\n]+") do lines[#lines + 1] = l end
+  spec.eq(lines[3], "step 3 set_prop field -> neutral; undoes step 1 (field.color back to \"#081218\")")
+  spec.eq(lines[4], "step 4 set_prop field -> neutral")
+  spec.eq(context.since(t, "r", 4), 4)
+end)
+
+spec.test("since: the patch steps after the last one that completed", function()
+  spec.eq(context.since(sheet(), "r", 4), 2)
+  spec.eq(context.since(sheet(), "r", 5), 0)
+end)
 spec.run()

@@ -227,9 +227,10 @@ return setmetatable(M, { __call = function(_, T, put)
   -- a model call of step n, numbered within the step
   function T:prompt(p)
     local i = (self.db:exec("select max(i) as m from tablua_prompt where todo = ? and n = ?", { p.todo, p.n })[1].m or 0) + 1
-    put(self.db, "tablua_prompt", { "todo", "n", "i", "role", "parts", "bytes", "text", "reply" }, { todo = p.todo,
-      n = p.n, i = i, role = p.role, parts = M.canon(p.parts or {}), bytes = #(p.text or ""), text = p.text or "",
-      reply = p.reply or "" })
+    put(self.db, "tablua_prompt", { "todo", "n", "i", "role", "parts", "bytes", "text", "reply", "seconds", "tries",
+      "provider" }, { todo = p.todo, n = p.n, i = i, role = p.role, parts = M.canon(p.parts or {}),
+      bytes = #(p.text or ""), text = p.text or "", reply = p.reply or "", seconds = p.seconds, tries = p.tries,
+      provider = p.provider })
     return i
   end
 

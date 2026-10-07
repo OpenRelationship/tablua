@@ -5,6 +5,8 @@
 --   context.history(t, todo, upto) -> text   a line per step, every step: the move and what it touched (tablua_action),
 --                                             how it came out (tablua_outcome), and the errors and expectations it
 --                                             opened or closed (the msr_finding snapshots before and after it)
+--   context.since(t, todo, upto) -> n         the patch steps after the last one that came out complete (a stall the
+--                                             writer and the decider are shown; nothing stops the run on it)
 --   context.card(card, move, kind, world) -> text   the engine's reference card (Moonsplice's agent/REFERENCE.md) cut
 --                                             to its sections the move needs: always its head, the moves and the
 --                                             pitfalls; world says the comp has a 3D world
@@ -89,6 +91,63 @@ local function delta(t, todo, n)
   return ("errors %d->%d%s"):format(count(before), count(after), #parts > 0 and (" (" .. table.concat(parts, "; ") .. ")") or "")
 end
 
+-- the snapshots before n, newest first, at most k
+local function earlier(t, todo, n, k)
+  local out = {}
+  for _, r in ipairs(t.db:exec("select distinct n from (select n from tablua_msr_comp where todo = ?1 and n < ?2 union "
+    .. "select n from tablua_msr_node where todo = ?1 and n < ?2) order by n desc limit ?3", { todo, n, k })) do
+    out[#out + 1] = r.n
+  end
+  return out
+end
+
+local function value_at(t, todo, n, id, name)
+  local r = t.db:exec("select value, type from tablua_msr_prop where todo = ? and n = ? and id = ? and name = ?",
+    { todo, n, id, name })[1]
+  return r and (tostring(r.type) .. ":" .. tostring(r.value)) or "absent", r and r.value
+end
+
+-- a prop step n set back to the value it had at a snapshot within the three steps before: "undoes step m (id.name back
+-- to v)", m the step that had changed it (studio s3: field.color, gauge.look_y and back again, eight steps running)
+local function undone(t, todo, n)
+  local before = earlier(t, todo, n, 3)
+  if #before < 2 then return nil end
+  local prev = before[1]
+  local out = {}
+  for _, p in ipairs(t.db:exec("select a.id, a.name from tablua_msr_prop a where a.todo = ?1 and a.n = ?2 and not exists "
+    .. "(select 1 from tablua_msr_prop b where b.todo = ?1 and b.n = ?3 and b.id = a.id and b.name = a.name and "
+    .. "b.value is a.value) order by a.id, a.name", { todo, n, prev })) do
+    local now, raw = value_at(t, todo, n, p.id, p.name)
+    for i = 2, #before do
+      if value_at(t, todo, before[i], p.id, p.name) == now then
+        -- the step that changed it: the first snapshot after before[i] where it differs
+        local m = before[i - 1]
+        for j = i - 1, 1, -1 do
+          if value_at(t, todo, before[j], p.id, p.name) ~= now then m = before[j] break end
+        end
+        out[#out + 1] = ("undoes step %d (%s.%s back to %s)"):format(m, p.id, p.name, json.encode(raw))
+        break
+      end
+    end
+  end
+  return #out > 0 and table.concat(out, "; ") or nil
+end
+
+local PATCH = { add_node = 1, set_prop = 1, add_key = 1, move_key = 1, drop_key = 1, bind = 1, add_system = 1,
+  edit_system = 1, derive = 1, solid = 1, remove = 1 }
+
+function M.since(t, todo, upto)
+  local k = 0
+  for _, o in ipairs(t.db:exec("select verb, outcome from tablua_outcome where todo = ? and n <= ? order by n desc",
+    { todo, upto })) do
+    if PATCH[o.verb] then
+      if o.outcome == "complete" then break end
+      k = k + 1
+    end
+  end
+  return k
+end
+
 function M.history(t, todo, upto)
   local lines = {}
   for _, o in ipairs(t.db:exec("select n, verb, outcome, note from tablua_outcome where todo = ? and n <= ? order by n",
@@ -113,6 +172,8 @@ function M.history(t, todo, upto)
         .. "tablua_msr_node where todo = ?1 and n = ?2 limit 1", { todo, o.n }) > 0
       local d = snapped and delta(t, todo, o.n)
       if d then more[#more + 1] = d end
+      local u = snapped and undone(t, todo, o.n)
+      if u then more[#more + 1] = u end
       local why = note:match("rejected: (.-); %d+ findings")
       if why then more[#more + 1] = "rejected: " .. clip(why, 200)
       elseif not snapped and note ~= "" then more[#more + 1] = clip(note, 200) end

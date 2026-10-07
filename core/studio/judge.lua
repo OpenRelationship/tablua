@@ -7,7 +7,8 @@
 --   judge.ask{ ask, treatment?, expects, findings, seen, sheet_b64? } -> state, questions   for jev:decide
 --   judge.read(questions, answers, seen?) -> scores { dim = value }, said { next, notes }
 --     a dim's score is the expected level (1..5) of the judge's distribution; ask is how near the comp is to the ask;
---     expect:<id> is p that the expectation visibly holds; next is the observation that matters most
+--     expect:<id> is p that the expectation visibly holds; cut is p that some text is cut off or overlapping; next is
+--     the observation that matters most
 local prompts = require("studio.prompts")
 
 local M = {}
@@ -40,6 +41,19 @@ function M.ask(o)
       lines[#lines + 1] = ("- %s (the engine: %s)"):format(x.says, failing(x, o.findings) and "failing" or "holding")
     end
   end
+  local found = {}
+  for _, sev in ipairs({ "error", "warning" }) do
+    for _, f in ipairs(o.findings or {}) do
+      if (f.severity or "error") == sev and f.code ~= "expect_failed" then
+        found[#found + 1] = ("- %s %s%s%s"):format(sev, f.code, (f.id or "") ~= "" and (" on " .. f.id) or "",
+          (f.detail or "") ~= "" and (": " .. tostring(f.detail):sub(1, 160)) or "")
+      end
+    end
+  end
+  if #found > 0 then
+    lines[#lines + 1] = "What the engine measured (errors, then warnings):"
+    for i = 1, math.min(12, #found) do lines[#lines + 1] = found[i] end
+  end
   if #(o.seen or {}) > 0 then
     lines[#lines + 1] = "What an eye saw on the contact sheet:"
     for i, s in ipairs(o.seen) do lines[#lines + 1] = ("%d. %s"):format(i, s) end
@@ -52,6 +66,9 @@ function M.ask(o)
   local qs = {}
   for _, d in ipairs(M.dims) do qs[d] = { kind = "score", text = prompts.rubric[d], levels = levels(d) } end
   qs.ask = { kind = "score", text = "How near is the piece to what the ask wants?", levels = M.near }
+  -- studio s3 ended with its climax row clipped 74 px into the 3D view, and neither the eye nor the judge said so
+  qs.cut = { kind = "noul", text = "In any frame, is any text cut off, clipped by a panel or the frame's edge, or "
+    .. "overlapping other text?", yes = "some text is cut off or overlapping", no = "all text is whole and clear" }
   for _, x in ipairs(o.expects or {}) do
     qs["expect:" .. x.id] = { kind = "noul", text = "Is this visibly so in the frames? " .. x.says,
       yes = "it visibly holds", no = "it does not, or cannot be seen" }

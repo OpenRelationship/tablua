@@ -91,7 +91,10 @@ function Chat:chat(req)
   end
   if self.service == "openrouter" then
     payload.usage = { include = true }
-    if self.sort then payload.provider = { sort = self.sort } end
+    -- req.sort, when given, overrides the port's provider order for this call: a retry after a provider timed out
+    -- asks by latency (studio s3: one set_prop waited 37 minutes on a provider that never answered)
+    local sort = req.sort or self.sort
+    if sort then payload.provider = { sort = sort } end
     -- req.thinking, when given, overrides the port's for this call: a fill that should come at once beside a
     -- thought that should not
     local thinking = req.thinking
@@ -132,6 +135,7 @@ function Chat:chat(req)
   local u = body.usage or {}
   local details = u.prompt_tokens_details or {}
   record.model = body.model or self.model
+  record.provider = body.provider
   record.cost = u.cost or M.cost(self.model, u)
   record.usage = { prompt = u.prompt_tokens, cached = details.cached_tokens or 0, completion = u.completion_tokens }
   local choice = body.choices and body.choices[1]

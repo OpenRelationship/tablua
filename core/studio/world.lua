@@ -37,11 +37,23 @@ checkpoint.ranked.building, checkpoint.ranked.polishing = true, true
 local function clip(s, n) s = tostring(s or "") return #s > n and (s:sub(1, n) .. "...") or s end
 
 -- a chat call, asked once more afresh when the model reasoned to its limit and said nothing (M3 spent 129k tokens
--- on one derive in studio s1 and answered nothing): ok, text, record
+-- on one derive in studio s1 and answered nothing), or of the fastest provider when none answered in time or one
+-- failed (studio s3: steps of 37 and 45 minutes waiting on one): ok, text, record, tries
 local function ask(port, req)
   local ok, text, record = pcall(port.chat, port, req)
-  if not ok and tostring(text):find("said nothing", 1, true) then ok, text, record = pcall(port.chat, port, req) end
-  return ok, text, record
+  if ok then return ok, text, record, 1 end
+  local e = tostring(text)
+  if e:find("said nothing", 1, true) then
+    ok, text, record = pcall(port.chat, port, req)
+  elseif e:find("unreachable", 1, true) or e:find("answered 5", 1, true) then
+    local again = {}
+    for k, v in pairs(req) do again[k] = v end
+    again.sort = "latency"
+    ok, text, record = pcall(port.chat, port, again)
+  else
+    return ok, text, record, 1
+  end
+  return ok, text, record, 2
 end
 
 function M.new(o)
@@ -123,10 +135,12 @@ function M.new(o)
 
   -- a model call of step n, kept as a row (tablua_prompt) with each part's bytes, its request and its reply
   local function call(role, port, req_c, todo, n, parts)
-    local ok, text, record = ask(port, req_c)
+    local t0 = os.time()
+    local ok, text, record, tries = ask(port, req_c)
     local reply = not ok and ("error: " .. tostring(text)) or (record and record.tool_calls and #record.tool_calls > 0
       and json.encode(record.tool_calls)) or tostring(text or "")
-    t:prompt{ todo = todo, n = n, role = role, parts = parts or {}, text = context.shown(req_c), reply = reply }
+    t:prompt{ todo = todo, n = n, role = role, parts = parts or {}, text = context.shown(req_c), reply = reply,
+      seconds = os.time() - t0, tries = tries, provider = ok and record and record.provider or nil }
     return ok, text, record
   end
 
@@ -141,12 +155,22 @@ function M.new(o)
       table.concat(d, ", "), clip(w.critic.notes, 500))
   end
 
+  -- a stall, said once three patch steps in a row came out short of complete (studio s3 alternated broken and
+  -- neutral one-prop steps from step 12 on); the run goes on, and the decider and the writer read it
+  local function stalled(req)
+    local k = context.since(t, req.todo, #req.steps)
+    if k < 3 then return nil end
+    return ("The last %d patch steps closed nothing. Repeating or undoing them will not help: change something else, "
+      .. "look, or hand in."):format(k)
+  end
+
   -- what the writer reads of the run: the stage, every step's line rendered from the sheet, and the last look; the ask,
   -- the treatment and the comp (its brief, with its findings) go beside it once
   local function story(req)
     local s = { ("Stage: %s. Steps so far: %d."):format(req.stage or stage(req), #req.steps) }
     local h = context.history(t, req.todo, #req.steps)
     if h ~= "" then s[#s + 1] = "What each step did:\n" .. h end
+    s[#s + 1] = stalled(req)
     s[#s + 1] = judged_line()
     return table.concat(s, "\n"), #h
   end
@@ -174,6 +198,7 @@ function M.new(o)
     s[#s + 1] = judged_line()
     local h = context.history(t, req.todo, #req.steps)
     if h ~= "" then s[#s + 1] = "What each step did:\n" .. h end
+    s[#s + 1] = stalled(req)
     return table.concat(s, "\n")
   end
 

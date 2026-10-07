@@ -44,4 +44,13 @@ spec.test("an expectation fails when a finding names it, as the engine writes it
       detail = "22:58 HIGH sits on the waterline: node wl_type does not exist (expect wl)" } }, seen = {} }
   spec.ok(state:find("waterline (the engine: failing)", 1, true), state)
 end)
+
+spec.test("the judge reads the engine's errors and warnings, and is asked whether any text is cut off or overlapping", function()
+  local state, qs = judge.ask{ ask = "x", expects = {}, seen = {}, findings = {
+    { tier = "check", id = "t4", code = "text_overflow", severity = "error", detail = "74 px past the field" },
+    { tier = "lint", id = "buoy", code = "subpixel_drift", severity = "info" } } }
+  spec.ok(state:find("error text_overflow on t4: 74 px past the field", 1, true), state)
+  spec.ok(not state:find("subpixel_drift", 1, true))
+  spec.eq(qs.cut.kind, "noul")
+end)
 spec.run()

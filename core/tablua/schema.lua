@@ -74,6 +74,7 @@ M.version = 22
 
 -- the columns schema 18 adds, each with its type, to a file kept before it
 M.added = {
+  tablua_prompt = { { "seconds", "real" }, { "tries", "integer" }, { "provider", "text" } },
   tablua_msr_asset = { { "solid", "text" } },
   tablua_decision = { { "said", "text" }, { "state", "text" } },
   tablua_candidate = { { "prior", "real" }, { "p_complete", "real" }, { "knn", "real" } },
@@ -257,7 +258,8 @@ create table if not exists tablua_msr_expect (
   op text, value, type text not null default 's', at, t0, t1, holds text, primary key (todo, n, id));
 create table if not exists tablua_prompt (
   todo text not null, n integer not null, i integer not null, role text not null, parts text not null default '{}',
-  bytes integer, text text not null default '', reply text not null default '', primary key (todo, n, i));
+  bytes integer, text text not null default '', reply text not null default '', seconds real, tries integer,
+  provider text, primary key (todo, n, i));
 create table if not exists tablua_msr_solid (
   todo text not null, n integer not null, id text not null, parts integer, genus integer, watertight integer,
   empty integer, volume real, area real, triangles integer, size text, primary key (todo, n, id));
