@@ -116,10 +116,14 @@ local function call(s, args)
       local how = ask(s, { kind = "connect", service = service, name = name, fields = err.needs.fields,
         docs = err.needs.docs, why = clip(args.why, 300) })
       record(s, service, op, rec, "needs")
-      return result(("%s is not connected (%s). The person has been asked to connect it: %s. You never see the "
-        .. "credential, and you must not ask for it in the conversation. Carry on with other work and call again "
-        .. "once they have; if the piece cannot be finished without it, hand in and say what waits on them.")
-        :format(name, table.concat(fields, ", "), how), "connect", "neutral")
+      -- nothing missing means the service refused what the person gave: they connect it again
+      local state = #(err.needs.missing or {}) == 0
+        and ("%s refused the credential it was given (%s)"):format(name, tostring(err.message))
+        or ("%s is not connected (%s)"):format(name, table.concat(fields, ", "))
+      return result(("%s. The person has been asked to connect it: %s. You never see the credential, and you must "
+        .. "not ask for it in the conversation. Carry on with other work and call again once they have; if the "
+        .. "piece cannot be finished without it, hand in and say what waits on them."):format(state, how),
+        "connect", "neutral")
     end
     record(s, service, op, rec, "broken")
     error(("%s: %s"):format(err.code or "error", err.message or "the call failed"), 0)

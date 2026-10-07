@@ -26,6 +26,11 @@ local function port(store)
   function p.reads(_, op) return methods[op] == "GET" end
   function p.call(_, op, args)
     local rec = { service = "acme", op = op, method = methods[op], seconds = 0.1 }
+    if store.ACME_TOKEN == "revoked" then
+      return nil, { code = "denied", message = "Acme refused the token", needs = { service = "acme", name = "Acme",
+        docs = "https://acme.test/keys", fields = { { name = "ACME_TOKEN", label = "token", secret = true } },
+        missing = {} } }, rec
+    end
     if not store.ACME_TOKEN then
       return nil, { code = "denied", message = "Acme needs ACME_TOKEN", needs = { service = "acme", name = "Acme",
         docs = "https://acme.test/keys", fields = { { name = "ACME_TOKEN", label = "token", secret = true } },
@@ -83,6 +88,14 @@ spec.test("once connected, a read runs; the credential never reaches the model, 
     end
   end
   spec.ok(not r.content:find(KEY, 1, true))
+end)
+
+spec.test("a credential the service refuses is an ask to connect again, in the service's words", function()
+  local _, tool, store, asked = harness()
+  store.ACME_TOKEN = "revoked"
+  local r = tool.execute({ action = "call", op = "acme.tickets_list", args = {} })
+  spec.ok(r.content:find("Acme refused the credential it was given (Acme refused the token)", 1, true), r.content)
+  spec.same({ #asked, asked[1].kind }, { 1, "connect" })
 end)
 
 spec.test("a call that changes something waits for approval, runs once approved, and a declined one is not made",
