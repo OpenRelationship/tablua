@@ -62,4 +62,13 @@ spec.test("the brief is the comp as text, the one command read back without JSON
   spec.eq(m:brief("/w/c.lua"), "comp 1280x720, 8s\nnodes:\n  t1 text\n")
   spec.eq(h.ran[1].cmd, "'moonsplice' rows '/w/c.lua' --brief")
 end)
+spec.test("a sheet at given times passes them as --at, each as written; none, the plain sheet", function()
+  local h = host({ ok({ picks = { 0, 4.27 } }), ok({ picks = { 0 } }) })
+  local m = moonsplice.new(h, { bin = "/m/moonsplice" })
+  m:sheet("/w/c.lua", "/w/s.png", { 4.27, "beat:9", 8 })
+  m:sheet("/w/c.lua", "/w/s.png", {})
+  spec.same({ h.ran[1].cmd, h.ran[2].cmd }, { "'/m/moonsplice' sheet '/w/c.lua' '/w/s.png' '--at' '4.27,beat:9,8' --json",
+    "'/m/moonsplice' sheet '/w/c.lua' '/w/s.png' --json" })
+end)
+
 spec.run()

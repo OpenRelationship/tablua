@@ -45,7 +45,7 @@ the comp only with patches; each is checked, and one that fails is rejected with
 M.tools = {
   brief = "read the comp as it is now, with its expectations and the engine's findings",
   patch = "change the comp with typed moves, several in one call",
-  expect = "add an expectation the ask needs that the comp lacks (none is ever edited or removed)",
+  expect = "add an expectation the ask needs that the comp lacks, or withdraw one of yours that was wrong, with why",
   look = "render the contact sheet and see it, with the judge's scores and what the engine measured",
   reference = "read one section of the engine's reference by name",
 }
@@ -57,7 +57,9 @@ M.rules = {
   "Read the comp with brief before you change it, and again whenever you have lost track of it.",
   "Change the comp only with patch. Put a node with its props, keys and bind in one call. Numbers and booleans "
     .. "unquoted (y = 500, not \"500\").",
-  "The comp's expectations are what the piece is: restyle, retime or re-stage what they name; never remove or hide it.",
+  "The comp's expectations are what the piece is: restyle, retime or re-stage what they name; never remove or hide it. "
+    .. "Write the ask as expectations of your own, each saying when (at, or t0..t1); one of yours that turns out wrong "
+    .. "you withdraw with why, and the judge reads why.",
   "A result that says rejected or broken says why: fix that before anything else. Do not set a prop back and forth.",
   "Look after the changes you want to see, and before you hand in.",
   "When the piece is done, reply without calling a tool and say what you made. A hand-in with errors or failing "

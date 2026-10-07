@@ -41,6 +41,11 @@ function M.ask(o)
       lines[#lines + 1] = ("- %s (the engine: %s)"):format(x.says, failing(x, o.findings) and "failing" or "holding")
     end
   end
+  if #(o.withdrawn or {}) > 0 then
+    -- an expectation the model wrote and withdrew: the judge weighs whether the reason holds
+    lines[#lines + 1] = "Expectations the maker wrote and then withdrew:"
+    for _, w in ipairs(o.withdrawn) do lines[#lines + 1] = ("- %s (why: %s)"):format(w.says, w.why) end
+  end
   local found = {}
   for _, sev in ipairs({ "error", "warn" }) do
     for _, f in ipairs(o.findings or {}) do

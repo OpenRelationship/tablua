@@ -53,4 +53,10 @@ spec.test("the judge reads the engine's errors and warnings, and is asked whethe
   spec.ok(not state:find("subpixel_drift", 1, true))
   spec.eq(qs.cut.kind, "noul")
 end)
+spec.test("what the model withdrew is in the judge's state with its reason", function()
+  local state = judge.ask{ ask = "x", expects = {}, findings = {}, seen = {},
+    withdrawn = { { id = "mine", says = "lit in linear RGB", why = "the engine compares sRGB" } } }
+  spec.ok(state:find("withdrew", 1, true) and state:find("lit in linear RGB (why: the engine compares sRGB)", 1, true), state)
+end)
+
 spec.run()

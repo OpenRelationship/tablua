@@ -73,9 +73,11 @@
 -- step n it belongs to, usage and provider), as pi keeps a session; what a model saw is the rows up to its turn.
 -- Schema 24 (2026-10-07): a finding's detail is part of its key: two failed expectations on one node differ only there,
 -- and studio pi-s5 kept one of each such pair. A file kept before it has the table rebuilt at open, its rows kept.
+-- Schema 25 (2026-10-07): an expectation the model wrote and withdrew, with its reason (tablua_withdrawal): what the
+-- ask was said to require and why it no longer does, for the judge to read and a claim to count. A seed's never is.
 local M = {}
 
-M.version = 24
+M.version = 25
 
 -- the columns schema 18 adds, each with its type, to a file kept before it
 M.added = {
@@ -276,6 +278,9 @@ create table if not exists tablua_msr_fact (
   todo text not null, n integer not null, pred text not null, args text not null, t0 real not null, t1 real,
   src text not null default '', conf real, derived integer not null default 0, asset text,
   primary key (todo, n, pred, args, t0));
+create table if not exists tablua_withdrawal (
+  todo text not null, n integer not null, id text not null, says text not null default '', why text not null default '',
+  primary key (todo, n, id));
 create table if not exists tablua_msr_finding (
   todo text not null, n integer not null, tier text not null, id text not null default '', name text not null default '',
   code text not null, severity text not null, t0 real not null default -1, t1 real, measured, threshold,
@@ -292,7 +297,7 @@ create table if not exists tablua_gate (
 M.log = { "state", "candidate", "decision", "action", "outcome", "run", "prediction", "feature", "result", "label",
   "effect", "control", "ranking", "change", "term", "event", "file", "vector", "msr_comp", "msr_node", "msr_prop",
   "msr_key", "msr_motion", "msr_system", "msr_asset", "msr_fact", "msr_finding", "score",
-  "msr_solid", "msr_expect", "prompt", "message" }
+  "msr_solid", "msr_expect", "prompt", "message", "withdrawal" }
 
 local function columns(db, tbl)
   local out = {}

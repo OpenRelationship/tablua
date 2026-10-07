@@ -22,11 +22,28 @@ local function engine()
   function e.brief() return ("comp 1280x720, %d nodes"):format(#e.node) end
   function e.lint() return findings() end
   function e.check() return {} end
-  function e.sheet() return { picks = { 0, 6 }, seconds = 1.5 } end
+  function e.sheet(_, _, _, at)
+    e.at = at
+    return { picks = { 0, 6 }, seconds = 1.5 }
+  end
+  -- the proposed form (2026-10-07): a row { withdraw = id, why } removes the expectation id
   function e.expect(_, _, rows)
-    for _, x in ipairs(rows) do e.expects[#e.expects + 1] = x end
+    local added, withdrawn, rejected = {}, {}, {}
+    for _, x in ipairs(rows) do
+      if x.withdraw then
+        local found
+        for i, r in ipairs(e.expects) do
+          if r.id == x.withdraw then found = table.remove(e.expects, i) break end
+        end
+        if found then withdrawn[#withdrawn + 1] = { id = found.id, says = found.says, why = x.why }
+        else rejected[#rejected + 1] = { row = x, why = "no expectation " .. x.withdraw } end
+      else
+        e.expects[#e.expects + 1] = x
+        added[#added + 1] = x
+      end
+    end
     e.v = e.v + 1
-    return { added = rows, rejected = {}, findings = findings() }
+    return { added = added, withdrawn = withdrawn, rejected = rejected, findings = findings() }
   end
   function e.patch(_, _, patches)
     local before, touched = "d" .. e.v, {}
@@ -255,5 +272,37 @@ spec.test("the state line counts errors as the engine's does: a failing expectat
     { code = "off_frame", severity = "error", id = "t1" } }
   spec.ok(s:state_line():find("errors 1 (off_frame t1); warnings 0; expect", 1, true), s:state_line())
   spec.ok(s:state_line():find("(failing: t4-settled)", 1, true), s:state_line())
+end)
+
+spec.test("a look samples the sheet at the times the expectations name, besides its regular frames", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local e = engine()
+  e.expects[1] = { id = "lamp", says = "the lamp flashes", node = "lamp", prop = "glow", op = ">", value = 1, at = 4.27 }
+  e.expects[2] = { id = "row", says = "the row is lit", node = "t4", t0 = "beat:9", t1 = 8 }
+  e.expects[3] = { id = "same", says = "again at 4.27", node = "t4", at = 4.27 }
+  local m = model({ { calls = { { "look", {} } } }, { text = "done" }, { text = "done" } })
+  local s = session.new{ engine = e, model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x", todo = "r",
+    exec = function() return { code = 0, stdout = "UE5H" } end }
+  s:run()
+  spec.same(e.at, { 4.27, "beat:9", 8 })
+end)
+
+spec.test("the model withdraws its own expectation with a reason, kept as a row; a seed's it cannot", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local e = engine()
+  e.expects[1] = { id = "seed-row", says = "the seed's", node = "title" }
+  local m = model({
+    { calls = { { "expect", { rows = { { id = "mine", says = "lit in linear RGB", node = "title" } } } } } },
+    { calls = { { "expect", { withdraw = { { id = "mine", why = "the engine compares sRGB" },
+      { id = "seed-row", why = "inconvenient" } } } } } },
+    { text = "done" }, { text = "done" } })
+  local s = session.new{ engine = e, model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x", todo = "r",
+    exec = function() return { code = 0, stdout = "UE5H" } end }
+  s:run()
+  spec.same({ #e.expects, e.expects[1].id }, { 1, "seed-row" })
+  local w = t.db:exec("select n, id, says, why from tablua_withdrawal where todo = 'r'")
+  spec.same(w, { { n = 2, id = "mine", says = "lit in linear RGB", why = "the engine compares sRGB" } })
+  local res = t.db:exec("select content from tablua_message where role = 'tool' and n = 2")[1].content
+  spec.ok(res:find("1 withdrawn", 1, true) and res:find("seed-row is the seed's", 1, true), res)
 end)
 spec.run()

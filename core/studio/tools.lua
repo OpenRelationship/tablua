@@ -156,12 +156,21 @@ function M.list(s)
           delta = res.delta and res.delta.line or nil, errors = e, warnings = w } }
     end }
 
+  -- rows to add, and the model's own to withdraw with a reason (Moonsplice, 2026-10-07: a wrong row of its own can
+  -- otherwise never pass the gate); a seed's row is never withdrawn
+  local params = moves.expect_tool()["function"].parameters
+  local eparams = { type = "object", properties = { rows = params.properties.rows, withdraw = { type = "array",
+    description = "expectations you wrote that turned out wrong, each { id, why }: removed, and the reason kept and "
+      .. "shown to the judge. The comp's own (the seed's) cannot be withdrawn.",
+    items = { type = "object", required = { "id", "why" }, properties = { id = { type = "string" },
+      why = { type = "string" } } } } } }
   local expect = { name = "expect", description = "Add expectations: what the ask requires, as rows the engine checks "
       .. "every run. Each row: id, says (the requirement in words), node; with prop, an op (== ~= > >= < <= has) and a "
-      .. "value, at a time (at) or over t0..t1 (holds = ever for some frame of it). Added once and fixed: none is ever "
-      .. "edited or removed.", parameters = moves.expect_tool()["function"].parameters,
+      .. "value, at a time (at) or over t0..t1 (holds = ever for some frame of it). None is ever edited; one of yours "
+      .. "that is wrong you withdraw with why.", parameters = eparams,
     prepare = function(args)
       args.rows = listed(args.rows, function(v) return v.id ~= nil end)
+      args.withdraw = listed(args.withdraw, function(v) return v.id ~= nil end)
       return args
     end,
     execute = function(args)
@@ -169,6 +178,13 @@ function M.list(s)
       for _, x in ipairs(type(args.rows) == "table" and args.rows or {}) do
         local ok, why = moves.check_expect(x)
         if ok then good[#good + 1] = x else refused[#refused + 1] = why end
+      end
+      for _, w in ipairs(type(args.withdraw) == "table" and args.withdraw or {}) do
+        if type(w) ~= "table" or type(w.id) ~= "string" or (w.why or "") == "" then
+          refused[#refused + 1] = "a withdrawal needs an id and why"
+        elseif (s.seed_ids or {})[w.id] then
+          refused[#refused + 1] = w.id .. " is the seed's: only your own can be withdrawn"
+        else good[#good + 1] = { withdraw = w.id, why = w.why } end
       end
       if #good == 0 then
         return { content = "No expectation was added: " .. table.concat(refused, "; "), is_error = true,
@@ -179,9 +195,15 @@ function M.list(s)
         details = { verb = "expect", outcome = "broken" } } end
       s:snap(s.n, res.findings)
       for _, r in ipairs(res.rejected or {}) do refused[#refused + 1] = clip(r.why, 300) end
-      return { content = ("%d added, %d rejected%s. %s"):format(#(res.added or {}), #refused, #refused > 0
-        and (": " .. table.concat(refused, "; ")) or "", context.changes(t, s.todo, s.n) or "No error opened or closed."),
-        details = { verb = "expect", outcome = #(res.added or {}) > 0 and "complete" or "no_effect",
+      for _, w in ipairs(res.withdrawn or {}) do
+        t.db:exec("insert or replace into tablua_withdrawal (todo, n, id, says, why) values (?, ?, ?, ?, ?)",
+          { s.todo, s.n, w.id, w.says or "", w.why or "" })
+      end
+      local nw = #(res.withdrawn or {})
+      return { content = ("%d added%s, %d rejected%s. %s"):format(#(res.added or {}), nw > 0 and (", " .. nw
+        .. " withdrawn") or "", #refused, #refused > 0 and (": " .. table.concat(refused, "; ")) or "",
+        context.changes(t, s.todo, s.n) or "No error opened or closed."),
+        details = { verb = "expect", outcome = (#(res.added or {}) + nw) > 0 and "complete" or "no_effect",
           state = res.state and res.state.line and (res.state.line .. "; step " .. s.n) or nil } }
     end }
 
@@ -189,7 +211,16 @@ function M.list(s)
       .. "judge's scores and what the engine measured. Look after the changes you want to see.",
     parameters = { type = "object", properties = {} },
     execute = function()
-      local sheet = s.engine:sheet(s.comp, s.sheet)
+      -- the frames at the times the expectations name, besides the regular ones: pi-s5's eye never saw the lamp's
+      -- flash at 4.27 s that an expectation named
+      local at, had = {}, {}
+      for _, x in ipairs(t:comp_rows(s.todo, s.snapped or 0).tables.expect or {}) do
+        for _, k in ipairs({ "at", "t0", "t1" }) do
+          local v = x[k]
+          if v ~= nil and not had[tostring(v)] then had[tostring(v)], at[#at + 1] = true, v end
+        end
+      end
+      local sheet = s.engine:sheet(s.comp, s.sheet, at)
       s.render_s = sheet.seconds
       local b64 = s.exec("base64 < '" .. s.sheet:gsub("'", [['\'']]) .. "' | tr -d '\\n'", 60)
       if not b64 or b64.code ~= 0 then error("could not read the contact sheet", 0) end
@@ -197,7 +228,9 @@ function M.list(s)
         :format(table.concat(sheet.picks or {}, ", ")) }
       if s.judge then
         local expects = t:comp_rows(s.todo, s.snapped or 0).tables.expect or {}
+        local withdrawn = t.db:exec("select id, says, why from tablua_withdrawal where todo = ? order by n", { s.todo })
         local state, qs = judge.ask{ ask = s.ask, treatment = s.treatment, expects = expects, findings = s.findings,
+          withdrawn = withdrawn,
           seen = {}, sheet_b64 = b64.stdout }
         local okj, answers = pcall(s.judge.decide, s.judge, state, qs)
         if okj then

@@ -8,7 +8,7 @@
 --   m:patch(comp, patches) -> { applied, rejected = { { patch, why } }, touched, digest_before, digest_after, findings }
 --   m:expect(comp, rows) -> { added, rejected = { { row, why } }, digest_before, digest_after, findings }   the ask as
 --                         predicates (rows.robot, "Expectations"), added once by the harness: no patch move touches them
---   m:lint(comp) -> findings      m:check(comp) -> findings      m:sheet(comp, out_png) -> { picks, seconds }
+--   m:lint(comp) -> findings      m:check(comp) -> findings      m:sheet(comp, out_png, at?) -> { picks, seconds }
 --
 -- Every command prints JSON and exits 0 when it ran; any other exit is the command failing, raised with its stderr.
 -- A rejected patch is data. COMP is written back in rows form by patch.
@@ -40,7 +40,8 @@ function P:run(...)
   end
   local ok, v = pcall(json.decode, r.stdout or "")
   if not ok or type(v) ~= "table" then
-    error(("moonsplice %s printed no JSON: %s"):format(parts[2], tostring(r.stdout):sub(1, 200)), 0)
+    error(("moonsplice %s printed no JSON: %s%s"):format(parts[2], tostring(r.stdout):sub(1, 200),
+      (r.stderr or "") ~= "" and (" (stderr: " .. tostring(r.stderr):sub(1, 300) .. ")") or ""), 0)
   end
   return v
 end
@@ -58,7 +59,15 @@ function P:brief(comp)
 end
 function P:lint(comp) return self:run("lint", comp).findings or {} end
 function P:check(comp) return self:run("check", comp).findings or {} end
-function P:sheet(comp, out) return self:run("sheet", comp, out) end
+-- at: times (seconds or fact references) to sample besides the regular frames (proposed --at, 2026-10-07)
+function P:sheet(comp, out, at)
+  if at and #at > 0 then
+    local ts = {}
+    for i, v in ipairs(at) do ts[i] = tostring(v) end
+    return self:run("sheet", comp, out, "--at", table.concat(ts, ","))
+  end
+  return self:run("sheet", comp, out)
+end
 
 function P:patch(comp, patches)
   assert(self.host.write, "moonsplice patch needs a host with write")

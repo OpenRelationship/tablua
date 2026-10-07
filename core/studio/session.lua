@@ -185,6 +185,8 @@ end
 function S:run()
   self:snap(0)
   self.seed, self.seed_expects = self.digest, self:expects()
+  self.seed_ids = {}
+  for _, x in ipairs(self.t:comp_rows(self.todo, 0).tables.expect or {}) do self.seed_ids[x.id] = true end
   local model = loop.retrying(self.o.model)
   local l = loop.new{ model = model, system = prompts.system(self.kind, context.index(self.reference)),
     tools = tools.list(self), reasoning_effort = "low",
