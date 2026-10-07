@@ -63,8 +63,19 @@ local function answer(id, q, a)
   elseif q.kind == "noul" then
     return { noul = assert(tonumber(a.noul), "jev gave no noul for " .. id) }
   end
-  return { score = a.score, probabilities = a.probabilities,
-    confidence = a.confidence or confidence(a.probabilities, #q.levels) }
+  -- Jev may key a score's probabilities by the level's 0-based index ("0", "1", ...) with score their expected
+  -- index (studio pi-s5, 2026-10-07): read back by level text, the score the likeliest level
+  local probs, score = a.probabilities, a.score
+  if type(probs) == "table" and probs["0"] ~= nil and q.levels[1] ~= "0" then
+    local by, best = {}, nil
+    for i, l in ipairs(q.levels) do
+      by[l] = tonumber(probs[tostring(i - 1)]) or 0
+      if not best or by[l] > by[best] then best = l end
+    end
+    probs, score = by, best
+  end
+  return { score = score, probabilities = probs,
+    confidence = a.confidence or confidence(probs, #q.levels) }
 end
 
 function Jev:decide(state, questions)

@@ -150,6 +150,19 @@ spec.test("a model that said nothing is asked once more; one no provider answere
   local slow = flaky("openrouter unreachable: Timeout was reached")
   loop.retrying(slow).chat(nil, {})
   spec.eq(slow.sorts[2], "latency")
+  -- a provider that failed mid-reply (finish_reason "error"), as ended studio pi-s5 at step 93: once more by latency
+  local broke = flaky("minimax/minimax-m3 gave no answer (finish error)")
+  local _, again = loop.retrying(broke).chat(nil, {})
+  spec.same({ broke.sorts[2], again.tries }, { "latency", 2 })
+  -- pi retries a transient failure up to three times: two failures still end in an answer
+  local twice = { sorts = {} }
+  function twice.chat(_, req)
+    twice.sorts[#twice.sorts + 1] = req.sort or "default"
+    if #twice.sorts <= 2 then error("openrouter answered 503: overloaded", 0) end
+    return "fine", {}
+  end
+  local _, third = loop.retrying(twice).chat(nil, {})
+  spec.same({ #twice.sorts, third.tries }, { 3, 3 })
   local hard = loop.retrying({ chat = function() error("openrouter answered 400: bad request", 0) end })
   local ok, why = pcall(hard.chat, hard, {})
   spec.same({ ok, why }, { false, "openrouter answered 400: bad request" })

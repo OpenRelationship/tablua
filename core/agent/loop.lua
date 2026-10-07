@@ -11,7 +11,8 @@
 --   l:continue() -> the same, from the transcript as it is (its last message a user or tool turn)
 --   l:steer(text | message)      read before the next reply      l:follow_up(text | message)   read when it would stop
 --   l:abort()                    the run ends after the tool call in hand      l.messages   the transcript
---   loop.retrying(port) -> port  asks again once when the model said nothing or no provider answered
+--   loop.retrying(port) -> port  asks again, up to loop.tries (3, as pi) in all, when the model said nothing, no
+--                                provider answered or one failed mid-reply (by latency, so likely another)
 --
 -- model: a chat port (ports.chat): chat{ system, messages, tools, ... } -> text, { tool_calls, finish, reasoning,
 -- usage, provider, model }. A tool: { name, description, parameters (JSON schema), execute(args, l, call) -> result,
@@ -151,6 +152,8 @@ local function run_call(self, call)
     is_error = result.is_error == true
   end
   if self.o.after_tool then
+    -- the hook reads whether it failed, as pi's afterToolCall gets isError
+    result.is_error = is_error or nil
     local okh, patch = pcall(self.o.after_tool, call, args, result, self)
     if not okh then result, is_error = failed(tostring(patch)), true
     elseif patch then
@@ -238,22 +241,33 @@ end
 -- a chat port that asks again once: afresh when the model reasoned to its limit and said nothing (M3 spent 129k
 -- tokens on one move in studio s1), or ordered by latency when no provider answered in time or one failed with a 5xx
 -- (studio s3 waited 37 and 45 minutes on one); pi-ai's retryAssistantCall does the same for its providers
+M.tries = 3   -- pi's default (coding-agent settings retry.maxRetries)
+
+-- what a provider may fail at for a moment: none reached, a 5xx, or a reply cut by its own error
+local function transient(e)
+  return e:find("unreachable", 1, true) or e:find("answered 5", 1, true) or e:find("(finish error)", 1, true)
+end
+
 function M.retrying(port)
   local r = {}
   function r.chat(_, req)
     local ok, text, record = pcall(port.chat, port, req)
-    if ok then return text, record end
-    local e = tostring(text)
-    local again = req
-    if e:find("unreachable", 1, true) or e:find("answered 5", 1, true) then
-      again = {}
-      for k, v in pairs(req) do again[k] = v end
-      again.sort = "latency"
-    elseif not e:find("said nothing", 1, true) then
-      error(text, 0)
+    local tries = 1
+    while not ok do
+      local e = tostring(text)
+      local again = req
+      if transient(e) then
+        again = {}
+        for k, v in pairs(req) do again[k] = v end
+        again.sort = "latency"
+      elseif not e:find("said nothing", 1, true) then
+        error(text, 0)
+      end
+      if tries >= M.tries then error(text, 0) end
+      tries = tries + 1
+      ok, text, record = pcall(port.chat, port, again)
     end
-    text, record = port.chat(port, again)
-    if type(record) == "table" then record.tries = 2 end
+    if tries > 1 and type(record) == "table" then record.tries = tries end
     return text, record
   end
   return r

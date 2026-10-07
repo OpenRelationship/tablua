@@ -36,4 +36,14 @@ spec.test("an optional question left unanswered is left out; a required one fail
   spec.eq(ok, false)
 end)
 
+spec.test("a score keyed by level index (Jev's form since studio pi-s5) comes back keyed by level text", function()
+  -- as gpt-6-luna-decisions answered on 2026-10-07: probabilities by 0-based index, score their expected index
+  local j = fake({ craft = { type = "score", score = 3.12, confidence = 0.65,
+    legend = { ["0"] = "1: fails", ["1"] = "2: weak", ["2"] = "3: ok" },
+    probabilities = { ["0"] = 0.01, ["1"] = 0.29, ["2"] = 0.7 } } })
+  local out = j:decide("state", { craft = { kind = "score", text = "craft?", levels = { "1: fails", "2: weak", "3: ok" } } })
+  spec.same({ out.craft.score, out.craft.probabilities["3: ok"], out.craft.probabilities["2: weak"],
+    out.craft.probabilities["0"] }, { "3: ok", 0.7, 0.29, nil })
+end)
+
 spec.run()

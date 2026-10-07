@@ -218,4 +218,31 @@ spec.test("the engine's warn findings are warnings", function()
   local tools = require("studio.tools")
   spec.eq(tools.found({ { code = "motion_density", severity = "warn" } }), "- warning motion_density")
 end)
+
+spec.test("a look says when the judge's answers could not be read, rather than scoring 0", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local blank = { decide = function(_, _, qs)
+    local a = {}
+    for id, q in pairs(qs) do if q.kind == "noul" then a[id] = { noul = 0 } else a[id] = { score = 2.5 } end end
+    return a
+  end }
+  local m = model({ { calls = { { "look", {} } } }, { text = "done" }, { text = "done" } })
+  local s = session.new{ engine = engine(), model = m, judge = blank, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png",
+    ask = "x", todo = "r", exec = function() return { code = 0, stdout = "UE5H" } end }
+  s:run()
+  local look = t.db:exec("select content from tablua_message where name = 'look'")[1].content
+  spec.ok(look:find("could not read", 1, true) and not look:find("rule 0.0", 1, true), look)
+end)
+
+spec.test("a tool that raises is a broken step under its own name, as pi-s5's failed looks were not", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local e = engine()
+  function e.sheet() error("moonsplice sheet printed no JSON: ", 0) end
+  local m = model({ { calls = { { "look", {} } } }, { text = "done" }, { text = "done" } })
+  local s = session.new{ engine = e, model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x", todo = "r",
+    exec = function() return { code = 0, stdout = "UE5H" } end }
+  s:run()
+  local o = t.db:exec("select verb, outcome from tablua_outcome where n = 1")[1]
+  spec.same({ o.verb, o.outcome }, { "look", "broken" })
+end)
 spec.run()

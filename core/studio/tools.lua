@@ -204,10 +204,16 @@ function M.list(s)
           local scores = judge.read(qs, answers, {})
           t:scores(s.todo, s.n, "critic", scores)
           s.critic, s.looked = { scores = scores }, s.digest
-          local d = {}
-          for _, k in ipairs(judge.dims) do d[#d + 1] = ("%s %.1f"):format(k, scores[k] or 0) end
-          lines[#lines + 1] = ("The judge, 1 to 5: %s; nearness to the ask %.1f. Chance some text is cut off or "
-            .. "overlapping: %.2f."):format(table.concat(d, ", "), scores.ask or 0, scores.cut or 0)
+          local d, unread = {}, {}
+          for _, k in ipairs(judge.dims) do
+            if scores[k] then d[#d + 1] = ("%s %.1f"):format(k, scores[k]) else unread[#unread + 1] = k end
+          end
+          if not scores.ask then unread[#unread + 1] = "ask" end
+          -- a score not read is said so: pi-s5's model read seventeen looks of zeros from answers in a form not read
+          lines[#lines + 1] = ("The judge, 1 to 5: %s%s. Chance some text is cut off or overlapping: %.2f.%s")
+            :format(#d > 0 and table.concat(d, ", ") or "none read", scores.ask and ("; nearness to the ask %.1f")
+              :format(scores.ask) or "", scores.cut or 0, #unread > 0 and (" (could not read the judge's "
+              .. table.concat(unread, ", ") .. ")") or "")
           s.judged = lines[#lines]
           local seen = {}
           for _, x in ipairs(expects) do

@@ -141,10 +141,10 @@ local function learner_line(s)
     and mine ~= best and ("; %s %.2f"):format(mine.name, mine.p) or "")
 end
 
-local function finish(s, _, result)
+local function finish(s, call, result)
   local d = result.details or {}
   local outcome = d.outcome or (result.is_error and "broken" or "complete")
-  s.last = { verb = d.verb or "tool", outcome = outcome }
+  s.last = { verb = d.verb or (call and call["function"] and call["function"].name) or "tool", outcome = outcome }
   s.t:outcome{ todo = s.todo, n = s.n, verb = s.last.verb, outcome = outcome,
     note = tostring(result.content or ""):sub(1, 500) }
   if s.o.log then s.o.log(("[step %d] %s -> %s"):format(s.n, s.last.verb, outcome)) end
@@ -189,7 +189,7 @@ function S:run()
       reserve = (self.o.compact or {}).reserve, keep = (self.o.compact or {}).keep,
       render = function() return self:checkpoint() end }),
     before_tool = function(call, args) begin(self, call, args) end,
-    after_tool = function(_, args, result) return finish(self, args, result) end,
+    after_tool = function(call, _, result) return finish(self, call, result) end,
     finish_turn = function(turn, lp) return handed_in(self, turn, lp) end,
     on = function(e)
       if e.type ~= "message" then return end
