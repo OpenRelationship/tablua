@@ -38,7 +38,9 @@ No Run Is Complete At Its Seed (red)
 
 No Result Is Stale
     [Documentation]    Every patch, expect and look result ends with a state line whose error count is the engine's at
-    ...    the newest snapshot of that step: the newest message in the transcript says what is true. Kill: any result
+    ...    the newest snapshot of that step: the newest message in the transcript says what is true. Errors are counted
+    ...    as the engine's own line counts them, a failing expectation under expect rather than among them (revised
+    ...    after pi-s5 killed it, 2026-10-07: Tablua's line and the engine's counted two ways). Kill: any result
     ...    without one or with another count, among 10 or more results.
     [Tags]    level:consistent    pi:state    predict:holds@0.9
     Use Sheets    ${ALL}
@@ -101,7 +103,7 @@ Complete Runs Changed The Comp
 Results Carry The State
     ${all}=    Value Of    select count(*) from tablua_message where role = 'tool' and name in ('patch', 'expect', 'look')
     Needs At Least    ${all}    10    results
-    ${stale}=    Value Of    select count(*) from tablua_message m where m.role = 'tool' and m.name in ('patch', 'expect', 'look') and (instr(m.content, 'state: digest') = 0 or cast(substr(m.content, instr(m.content, '; errors ') + 9, 6) as integer) != (select count(*) from tablua_msr_finding f where f.todo = m.todo and f.n = ${SNAP} and f.severity = 'error'))
+    ${stale}=    Value Of    select count(*) from tablua_message m where m.role = 'tool' and m.name in ('patch', 'expect', 'look') and (instr(m.content, 'state: digest') = 0 or cast(substr(m.content, instr(m.content, '; errors ') + 9, 6) as integer) != (select count(*) from tablua_msr_finding f where f.todo = m.todo and f.n = ${SNAP} and f.severity = 'error' and f.code != 'expect_failed'))
     Should Be True    ${stale} == 0    ${stale} of ${all} results with no state line or a stale one
 
 Learner Beats Base Rate

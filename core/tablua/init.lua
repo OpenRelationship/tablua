@@ -74,6 +74,7 @@ local function now() return os.date("!%Y-%m-%dT%H:%M:%SZ") end
 function M.open(db, opts)
   schema.migrate(db)
   db:exec(schema.ddl)
+  schema.after(db)
   db:exec("insert or replace into tablua_meta (key, value) values ('version', ?)", { tostring(schema.version) })
   return setmetatable({ db = db, clock = opts and opts.clock or now, sources = { "main" } }, T)
 end

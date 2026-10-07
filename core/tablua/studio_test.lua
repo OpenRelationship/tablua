@@ -149,4 +149,25 @@ spec.test("the transcript is a row per message, in order, with its calls, the ca
     { 3, "Fireworks", "first the almanac", "c1", 8, 1 })
   spec.eq(json.decode(t.db:exec("select tool_calls from tablua_message where i = 2")[1].tool_calls)[1].id, "c1")
 end)
+spec.test("two findings alike but for their detail are two rows (pi-s5 kept one of two failed expectations on t4)", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  t:findings("r", 1, { { tier = "lint", id = "t4", code = "expect_failed", detail = "t4 settles (expect t4-settled)" },
+    { tier = "lint", id = "t4", code = "expect_failed", detail = "t4 flashes (expect t4-orange)" } })
+  spec.eq(#t:findings_of("r", 1), 2)
+end)
+
+spec.test("a file kept before schema 24 has its findings table rekeyed at open, its rows kept", function()
+  local sqlite = require("ports.sqlite")
+  local db = sqlite.open(":memory:")
+  db:exec([[create table tablua_msr_finding (todo text not null, n integer not null, tier text not null,
+    id text not null default '', name text not null default '', code text not null, severity text not null,
+    t0 real not null default -1, t1 real, measured, threshold, detail text not null default '',
+    primary key (todo, n, tier, id, name, code, t0))]])
+  db:exec("insert into tablua_msr_finding (todo, n, tier, id, code, severity, detail) values ('r', 1, 'lint', 't4', "
+    .. "'expect_failed', 'error', 'a')")
+  local t = require("tablua").open(db, { clock = function() return "T" end })
+  t:findings("r", 2, { { id = "t4", code = "expect_failed", detail = "a" }, { id = "t4", code = "expect_failed", detail = "b" } })
+  spec.same({ #t:findings_of("r", 1), #t:findings_of("r", 2) }, { 1, 2 })
+end)
+
 spec.run()

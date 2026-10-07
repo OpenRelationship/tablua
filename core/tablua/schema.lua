@@ -71,9 +71,11 @@
 -- Schema 23 (owner, 2026-10-07: the harness works the way pi does): the transcript a run's model reads, a row per
 -- message as it joined (tablua_message: role, text, tool calls, the tool call a result answers, an image's bytes, the
 -- step n it belongs to, usage and provider), as pi keeps a session; what a model saw is the rows up to its turn.
+-- Schema 24 (2026-10-07): a finding's detail is part of its key: two failed expectations on one node differ only there,
+-- and studio pi-s5 kept one of each such pair. A file kept before it has the table rebuilt at open, its rows kept.
 local M = {}
 
-M.version = 23
+M.version = 24
 
 -- the columns schema 18 adds, each with its type, to a file kept before it
 M.added = {
@@ -277,7 +279,7 @@ create table if not exists tablua_msr_fact (
 create table if not exists tablua_msr_finding (
   todo text not null, n integer not null, tier text not null, id text not null default '', name text not null default '',
   code text not null, severity text not null, t0 real not null default -1, t1 real, measured, threshold,
-  detail text not null default '', primary key (todo, n, tier, id, name, code, t0));
+  detail text not null default '', primary key (todo, n, tier, id, name, code, t0, detail));
 create table if not exists tablua_score (
   todo text not null, n integer not null, judge text not null, dim text not null, value real,
   primary key (todo, n, judge, dim));
@@ -321,8 +323,24 @@ function M.migrate(db)
       end
     end
   end
+  local finding = db:exec("pragma table_info(tablua_msr_finding)")
+  local keyed = false
+  for _, c in ipairs(finding) do if c.name == "detail" and c.pk > 0 then keyed = true end end
+  if #finding > 0 and not keyed then
+    -- the ddl that follows makes the table with its new key; M.after puts the old rows back into it
+    db:exec("alter table tablua_msr_finding rename to tablua_msr_finding_23")
+  end
   local test = columns(db, "tablua_test")
   if next(test) and not test.kind then db:exec("alter table tablua_test add column kind text not null default 'test'") end
+end
+
+-- what migrate set aside, put back once the ddl has made the new tables
+function M.after(db)
+  if #db:exec("select 1 from sqlite_master where type = 'table' and name = 'tablua_msr_finding_23'") > 0 then
+    db:exec("insert or ignore into tablua_msr_finding select todo, n, tier, id, name, code, severity, t0, t1, measured, "
+      .. "threshold, detail from tablua_msr_finding_23")
+    db:exec("drop table tablua_msr_finding_23")
+  end
 end
 
 return M

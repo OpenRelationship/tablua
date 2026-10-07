@@ -84,11 +84,14 @@ function S:state_line()
   for _, f in ipairs(self.findings) do
     if (f.severity or "error") == "error" then
       local id = f.code == "expect_failed" and tostring(f.detail or ""):match("%(expect ([^)]+)%)%s*$")
-      if id then fail[#fail + 1] = id end
-      if #errs < 5 then errs[#errs + 1] = f.code .. ((f.id or "") ~= "" and (" " .. f.id) or "") end
+      if id then fail[#fail + 1] = id
+      elseif #errs < 5 then errs[#errs + 1] = f.code .. ((f.id or "") ~= "" and (" " .. f.id) or "") end
     elseif f.severity == "warn" then warnings = warnings + 1 end
   end
-  local errors = self:errors()
+  -- as the engine's own state line counts them: a failing expectation is under expect, not among the errors (pi-s5
+  -- read "errors 0" from the engine and "errors 6" from this line on one comp)
+  local all, failing = self:errors()
+  local errors = all - failing
   local total = self:expects()
   return ("state: digest %s; errors %d%s; warnings %d; expect %d/%d%s; step %d"):format(tostring(self.digest or ""):sub(1, 8),
     errors, #errs > 0 and (" (" .. table.concat(errs, ", ") .. (errors > #errs and ", ..." or "") .. ")") or "", warnings,

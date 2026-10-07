@@ -245,4 +245,15 @@ spec.test("a tool that raises is a broken step under its own name, as pi-s5's fa
   local o = t.db:exec("select verb, outcome from tablua_outcome where n = 1")[1]
   spec.same({ o.verb, o.outcome }, { "look", "broken" })
 end)
+
+spec.test("the state line counts errors as the engine's does: a failing expectation only under expect", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local s = session.new{ engine = engine(), model = model({}), tablua = t, comp = "/w/c.lua", sheet = "/w/s.png",
+    ask = "x", todo = "r", exec = function() end }
+  s:snap(0)
+  s.findings = { { code = "expect_failed", severity = "error", id = "t4", detail = "t4 settles (expect t4-settled)" },
+    { code = "off_frame", severity = "error", id = "t1" } }
+  spec.ok(s:state_line():find("errors 1 (off_frame t1); warnings 0; expect", 1, true), s:state_line())
+  spec.ok(s:state_line():find("(failing: t4-settled)", 1, true), s:state_line())
+end)
 spec.run()
