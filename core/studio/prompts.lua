@@ -70,12 +70,23 @@ M.rules = {
   "Be concise.",
 }
 
-function M.system(kind, index)
+-- with connect, the connect tool and its rule (studio.connect): other people's apps, never their credentials
+M.connect_tool = "reach another app or service through connectory: find it, list its calls, make one; the person "
+  .. "connects their own account and approves a call that changes something"
+M.connect_rule = "Use connect only when the piece needs something from another service. Never ask for a key, token or "
+  .. "password in the conversation and never accept one: when a service is not connected, or a call waits for "
+  .. "approval, the person has been asked through the app, so carry on with other work and try again later."
+
+function M.system(kind, index, opts)
   local what = kind == "game" and "game" or "motion piece"
   local tools = {}
   for _, name in ipairs(M.tool_order) do tools[#tools + 1] = "- " .. name .. ": " .. M.tools[name] end
   local rules = {}
   for i, r in ipairs(M.rules) do rules[i] = "- " .. r end
+  if opts and opts.connect then
+    tools[#tools + 1] = "- connect: " .. M.connect_tool
+    rules[#rules + 1] = "- " .. M.connect_rule
+  end
   return "You are building a Moonsplice " .. what .. " inside Tablua, a harness that gives you tools to read, change "
     .. "and see it.\n\n<tools>\n" .. table.concat(tools, "\n") .. "\n</tools>\n\n<rules>\n" .. table.concat(rules, "\n")
     .. "\n</rules>\n\n<comp>\n" .. M.rows .. "\n</comp>\n\n<bans>\n" .. M.bans:gsub("^\n", "") .. "\n</bans>"

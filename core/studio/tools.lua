@@ -279,7 +279,10 @@ function M.list(s)
       return { content = text, details = { verb = "reference", outcome = "complete" } }
     end }
 
-  return { brief, patch, expect, look, reference }
+  local list = { brief, patch, expect, look, reference }
+  -- other people's apps, when the host gives the session connectory's port (studio.connect)
+  if s.o and s.o.connect then list[#list + 1] = require("studio.connect").tool(s) end
+  return list
 end
 
 return M

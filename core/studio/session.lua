@@ -6,14 +6,16 @@
 -- answers a send-back without calling a tool, never on a cap.
 --
 --   local s = require("studio.session").new{ engine, model, tablua, comp, sheet, ask, kind?, exec, reference?,
---                                             judge?, learn?, todo?, compact?, log? }
---   s:run() -> { stop, status, steps, pass, said }   status: complete (handed in with no errors and every expectation
+--                                             judge?, learn?, todo?, compact?, log?, connect? }
+--   s:run() -> { stop, status, steps, pass, said, asks }   status: complete (handed in with no errors and every expectation
 --                                             holding) or partial; said: the model's last words
 --     learn: agent.learn with step = studio.features.learner(t): before a patch it ranks the moves from states like
 --     this one (TabICL, local) and the predictions are kept as rows; it never blocks. Its line reaches the model only
 --     with learner_shown, which waits on The Learner Beats The Base Rate (killed 2026-10-07, Brier 0.218 against 0.089)
 --     expect_first: a patch before the model has written an expectation of its own is refused (default true): pi-s6
 --     made twenty set_prop and look pairs with nothing of its own to converge on, and never handed in
+--     connect: { port, ask, approval? } (studio.connect): other people's apps through connectory; asks is what still
+--     waits on the person when the run ends (a connection, an approval)
 --     engine: ports.moonsplice (brief, rows, lint, check, patch, expect, sheet); model: a chat port; judge: a Jev
 --     port; reference: the engine's card (Moonsplice's .robot/docs/reference.robot); compact: { window, reserve?, keep? }, the
 --     model's context in tokens: near it, the turns before the cut become a checkpoint rendered from the tables
@@ -194,7 +196,8 @@ function S:run()
   self.seed_ids = {}
   for _, x in ipairs(self.t:comp_rows(self.todo, 0).tables.expect or {}) do self.seed_ids[x.id] = true end
   local model = loop.retrying(self.o.model)
-  local l = loop.new{ model = model, system = prompts.system(self.kind, context.index(self.reference)),
+  local l = loop.new{ model = model, system = prompts.system(self.kind, context.index(self.reference),
+      { connect = self.o.connect ~= nil }),
     tools = tools.list(self), reasoning_effort = "low",
     transform = compact.transform(model, { window = (self.o.compact or {}).window or M.window,
       reserve = (self.o.compact or {}).reserve, keep = (self.o.compact or {}).keep,
@@ -222,7 +225,10 @@ function S:run()
   local status = (out.stop == "stop" and errors == 0 and self.digest ~= self.seed) and "complete" or "partial"
   self.t:run{ todo = self.todo, shipped = out.stop == "stop", answered = out.stop == "stop", works = status == "complete",
     changed = self.digest ~= self.seed, steps = self.n }
-  return { stop = out.stop, status = status, error = out.error, steps = self.n, pass = self:pass(), said = self.said }
+  -- what still waits on the person (a connection, an approval), for whoever drives this run
+  local asks = self.o.connect and require("studio.connect").open(self) or {}
+  return { stop = out.stop, status = status, error = out.error, steps = self.n, pass = self:pass(), said = self.said,
+    asks = asks }
 end
 
 return M

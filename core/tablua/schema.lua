@@ -80,9 +80,13 @@
 -- snapshot keeps all of the engine's tables (R.TABLES): a game's settings (tablua_msr_game) and input log
 -- (tablua_msr_input, its n as i beside the step's n), and the parts a solid is meant to have (tablua_msr_asset.parts),
 -- which earlier snapshots dropped.
+-- Schema 27 (owner, 2026-10-07): other people's apps through connectory (studio.connect). Each call a step made to a
+-- service (tablua_connect: service, op, method, status, seconds, outcome; never an address, a header or a value) and
+-- each thing the agent asked the person for (tablua_ask: a connection, with the names of the fields and where the
+-- service says to get them, or an approval of a call that changes something, and what the person was told to do).
 local M = {}
 
-M.version = 26
+M.version = 27
 
 -- the columns schema 18 adds, each with its type, to a file kept before it
 M.added = {
@@ -300,6 +304,12 @@ create table if not exists tablua_msr_finding (
 create table if not exists tablua_score (
   todo text not null, n integer not null, judge text not null, dim text not null, value real,
   primary key (todo, n, judge, dim));
+create table if not exists tablua_connect (
+  todo text not null, n integer not null, i integer not null, service text not null, op text not null,
+  method text, status integer, seconds real, outcome text not null, primary key (todo, n, i));
+create table if not exists tablua_ask (
+  todo text not null, n integer not null, kind text not null, service text not null, op text not null default '',
+  fields text, docs text, how text, primary key (todo, n, kind, service, op));
 create table if not exists tablua_gate (
   name text primary key, predicate text not null, version integer not null default 1,
   retired_by text);
@@ -309,7 +319,7 @@ create table if not exists tablua_gate (
 M.log = { "state", "candidate", "decision", "action", "outcome", "run", "prediction", "feature", "result", "label",
   "effect", "control", "ranking", "change", "term", "event", "file", "vector", "msr_comp", "msr_node", "msr_prop",
   "msr_key", "msr_motion", "msr_system", "msr_asset", "msr_fact", "msr_finding", "score",
-  "msr_solid", "msr_expect", "prompt", "message", "withdrawal", "msr_game", "msr_input" }
+  "msr_solid", "msr_expect", "prompt", "message", "withdrawal", "msr_game", "msr_input", "connect", "ask" }
 
 local function columns(db, tbl)
   local out = {}
