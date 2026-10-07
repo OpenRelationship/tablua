@@ -232,6 +232,6 @@ The terminal, desktop and program-as-rows tables stay in Tablua; Moonsplice leav
 | `ports.tabicl` ranks moves for `learn`, with a server or with the host's own model | consistent | Fixture tests; live through Modal once, `fix` 1.000 over `look` 0.003 |
 | The same run writes the same rows | consistent | Three processes, byte-identical dumps |
 | TabICL on Moonsplice's steps beats the base rate | not shown | Needs Moonsplice trials and its held-out Brier claim |
-| A Candle TabICL matches the Python reference | not built | The parity fixtures above are its test |
+| A Candle TabICL matches the Python reference | correct | Moonsplice's claims (cadence/.robot/claims/tabicl.robot: logits within 2.6e-4, members within 1.2e-7, probas within 1.9e-6); checked from Tablua too, three fixtures within 1.8e-6. `bin/moonsplice tabicl` takes ports.tabicl's body on stdin |
 | The studio world runs a whole request and keeps its rows | consistent | `core/studio/world_test.lua` over fakes: treat, a breaking patch, a fix, a look, answer; outcomes, snapshots, findings, scores and features as rows |
 | It builds a good comp with the real engine and M3 | not shown | Needs `bin/moonsplice rows` and `patch` (Moonsplice) and a claim |
