@@ -52,6 +52,22 @@ spec.test("where a world keeps its pass rate (req.pass), the step's state row ke
   spec.same(t.db:exec("select stage, pass from tablua_state"), { { stage = "building", pass = 0.5 } })
 end)
 
+spec.test("a host that wrote the step's decision and candidates itself keeps them; state and outcome are still written", function()
+  local a = agent({})
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"))
+  a.env.tablua = t
+  t:candidates("t", 1, { { move = "run", jev_p = 0.6, prior = 0.4 }, { move = "look", jev_p = 0.4 } })
+  t:decision{ todo = "t", n = 1, chosen = "run", by = "free", said = "look" }
+  local req = { todo = "t", steps = {}, standing = { stage = "failing" } }
+  local step = { n = 1, verb = "run", outcome = "complete", sure = { p = 0.6 } }
+  req.steps[1] = step
+  checkpoint.after(a, req, step)
+  spec.same({ t.db:exec("select by, said from tablua_decision")[1], #t.db:exec("select * from tablua_candidate"),
+    t.db:exec("select prior from tablua_candidate where move = 'run'")[1].prior,
+    #t.db:exec("select * from tablua_state"), #t.db:exec("select * from tablua_outcome") },
+    { { by = "free", said = "look" }, 2, 0.4, 1, 1 })
+end)
+
 spec.test("TabPFN ranks the world's tools only after enough failed steps", function()
   local ranked = 0
   local learn = { rank = function(_, _, _, names) ranked = ranked + 1; return { { name = names[2], p = 0.7 } } end,

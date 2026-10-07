@@ -85,9 +85,13 @@ local function rows(a, req, step, prev)
   local t, s = a.env.tablua, req.standing or {}
   t:state{ todo = req.todo, n = step.n, stage = s.stage, pass = s.pass, stalls = req.repeats, last_verb = prev and prev.verb,
     last_outcome = prev and prev.outcome, cause = req.cause and req.cause.choice }
-  t:candidates(req.todo, step.n, { { move = step.verb, jev_p = step.sure and step.sure.p,
-    jev_conf = step.sure and step.sure.confidence } })
-  t:decision{ todo = req.todo, n = step.n, chosen = step.verb, by = step.by or "jev" }
+  -- a host that wrote the decision itself (every move offered, what the decider said) keeps its rows
+  local written = #t.db:exec("select 1 from tablua_decision where todo = ? and n = ?", { req.todo, step.n }) > 0
+  if not written then
+    t:candidates(req.todo, step.n, { { move = step.verb, jev_p = step.sure and step.sure.p,
+      jev_conf = step.sure and step.sure.confidence } })
+    t:decision{ todo = req.todo, n = step.n, chosen = step.verb, by = step.by or "jev" }
+  end
   t:outcome{ todo = req.todo, n = step.n, verb = step.verb, outcome = step.outcome, note = step.note }
 end
 
