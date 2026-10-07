@@ -10,7 +10,7 @@
 local M = {}
 
 M.order = { "treat", "add_node", "set_prop", "add_key", "move_key", "drop_key", "bind", "add_system", "edit_system",
-  "derive", "remove" }
+  "derive", "solid", "remove" }
 
 M.what = {
   treat = "Write the treatment: the premise, the governing rule, the grammar and the structure. Not a comp edit.",
@@ -23,6 +23,8 @@ M.what = {
   add_system = "Add a system: one small pure function (t, state, q) -> rows, run every frame after the keys.",
   edit_system = "Change a system's source or its order.",
   derive = "Declare a media asset and the derive ops it is made with.",
+  solid = "Build a solid with Manifold from a tree of ops (the reference's Solids section); a mesh node shows it with "
+    .. "src = \"asset:<id>\", a system's entity with solid = \"asset:<id>\".",
   remove = "Remove a node with its props, keys and children, or a system.",
 }
 
@@ -53,6 +55,9 @@ M.schema = {
   edit_system = obj({ name = S, source = S, order = { type = "number" } }, { "name" }),
   derive = obj({ asset = { type = "object", properties = { id = S, src = S, derive = { type = "object" } },
     required = { "id", "src" } } }, { "asset" }),
+  solid = obj({ asset = { type = "object", properties = { id = S, solid = { type = "object",
+    description = "the tree: an op and its fields, children nested (the reference's Solids section)" } },
+    required = { "id", "solid" } } }, { "asset" }),
   remove = obj({ id = S, system = S }, {}),
 }
 
@@ -87,6 +92,8 @@ function M.check(move, patch)
   if move == "add_node" then
     local n = patch.node
     if type(n.id) ~= "string" or n.id == "" or type(n.kind) ~= "string" then return nil, "add_node needs node.id and node.kind" end
+  elseif move == "solid" and (type(patch.asset.id) ~= "string" or type(patch.asset.solid) ~= "table") then
+    return nil, "solid needs asset.id and asset.solid"
   elseif move == "remove" and patch.id == nil and patch.system == nil then
     return nil, "remove needs id or system"
   end

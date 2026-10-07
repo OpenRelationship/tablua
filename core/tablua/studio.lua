@@ -31,7 +31,7 @@ M.tables = {
   { name = "motion", cols = { "id", "name", "t0", "t1", "curve", "params" }, key = { "id", "name", "t0" },
     json = { params = true } },
   { name = "system", cols = { "name", "order", "source" }, key = { "order", "name" }, rename = { order = "ord" } },
-  { name = "asset", cols = { "id", "src", "derive" }, key = { "id" }, json = { derive = true } },
+  { name = "asset", cols = { "id", "src", "derive", "solid" }, key = { "id" }, json = { derive = true, solid = true } },
   { name = "fact", cols = { "pred", "args", "t0", "t1", "src", "conf" }, key = { "pred", "args", "t0" },
     json = { args = true } },
 }
@@ -166,6 +166,14 @@ return setmetatable(M, { __call = function(_, T, put)
         { todo = todo, n = n, pred = f.pred, args = M.canon(f.args), t0 = f.t0, t1 = f.t1, src = f.src or "",
           conf = f.conf, derived = 1, asset = f.asset })
     end
+    self.db:exec("delete from tablua_msr_solid where todo = ? and n = ?", { todo, n })
+    local flag = function(b) if b == nil then return nil end return b and 1 or 0 end
+    for id, s in pairs(rows and rows.solids or {}) do
+      put(self.db, "tablua_msr_solid", { "todo", "n", "id", "parts", "genus", "watertight", "empty", "volume", "area",
+        "triangles", "size" }, { todo = todo, n = n, id = id, parts = s.parts, genus = s.genus,
+        watertight = flag(s.watertight), empty = flag(s.empty), volume = s.volume, area = s.area,
+        triangles = s.triangles, size = s.size and M.canon(s.size) })
+    end
   end
 
   function T:comp_rows(todo, n)
@@ -182,7 +190,7 @@ return setmetatable(M, { __call = function(_, T, put)
           for _, c in ipairs(spec.cols) do
             local v = r[column(spec, c)]
             if spec.typed == c then v = uncell(v, r.type)
-            elseif spec.json and spec.json[c] and v ~= nil then v = json.decode(v) end
+            elseif spec.json and spec.json[c] then v = (v ~= nil and v ~= "") and json.decode(v) or nil end
             row[c] = v
           end
           list[i] = row
@@ -200,6 +208,15 @@ return setmetatable(M, { __call = function(_, T, put)
     if #derived > 0 then
       for _, f in ipairs(derived) do f.args = json.decode(f.args) end
       out.derived = derived
+    end
+    local solids = self.db:exec("select * from tablua_msr_solid where todo = ? and n = ? order by id", { todo, n })
+    if #solids > 0 then
+      out.solids = {}
+      for _, s in ipairs(solids) do
+        local flag = function(v) if v == nil then return nil end return v == 1 end
+        out.solids[s.id] = { parts = s.parts, genus = s.genus, watertight = flag(s.watertight), empty = flag(s.empty),
+          volume = s.volume, area = s.area, triangles = s.triangles, size = s.size and json.decode(s.size) }
+      end
     end
     return out
   end

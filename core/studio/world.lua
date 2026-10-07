@@ -23,7 +23,7 @@ local studio = require("tablua.studio")
 local M = {}
 
 M.edits = { "add_node", "set_prop", "add_key", "move_key", "drop_key", "bind", "add_system", "edit_system", "derive",
-  "remove" }
+  "solid", "remove" }
 M.look = "Render a contact sheet and have the critic score it (once the comp changed since the last look)."
 M.answer = "Hand the piece in as it is now, scored by the last look. Open errors go with it."
 M.shown = 12   -- open findings shown in the state
@@ -191,7 +191,7 @@ function M.new(o)
     local rows = t:comp_rows(req.todo, w.snapped or 0)
     -- the comp's rows and the facts its assets gave (beat:N, word:...), so a bind names one that exists
     local req_w = prompts.move(move, o.ask, o.kind, req.treatment, standing(req),
-      json.encode({ tables = rows.tables, derived = rows.derived }), o.reference)
+      json.encode({ tables = rows.tables, derived = rows.derived, solids = rows.solids }), o.reference)
     -- the chosen move first, then the others it may need in the same reply (an add_node with its keys): in studio s1
     -- a node and its keys took a step each, and seventeen steps changed little (Moonsplice's read, 2026-10-06)
     local offered = { [move] = true }

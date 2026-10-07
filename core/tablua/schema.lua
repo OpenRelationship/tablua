@@ -60,12 +60,16 @@
 -- and how a judge scored it (tablua_score: the critic's dims, or the oracle's). A value cell holds a number or a
 -- string as itself and a boolean, array or object as canonical JSON text, its type column saying which (n, s, b, j),
 -- as ROWS.md says. A step joins to what it changed through the snapshots.
+-- Schema 20 (owner, 2026-10-06): an asset may be a solid, built by Manifold from a tree of plain values
+-- (tablua_msr_asset.solid, canonical JSON; cadence/docs/SOLIDS.md), and what the engine measured of each solid is kept
+-- beside the snapshot, outside its tables as derived facts are (tablua_msr_solid: parts, genus, watertight, size).
 local M = {}
 
-M.version = 19
+M.version = 20
 
 -- the columns schema 18 adds, each with its type, to a file kept before it
 M.added = {
+  tablua_msr_asset = { { "solid", "text" } },
   tablua_decision = { { "said", "text" }, { "state", "text" } },
   tablua_candidate = { { "prior", "real" }, { "p_complete", "real" }, { "knn", "real" } },
 }
@@ -242,7 +246,10 @@ create table if not exists tablua_msr_system (
   primary key (todo, n, name));
 create table if not exists tablua_msr_asset (
   todo text not null, n integer not null, id text not null, src text not null default '', derive text not null default '',
-  primary key (todo, n, id));
+  solid text, primary key (todo, n, id));
+create table if not exists tablua_msr_solid (
+  todo text not null, n integer not null, id text not null, parts integer, genus integer, watertight integer,
+  empty integer, volume real, area real, triangles integer, size text, primary key (todo, n, id));
 create table if not exists tablua_msr_fact (
   todo text not null, n integer not null, pred text not null, args text not null, t0 real not null, t1 real,
   src text not null default '', conf real, derived integer not null default 0, asset text,
@@ -262,7 +269,8 @@ create table if not exists tablua_gate (
 -- the log's tables, each keyed by the todo (schema 14 renamed its column from task)
 M.log = { "state", "candidate", "decision", "action", "outcome", "run", "prediction", "feature", "result", "label",
   "effect", "control", "ranking", "change", "term", "event", "file", "vector", "msr_comp", "msr_node", "msr_prop",
-  "msr_key", "msr_motion", "msr_system", "msr_asset", "msr_fact", "msr_finding", "score" }
+  "msr_key", "msr_motion", "msr_system", "msr_asset", "msr_fact", "msr_finding", "score",
+  "msr_solid" }
 
 local function columns(db, tbl)
   local out = {}

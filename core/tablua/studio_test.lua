@@ -99,4 +99,18 @@ spec.test("numbers in canonical JSON: integers as integers, others the shortest 
     { "540", "-6", "0.1", "0.3333333333333333", "1.152921504606847e+18", "[0,1.2,-6]", '{"a":true,"b":0.25}' })
 end)
 
+
+spec.test("a solid's tree is kept with its asset and its measures beside it, outside the tables", function()
+  local t = open()
+  local rows = comp(540, { asset = { { id = "buoy", solid = { op = "revolve", profile = { { 0, 0 }, { 0.42, 0 } },
+    segments = 64 } }, { id = "bed", src = "bed.wav" } } })
+  rows.solids = { buoy = { parts = 1, genus = 1, watertight = true, empty = false, volume = 0.797, area = 4.82,
+    triangles = 6776, size = { 1.01, 1.405, 1.01 } } }
+  t:comp("r", 0, rows)
+  local back = t:comp_rows("r", 0)
+  spec.same({ back.tables.asset[2].solid.segments, back.tables.asset[1].solid, back.solids.buoy.parts,
+    back.solids.buoy.watertight, back.solids.buoy.size }, { 64, nil, 1, true, { 1.01, 1.405, 1.01 } })
+  t:comp("r", 1, back)
+  spec.eq(json.encode(t:comp_rows("r", 1)), json.encode(back))
+end)
 spec.run()

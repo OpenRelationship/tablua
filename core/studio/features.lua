@@ -14,10 +14,11 @@ M.dims = { "rule", "relationship", "defaults", "rhythm", "memory", "craft" }
 -- the columns, the move and the state's first (categorical: 0-based), then the comp's numbers
 M.columns = { "move", "stage", "last_verb", "last_outcome", "pass", "stalls", "n", "game", "nodes", "keys", "motions",
   "systems", "assets", "facts", "bound", "errors", "warnings", "check_errors", "critic_low", "critic_mean",
-  "rule", "relationship", "defaults", "rhythm", "memory", "craft", "render_s", "since_look", "beats", "words" }
+  "rule", "relationship", "defaults", "rhythm", "memory", "craft", "render_s", "since_look", "beats", "words",
+  "solids", "broken_solids" }
 M.categorical = { 0, 1, 2, 3 }
 M.numbers = 5          -- the first column read from the feature rows (1-based)
-M.schema = "studio-2"  -- a fit's schema: changes when the columns do
+M.schema = "studio-3"  -- a fit's schema: changes when the columns do
 
 local function one(t, sql, args)
   local r = t.db:exec(sql, args)[1]
@@ -45,7 +46,9 @@ function M.read(t, todo, n, extra)
     -- keys whose time is a fact reference (ROWS.md: a comp says what it is computed from)
     bound = count("key", " and typeof(t) = 'text' and t like '%:%'"),
     errors = count("finding", " and severity = 'error'"), warnings = count("finding", " and severity != 'error'"),
-    check_errors = count("finding", " and severity = 'error' and tier = 'check'") }
+    check_errors = count("finding", " and severity = 'error' and tier = 'check'"),
+    -- Manifold's measures of each solid (cadence/docs/SOLIDS.md): more than one part, not closed, or empty is broken
+    solids = count("solid"), broken_solids = count("solid", " and (parts > 1 or watertight = 0 or empty = 1)") }
   local last = one(t, "select max(n) as m from tablua_score where todo = ? and judge = 'critic' and n < ?", { todo, n })
   f.critic_low, f.critic_mean = -1, -1
   for _, d in ipairs(M.dims) do f[d] = -1 end

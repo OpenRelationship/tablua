@@ -40,4 +40,10 @@ spec.test("a tool call's arguments become the engine's patch", function()
     { move = "move_key", id = "line", name = "y", t = 6, to_t = "beat:4" })
 end)
 
+
+spec.test("a solid is a move: an asset with its tree", function()
+  spec.ok(moves.check("solid", { asset = { id = "bollard", solid = { op = "cylinder", r = 0.3, h = 0.8 } } }))
+  spec.ok(not moves.check("solid", { asset = { id = "bollard" } }))
+  spec.ok(moves.what.solid:find("asset:", 1, true))
+end)
 spec.run()

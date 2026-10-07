@@ -60,4 +60,15 @@ spec.test("learn ranks moves in the studio columns with the host's TabICL", func
     #sent.test.rows[1] }, { "set_prop", "move", 14, features.categorical, #features.columns, #features.columns })
 end)
 
+
+spec.test("a decision reads the comp's solids and how many of them are broken (parts > 1, open, or empty)", function()
+  local t = sheet()
+  t:comp("r", 2, { tables = { node = { { id = "a", kind = "mesh" } } }, solids = {
+    ok = { parts = 1, genus = 0, watertight = true, empty = false },
+    split = { parts = 2, genus = 0, watertight = true, empty = false },
+    open = { parts = 1, genus = 0, watertight = false, empty = false } } })
+  local f = features.read(t, "r", 3)
+  spec.same({ f.solids, f.broken_solids }, { 3, 2 })
+  spec.eq(features.columns[#features.columns], "broken_solids")
+end)
 spec.run()
