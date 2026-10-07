@@ -287,4 +287,20 @@ spec.test("the writer reads the brief, every step's line and the card's sections
   spec.same({ json.decode(rows[3].parts).brief, rows[3].n }, { #"BRIEF: the comp as text", 3 })
   spec.ok(rows[3].bytes > 0)
 end)
+
+spec.test("the director reads the comp and its expectations first, and works within them", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local e = engine()
+  function e.brief() return "BRIEF\nexpectations:\n  ok   tide-4: the 22:58 high water row reads" end
+  local asked
+  local w = world.new{ engine = e, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x", critic = critic,
+    exec = function() return { code = 0, stdout = "" } end,
+    writer = { chat = function(_, req) asked = req return "Rule: the line." end } }
+  local step = { lines = {} }
+  w.act(nil, { todo = "r", steps = {} }, "treat", step)
+  spec.ok(asked.user:find("tide-4: the 22:58 high water row reads", 1, true), asked.user)
+  spec.ok(asked.user:find("never replace", 1, true))
+  local row = t.db:exec("select role, parts from tablua_prompt where n = 1")[1]
+  spec.same({ row.role, json.decode(row.parts).brief }, { "director", #e.brief() })
+end)
 spec.run()

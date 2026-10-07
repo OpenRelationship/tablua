@@ -2,7 +2,7 @@
 -- critic's rubric are Moonsplice's own (cadence/agent/prompts.lua, 2026-10-06), kept word for word so a score means the
 -- same thing in both.
 --
---   prompts.director(ask, kind) -> chat request            the treatment
+--   prompts.director(ask, kind, comp?) -> chat request     the treatment, within the seed (comp: its brief)
 --   prompts.move(move, ask, kind, treatment, standing, comp, card?, sources?) -> chat request   one move, as tool
 --                                  calls; comp is the engine's brief (rows --brief), card the sections of Moonsplice's
 --                                  API card (cadence/agent/REFERENCE.md) the move needs, sources the systems' code
@@ -38,10 +38,14 @@ frame after the keys; it reads only through q), asset (src and its derive ops) a
 things are nodes whose parent is a world node, with Bevy's props (shape, pos, rot, size, material, light). You change
 the comp only with patches; each is checked, and one that fails is rejected with why.]]
 
-function M.director(ask, kind)
+-- comp: the seed as the engine's brief, its expectations among it. In studio s2 the treatment replaced the seed's tide
+-- table with "one moment of type", and the critic then had it deleted (Moonsplice, 2026-10-06)
+function M.director(ask, kind, comp)
   return { system = "You are the director of a small studio making a " .. (kind == "game" and "game" or "motion piece")
     .. ". You think before anything is built.\n\n" .. M.bans,
-    user = "The ask: " .. ask .. "\n\nWrite the treatment: the premise; the ONE governing rule everything follows; the "
+    user = "The ask: " .. ask .. (comp and ("\n\nThe piece as it stands:\n" .. comp .. "\n\nIts expectations are what the "
+      .. "piece is: the treatment works within them. Restyle, retime or re-stage what they name; never replace or "
+      .. "remove it.") or "") .. "\n\nWrite the treatment: the premise; the ONE governing rule everything follows; the "
       .. "grammar (what things are, how they move, what they are timed to); the structure in time. Under 250 words.",
     temperature = 0.7 }
 end

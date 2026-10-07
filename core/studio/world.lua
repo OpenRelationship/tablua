@@ -231,7 +231,9 @@ function M.new(o)
   end
 
   local function treat(req, step, n)
-    local ok, text = call("director", o.writer, prompts.director(o.ask, o.kind), req.todo, n, { ask = #o.ask })
+    local comp = seen_comp(req)
+    local ok, text = call("director", o.writer, prompts.director(o.ask, o.kind, comp), req.todo, n,
+      { ask = #o.ask, brief = #comp })
     if not ok or not text or text == "" then step.outcome, step.note = "broken", "the director failed: " .. clip(text, 200) return end
     req.treatment = text
     step.outcome, step.note = "complete", "treatment: " .. clip(text:gsub("\n", " "), 200)
