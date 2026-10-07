@@ -156,4 +156,29 @@ spec.test("one step lands the chosen move with the patches it needs from others,
   spec.eq(step.outcome, "no_effect")
 end)
 
+spec.test("a patch after a treat and a look sees the comp as it stands, and the critic's listed notes as text", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local e = engine()
+  e.node[1], e.prop[1] = { id = "body", kind = "mesh", order = 1 }, { id = "body", name = "y", value = 300 }
+  local seen
+  local w = world.new{ engine = e, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x", reference = "THE CARD",
+    writer = { chat = function(_, req)
+      if not req.tools then return "Rule: the line." end
+      seen = req.messages[1].content
+      return "", { tool_calls = { { id = "c", type = "function", ["function"] = { name = "set_prop",
+        arguments = json.encode({ id = "body", name = "y", value = 320 }) } } } }
+    end },
+    critic = { chat = function() return '{"scores": {"rule": 4, "relationship": 3, "defaults": 4, "rhythm": 3, '
+      .. '"memory": 2, "craft": 4}, "notes": ["Recast the type in red", "Light the buoy"]}' end },
+    exec = function() return { code = 0, stdout = "UE5H" } end }
+  local memory = { begin = function() return "r" end, step = function() end, log = function() end }
+  local a = agent.new({ jev = jev({ "look", "set_prop" }, {}), tablua = t, memory = memory }, w)
+  local req = a:begin("x")
+  for _ = 1, 3 do local r = a:step(req) a:perform(req, r[2]) a:close(req, r[2]) end
+  spec.same({ req.steps[2].verb, req.steps[3].verb }, { "look", "set_prop" })
+  spec.ok(req.steps[2].note:find("Recast the type in red; Light the buoy", 1, true), req.steps[2].note)
+  spec.ok(seen:find('"id":"body"', 1, true), "the writer saw no node body")
+  spec.ok(seen:find("Light the buoy", 1, true), "the writer saw no critique")
+end)
+
 spec.run()

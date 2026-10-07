@@ -51,7 +51,7 @@ function M.new(o)
   local function snap(todo, n, findings)
     local rows = o.engine:rows(o.comp)
     t:comp(todo, n, rows)
-    w.digest = rows.digest
+    w.digest, w.snapped = rows.digest, n
     if not findings then
       findings = o.engine:lint(o.comp)
       for _, f in ipairs(o.engine:check(o.comp)) do findings[#findings + 1] = f end
@@ -179,12 +179,16 @@ function M.new(o)
     local scores, said = prompts.scores(okc and text)
     if not scores then step.outcome, step.note = "broken", tostring(said) .. ": " .. clip(text, 200) return end
     t:scores(req.todo, n, "critic", scores)
-    w.critic, w.looked, w.sheet_b64 = { scores = scores, notes = said.notes }, w.digest, b64.stdout
-    step.outcome, step.note = "complete", "critic: " .. clip(said.notes, 300)
+    -- notes asked as text come back as a list too (M3, studio s2)
+    local notes = type(said.notes) == "table" and table.concat(said.notes, "; ") or said.notes
+    w.critic, w.looked, w.sheet_b64 = { scores = scores, notes = notes }, w.digest, b64.stdout
+    step.outcome, step.note = "complete", "critic: " .. clip(notes, 300)
   end
 
   local function edit(req, step, n, move)
-    local rows = t:comp_rows(req.todo, n - 1)
+    -- the newest snapshot, not step n - 1's: treat and look take none (studio s2: a key after a look saw an empty comp
+    -- and guessed the node buoy)
+    local rows = t:comp_rows(req.todo, w.snapped or 0)
     -- the comp's rows and the facts its assets gave (beat:N, word:...), so a bind names one that exists
     local req_w = prompts.move(move, o.ask, o.kind, req.treatment, standing(req),
       json.encode({ tables = rows.tables, derived = rows.derived }), o.reference)
