@@ -68,6 +68,12 @@ function S:pass()
   return held / 7
 end
 
+-- the expectation rows at the newest snapshot
+function S:expects()
+  return self.t.db:exec("select count(*) as c from tablua_msr_expect where todo = ? and n = ?",
+    { self.todo, self.snapped or 0 })[1].c
+end
+
 local function stage(s) return s:errors() > 0 and "building" or "polishing" end
 
 -- the comp's state in one line, from the newest snapshot: what every result ends with, so the newest message in an
@@ -80,11 +86,10 @@ function S:state_line()
       local id = f.code == "expect_failed" and tostring(f.detail or ""):match("%(expect ([^)]+)%)%s*$")
       if id then fail[#fail + 1] = id end
       if #errs < 5 then errs[#errs + 1] = f.code .. ((f.id or "") ~= "" and (" " .. f.id) or "") end
-    elseif f.severity == "warning" then warnings = warnings + 1 end
+    elseif f.severity == "warn" then warnings = warnings + 1 end
   end
   local errors = self:errors()
-  local total = self.t.db:exec("select count(*) as c from tablua_msr_expect where todo = ? and n = ?",
-    { self.todo, self.snapped or 0 })[1].c
+  local total = self:expects()
   return ("state: digest %s; errors %d%s; warnings %d; expect %d/%d%s; step %d"):format(tostring(self.digest or ""):sub(1, 8),
     errors, #errs > 0 and (" (" .. table.concat(errs, ", ") .. (errors > #errs and ", ..." or "") .. ")") or "", warnings,
     total - #fail, total, #fail > 0 and (" (failing: " .. table.concat(fail, ", ") .. ")") or "", self.n)
@@ -151,7 +156,8 @@ local function finish(s, _, result)
   return { content = table.concat(lines, "\n") }
 end
 
--- the model would stop: a hand-in with errors, failing expectations or no look at this version comes back once
+-- the model would stop: a hand-in with errors, failing expectations, no look at this version, no expectations of
+-- the model's own or no change from the seed comes back once for each version of the comp
 local function handed_in(s, turn, l)
   if turn.message.tool_calls then return nil end
   s.said = turn.message.content
@@ -162,6 +168,10 @@ local function handed_in(s, turn, l)
       .. " of them expectations failing") or "", tools.found(s.findings, 12))
   end
   if s.looked ~= s.digest then open[#open + 1] = "You have not looked at the comp as it is now." end
+  if s:expects() <= s.seed_expects then
+    open[#open + 1] = "Write what the ask requires as expectations first (expect): none of the comp's are yours."
+  end
+  if s.digest == s.seed then open[#open + 1] = "The comp is as it was given: nothing has changed." end
   if #open == 0 or s.refused == s.digest then return nil end
   s.refused = s.digest
   l:follow_up("Not handed in yet. " .. table.concat(open, "\n") .. "\nFix what you can and look; if something "
@@ -171,6 +181,7 @@ end
 
 function S:run()
   self:snap(0)
+  self.seed, self.seed_expects = self.digest, self:expects()
   local model = loop.retrying(self.o.model)
   local l = loop.new{ model = model, system = prompts.system(self.kind, context.index(self.reference)),
     tools = tools.list(self), reasoning_effort = "low",
@@ -189,9 +200,10 @@ function S:run()
   self.loop = l
   local out = l:prompt(("The ask (a %s): %s"):format(self.kind == "game" and "game" or "motion piece", self.ask))
   local errors = self:errors()
-  local status = (out.stop == "stop" and errors == 0) and "complete" or "partial"
+  -- a hand-in on the comp as it was given is never complete, whatever its findings (pi-s4 handed in the seed)
+  local status = (out.stop == "stop" and errors == 0 and self.digest ~= self.seed) and "complete" or "partial"
   self.t:run{ todo = self.todo, shipped = out.stop == "stop", answered = out.stop == "stop", works = status == "complete",
-    steps = self.n }
+    changed = self.digest ~= self.seed, steps = self.n }
   return { stop = out.stop, status = status, error = out.error, steps = self.n, pass = self:pass(), said = self.said }
 end
 

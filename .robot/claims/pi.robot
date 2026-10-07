@@ -24,6 +24,18 @@ A Run Ends Only Through The Gate (red)
     Use Fixture    insert into tablua_run (todo, shipped, works, steps) values ('a', 1, 1, 4), ('b', 1, 0, 3), ('c', 1, 1, 2)    insert into tablua_msr_node (todo, n, id, kind) values ('a', 4, 'x', 'text'), ('b', 3, 'x', 'text'), ('c', 2, 'x', 'text')    insert into tablua_msr_finding (todo, n, tier, code, severity) values ('a', 4, 'check', 'text_overflow', 'error')
     Complete Runs Are Clean
 
+No Run Is Complete At Its Seed
+    [Documentation]    A run that hands in the comp as it was given (its last digest the seed's: tablua_run.changed = 0)
+    ...    is partial, whatever its findings: pi-s4 changed nothing in 67 steps and scored complete (cadence-03,
+    ...    2026-10-07). Kill: any complete run with changed 0 or unrecorded, among 3 or more runs.
+    [Tags]    level:consistent    pi:seed    predict:holds@0.9
+    Use Sheets    ${ALL}
+    Complete Runs Changed The Comp
+
+No Run Is Complete At Its Seed (red)
+    Use Fixture    insert into tablua_run (todo, shipped, answered, works, changed, steps) values ('s4', 1, 1, 1, 0, 67), ('b', 1, 1, 1, 1, 30), ('c', 1, 1, 0, 0, 12)
+    Complete Runs Changed The Comp
+
 No Result Is Stale
     [Documentation]    Every patch, expect and look result ends with a state line whose error count is the engine's at
     ...    the newest snapshot of that step: the newest message in the transcript says what is true. Kill: any result
@@ -79,6 +91,12 @@ Complete Runs Are Clean
     Needs At Least    ${runs}    3    runs
     ${dirty}=    Value Of    select count(*) from tablua_run r where r.works = 1 and (select count(*) from tablua_msr_finding f where f.todo = r.todo and f.severity = 'error' and f.n = (select max(n) from (select n from tablua_msr_comp where todo = r.todo union select n from tablua_msr_node where todo = r.todo))) > 0
     Should Be True    ${dirty} == 0    ${dirty} of ${runs} runs marked complete with an error open
+
+Complete Runs Changed The Comp
+    ${runs}=    Value Of    select count(*) from tablua_run
+    Needs At Least    ${runs}    3    runs
+    ${seed}=    Value Of    select count(*) from tablua_run where works = 1 and coalesce(changed, 0) = 0
+    Should Be True    ${seed} == 0    ${seed} of ${runs} runs marked complete on the comp as it was given
 
 Results Carry The State
     ${all}=    Value Of    select count(*) from tablua_message where role = 'tool' and name in ('patch', 'expect', 'look')

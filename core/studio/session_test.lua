@@ -78,6 +78,7 @@ spec.test("a run: treatment, brief, a patch that breaks, a fix, a hand-in sent b
   local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
   local m = model({
     { text = "Treatment: a tide line; everything hangs from it.", calls = { { "brief", {} } } },
+    { calls = { { "expect", { rows = { { id = "title-shown", says = "the title is on screen", node = "title" } } } } } },
     { calls = { { "patch", { moves = { { move = "add_node", node = { id = "title", kind = "text", y = 1200 } } } } } } },
     { calls = { { "patch", { moves = { move = "set_prop", id = "title", name = "y", value = 540 } } } } },
     { text = "Done." },
@@ -86,36 +87,37 @@ spec.test("a run: treatment, brief, a patch that breaks, a fix, a hand-in sent b
   local s = session.new{ engine = engine(), model = m, judge = judge, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png",
     ask = "a tide clock", reference = CARD, todo = "r", exec = function() return { code = 0, stdout = "UE5H" } end }
   local out = s:run()
-  spec.same({ out.stop, out.steps, out.said }, { "stop", 4, "A tide clock: the title hangs from the line." })
+  spec.same({ out.stop, out.steps, out.said, out.status }, { "stop", 5, "A tide clock: the title hangs from the line.",
+    "complete" })
   spec.eq(out.pass, 1)
   local steps = t.db:exec("select n, verb, outcome from tablua_outcome where todo = 'r' order by n")
   local got = {}
   for _, r in ipairs(steps) do got[#got + 1] = r.verb .. ":" .. r.outcome end
-  spec.same(got, { "brief:complete", "add_node:broken", "set_prop:complete", "look:complete" })
-  spec.same({ t.db:exec("select chosen from tablua_decision where n = 3")[1].chosen,
-    t.db:exec("select count(*) as c from tablua_score where n = 4 and judge = 'critic'")[1].c >= 7,
+  spec.same(got, { "brief:complete", "expect:complete", "add_node:broken", "set_prop:complete", "look:complete" })
+  spec.same({ t.db:exec("select chosen from tablua_decision where n = 4")[1].chosen,
+    t.db:exec("select count(*) as c from tablua_score where n = 5 and judge = 'critic'")[1].c >= 7,
     t.db:exec("select count(distinct n) as c from tablua_feature where form = 'studio'")[1].c },
-    { "set_prop", true, 4 })
+    { "set_prop", true, 5 })
   -- the system prompt is pi's shape, and names the reference's sections; the patch result says what broke
   local sys = m.seen[1].system
   spec.ok(sys:find("<tools>", 1, true) and sys:find("- Pitfalls: what fails.", 1, true), sys)
   local results = t.db:exec("select content from tablua_message where role = 'tool' order by i")
-  spec.ok(results[2].content:find("Outcome: broken", 1, true) and results[2].content:find("off_frame on title", 1, true),
-    results[2].content)
+  spec.ok(results[3].content:find("Outcome: broken", 1, true) and results[3].content:find("off_frame on title", 1, true),
+    results[3].content)
   -- the early hand-in came back as a follow-up, once
   local follow = t.db:exec("select content from tablua_message where role = 'user' and content like 'Not handed in%'")
   spec.eq(#follow, 1)
   spec.ok(follow[1].content:find("not looked", 1, true))
   -- the look's image went to the model as a user turn after its result
-  local sent = m.seen[6].messages
+  local sent = m.seen[7].messages
   local last = sent[#sent]
   spec.same({ last.role, last.content[2].image_url.url }, { "user", "data:image/png;base64,UE5H" })
   spec.eq(t.db:exec("select count(*) as c from tablua_message where todo = 'r'")[1].c, #s.loop.messages)
   -- every result ends with the engine's state, so the newest message carries the truth
-  spec.ok(results[2].content:find("state: digest d1; errors 1 (off_frame title); warnings 0; expect 0/0; step 2", 1, true),
-    results[2].content)
-  local run = t.db:exec("select shipped, works, steps from tablua_run where todo = 'r'")[1]
-  spec.same({ run.shipped, run.works, run.steps }, { 1, 1, 4 })
+  spec.ok(results[3].content:find("state: digest d2; errors 1 (off_frame title); warnings 0; expect 1/1; step 3", 1, true),
+    results[3].content)
+  local run = t.db:exec("select shipped, works, changed, steps from tablua_run where todo = 'r'")[1]
+  spec.same({ run.shipped, run.works, run.changed, run.steps }, { 1, 1, 1, 5 })
 end)
 
 spec.test("a hand-in on a version already sent back ends the run, errors and all", function()
@@ -188,11 +190,32 @@ spec.test("the patch tool's schema declares every move's fields, so a provider t
   local tools = require("studio.tools")
   local patch
   for _, tl in ipairs(tools.list({ t = {} })) do if tl.name == "patch" then patch = tl end end
+  -- one flat item, every move's fields in it: a constrained decoder cannot merge a union (anyOf), and keeps only
+  -- what every branch shares
   local items = patch.parameters.properties.moves.items
-  local by = {}
-  for _, alt in ipairs(items.anyOf) do by[alt.properties.move.enum[1]] = alt end
-  spec.same({ by.set_prop.properties.id.type, by.set_prop.properties.value.type[1], by.move_key.properties.to_t ~= nil,
-    by.add_node.properties.node.type, by.set_prop.required[1] }, { "string", "number", true, "object", "move" })
-  spec.ok(by.treat == nil and by.solid ~= nil)
+  spec.same({ items.anyOf, items.additionalProperties, items.properties.id.type, items.properties.value.type[1],
+    items.properties.to_t ~= nil, items.properties.node.type, items.properties.rows ~= nil, items.required[1] },
+    { nil, nil, "string", "number", true, "object", false, "move" })
+  local names = {}
+  for _, n in ipairs(items.properties.move.enum) do names[n] = true end
+  spec.ok(names.solid and names.set_prop and not names.treat)
+  spec.ok(items.description:find("set_prop: id, name, value", 1, true), items.description)
+end)
+
+spec.test("a hand-in before the model wrote the ask as expectations, or on the comp as given, is not complete", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local m = model({ { calls = { { "look", {} } } }, { text = "It is already fine." }, { text = "Still fine." } })
+  local s = session.new{ engine = engine(), model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
+    todo = "r", exec = function() return { code = 0, stdout = "UE5H" } end }
+  local out = s:run()
+  local back = t.db:exec("select content from tablua_message where content like 'Not handed in%'")[1].content
+  spec.ok(back:find("Write what the ask requires as expectations", 1, true) and back:find("nothing has changed", 1, true), back)
+  local run = t.db:exec("select works, changed from tablua_run")[1]
+  spec.same({ out.status, run.works, run.changed }, { "partial", 0, 0 })
+end)
+
+spec.test("the engine's warn findings are warnings", function()
+  local tools = require("studio.tools")
+  spec.eq(tools.found({ { code = "motion_density", severity = "warn" } }), "- warning motion_density")
 end)
 spec.run()

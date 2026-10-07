@@ -19,19 +19,35 @@ local M = {}
 M.edits = {}
 for _, m in ipairs(moves.order) do if m ~= "treat" then M.edits[#M.edits + 1] = m end end
 
--- each move's own schema with its name as a field: a provider that keeps to the schema drops every field it does not
--- declare, and studio pi-s4 lost all 57 patch steps' fields to an item that declared only move
-function M.items()
-  local out = {}
+-- one flat item with every move's fields (pi-s4 lost all 57 patch steps' fields to an item that declared only move,
+-- and a union (anyOf) is what a grammar-constrained provider fails to merge; Moonsplice, 2026-10-07): each field
+-- declared once with its type, and which fields each move takes said in the description
+M.fields = { "id", "name", "t", "to_t", "value", "ease", "fact", "node", "system", "source", "order", "asset" }
+
+function M.item()
+  local props, said = { move = { type = "string", enum = M.edits } }, {}
   for _, name in ipairs(M.edits) do
     local sch = moves.schema[name]
-    local props, req = { move = { type = "string", enum = { name } } }, { "move" }
-    for k, v in pairs(sch.properties) do props[k] = v end
-    for _, r in ipairs(sch.required or {}) do req[#req + 1] = r end
-    out[#out + 1] = { type = "object", description = moves.what[name], properties = props, required = req,
-      additionalProperties = false }
+    local mine = {}
+    for _, k in ipairs(M.fields) do
+      local v = sch.properties[k]
+      if v then
+        mine[#mine + 1] = k
+        if not props[k] then props[k] = v
+        elseif k == "asset" then
+          -- derive's asset and solid's: one object with both trees' fields
+          local both = { type = "object", required = { "id" }, properties = {} }
+          for f, d in pairs(props[k].properties) do both.properties[f] = d end
+          for f, d in pairs(v.properties) do both.properties[f] = d end
+          props[k] = both
+        end
+      end
+    end
+    local req = #(sch.required or {}) > 0 and (" (" .. table.concat(sch.required, ", ") .. " required)") or ""
+    said[#said + 1] = ("%s: %s%s"):format(name, table.concat(mine, ", "), req)
   end
-  return out
+  return { type = "object", required = { "move" }, properties = props,
+    description = "a move by name with its own fields; the others left out. " .. table.concat(said, "; ") }
 end
 
 local function clip(s, n) s = tostring(s or "") return #s > n and (s:sub(1, n) .. "...") or s end
@@ -40,7 +56,7 @@ M.max = 50 * 1024   -- a result's text at most, as pi's read cuts at 50 KB
 local function counts(findings)
   local e, w = 0, 0
   for _, f in ipairs(findings or {}) do
-    if (f.severity or "error") == "error" then e = e + 1 elseif f.severity == "warning" then w = w + 1 end
+    if (f.severity or "error") == "error" then e = e + 1 elseif f.severity == "warn" then w = w + 1 end
   end
   return e, w
 end
@@ -48,10 +64,11 @@ end
 -- errors, then warnings, a line each (info judges nothing)
 function M.found(findings, max)
   local out = {}
-  for _, sev in ipairs({ "error", "warning" }) do
+  -- the engine's severities are error, warn and info (cadence lib/moonsplice)
+  for _, sev in ipairs({ "error", "warn" }) do
     for _, f in ipairs(findings or {}) do
       if (f.severity or "error") == sev then
-        out[#out + 1] = ("- %s %s%s%s"):format(sev, f.code, (f.id or "") ~= "" and (" on " .. f.id .. ((f.name or "") ~= ""
+        out[#out + 1] = ("- %s %s%s%s"):format(sev == "warn" and "warning" or sev, f.code, (f.id or "") ~= "" and (" on " .. f.id .. ((f.name or "") ~= ""
           and ("." .. f.name) or "")) or "", (f.detail or "") ~= "" and (": " .. clip(f.detail, 200)) or "")
       end
     end
@@ -88,7 +105,7 @@ function M.list(s)
       .. "and bind in one call.",
     parameters = { type = "object", required = { "moves" }, properties = { moves = { type = "array",
       description = "each a move: { move = <name>, ...its fields }; the moves: " .. table.concat(M.edits, ", "),
-      items = { anyOf = M.items() } } } },
+      items = M.item() } } },
     prepare = function(args)
       args.moves = listed(args.moves, function(v) return v.move ~= nil end)
       return args

@@ -42,10 +42,10 @@ function M.ask(o)
     end
   end
   local found = {}
-  for _, sev in ipairs({ "error", "warning" }) do
+  for _, sev in ipairs({ "error", "warn" }) do
     for _, f in ipairs(o.findings or {}) do
       if (f.severity or "error") == sev and f.code ~= "expect_failed" then
-        found[#found + 1] = ("- %s %s%s%s"):format(sev, f.code, (f.id or "") ~= "" and (" on " .. f.id) or "",
+        found[#found + 1] = ("- %s %s%s%s"):format(sev == "warn" and "warning" or sev, f.code, (f.id or "") ~= "" and (" on " .. f.id) or "",
           (f.detail or "") ~= "" and (": " .. tostring(f.detail):sub(1, 160)) or "")
       end
     end
