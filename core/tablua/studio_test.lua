@@ -62,14 +62,18 @@ spec.test("the outcome: nothing changed is no_effect, a new error is broken, the
   local touched = { { id = "line", name = "y" } }
   spec.eq(studio.outcome(before, before, {}), "no_effect")
   spec.eq(studio.outcome(before, { E("tide", "opacity", "parked_visible", "warning") }, touched), "complete")
-  spec.eq(studio.outcome(before, { before[1], before[2] }, touched), "no_effect")
+  -- changed, but no finding opened or closed: the findings cannot judge it (ROWS.md: neutral)
+  spec.eq(studio.outcome(before, { before[1], before[2] }, touched), "neutral")
+  spec.eq(studio.outcome({}, {}, { { id = "title", name = "opacity" } }), "neutral")
+  -- one closed elsewhere while the target's own stays open helped nothing on the target
+  spec.eq(studio.outcome(before, { before[1] }, touched), "no_effect")
   spec.eq(studio.outcome(before, { before[2], E("sea", "", "missing_src") }, touched), "broken")
   spec.eq(studio.outcome(before, { before[2], E("line", "y", "too_fast", "warning") }, touched), "no_effect")
   -- a finding about a node the step removed (its props with it) is gone with it
   spec.eq(studio.outcome({ E("buoy", "pos", "off_frame") }, {}, { { id = "buoy", name = "" } }), "complete")
   -- the engine leaves name out when a step touched a whole node or system
-  spec.eq(studio.outcome({ E("buoy", "pos", "off_frame") }, { E("buoy", "pos", "off_frame") }, { { id = "buoy" } }),
-    "no_effect")
+  spec.eq(studio.outcome({ E("buoy", "pos", "off_frame"), E("sea", "", "x") }, { E("buoy", "pos", "off_frame") },
+    { { id = "buoy" } }), "no_effect")
 end)
 
 spec.test("derived facts are kept beside the authored ones and come back apart, outside the tables", function()

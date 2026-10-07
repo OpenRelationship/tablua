@@ -42,6 +42,7 @@ end
 
 local function writer(calls)
   return { chat = function(_, req)
+    if req.tools then assert(req.system:find("THE CARD", 1, true), "the writer has the reference") end
     if not req.tools then return "Premise: a tide line. Rule: everything hangs from the line." end
     local args = table.remove(calls, 1)
     return "", { tool_calls = { { id = "c", type = "function", ["function"] = { name = req.tools[1]["function"].name,
@@ -66,6 +67,7 @@ end
 spec.test("treat, a patch that breaks, a fix, a look, then answer: each step's rows and outcome", function()
   local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
   local w = world.new{ engine = engine(), tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "a tide clock",
+    reference = "THE CARD",
     writer = writer({ { node = { id = "title", kind = "text", y = 1200 } }, { id = "title", name = "y", value = 540 } }),
     critic = critic, exec = function() return { code = 0, stdout = "UE5H" } end }
   local memory = { begin = function() return "r" end, step = function() end, log = function() end }

@@ -3,7 +3,9 @@
 -- same thing in both.
 --
 --   prompts.director(ask, kind) -> chat request            the treatment
---   prompts.move(move, ask, kind, treatment, standing, rows_json) -> chat request   one move, as tool calls
+--   prompts.move(move, ask, kind, treatment, standing, rows_json, reference?) -> chat request   one move, as tool
+--                                  calls; reference is Moonsplice's rows-form API card (cadence/agent/REFERENCE.md),
+--                                  given by the host
 --   prompts.critic(ask, kind, treatment, sheet_b64, picks) -> chat request, its reply JSON { scores, broken, notes }
 --   prompts.scores(text) -> { dim = 1..5 } | nil, why
 local json = require("ports.json")
@@ -44,9 +46,10 @@ function M.director(ask, kind)
     temperature = 0.7 }
 end
 
-function M.move(move, ask, kind, treatment, standing, rows_json)
+function M.move(move, ask, kind, treatment, standing, rows_json, reference)
   return { system = "You build a Moonsplice " .. (kind == "game" and "game" or "motion piece") .. " to a treatment, "
-      .. "one move at a time.\n\n" .. M.rows .. "\n\n" .. M.bans,
+      .. "one move at a time.\n\n" .. M.rows .. "\n\n" .. M.bans
+      .. (reference and ("\n\nThe engine's reference:\n" .. reference) or ""),
     messages = { { role = "user", content = "The ask: " .. ask .. "\n\nThe treatment:\n" .. (treatment or "(none yet)")
       .. "\n\nWhere the work stands:\n" .. standing .. "\n\nThe comp's rows now:\n" .. rows_json .. "\n\nMake this move: "
       .. move .. ". Call the tool once per patch, as many times as the move needs and no more; change nothing the "

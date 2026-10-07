@@ -14,7 +14,7 @@
 --   t:findings(todo, n, list)  t:findings_of(todo, n) -> list    list = { { tier, id, name, code, severity, t0?, t1?,
 --                                  measured?, threshold?, detail? } }, the full list after step n
 --   t:scores(todo, n, judge, { dim = value })                    judge "critic" | "oracle"
---   studio.outcome(before, after, touched) -> "complete" | "no_effect" | "broken"
+--   studio.outcome(before, after, touched) -> "complete" | "neutral" | "no_effect" | "broken"
 --   studio.canon(v) -> text         canonical JSON: keys sorted, an integer under 1e15 as one, any other number the
 --                                  shortest of %.15g, %.16g and %.17g that reads back the same (Moonsplice's rule)
 local json = require("ports.json")
@@ -87,8 +87,10 @@ end
 local function column(spec, c) return spec.rename and spec.rename[c] or c end
 
 -- A step's outcome from the findings before and after it and what it touched (ROWS.md, level 6): nothing touched is
--- no_effect; a new error is broken; a new finding of any other kind, or one on what it touched still there, helped
--- nothing (no_effect); otherwise complete. A finding is about what a step touched when it names the same node and
+-- no_effect; a new error is broken; a new finding of any other kind helped nothing (no_effect); a change that opened
+-- and closed no finding is neutral, which findings cannot judge and the next look's critic does (an opacity of 0
+-- hid a title and no finding saw it, studio trial 1); one on what it touched still open is no_effect; otherwise
+-- complete. Only complete is progress. A finding is about what a step touched when it names the same node and
 -- either the same prop or none, or the step touched the node itself (added, removed or changed it).
 local function fkey(f) return table.concat({ f.tier or "", f.id or "", f.name or "", f.code or "" }, "\0") end
 
@@ -113,6 +115,9 @@ function M.outcome(before, after, touched)
     end
   end
   if new then return "no_effect" end
+  local closed = false
+  for _, f in ipairs(before) do if not has[fkey(f)] then closed = true end end
+  if not closed then return "neutral" end
   for _, f in ipairs(before) do
     if has[fkey(f)] and about(f, touched) then return "no_effect" end
   end

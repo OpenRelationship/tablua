@@ -3,7 +3,8 @@
 -- the engine applies and checks it, and the step's outcome comes from the findings; look renders a contact sheet the
 -- critic scores. Every step leaves the comp, its findings and the scores as rows of the sheet (tablua.studio).
 --
---   local w = require("studio.world").new{ engine, writer, critic, tablua, comp, sheet, ask, kind?, exec, log? }
+--   local w = require("studio.world").new{ engine, writer, critic, tablua, comp, sheet, ask, kind?, exec, reference?,
+--                                          log? }   reference: Moonsplice's rows-form API card, for the writer
 --     engine: ports.moonsplice (or the Studio's session with the same methods); writer, critic: ports.chat;
 --     tablua: the run's handle; comp: the comp's .lua path; sheet: where look writes its contact sheet;
 --     exec: the host's command (reads the sheet as base64)
@@ -178,7 +179,7 @@ function M.new(o)
     local rows = t:comp_rows(req.todo, n - 1)
     -- the comp's rows and the facts its assets gave (beat:N, word:...), so a bind names one that exists
     local req_w = prompts.move(move, o.ask, o.kind, req.treatment, standing(req),
-      json.encode({ tables = rows.tables, derived = rows.derived }))
+      json.encode({ tables = rows.tables, derived = rows.derived }), o.reference)
     req_w.tools, req_w.tool_choice = { moves.tool(move) }, "required"
     local ok, _, record = pcall(o.writer.chat, o.writer, req_w)
     if not ok then step.outcome, step.note = "broken", "the writer failed: " .. clip(_, 300) return end

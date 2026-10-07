@@ -116,8 +116,9 @@ stood after step n, and n = 0 before any step. What step n changed is where snap
 | `tablua_score` | judge's score | the critic's six dims per look, or the oracle's |
 
 A step's outcome comes from these (`tablua.studio.outcome`): nothing touched is `no_effect`; a new error is
-`broken`; a new finding of any other kind, or one still open on what the step touched, is `no_effect`; otherwise
-`complete`.
+`broken`; a new finding of any other kind is `no_effect`; a change that opened and closed no finding is `neutral`
+(findings cannot judge it, the next look's critic does); one still open on what the step touched is `no_effect`;
+otherwise `complete`. Only `complete` labels a step as progress.
 
 ### The build: what is being made, keyed by file, replaced as files change
 
