@@ -176,4 +176,18 @@ spec.test("a system keeps the clip whose local time it runs in (Moonsplice's com
   spec.eq(t:comp_rows("r", 1).tables.system[1].clip, "shot2")
 end)
 
+spec.test("a snapshot keeps all of R.TABLES: a game's settings and input, an asset's parts, a precomp's inner keys", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  t:comp("r", 1, { tables = {
+    game = { rate = 60, seed = 7 },
+    input = { { t = 0.5, n = 1, down = "left" }, { t = 1, n = 2, up = "left" } },
+    asset = { { id = "hull", solid = { op = "cube" }, parts = 2 } },
+    node = { { id = "card1", kind = "precomp", order = 1 } },
+    prop = { { id = "card1", name = "transition", value = { kind = "push", duration = 0.4, dir = "left" } } },
+    key = { { id = "card1/label", name = "opacity", t = 1, value = 0 } } } })
+  local back = t:comp_rows("r", 1).tables
+  spec.same({ back.game.rate, back.game.seed, #back.input, back.input[1].down, back.asset[1].parts, back.key[1].id,
+    back.prop[1].value.kind }, { 60, 7, 2, "left", 2, "card1/label", "push" })
+end)
+
 spec.run()

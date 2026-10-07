@@ -3,7 +3,7 @@
 -- found in it (tablua_msr_finding), how a judge scored it (tablua_score), and a step's outcome from its findings.
 --
 --   t:comp(todo, n, rows)          rows = { schema = "msr/1", tables = { comp, node, prop, key, motion, system, asset,
---                                  fact }, derived? } as `./moonsplice rows --json` prints them; replaces step n's
+--                                  fact, game, input, expect }, derived? } as `./moonsplice rows --json` prints them; replaces step n's
 --                                  snapshot. derived (the facts assets produced at compile: beats, words) go in the
 --                                  fact table marked derived, with their asset, and come back apart
 --   t:comp_rows(todo, n) -> rows   the same shape back, each table in its key order
@@ -31,7 +31,12 @@ M.tables = {
   { name = "motion", cols = { "id", "name", "t0", "t1", "curve", "params" }, key = { "id", "name", "t0" },
     json = { params = true } },
   { name = "system", cols = { "name", "order", "source", "clip" }, key = { "order", "name" }, rename = { order = "ord" } },
-  { name = "asset", cols = { "id", "src", "derive", "solid" }, key = { "id" }, json = { derive = true, solid = true } },
+  { name = "asset", cols = { "id", "src", "derive", "solid", "parts" }, key = { "id" },
+    json = { derive = true, solid = true } },
+  -- a game's settings (rate, seed), one object keyed by setting as comp is, and its input log
+  { name = "game", cols = { "key", "value" }, key = { "key" }, typed = "value" },
+  { name = "input", cols = { "t", "n", "down", "up", "x", "y", "press", "release" }, key = { "t", "n" },
+    rename = { n = "i" } },
   { name = "fact", cols = { "pred", "args", "t0", "t1", "src", "conf" }, key = { "pred", "args", "t0" },
     json = { args = true } },
   -- what the ask requires (rows.robot, "Expectations"); at, t0 and t1 are seconds or fact references, kept as they come
@@ -146,7 +151,7 @@ return setmetatable(M, { __call = function(_, T, put)
       if spec.typed then cols[#cols + 1] = "type" end
       local list = tables[spec.name] or {}
       -- the comp's settings come as one object keyed by setting (the engine's form): a row each, in key order
-      if spec.name == "comp" and next(list) ~= nil and list[1] == nil then
+      if (spec.name == "comp" or spec.name == "game") and next(list) ~= nil and list[1] == nil then
         local keys, rowsof = {}, {}
         for k in pairs(list) do keys[#keys + 1] = k end
         table.sort(keys)
@@ -199,10 +204,10 @@ return setmetatable(M, { __call = function(_, T, put)
           list[i] = row
         end
         out.tables[spec.name] = list
-        if spec.name == "comp" then
+        if spec.name == "comp" or spec.name == "game" then
           local settings = {}
           for _, r in ipairs(list) do settings[r.key] = r.value end
-          out.tables.comp = settings
+          out.tables[spec.name] = settings
         end
       end
     end
@@ -272,7 +277,8 @@ return setmetatable(M, { __call = function(_, T, put)
         if spec.name == "node" then add(r.id, "")
         elseif spec.name == "system" then add("system:" .. r.name, "source")
         elseif spec.name == "asset" then add("asset:" .. r.id, "")
-        elseif spec.name == "comp" then add("comp", r.key)
+        elseif spec.name == "comp" or spec.name == "game" then add(spec.name, r.key)
+        elseif spec.name == "input" then add("input", "")
         elseif spec.name == "fact" then add("fact:" .. r.pred, "")
         else add(r.id, r.name) end
       end

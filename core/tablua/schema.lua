@@ -76,7 +76,10 @@
 -- Schema 25 (2026-10-07): an expectation the model wrote and withdrew, with its reason (tablua_withdrawal): what the
 -- ask was said to require and why it no longer does, for the judge to read and a claim to count. A seed's never is.
 -- Schema 26 (2026-10-07): Moonsplice's composition (clips, tracks, transitions, precomps) adds no table; a system may
--- name the clip whose local time it runs in (tablua_msr_system.clip), added to a file kept before it at open.
+-- name the clip whose local time it runs in (tablua_msr_system.clip), added to a file kept before it at open. The
+-- snapshot keeps all of the engine's tables (R.TABLES): a game's settings (tablua_msr_game) and input log
+-- (tablua_msr_input, its n as i beside the step's n), and the parts a solid is meant to have (tablua_msr_asset.parts),
+-- which earlier snapshots dropped.
 local M = {}
 
 M.version = 26
@@ -84,7 +87,7 @@ M.version = 26
 -- the columns schema 18 adds, each with its type, to a file kept before it
 M.added = {
   tablua_prompt = { { "seconds", "real" }, { "tries", "integer" }, { "provider", "text" } },
-  tablua_msr_asset = { { "solid", "text" } },
+  tablua_msr_asset = { { "solid", "text" }, { "parts", "integer" } },
   tablua_msr_system = { { "clip", "text" } },
   tablua_decision = { { "said", "text" }, { "state", "text" } },
   tablua_candidate = { { "prior", "real" }, { "p_complete", "real" }, { "knn", "real" } },
@@ -262,7 +265,7 @@ create table if not exists tablua_msr_system (
   primary key (todo, n, name));
 create table if not exists tablua_msr_asset (
   todo text not null, n integer not null, id text not null, src text not null default '', derive text not null default '',
-  solid text, primary key (todo, n, id));
+  solid text, parts integer, primary key (todo, n, id));
 create table if not exists tablua_msr_expect (
   todo text not null, n integer not null, id text not null, says text not null default '', node text, prop text,
   op text, value, type text not null default 's', at, t0, t1, holds text, primary key (todo, n, id));
@@ -284,6 +287,12 @@ create table if not exists tablua_msr_fact (
 create table if not exists tablua_withdrawal (
   todo text not null, n integer not null, id text not null, says text not null default '', why text not null default '',
   primary key (todo, n, id));
+create table if not exists tablua_msr_game (
+  todo text not null, n integer not null, key text not null, value, type text not null default 's',
+  primary key (todo, n, key));
+create table if not exists tablua_msr_input (
+  todo text not null, n integer not null, t real not null, i integer not null, down text, up text, x real, y real,
+  press text, release text, primary key (todo, n, t, i));
 create table if not exists tablua_msr_finding (
   todo text not null, n integer not null, tier text not null, id text not null default '', name text not null default '',
   code text not null, severity text not null, t0 real not null default -1, t1 real, measured, threshold,
@@ -300,7 +309,7 @@ create table if not exists tablua_gate (
 M.log = { "state", "candidate", "decision", "action", "outcome", "run", "prediction", "feature", "result", "label",
   "effect", "control", "ranking", "change", "term", "event", "file", "vector", "msr_comp", "msr_node", "msr_prop",
   "msr_key", "msr_motion", "msr_system", "msr_asset", "msr_fact", "msr_finding", "score",
-  "msr_solid", "msr_expect", "prompt", "message", "withdrawal" }
+  "msr_solid", "msr_expect", "prompt", "message", "withdrawal", "msr_game", "msr_input" }
 
 local function columns(db, tbl)
   local out = {}
