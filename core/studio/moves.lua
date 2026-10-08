@@ -9,8 +9,8 @@
 --   moves.patch(move, args) -> patch   a tool call's arguments as the engine's patch ({ move = ..., ... })
 local M = {}
 
-M.order = { "treat", "add_node", "set_prop", "add_key", "move_key", "drop_key", "bind", "add_system", "edit_system",
-  "derive", "solid", "move_clip", "remove" }
+M.order = { "treat", "add_node", "set_prop", "add_key", "move_key", "drop_key", "enter", "exit", "stagger", "place",
+  "bind", "add_system", "edit_system", "derive", "solid", "move_clip", "remove" }
 
 M.what = {
   treat = "Write the treatment: the premise, the governing rule, the grammar and the structure. Not a comp edit.",
@@ -19,6 +19,13 @@ M.what = {
   add_key = "Add a keyframe: from the previous key of that prop to this value at t, eased.",
   move_key = "Move a keyframe to another time (to_t), or change its value or ease.",
   drop_key = "Remove a keyframe.",
+  enter = "Bring a node in at `at`: style rise (from below), slide (from the side opposite dir) or pop (scale from "
+    .. "0), on an ease-out with a fade under it; lands as ordinary keys. Key the node's rest first.",
+  exit = "Take a node out from `at`, the reverse of enter: an ease-in, quicker than it came.",
+  stagger = "Enter several nodes (ids, in the order to read them) one after another from `at`, step seconds apart; the "
+    .. "whole spread stays under half a second.",
+  place = "Put a node's centre on a point of the frame (`at`: left_third, right_third, top_third, bottom_third, "
+    .. "center, top, bottom, left, right); its x and y keys move with it.",
   bind = "Tie a keyframe's time to a fact (\"beat:12\", \"word:tide\"), so the comp says what it follows.",
   add_system = "Add a system: one small pure function (t, state, q) -> rows, run every frame after the keys.",
   edit_system = "Change a system's source or its order.",
@@ -36,6 +43,9 @@ local VALUE = { type = { "number", "string", "boolean", "array", "object", "null
     .. "null clears the prop" }
 local T = { description = "seconds, or a fact reference such as \"beat:12\"", type = { "number", "string" } }
 local S = { type = "string" }
+local NUM = { type = "number" }
+local STYLE = { type = "string", enum = { "rise", "slide", "pop" } }
+local DIR = { type = "string", enum = { "left", "right", "up", "down" } }
 
 local function obj(props, required)
   return { type = "object", properties = props, required = required, additionalProperties = false }
@@ -50,6 +60,12 @@ M.schema = {
   add_key = obj({ id = S, name = S, t = T, value = VALUE, ease = S }, { "id", "name", "t", "value" }),
   move_key = obj({ id = S, name = S, t = T, to_t = T, value = VALUE, ease = S }, { "id", "name", "t" }),
   drop_key = obj({ id = S, name = S, t = T }, { "id", "name", "t" }),
+  enter = obj({ id = S, at = T, style = STYLE, dir = DIR, duration = NUM, distance = NUM }, { "id", "at" }),
+  exit = obj({ id = S, at = T, style = STYLE, dir = DIR, duration = NUM, distance = NUM }, { "id", "at" }),
+  stagger = obj({ ids = { type = "array", items = S }, at = T, step = NUM, style = STYLE, dir = DIR, duration = NUM,
+    distance = NUM }, { "ids", "at" }),
+  place = obj({ id = S, at = { type = "string", enum = { "left_third", "right_third", "top_third", "bottom_third",
+    "center", "top", "bottom", "left", "right" } } }, { "id", "at" }),
   bind = obj({ id = S, name = S, t = T, fact = { type = "string", description = "pred:args, such as beat:12" } },
     { "id", "name", "t", "fact" }),
   add_system = obj({ name = S, source = { type = "string", description = "Lua returning function(t, state, q) -> rows" },

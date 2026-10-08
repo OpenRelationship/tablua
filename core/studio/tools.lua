@@ -23,7 +23,7 @@ for _, m in ipairs(moves.order) do if m ~= "treat" then M.edits[#M.edits + 1] = 
 -- and a union (anyOf) is what a grammar-constrained provider fails to merge; Moonsplice, 2026-10-07): each field
 -- declared once with its type, and which fields each move takes said in the description
 M.fields = { "id", "name", "t", "to_t", "value", "ease", "fact", "node", "system", "source", "order", "clip", "asset",
-  "index", "before", "after" }
+  "index", "before", "after", "at", "ids", "step", "style", "dir", "duration", "distance" }
 
 function M.item()
   local props, said = { move = { type = "string", enum = M.edits } }, {}

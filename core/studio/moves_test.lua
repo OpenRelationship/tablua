@@ -64,4 +64,19 @@ spec.test("move_clip puts a clip at another place in its track: by index, before
   spec.same({ moves.check("move_clip", { id = "shot2", index = "first" }) }, { nil, "move_clip.index is not number" })
 end)
 
+spec.test("the compound moves are offered with their fields, and checked like the others", function()
+  local tools = require("studio.tools")
+  local item = tools.item()
+  for _, m in ipairs({ "enter", "exit", "stagger", "place" }) do
+    local offered = false
+    for _, e in ipairs(item.properties.move.enum) do offered = offered or e == m end
+    spec.ok(offered, m)
+  end
+  for _, f in ipairs({ "at", "ids", "step", "style", "dir", "duration", "distance" }) do spec.ok(item.properties[f], f) end
+  spec.ok(moves.check("enter", { id = "title", at = "beat:4", style = "rise" }))
+  spec.same({ moves.check("stagger", { ids = { "a", "b" } }) }, { nil, "stagger needs at" })
+  spec.same({ moves.check("enter", { id = "t", at = 1, duration = "long" }) }, { nil, "enter.duration is not number" })
+  spec.ok(moves.check("place", { id = "logo", at = "left_third" }))
+end)
+
 spec.run()
