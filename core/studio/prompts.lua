@@ -95,8 +95,8 @@ function M.system(kind, index, opts)
   return "You are building a Moonsplice " .. what .. " inside Tablua, a harness that gives you tools to read, change "
     .. "and see it.\n\n<tools>\n" .. table.concat(tools, "\n") .. "\n</tools>\n\n<rules>\n" .. table.concat(rules, "\n")
     .. "\n</rules>\n\n<comp>\n" .. M.rows .. "\n</comp>\n\n<bans>\n" .. M.bans:gsub("^\n", "") .. "\n</bans>"
-    .. (index and index ~= "" and ("\n\n<reference>\nThe engine's reference, a section at a time with the reference "
-      .. "tool:\n" .. index .. "\n</reference>") or "")
+    .. (index and index ~= "" and ("\n\n<reference>\n" .. (opts and opts.head and opts.head ~= "" and (opts.head .. "\n") or "")
+      .. "The engine's reference, a section at a time with the reference tool:\n" .. index .. "\n</reference>") or "")
 end
 
 function M.director(ask, kind, comp)

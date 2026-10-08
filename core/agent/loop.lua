@@ -6,7 +6,9 @@
 --
 --   local loop = require("agent.loop")
 --   local l = loop.new{ model, system, tools, before_tool?, after_tool?, finish_turn?, transform?, on?,
---                       reasoning_effort?, max_tokens? }
+--                       reasoning_effort?, max_tokens?, keep_images? }
+--   keep_images: send only the newest n tool images; an older one goes as a line saying it was dropped (a run that
+--   looks twenty times otherwise pays for twenty pictures on every turn)
 --   l:prompt(text | message) -> { stop, error?, messages }   stop: "stop" | "error" | "aborted" | "ended"
 --   l:continue() -> the same, from the transcript as it is (its last message a user or tool turn)
 --   l:steer(text | message)      read before the next reply      l:follow_up(text | message)   read when it would stop
@@ -67,8 +69,19 @@ end
 
 -- the transcript as the provider takes it: the loop's own fields left out, and a result's image sent as a user
 -- turn after the tool turns it belongs to (a tool turn carries text only)
-function M.convert(messages)
+function M.convert(messages, keep_images)
   local out, images = {}, {}
+  -- the tool messages whose image goes: all but the newest keep_images of them
+  local drop = {}
+  if keep_images then
+    local seen = 0
+    for i = #messages, 1, -1 do
+      if messages[i].role == "tool" and messages[i].image then
+        seen = seen + 1
+        if seen > keep_images then drop[i] = true end
+      end
+    end
+  end
   local function flush()
     if #images == 0 then return end
     local parts = { { type = "text", text = "The image" .. (#images > 1 and "s" or "") .. " from the tool results above." } }
@@ -78,11 +91,13 @@ function M.convert(messages)
     out[#out + 1] = { role = "user", content = parts }
     images = {}
   end
-  for _, m in ipairs(messages) do
+  for i, m in ipairs(messages) do
     if m.role ~= "tool" then flush() end
     if m.role == "tool" then
-      out[#out + 1] = { role = "tool", tool_call_id = m.tool_call_id, name = m.name, content = m.content }
-      if m.image then images[#images + 1] = m.image end
+      local content = m.content
+      if drop[i] then content = (content or "") .. "\n(Its image is not sent again: a newer one is below.)" end
+      out[#out + 1] = { role = "tool", tool_call_id = m.tool_call_id, name = m.name, content = content }
+      if m.image and not drop[i] then images[#images + 1] = m.image end
     elseif m.role == "assistant" then
       out[#out + 1] = { role = "assistant", content = m.content or "", tool_calls = m.tool_calls,
         reasoning_content = m.reasoning_content }
@@ -98,7 +113,7 @@ end
 local function respond(self)
   local msgs = self.messages
   if self.o.transform then msgs = self.o.transform(msgs, self) end
-  local req = { system = self.o.system, messages = M.convert(msgs), reasoning_effort = self.o.reasoning_effort,
+  local req = { system = self.o.system, messages = M.convert(msgs, self.o.keep_images), reasoning_effort = self.o.reasoning_effort,
     max_tokens = self.o.max_tokens }
   if #self.declared > 0 then req.tools, req.tool_choice = self.declared, "auto" end
   local ok, text, record = pcall(self.o.model.chat, self.o.model, req)

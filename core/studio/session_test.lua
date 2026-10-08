@@ -379,4 +379,41 @@ spec.test("a sheet the engine reported but did not write is a failed look, no em
     end
   end
 end)
+spec.test("a later ask on the same comp starts with the earlier asks, what was handed in, and the direction", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  t:message("ask1", 0, { role = "user", content = "The ask (a motion piece): a tide clock" })
+  t:message("ask1", 0, { role = "assistant", content = "Treatment: one waterline rises and falls; the title hangs from it." })
+  t:message("ask1", 3, { role = "assistant", content = "A tide clock: the title hangs from the line." })
+  t:run{ todo = "ask1", shipped = true, answered = true, works = true, changed = true, steps = 3 }
+  local past = session.history(t, "ask2")
+  spec.eq(#past, 1)
+  spec.same({ past[1].ask, past[1].status, past[1].said }, { "a tide clock", "complete",
+    "A tide clock: the title hangs from the line." })
+  local m = model({ { text = "Nothing to change." }, { text = "It already does." } })
+  local s = session.new{ engine = engine(), model = m, judge = judge, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png",
+    ask = "make the title larger", reference = CARD, todo = "ask2", exec = function() return { code = 0, stdout = "" } end }
+  s:run()
+  local first
+  for _, msg in ipairs(m.seen[1].messages) do if msg.role == "user" then first = msg.content break end end
+  spec.ok(first:find("1. a tide clock -> complete: A tide clock: the title hangs from the line.", 1, true), first)
+  spec.ok(first:find("The direction so far (the first treatment): Treatment: one waterline", 1, true), first)
+  spec.ok(first:find("The ask (a motion piece): make the title larger", 1, true), first)
+  -- and a third ask reads both, the second's ask parsed from behind the history
+  local again = session.history(t, "ask3")
+  spec.same({ again[1].ask, again[2].ask }, { "a tide clock", "make the title larger" })
+end)
+
+spec.test("a finding reads with its frames, what was measured against what it wants, and its fix", function()
+  local tools = require("studio.tools")
+  local text = tools.found({
+    { code = "expect_failed", severity = "error", id = "title", name = "", f0 = 45, f1 = 45, measured = 0.2,
+      threshold = 1, op = ">=", detail = "the title is shown (expect e1)", suggestion = "make it true" },
+    { code = "contrast_static", severity = "error", id = "cap", f0 = 0, f1 = 90, measured = 2.1, threshold = 4.5,
+      detail = "2.10:1 vs required 4.5:1" },
+  })
+  spec.ok(text:find("- error expect_failed on title at f45 (measured 0.2, wants >= 1): the title is shown (expect e1). Fix: make it true",
+    1, true), text)
+  spec.ok(text:find("- error contrast_static on cap at f0..f90 (measured 2.1, threshold 4.5)", 1, true), text)
+end)
+
 spec.run()

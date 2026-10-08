@@ -242,6 +242,13 @@ function M.index(card)
   return table.concat(out, "\n")
 end
 
+-- the card's head, its first paragraph: what the card is and how to read it ("Exact. If it is not listed here, it
+-- does not exist."); the system prompt carries it with the index, since the reference tool returns sections only
+function M.head(card)
+  local head = sections(card or "")
+  return ((head:match("^%s*(.-)\n%s*\n") or head):gsub("%s+$", ""))
+end
+
 -- one section by name, or nil and the names there are
 function M.section(card, name)
   local _, by, order = sections(card or "")

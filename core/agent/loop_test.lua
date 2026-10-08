@@ -167,4 +167,29 @@ spec.test("a model that said nothing is asked once more; one no provider answere
   local ok, why = pcall(hard.chat, hard, {})
   spec.same({ ok, why }, { false, "openrouter answered 400: bad request" })
 end)
+spec.test("keep_images sends only the newest tool images, and says an older one was dropped", function()
+  local loop = require("agent.loop")
+  local msgs = {
+    { role = "user", content = "go" },
+    { role = "assistant", content = "", tool_calls = { { id = "a" } } },
+    { role = "tool", tool_call_id = "a", name = "look", content = "sheet one", image = "ONE" },
+    { role = "assistant", content = "", tool_calls = { { id = "b" } } },
+    { role = "tool", tool_call_id = "b", name = "look", content = "sheet two", image = "TWO" },
+  }
+  local function images(out)
+    local got = {}
+    for _, m in ipairs(out) do
+      if type(m.content) == "table" then
+        for _, p in ipairs(m.content) do if p.type == "image_url" then got[#got + 1] = p.image_url.url end end
+      end
+    end
+    return table.concat(got, ",")
+  end
+  spec.eq(images(loop.convert(msgs)), "data:image/png;base64,ONE,data:image/png;base64,TWO")
+  local out = loop.convert(msgs, 1)
+  spec.eq(images(out), "data:image/png;base64,TWO")
+  spec.ok(out[3].content:find("not sent again", 1, true), out[3].content)
+  spec.eq(out[5].content, "sheet two")
+end)
+
 spec.run()

@@ -62,6 +62,27 @@ local function counts(findings)
   return e, w
 end
 
+-- where a finding is, in frames (the engine's f0..f1 when it gives them), as " at f12" or " at f12..f40"
+function M.frames(f)
+  if type(f.f0) ~= "number" then return "" end
+  if type(f.f1) ~= "number" or f.f1 == f.f0 then return (" at f%d"):format(f.f0) end
+  return (" at f%d..f%d"):format(f.f0, f.f1)
+end
+
+local function num(v) return (("%.3f"):format(v):gsub("0+$", ""):gsub("%.$", "")) end
+
+-- what was measured against what it should be: " (measured 0.2, wants >= 1)", or "" when the engine gave neither
+function M.measure(f)
+  local m, w = tonumber(f.measured), tonumber(f.threshold)
+  if not m and not w then return "" end
+  local parts = {}
+  if m then parts[#parts + 1] = "measured " .. num(m) end
+  if w then
+    parts[#parts + 1] = (f.op and f.op ~= "") and ("wants " .. f.op .. " " .. num(w)) or ("threshold " .. num(w))
+  end
+  return " (" .. table.concat(parts, ", ") .. ")"
+end
+
 -- errors, then warnings, a line each (info judges nothing)
 function M.found(findings, max)
   local out = {}
@@ -69,8 +90,9 @@ function M.found(findings, max)
   for _, sev in ipairs({ "error", "warn" }) do
     for _, f in ipairs(findings or {}) do
       if (f.severity or "error") == sev then
-        out[#out + 1] = ("- %s %s%s%s"):format(sev == "warn" and "warning" or sev, f.code, (f.id or "") ~= "" and (" on " .. f.id .. ((f.name or "") ~= ""
-          and ("." .. f.name) or "")) or "", (f.detail or "") ~= "" and (": " .. clip(f.detail, 200)) or "")
+        out[#out + 1] = ("- %s %s%s%s%s%s%s"):format(sev == "warn" and "warning" or sev, f.code, (f.id or "") ~= "" and (" on " .. f.id .. ((f.name or "") ~= ""
+          and ("." .. f.name) or "")) or "", M.frames(f), M.measure(f), (f.detail or "") ~= "" and (": " .. clip(f.detail, 200)) or "",
+          (f.suggestion or "") ~= "" and (". Fix: " .. clip(f.suggestion, 160)) or "")
       end
     end
   end
@@ -291,7 +313,24 @@ function M.list(s)
       return { content = text, details = { verb = "reference", outcome = "complete" } }
     end }
 
-  local list = { brief, patch, expect, look, reference }
+  local query = { name = "query", description = "Ask the comp a question in SQL (SQLite, read-only). Tables: comp, "
+      .. "node, prop, key, motion, system, asset, fact, expect (its rows); derived (beat, bar and word facts); box "
+      .. "(id, f0, f1, x0, y0, x1, y1, vis: every node's box on the canvas per run of frames); finding (what lint "
+      .. "finds). For what no expectation covers: which texts overlap between f30 and f60, what shows when beat:9 "
+      .. "lands, how far the logo travels. A question worth keeping becomes an expectation.",
+    parameters = { type = "object", required = { "sql" }, properties = { sql = { type = "string" } } },
+    execute = function(args)
+      local r = s.engine:query(s.comp, args.sql)
+      if r.error then
+        return { content = ("SQLite refused it: %s\nTables: %s"):format(r.error, table.concat(r.tables or {}, ", ")),
+          details = { verb = "query", outcome = "rejected" } }
+      end
+      local lines = { ("%d rows"):format(r.count or #(r.rows or {})) }
+      for _, row in ipairs(r.rows or {}) do lines[#lines + 1] = json.encode(row) end
+      return { content = clip(table.concat(lines, "\n"), M.max), details = { verb = "query", outcome = "complete" } }
+    end }
+
+  local list = { brief, patch, expect, look, reference, query }
   -- other people's apps, when the host gives the session connectory's port (studio.connect)
   if s.o and s.o.connect then list[#list + 1] = require("studio.connect").tool(s) end
   -- Rust and Bevy tools, when the host gives the session its plugin directory (studio.plugins)

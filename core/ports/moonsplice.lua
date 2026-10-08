@@ -9,6 +9,8 @@
 --   m:expect(comp, rows) -> { added, rejected = { { row, why } }, digest_before, digest_after, findings }   the ask as
 --                         predicates (rows.robot, "Expectations"), added once by the harness: no patch move touches them
 --   m:lint(comp) -> findings      m:check(comp) -> findings      m:sheet(comp, out_png, at?) -> { picks, seconds }
+--   m:query(comp, sql) -> { rows, count, tables } or { error, tables }   read-only SQL over the comp's rows, its
+--                         derived facts, every node's box per run of frames, and its findings (rows-2.robot, "Query")
 --
 -- Every command prints JSON and exits 0 when it ran; any other exit is the command failing, raised with its stderr.
 -- A rejected patch is data. COMP is written back in rows form by patch.
@@ -58,6 +60,7 @@ function P:brief(comp)
   return r.stdout or ""
 end
 function P:lint(comp) return self:run("lint", comp).findings or {} end
+function P:query(comp, sql) return self:run("query", comp, sql) end
 function P:check(comp) return self:run("check", comp).findings or {} end
 -- at: times (seconds or fact references) to sample besides the regular frames (proposed --at, 2026-10-07)
 function P:sheet(comp, out, at)

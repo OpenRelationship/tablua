@@ -191,6 +191,49 @@ local function handed_in(s, turn, l)
   return nil
 end
 
+-- The asks made of this comp before this one, from the same sheet (the editor keeps one per comp): each one's ask,
+-- what the model said when it handed in, and whether it was complete; and the direction, the first treatment
+-- written. A chat is many runs on one comp, and without this each ask started from nothing (2026-10-07).
+function M.history(t, todo)
+  local order = t.db:exec("select todo, min(rowid) as r from tablua_message where todo <> ? group by todo order by r",
+    { todo })
+  local out = {}
+  for _, row in ipairs(order) do
+    local msgs = t.db:exec("select role, content, tool_calls from tablua_message where todo = ? order by i", { row.todo })
+    local h = { todo = row.todo }
+    for _, m in ipairs(msgs) do
+      if m.role == "user" and not h.ask then h.ask = (m.content or ""):match("The ask %([^)]*%): (.*)$") or m.content end
+      if m.role == "assistant" and (m.content or "") ~= "" then
+        h.treatment = h.treatment or m.content
+        if not m.tool_calls or m.tool_calls == "" or m.tool_calls == "[]" then h.said = m.content end
+      end
+    end
+    local run = t.db:exec("select works from tablua_run where todo = ?", { row.todo })[1]
+    h.status = run and (run.works == 1 and "complete" or "partial") or "unfinished"
+    if h.ask then out[#out + 1] = h end
+  end
+  return out
+end
+
+local function clip(s, n)
+  s = tostring(s or ""):gsub("%s+", " ")
+  return #s > n and (s:sub(1, n - 3) .. "...") or s
+end
+
+-- the history as the first message's head, or ""
+function M.history_text(past)
+  if #past == 0 then return "" end
+  local lines = { "Earlier asks on this comp, oldest first. The comp already holds what they made; keep it unless "
+    .. "this ask changes it." }
+  for i, h in ipairs(past) do
+    lines[#lines + 1] = ("%d. %s -> %s: %s"):format(i, clip(h.ask, 300), h.status, clip(h.said or "(no hand-in)", 400))
+  end
+  local direction
+  for _, h in ipairs(past) do direction = direction or h.treatment end
+  if direction then lines[#lines + 1] = "The direction so far (the first treatment): " .. clip(direction, 1200) end
+  return table.concat(lines, "\n") .. "\n\n"
+end
+
 function S:run()
   self:snap(0)
   self.seed, self.seed_expects = self.digest, self:expects()
@@ -198,8 +241,8 @@ function S:run()
   for _, x in ipairs(self.t:comp_rows(self.todo, 0).tables.expect or {}) do self.seed_ids[x.id] = true end
   local model = loop.retrying(self.o.model)
   local l = loop.new{ model = model, system = prompts.system(self.kind, context.index(self.reference),
-      { connect = self.o.connect ~= nil, plugins = self.o.plugins ~= nil }),
-    tools = tools.list(self), reasoning_effort = "low",
+      { connect = self.o.connect ~= nil, plugins = self.o.plugins ~= nil, head = context.head(self.reference) }),
+    tools = tools.list(self), reasoning_effort = "low", keep_images = 1,
     transform = compact.transform(model, { window = (self.o.compact or {}).window or M.window,
       reserve = (self.o.compact or {}).reserve, keep = (self.o.compact or {}).keep,
       render = function() return self:checkpoint() end }),
@@ -220,7 +263,9 @@ function S:run()
       self.t:message(self.todo, self.n, m)
     end }
   self.loop = l
-  local out = l:prompt(("The ask (a %s): %s"):format(self.kind == "game" and "game" or "motion piece", self.ask))
+  self.past = M.history(self.t, self.todo)
+  local out = l:prompt(M.history_text(self.past)
+    .. ("The ask (a %s): %s"):format(self.kind == "game" and "game" or "motion piece", self.ask))
   local errors = self:errors()
   -- a hand-in on the comp as it was given is never complete, whatever its findings (pi-s4 handed in the seed)
   local status = (out.stop == "stop" and errors == 0 and self.digest ~= self.seed) and "complete" or "partial"

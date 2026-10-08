@@ -105,4 +105,12 @@ spec.test("the card's index names each section with its summary, and one section
   spec.eq(context.changes(sheet(), "r", 4), "errors 1->3 (+2 expect_failed: almanac, tide-1)")
   spec.eq(context.changes(sheet(), "r", 3), nil)
 end)
+spec.test("the card's head reaches the system prompt with the index", function()
+  local card = "*** Settings ***\nDocumentation    Moonsplice API card. Exact. If it is not listed here, it does not exist.\n"
+    .. "...\n...    More.\n\n*** Test Cases ***\nThe moves\n    [Documentation]    Summary: the patches.\n    ...    x\n"
+  spec.eq(context.head(card), "Moonsplice API card. Exact. If it is not listed here, it does not exist.")
+  local sys = require("studio.prompts").system("video", context.index(card), { head = context.head(card) })
+  spec.ok(sys:find("<reference>\nMoonsplice API card. Exact. If it is not listed here, it does not exist.\n", 1, true), sys)
+end)
+
 spec.run()
