@@ -80,6 +80,35 @@ function S:expects()
     { self.todo, self.snapped or 0 })[1].c
 end
 
+-- what the hand-in rests on, as rows (tablua_handin): the expectations held and failing, the errors and warnings
+-- open, whether the last look and the critic saw the comp as it was handed in, and which tiers of the engine checked
+-- it. A run that says it is done and has not looked at its last change says so here, whatever its message says.
+function S:handin()
+  local all, failing = self:errors()
+  local warnings, tiers, seen = 0, {}, {}
+  for _, f in ipairs(self.findings or {}) do
+    if f.severity == "warn" then warnings = warnings + 1 end
+    local tier = f.tier or "lint"
+    if not seen[tier] then seen[tier] = true; tiers[#tiers + 1] = tier end
+  end
+  table.sort(tiers)
+  local total = self:expects()
+  local current = self.looked ~= nil and self.looked == self.digest
+  return {
+    { name = "expectations", value = total },
+    { name = "expectations_held", value = total - failing },
+    { name = "expectations_failing", value = failing },
+    { name = "errors_open", value = all - failing },
+    { name = "warnings_open", value = warnings },
+    { name = "looked_at_final", value = current and 1 or 0,
+      note = current and "" or "the comp changed after the last look: what it shows was not seen" },
+    { name = "critic_on_final", value = (self.critic and current) and 1 or 0,
+      note = (self.critic and current) and "" or "no critic's scores on the comp as handed in" },
+    { name = "changed", value = self.digest ~= self.seed and 1 or 0 },
+    { name = "checked_by", value = #tiers, note = table.concat(tiers, ",") },
+  }
+end
+
 local function stage(s) return s:errors() > 0 and "building" or "polishing" end
 
 -- the comp's state in one line, from the newest snapshot: what every result ends with, so the newest message in an
@@ -271,10 +300,12 @@ function S:run()
   local status = (out.stop == "stop" and errors == 0 and self.digest ~= self.seed) and "complete" or "partial"
   self.t:run{ todo = self.todo, shipped = out.stop == "stop", answered = out.stop == "stop", works = status == "complete",
     changed = self.digest ~= self.seed, steps = self.n }
+  local handin = self:handin()
+  self.t:handin(self.todo, handin)
   -- what still waits on the person (a connection, an approval), for whoever drives this run
   local asks = self.o.connect and require("studio.connect").open(self) or {}
   return { stop = out.stop, status = status, error = out.error, steps = self.n, pass = self:pass(), said = self.said,
-    asks = asks }
+    asks = asks, handin = handin }
 end
 
 return M

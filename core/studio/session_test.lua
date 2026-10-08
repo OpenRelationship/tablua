@@ -416,4 +416,21 @@ spec.test("a finding reads with its frames, what was measured against what it wa
   spec.ok(text:find("- error contrast_static on cap at f0..f90 (measured 2.1, threshold 4.5)", 1, true), text)
 end)
 
+spec.test("a hand-in is rows of what it rests on, and says when its last look was before its last change", function()
+  local t = require("tablua").open(require("ports.sqlite").open(":memory:"), { clock = function() return "T" end })
+  local m = model({ { calls = { { "look", {} } } }, { text = "done" }, { text = "done" } })
+  local s = session.new{ engine = engine(), model = m, tablua = t, comp = "/w/c.lua", sheet = "/w/s.png", ask = "x",
+    todo = "r", exec = function() return { code = 0, stdout = "UE5H" } end }
+  local out = s:run()
+  local by = {}
+  for _, r in ipairs(t.db:exec("select name, value, note from tablua_handin where todo = 'r'")) do by[r.name] = r end
+  spec.ok(by.expectations and by.errors_open and by.looked_at_final and by.checked_by, "the rows are written")
+  spec.eq(#out.handin, 9)
+  s.digest = "changed-after-the-look"
+  local rows = {}
+  for _, r in ipairs(s:handin()) do rows[r.name] = r end
+  spec.eq(rows.looked_at_final.value, 0)
+  spec.ok(rows.looked_at_final.note:find("not seen", 1, true), rows.looked_at_final.note)
+end)
+
 spec.run()

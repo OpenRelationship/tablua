@@ -195,6 +195,15 @@ function T:run(r)
       steps = r.steps, cost = r.cost, at = self.clock() })
 end
 
+-- what a hand-in rests on, one row per measure (studio.session: expectations held and failing, errors and warnings
+-- open, whether the last look saw the comp as handed in): "done" with its evidence, and what it did not cover
+function T:handin(todo, rows)
+  for _, r in ipairs(rows) do
+    put(self.db, "tablua_handin", { "todo", "name", "value", "note" },
+      { todo = todo, name = r.name, value = r.value, note = r.note or "" })
+  end
+end
+
 function T:prediction(todo, n, head, move, p)
   put(self.db, "tablua_prediction", { "todo", "n", "head", "move", "p" },
     { todo = todo, n = n, head = head, move = move, p = p })

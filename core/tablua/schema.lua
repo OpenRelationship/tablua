@@ -138,6 +138,9 @@ create table if not exists tablua_outcome (
 create table if not exists tablua_run (
   todo text primary key, shipped integer, answered integer, works integer, right integer,
   changed integer, steps integer, cost real, at text);
+create table if not exists tablua_handin (
+  todo text not null, name text not null, value real, note text not null default '',
+  primary key (todo, name));
 create table if not exists tablua_fit (
   head text not null, schema text not null, id text not null, rows integer not null, at text,
   primary key (head, schema));
