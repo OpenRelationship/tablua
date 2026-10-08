@@ -50,4 +50,24 @@ spec.test("the tool is offered only when the host gives a directory", function()
   spec.ok(not names(tools.list({ o = {} })).plugins)
 end)
 
+spec.test("add pins a wired tool through the host and says how a system calls it; without add it is not offered", function()
+  local s = session()
+  local added = {}
+  s.o.plugins.add = function(name)
+    if name ~= "noiz" then return nil, name .. " is not wired" end
+    added[#added + 1] = name
+    return { name = "noiz", digest = "sha256:ab", class = "stateless", call = 'plugin("noiz", { noise = "perlin" })' }
+  end
+  local tool = plugins.tool(s)
+  local r = tool.execute({ action = "add", name = "noiz" })
+  spec.ok(r.content:find("added noiz (sha256:ab, class stateless)", 1, true), r.content)
+  spec.ok(r.content:find('plugin("noiz"', 1, true))
+  spec.eq(added[1], "noiz")
+  spec.err(function() tool.execute({ action = "add", name = "bevy_vello" }) end, "bevy_vello is not wired")
+  spec.ok(tool.description:find("add (name)", 1, true))
+  local without = plugins.tool(session())
+  spec.ok(not without.description:find("add (name)", 1, true))
+  spec.err(function() without.execute({ action = "add", name = "noiz" }) end, "action is search or show")
+end)
+
 spec.run()
